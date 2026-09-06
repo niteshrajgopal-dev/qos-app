@@ -27,6 +27,16 @@ docker compose up --build
 Image: `qosdevacr.azurecr.io/qos-api:0.1`  
 Container App: `ca-qos-dev-api` in `rg-qos-dev-core`
 
+```powershell
+# Build image in ACR and push
+.\deploy\build-and-push-to-acr.ps1
+
+# Deploy image from ACR to Container Apps
+.\deploy\deploy-to-acr.ps1 -WaitForHealth
+```
+
+Or manually:
+
 ```bash
 az acr build --registry qosdevacr --image qos-api:0.1 .
 az containerapp update \
