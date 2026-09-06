@@ -7,7 +7,7 @@
 
 ## 1. Overview
 
-Next.js API with Prisma + PostgreSQL, containerized and deployed to existing Azure Container Apps infrastructure, replacing the hello-world sample image.
+Next.js API with Drizzle + PostgreSQL, containerized and deployed to existing Azure Container Apps infrastructure, replacing the hello-world sample image.
 
 ## 2. Mode
 
@@ -47,7 +47,7 @@ Prisma `DATABASE_URL` is constructed at runtime from these variables.
 ## 6. Deployment Steps
 
 - [x] Scaffold Next.js + TypeScript
-- [x] Add Prisma + PostgreSQL schema
+- [x] Add Drizzle + PostgreSQL schema
 - [x] Add `/api/health` endpoint
 - [x] Create Dockerfile + docker-compose
 - [x] Build and push `qos-api:0.1` to ACR

@@ -11,7 +11,7 @@ export default function Home() {
           qos-api
         </h1>
         <p className="mt-4 text-zinc-600 dark:text-zinc-400">
-          Next.js API with Prisma and PostgreSQL, deployed on Azure Container
+          Next.js API with Drizzle and PostgreSQL, deployed on Azure Container
           Apps.
         </p>
         <Link

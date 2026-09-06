@@ -1,6 +1,6 @@
 # QOS API
 
-Next.js API with Prisma, PostgreSQL, Docker, and Azure Container Apps deployment.
+Next.js API with Drizzle, PostgreSQL, Docker, and Azure Container Apps deployment.
 
 ## Endpoints
 
