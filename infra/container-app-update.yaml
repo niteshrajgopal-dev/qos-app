@@ -1,0 +1,38 @@
+properties:
+  template:
+    containers:
+      - name: ca-qos-dev-api
+        image: qosdevacr.azurecr.io/qos-api:0.1
+        env:
+          - name: DB_HOST
+            secretRef: postgres-host
+          - name: DB_PORT
+            secretRef: postgres-port
+          - name: DB_NAME
+            secretRef: postgres-database
+          - name: DB_USER
+            secretRef: postgres-admin-user
+          - name: DB_PASSWORD
+            secretRef: postgres-admin-password
+        probes:
+          - type: Liveness
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 10
+            failureThreshold: 3
+          - type: Readiness
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 5
+            failureThreshold: 48
+          - type: Startup
+            httpGet:
+              path: /api/health
+              port: 3000
+            periodSeconds: 1
+            failureThreshold: 240
+        resources:
+          cpu: 0.5
+          memory: 1Gi
