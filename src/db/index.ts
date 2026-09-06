@@ -8,21 +8,35 @@ const globalForDb = globalThis as unknown as {
   sql: ReturnType<typeof postgres> | undefined;
 };
 
-function createDb() {
+function getDbConnection() {
+  if (globalForDb.db && globalForDb.sql) {
+    return { db: globalForDb.db, sql: globalForDb.sql };
+  }
+
   const sql = postgres(buildDatabaseUrl(), { max: 1 });
   const db = drizzle(sql);
+
+  globalForDb.db = db;
+  globalForDb.sql = sql;
 
   return { db, sql };
 }
 
-const cached = globalForDb.db && globalForDb.sql
-  ? { db: globalForDb.db, sql: globalForDb.sql }
-  : createDb();
+export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+  get(_target, prop) {
+    const { db: connection } = getDbConnection();
+    const value = connection[prop as keyof typeof connection];
 
-export const db = cached.db;
-export const sql = cached.sql;
+    return typeof value === "function"
+      ? value.bind(connection)
+      : value;
+  },
+});
 
-if (process.env.NODE_ENV !== "production") {
-  globalForDb.db = db;
-  globalForDb.sql = sql;
+export function closeDbConnection() {
+  if (globalForDb.sql) {
+    void globalForDb.sql.end({ timeout: 5 });
+    globalForDb.db = undefined;
+    globalForDb.sql = undefined;
+  }
 }
