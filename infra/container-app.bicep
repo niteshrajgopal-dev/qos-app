@@ -43,7 +43,7 @@ resource containerAppUpdate 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Liveness'
               httpGet: {
-                path: '/api/health'
+                path: '/api/health/live'
                 port: 3000
               }
               periodSeconds: 10
@@ -52,7 +52,7 @@ resource containerAppUpdate 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Readiness'
               httpGet: {
-                path: '/api/health'
+                path: '/api/health/ready'
                 port: 3000
               }
               periodSeconds: 5
@@ -61,7 +61,7 @@ resource containerAppUpdate 'Microsoft.App/containerApps@2024-03-01' = {
             {
               type: 'Startup'
               httpGet: {
-                path: '/api/health'
+                path: '/api/health/ready'
                 port: 3000
               }
               periodSeconds: 1

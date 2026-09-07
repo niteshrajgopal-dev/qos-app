@@ -17,19 +17,19 @@ properties:
         probes:
           - type: Liveness
             httpGet:
-              path: /api/health
+              path: /api/health/live
               port: 3000
             periodSeconds: 10
             failureThreshold: 3
           - type: Readiness
             httpGet:
-              path: /api/health
+              path: /api/health/ready
               port: 3000
             periodSeconds: 5
             failureThreshold: 48
           - type: Startup
             httpGet:
-              path: /api/health
+              path: /api/health/ready
               port: 3000
             periodSeconds: 1
             failureThreshold: 240

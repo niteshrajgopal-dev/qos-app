@@ -2,6 +2,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
 import { buildDatabaseUrl } from "@/lib/database-url";
+import { readAppEnv } from "@/lib/env";
 
 const globalForDb = globalThis as unknown as {
   db: ReturnType<typeof drizzle> | undefined;
@@ -13,7 +14,8 @@ function getDbConnection() {
     return { db: globalForDb.db, sql: globalForDb.sql };
   }
 
-  const sql = postgres(buildDatabaseUrl(), { max: 1 });
+  const env = readAppEnv();
+  const sql = postgres(buildDatabaseUrl(env), { max: env.dbPoolMax });
   const db = drizzle(sql);
 
   globalForDb.db = db;

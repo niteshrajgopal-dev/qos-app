@@ -1,22 +1,28 @@
-export function buildDatabaseUrl(): string {
-  if (process.env.DATABASE_URL) {
-    return process.env.DATABASE_URL;
+import { readAppEnv, type AppEnv, type EnvSource } from "@/lib/env";
+
+export function buildDatabaseUrl(
+  source: EnvSource | AppEnv = process.env,
+): string {
+  const env = isAppEnv(source) ? source : readAppEnv(source);
+
+  if (env.databaseUrl) {
+    return env.databaseUrl;
   }
 
-  const host = process.env.DB_HOST;
-  const port = process.env.DB_PORT ?? "5432";
-  const database = process.env.DB_NAME;
-  const user = process.env.DB_USER;
-  const password = process.env.DB_PASSWORD;
+  const { dbHost, dbPort, dbName, dbUser, dbPassword } = env;
 
-  if (!host || !database || !user || !password) {
+  if (!dbHost || !dbName || !dbUser || !dbPassword) {
     throw new Error(
       "Database configuration missing. Set DATABASE_URL or DB_HOST, DB_NAME, DB_USER, and DB_PASSWORD.",
     );
   }
 
-  const encodedUser = encodeURIComponent(user);
-  const encodedPassword = encodeURIComponent(password);
+  const encodedUser = encodeURIComponent(dbUser);
+  const encodedPassword = encodeURIComponent(dbPassword);
 
-  return `postgresql://${encodedUser}:${encodedPassword}@${host}:${port}/${database}?sslmode=require`;
+  return `postgresql://${encodedUser}:${encodedPassword}@${dbHost}:${dbPort}/${dbName}?sslmode=require`;
+}
+
+function isAppEnv(source: EnvSource | AppEnv): source is AppEnv {
+  return typeof (source as AppEnv).dbPoolMax === "number";
 }

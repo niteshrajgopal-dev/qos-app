@@ -30,7 +30,7 @@ Next.js API with Drizzle + PostgreSQL, containerized and deployed to existing Az
 - Build Docker image locally via `az acr build`
 - Push as `qosdevacr.azurecr.io/qos-api:0.1`
 - Update `ca-qos-dev-api` to use new image on port 3000
-- HTTP health probes on `/api/health`
+- HTTP probes: liveness `/api/health/live`, readiness and startup `/api/health/ready`
 
 ## 5. Environment Variables (from Key Vault)
 
@@ -42,7 +42,7 @@ Next.js API with Drizzle + PostgreSQL, containerized and deployed to existing Az
 | `DB_USER` | `postgres-admin-user` |
 | `DB_PASSWORD` | `postgres-admin-password` |
 
-Prisma `DATABASE_URL` is constructed at runtime from these variables.
+Drizzle `DATABASE_URL` is constructed at runtime from these variables.
 
 ## 6. Deployment Steps
 
@@ -67,4 +67,7 @@ az containerapp revision list --name ca-qos-dev-api --resource-group rg-qos-dev-
 
 curl https://ca-qos-dev-api.gentleplant-cc8574e8.uaenorth.azurecontainerapps.io/api/health
 # {"status":"healthy","service":"qos-api","database":"connected",...}
+
+# Liveness must succeed without depending on Postgres:
+# curl .../api/health/live  → {"status":"alive",...}
 ```

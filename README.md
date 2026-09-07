@@ -4,7 +4,9 @@ Next.js API with Drizzle, PostgreSQL, Docker, and Azure Container Apps deploymen
 
 ## Endpoints
 
-- `GET /api/health` — health check with database connectivity
+- `GET /api/health` — composite readiness (database required). Used by deploy scripts.
+- `GET /api/health/live` — process liveness. Does not touch the database.
+- `GET /api/health/ready` — readiness. Returns 503 if PostgreSQL is unreachable. Does not leak internals.
 
 ## Local development
 
@@ -16,16 +18,32 @@ npm run db:push
 npm run dev
 ```
 
+Quality gates:
+
+```bash
+npm run check
+```
+
+That runs typecheck, lint, and unit tests. Individual commands: `npm run typecheck`, `npm run lint`, `npm test`.
+
 ## Docker
 
 ```bash
 docker compose up --build
 ```
 
+## Database
+
+- Local iteration: `npm run db:push`
+- Versioned schema changes: edit `src/db/schema.ts`, then `npm run db:generate` and commit the SQL under `drizzle/`
+- Apply committed migrations: `npm run db:migrate`
+
 ## Azure deployment
 
 Image: `qosdevacr.azurecr.io/qos-api:0.1`  
 Container App: `ca-qos-dev-api` in `rg-qos-dev-core`
+
+Probes: liveness → `/api/health/live`, readiness and startup → `/api/health/ready`.
 
 ```powershell
 # Build image in ACR and push
