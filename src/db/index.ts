@@ -15,7 +15,17 @@ function getDbConnection() {
   }
 
   const env = readAppEnv();
-  const sql = postgres(buildDatabaseUrl(env), { max: env.dbPoolMax });
+  const sql = postgres(buildDatabaseUrl(env), { 
+      max: env.dbPoolMax,
+      connect_timeout: 10,
+      idle_timeout: 30,
+
+      ssl: {
+        rejectUnauthorized: true,
+        minVersion: "TLSv1.2",
+      },
+     });
+
   const db = drizzle(sql);
 
   globalForDb.db = db;
