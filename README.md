@@ -47,10 +47,16 @@ Probes: liveness → `/api/health/live`, readiness and startup → `/api/health/
 
 ```powershell
 # Build image in ACR and push
-.\deploy\build-and-push-to-acr.ps1
+.\deploy\build-and-push-to-acr.cmd
 
 # Deploy image from ACR to Container Apps
-.\deploy\deploy-to-acr.ps1 -WaitForHealth
+.\deploy\deploy-to-acr.cmd -WaitForHealth
+```
+
+The `.cmd` wrappers bypass a Restricted PowerShell execution policy. If you prefer to run `.ps1` files directly (and `npm` without calling `npm.cmd`):
+
+```powershell
+Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
 Or manually:

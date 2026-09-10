@@ -4,17 +4,17 @@
   Build the qos-api Docker image in Azure Container Registry and push it.
 
 .EXAMPLE
-  .\deploy\build-and-push-to-acr.ps1
+  .\deploy\build-and-push-to-acr.cmd
 
 .EXAMPLE
-  .\deploy\build-and-push-to-acr.ps1 -ImageTag "0.2"
+  .\deploy\build-and-push-to-acr.cmd -ImageTag "0.2"
 #>
 [CmdletBinding()]
 param(
     [string] $RegistryName = "qosdevacr",
     [string] $ResourceGroup = "rg-qos-dev-core",
     [string] $ImageName = "qos-api",
-    [string] $ImageTag = "0.1",
+    [string] $ImageTag = "0.2",
     [string] $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
     [switch] $ShowLogs
 )
@@ -59,20 +59,6 @@ try {
     & az @buildArgs
     if ($LASTEXITCODE -ne 0) {
         throw "ACR build failed."
-    }
-
-    if (-not $ShowLogs) {
-        $latestRun = az acr task list-runs `
-            --registry $RegistryName `
-            --output json `
-            | ConvertFrom-Json `
-            | Select-Object -First 1
-
-        if ($latestRun.status -ne "Succeeded") {
-            throw "Latest ACR run '$($latestRun.runId)' finished with status '$($latestRun.status)'."
-        }
-
-        Write-Host "ACR run '$($latestRun.runId)' succeeded."
     }
 
     Write-Host ""
