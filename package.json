@@ -16,7 +16,8 @@
     "check": "npm run typecheck && npm run lint && npm run test",
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsx scripts/seed-dev.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

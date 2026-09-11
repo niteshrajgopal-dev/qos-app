@@ -33,6 +33,18 @@ export default function Home() {
           >
             /ready
           </Link>
+          <Link
+            href="/platform/onboarding"
+            className="inline-flex items-center rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-900"
+          >
+            Operator onboarding
+          </Link>
+          <Link
+            href="/staff/request-access"
+            className="inline-flex items-center rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium text-zinc-900 transition hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-900"
+          >
+            Request staff access
+          </Link>
         </div>
       </main>
     </div>

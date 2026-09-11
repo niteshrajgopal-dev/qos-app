@@ -1,12 +1,8 @@
-import { drizzle } from "drizzle-orm/postgres-js";
-import postgres from "postgres";
-
-import { buildDatabaseUrl } from "@/lib/database-url";
-import { readAppEnv } from "@/lib/env";
+import { createDbClient } from "@/db/client";
 
 const globalForDb = globalThis as unknown as {
-  db: ReturnType<typeof drizzle> | undefined;
-  sql: ReturnType<typeof postgres> | undefined;
+  db: ReturnType<typeof createDbClient>["db"] | undefined;
+  sql: ReturnType<typeof createDbClient>["sql"] | undefined;
 };
 
 function getDbConnection() {
@@ -14,27 +10,13 @@ function getDbConnection() {
     return { db: globalForDb.db, sql: globalForDb.sql };
   }
 
-  const env = readAppEnv();
-  const sql = postgres(buildDatabaseUrl(env), { 
-      max: env.dbPoolMax,
-      connect_timeout: 10,
-      idle_timeout: 30,
-
-      ssl: {
-        rejectUnauthorized: true,
-        minVersion: "TLSv1.2",
-      },
-     });
-
-  const db = drizzle(sql);
-
+  const { db, sql } = createDbClient();
   globalForDb.db = db;
   globalForDb.sql = sql;
-
   return { db, sql };
 }
 
-export const db = new Proxy({} as ReturnType<typeof drizzle>, {
+export const db = new Proxy({} as ReturnType<typeof createDbClient>["db"], {
   get(_target, prop) {
     const { db: connection } = getDbConnection();
     const value = connection[prop as keyof typeof connection];
@@ -52,3 +34,5 @@ export function closeDbConnection() {
     globalForDb.sql = undefined;
   }
 }
+
+export { createDbClient, createSqlClient, type DbClient } from "@/db/client";

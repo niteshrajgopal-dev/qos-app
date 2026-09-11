@@ -8,6 +8,22 @@ on:
 jobs:
   quality:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: qos
+          POSTGRES_PASSWORD: qos
+          POSTGRES_DB: qos
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U qos -d qos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://qos:qos@localhost:5432/qos
     steps:
       - uses: actions/checkout@v4
 

@@ -12,6 +12,84 @@ A synthetic flower shop will be Customer #2 and will be used to prove that the s
 
 ---
 
+
+# 0. Linear Is the Executable Source of Truth
+
+This handover is **not** the backlog.
+
+Use it for:
+- architecture
+- Azure/deployment baseline
+- product boundaries
+- security/tenancy guardrails
+- development conventions
+- the execution protocol
+
+Use **Linear** for:
+- what to build next
+- issue scope
+- dependency/blocker relationships
+- milestone/order
+- acceptance criteria
+- decisions and issue comments
+- implementation evidence
+- completion state
+
+Linear document:
+- `Cursor Execution Protocol — Phase 1`
+- https://linear.app/qosapp/document/cursor-execution-protocol-phase-1-2b0b2ec7ac62
+
+When the handover and current Linear state differ, do not blindly follow a hard-coded sequence in this document. Refresh Linear and follow the current approved issue/dependency state.
+
+## Source-of-truth precedence
+
+1. Explicit owner decisions recorded in the Phase 1 Product Discovery and Decision Register and later Linear issue updates/comments.
+2. Current Linear issue description, relations, milestone, labels, status and acceptance criteria.
+3. This handover for architecture/infrastructure/guardrails.
+4. Repository documentation/code after checking whether it is stale.
+
+Do not invent a product decision to resolve a conflict.
+
+## The repeated Cursor command
+
+The owner should be able to say:
+
+> **Work on the next thing.**
+
+Every time that instruction is given, Cursor must:
+
+1. Refresh the QOS project in Linear.
+2. Read the full candidate issue, comments, linked decisions and `blockedBy` / `blocks` relationships.
+3. Select the next eligible issue based on dependency order first, then milestone need, then priority.
+4. Never select an issue simply because its number is lowest or because it appears next in this handover.
+5. If the issue is blocked by an unresolved owner decision, credential, external account or required source artifact, do not guess.
+6. Move only the selected issue into active work using the team's current Linear status.
+7. Before coding, inspect the relevant code/database state and map the implementation plan directly to the issue acceptance criteria.
+8. Implement the smallest coherent solution that satisfies the issue.
+9. Run typecheck, lint, tests, build and all issue-specific migration/security/API checks.
+10. Update the Linear issue with implementation evidence, test results, deployment/validation evidence and known exclusions.
+11. Mark the issue Done only when the actual acceptance criteria are met.
+12. Re-query Linear before choosing the next issue.
+
+If an issue is blocked but another issue is genuinely independent and unblocked, Cursor may proceed with that issue. It must not bypass a prerequisite that would make downstream work unsafe.
+
+Items labelled `Needs decision` may only be implemented to the extent explicitly allowed by Linear. Mocks/fixtures may be used only where the issue says they are allowed.
+
+## Current starting point
+
+At the time this handover was updated:
+
+- `QOS-5` — **Record the existing QOS source, migration and deployment baseline** — is unblocked and blocks the first tenant/data implementation work.
+- `QOS-7` — **Add the one-owner tenant/location migration with runtime isolation tests** — is blocked by QOS-5 and blocks much of the tenant-dependent Phase 1 backlog, including Storefront work.
+
+Therefore the expected initial path is:
+
+`QOS-5 -> refresh Linear -> QOS-7 if still next/eligible -> refresh Linear -> next eligible issue`
+
+This is an initial state, not a permanently hard-coded backlog order.
+
+---
+
 # 1. Current State
 
 Development has not materially started yet. The repository is still essentially a skeleton.
@@ -741,11 +819,17 @@ Cursor must:
 
 # 22. Initial Cursor Task
 
-When development officially starts, give Cursor this instruction first:
+When development officially starts, give Cursor this instruction:
 
-> Review the entire `C:\Dev\qosapp` repository and the QOS Phase 1 Cursor Development Handover. Do not modify any code yet. Produce an implementation plan for Stage 0 and Stage 1 only. Inspect the existing source structure, Drizzle configuration, database access layer, API routes, authentication/middleware, tests, Docker/deployment files and the actual development PostgreSQL `qos` schema. Determine whether the deployed database is empty or requires a Drizzle baseline. Then propose the smallest safe first implementation slice for the multi-tenant foundation. Do not run `db:push`, do not create a migration, do not change Azure infrastructure, and do not touch the Quotes repository yet.
+> Read the QOS Phase 1 Cursor Development Handover and connect to/refresh the QOS project in Linear. Linear is the executable source of truth; the handover is architecture and guardrails. Do not modify code yet. Determine the next eligible Linear issue from the current dependency graph and read its full description, comments, linked decisions and relations. Produce a plan mapped to that issue's acceptance criteria. For the current recorded state, QOS-5 is expected to be first because it is unblocked and blocks the tenant foundation, but verify that in Linear before proceeding. Do not use `db:push`, do not create migrations during discovery, do not change Azure infrastructure unless the selected Linear issue explicitly requires it, and do not touch the Quotes repository unless the selected issue requires it.
 
-After reviewing Cursor's plan, implementation can begin.
+After reviewing Cursor's first plan, implementation can begin.
+
+For every subsequent cycle, the owner can simply say:
+
+> **Work on the next thing.**
+
+Cursor must then follow the Linear execution loop defined in Section 0.
 
 ---
 
