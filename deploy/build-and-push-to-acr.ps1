@@ -47,7 +47,8 @@ try {
         "acr", "build",
         "--registry", $RegistryName,
         "--image", $fullImage,
-        "--resource-group", $ResourceGroup
+        "--resource-group", $ResourceGroup,
+        "--only-show-errors"
     )
 
     if (-not $ShowLogs) {
@@ -56,9 +57,25 @@ try {
 
     $buildArgs += "."
 
-    & az @buildArgs
-    if ($LASTEXITCODE -ne 0) {
-        throw "ACR build failed."
+    $previousErrorActionPreference = $ErrorActionPreference
+
+    try {
+        # Windows PowerShell 5.1 can turn native stderr warnings into
+        # PowerShell error records. Let az complete and judge success
+        # from its process exit code instead.
+        $ErrorActionPreference = "Continue"
+    
+        & az @buildArgs 2>&1 |
+            ForEach-Object { Write-Host $_ }
+    
+        $azExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    
+    if ($azExitCode -ne 0) {
+        throw "ACR build failed with exit code $azExitCode."
     }
 
     Write-Host ""
