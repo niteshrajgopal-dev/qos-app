@@ -1,0 +1,107 @@
+/* QOS semantic tokens — LIGHT (primary operating environment).
+   Components must reference these, never the primitives directly. */
+:root, [data-qos-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --surface-canvas: var(--navy-50);
+  --surface-default: var(--white);
+  --surface-subtle: var(--navy-50);
+  --surface-sunken: var(--navy-100);
+  --surface-hover: var(--navy-50);
+  --surface-active: var(--navy-100);
+  --surface-selected: var(--blue-50);
+  --surface-inverse: var(--navy-900);
+  --surface-inverse-subtle: var(--navy-800);
+  --surface-overlay: var(--white);
+  --surface-scrim: rgba(11, 15, 26, .48);
+  --surface-brand: var(--blue-500);
+  --surface-brand-subtle: var(--blue-50);
+  --surface-intelligence: var(--violet-100);
+  --surface-disabled: var(--navy-100);
+
+  /* Text */
+  --text-primary: var(--navy-900);
+  --text-secondary: var(--navy-500);
+  --text-tertiary: var(--navy-400);
+  --text-inverse: var(--white);
+  --text-inverse-secondary: var(--navy-300);
+  --text-brand: var(--blue-600);
+  --text-link: var(--blue-600);
+  --text-link-hover: var(--blue-700);
+  --text-intelligence: var(--violet-700);
+  --text-disabled: var(--navy-400);
+  --text-on-brand: var(--white);
+  --text-placeholder: var(--navy-400);
+
+  /* Borders */
+  --border-subtle: var(--navy-150);
+  --border-default: var(--navy-200);
+  --border-strong: var(--navy-300);
+  --border-inverse: rgba(255, 255, 255, .14);
+  --border-brand: var(--blue-500);
+  --border-focus: var(--blue-500);
+  --border-intelligence: var(--violet-300);
+
+  /* Actions */
+  --action-primary: var(--blue-500);
+  --action-primary-hover: var(--blue-600);
+  --action-primary-active: var(--blue-700);
+  --action-primary-disabled: var(--blue-200);
+  --action-secondary: var(--white);
+  --action-secondary-hover: var(--navy-50);
+  --action-secondary-active: var(--navy-100);
+  --action-ghost-hover: var(--navy-100);
+  --action-danger: var(--red-600);
+  --action-danger-hover: var(--red-700);
+  --action-danger-subtle: var(--red-100);
+
+  /* Status — always paired with an icon or text label, never colour alone */
+  --status-success-fg: var(--green-700);
+  --status-success-bg: var(--green-100);
+  --status-success-border: #A7E5C9;
+  --status-success-solid: var(--green-500);
+  --status-warning-fg: var(--amber-700);
+  --status-warning-bg: var(--amber-100);
+  --status-warning-border: #F2D49A;
+  --status-warning-solid: var(--amber-500);
+  --status-error-fg: var(--red-700);
+  --status-error-bg: var(--red-100);
+  --status-error-border: #F5B9C1;
+  --status-error-solid: var(--red-500);
+  --status-info-fg: var(--blue-700);
+  --status-info-bg: var(--blue-100);
+  --status-info-border: var(--blue-200);
+  --status-info-solid: var(--blue-500);
+  --status-neutral-fg: var(--navy-500);
+  --status-neutral-bg: var(--navy-100);
+  --status-neutral-border: var(--navy-200);
+  --status-neutral-solid: var(--navy-400);
+  --status-processing-fg: var(--cyan-800);
+  --status-processing-bg: var(--cyan-100);
+  --status-processing-border: var(--cyan-200);
+  --status-processing-solid: var(--cyan-600);
+
+  /* Intelligence (AI) */
+  --intelligence-accent: var(--violet-500);
+  --intelligence-accent-strong: var(--violet-700);
+  --intelligence-surface: var(--violet-100);
+  --intelligence-border: var(--violet-200);
+  --intelligence-gradient: var(--qos-gradient);
+
+  /* Data visualisation — ordered categorical sequence, AA on light surfaces */
+  --viz-1: var(--blue-500);
+  --viz-2: var(--violet-500);
+  --viz-3: var(--cyan-600);
+  --viz-4: var(--navy-600);
+  --viz-5: var(--blue-300);
+  --viz-6: var(--violet-300);
+  --viz-grid: var(--navy-150);
+  --viz-axis: var(--navy-400);
+  --viz-area-from: rgba(59, 130, 255, .22);
+  --viz-area-to: rgba(59, 130, 255, 0);
+
+  /* Skeleton */
+  --skeleton-base: var(--navy-100);
+  --skeleton-sheen: rgba(255, 255, 255, .75);
+}

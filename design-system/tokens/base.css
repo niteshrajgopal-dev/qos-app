@@ -1,0 +1,31 @@
+/* QOS base layer — minimal resets and the handful of global behaviours the system relies on. */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  font-weight: var(--fw-regular);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3, h4, h5, h6, p, figure { margin: 0; }
+h1, h2, h3, h4 { text-wrap: pretty; letter-spacing: -0.015em; font-weight: var(--fw-semibold); }
+a { color: var(--text-link); text-decoration: none; }
+a:hover { color: var(--text-link-hover); text-decoration: underline; text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+code, kbd, samp, pre { font-family: var(--font-mono); font-size: .92em; }
+table { border-collapse: collapse; }
+:root { --qos-tabular: var(--numeric-features); }
+.qos-numeric { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+[hidden] { display: none !important; }
+::selection { background: rgba(59, 130, 255, .22); }

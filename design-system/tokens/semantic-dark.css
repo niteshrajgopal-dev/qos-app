@@ -1,0 +1,107 @@
+/* QOS semantic tokens — DARK. Deep navy surfaces, layered elevation, accents used sparingly.
+   Applied with [data-qos-theme="dark"] on any ancestor (the nav and AI/command surfaces use it
+   inside an otherwise light app). */
+[data-qos-theme="dark"] {
+  color-scheme: dark;
+
+  --surface-canvas: var(--navy-950);
+  --surface-default: var(--navy-900);
+  --surface-subtle: var(--navy-850);
+  --surface-sunken: var(--navy-950);
+  --surface-hover: rgba(255, 255, 255, .05);
+  --surface-active: rgba(255, 255, 255, .09);
+  --surface-selected: rgba(59, 130, 255, .16);
+  --surface-inverse: var(--white);
+  --surface-inverse-subtle: var(--navy-100);
+  --surface-overlay: var(--navy-850);
+  --surface-scrim: rgba(5, 7, 14, .68);
+  --surface-brand: var(--blue-500);
+  --surface-brand-subtle: rgba(59, 130, 255, .14);
+  --surface-intelligence: rgba(168, 85, 255, .16);
+  --surface-disabled: rgba(255, 255, 255, .06);
+
+  --text-primary: #EEF2F8;
+  --text-secondary: var(--navy-300);
+  --text-tertiary: var(--navy-400);
+  --text-inverse: var(--navy-900);
+  --text-inverse-secondary: var(--navy-500);
+  --text-brand: var(--blue-400);
+  --text-link: var(--blue-400);
+  --text-link-hover: var(--cyan-400);
+  --text-intelligence: var(--violet-300);
+  --text-disabled: var(--navy-500);
+  --text-on-brand: var(--white);
+  --text-placeholder: var(--navy-500);
+
+  --border-subtle: rgba(255, 255, 255, .08);
+  --border-default: rgba(255, 255, 255, .14);
+  --border-strong: rgba(255, 255, 255, .26);
+  --border-inverse: var(--navy-200);
+  --border-brand: var(--blue-500);
+  --border-focus: var(--cyan-500);
+  --border-intelligence: rgba(168, 85, 255, .42);
+
+  --action-primary: var(--blue-500);
+  --action-primary-hover: var(--blue-400);
+  --action-primary-active: var(--blue-600);
+  --action-primary-disabled: rgba(59, 130, 255, .32);
+  --action-secondary: rgba(255, 255, 255, .06);
+  --action-secondary-hover: rgba(255, 255, 255, .11);
+  --action-secondary-active: rgba(255, 255, 255, .16);
+  --action-ghost-hover: rgba(255, 255, 255, .08);
+  --action-danger: var(--red-500);
+  --action-danger-hover: #F05568;
+  --action-danger-subtle: rgba(230, 62, 82, .16);
+
+  --status-success-fg: #5FE0A6;
+  --status-success-bg: rgba(22, 169, 113, .16);
+  --status-success-border: rgba(22, 169, 113, .38);
+  --status-success-solid: var(--green-500);
+  --status-warning-fg: #F5C069;
+  --status-warning-bg: rgba(224, 135, 0, .16);
+  --status-warning-border: rgba(224, 135, 0, .40);
+  --status-warning-solid: var(--amber-500);
+  --status-error-fg: #FF8D9B;
+  --status-error-bg: rgba(230, 62, 82, .16);
+  --status-error-border: rgba(230, 62, 82, .40);
+  --status-error-solid: var(--red-500);
+  --status-info-fg: var(--blue-300);
+  --status-info-bg: rgba(59, 130, 255, .16);
+  --status-info-border: rgba(59, 130, 255, .40);
+  --status-info-solid: var(--blue-500);
+  --status-neutral-fg: var(--navy-300);
+  --status-neutral-bg: rgba(255, 255, 255, .07);
+  --status-neutral-border: rgba(255, 255, 255, .16);
+  --status-neutral-solid: var(--navy-400);
+  --status-processing-fg: var(--cyan-300);
+  --status-processing-bg: rgba(0, 229, 255, .14);
+  --status-processing-border: rgba(0, 229, 255, .34);
+  --status-processing-solid: var(--cyan-500);
+
+  --intelligence-accent: var(--violet-400);
+  --intelligence-accent-strong: var(--violet-300);
+  --intelligence-surface: rgba(168, 85, 255, .14);
+  --intelligence-border: rgba(168, 85, 255, .38);
+
+  --viz-1: var(--blue-400);
+  --viz-2: var(--violet-400);
+  --viz-3: var(--cyan-400);
+  --viz-4: var(--navy-300);
+  --viz-5: var(--blue-200);
+  --viz-6: var(--violet-200);
+  --viz-grid: rgba(255, 255, 255, .10);
+  --viz-axis: var(--navy-400);
+  --viz-area-from: rgba(59, 130, 255, .34);
+  --viz-area-to: rgba(59, 130, 255, 0);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .45);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, .5);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .55);
+  --shadow-xl: 0 28px 64px rgba(0, 0, 0, .6);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, .06);
+  --ring-focus: 0 0 0 3px rgba(0, 229, 255, .34);
+
+  --skeleton-base: rgba(255, 255, 255, .07);
+  --skeleton-sheen: rgba(255, 255, 255, .14);
+}

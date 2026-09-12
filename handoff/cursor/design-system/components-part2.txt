@@ -1,0 +1,1507 @@
+QOS design system — component reference source (part 2: data, feedback, navigation, intelligence)
+
+Design references, not production code. Rebuild each as a typed React component keeping the
+props contract (.d.ts), the usage rules (.prompt.md) and the exact numeric values from
+src/app/qos-components.css. See docs/CURSOR_HANDOFF.md.
+
+Each file is delimited by a line of the form:
+
+    ===== FILE: <relative/path> =====
+
+To unpack: write every block to its path, relative to this file's directory.
+
+===== FILE: components/data/Card.d.ts =====
+import * as React from "react";
+
+export interface CardProps {
+  children?: React.ReactNode;
+  padding?: "none" | "sm" | "md";
+  tone?: "default" | "intelligence";
+  interactive?: boolean;
+  header?: React.ReactNode;
+  subtitle?: React.ReactNode;
+  actions?: React.ReactNode;
+  style?: React.CSSProperties;
+}
+
+export declare function Card(props: CardProps): JSX.Element;
+
+===== FILE: components/data/Card.jsx =====
+import React from "react";
+
+export function Card({ children, padding = "md", tone = "default", interactive = false, header, subtitle, actions, style, ...rest }) {
+  const hasHeader = header || actions;
+  return (
+    <div
+      className="qos-card"
+      data-padding={hasHeader ? "none" : padding}
+      data-tone={tone}
+      data-interactive={interactive || undefined}
+      style={style}
+      {...rest}
+    >
+      {hasHeader ? (
+        <div className="qos-card-head">
+          <div>
+            {header ? <div className="qos-card-title">{header}</div> : null}
+            {subtitle ? <div className="qos-card-sub">{subtitle}</div> : null}
+          </div>
+          {actions ? <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>{actions}</div> : null}
+        </div>
+      ) : null}
+      {hasHeader ? <div style={{ padding: padding === "none" ? 0 : padding === "sm" ? "var(--card-padding-compact)" : "var(--card-padding)" }}>{children}</div> : children}
+    </div>
+  );
+}
+
+===== FILE: components/data/Card.prompt.md =====
+# Card
+
+Standard content surface: 12px radius, hairline border, low shadow.
+
+```jsx
+<Card header="Integration health" actions={<Button size="sm" variant="secondary">View all</Button>}>…</Card>
+```
+
+`padding="none"` when the card holds a table. `interactive` adds hover elevation for whole-card links.
+
+===== FILE: components/data/DataTable.d.ts =====
+import * as React from "react";
+
+export interface DataTableProps {
+  columns?: Array<{ key: string; header: React.ReactNode; numeric?: boolean; width?: number | string; sortable?: boolean; render?: (row: any) => React.ReactNode }>;
+  rows?: any[];
+  density?: "default" | "dense";
+  selectable?: boolean;
+  selectedIds?: Array<string | number>;
+  onToggleRow?: (id: string | number) => void;
+  onToggleAll?: (next: boolean) => void;
+  onRowClick?: (row: any) => void;
+  sortKey?: string;
+  sortDirection?: "asc" | "desc";
+  onSort?: (key: string) => void;
+  rowKey?: string;
+}
+
+export declare function DataTable(props: DataTableProps): JSX.Element;
+
+export interface TableToolbarProps {
+  children?: React.ReactNode;
+}
+
+export declare function TableToolbar(props: TableToolbarProps): JSX.Element;
+
+export interface TableBulkBarProps {
+  count: number;
+  children?: React.ReactNode;
+}
+
+export declare function TableBulkBar(props: TableBulkBarProps): JSX.Element;
+
+===== FILE: components/data/DataTable.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+import { Checkbox } from "../primitives/Checkbox.jsx";
+
+/* Operational data grid. Columns: {key, header, numeric, width, render(row), sortable}.
+   Exceptional rows are tinted via row.exception so problems outrank healthy rows. */
+export function DataTable({
+  columns = [],
+  rows = [],
+  density = "default",
+  selectable = false,
+  selectedIds = [],
+  onToggleRow,
+  onToggleAll,
+  onRowClick,
+  sortKey,
+  sortDirection = "asc",
+  onSort,
+  rowKey = "id",
+  ...rest
+}) {
+  const allSelected = selectable && rows.length > 0 && selectedIds.length === rows.length;
+  return (
+    <div className="qos-table-wrap" {...rest}>
+      <table className="qos-table" data-density={density}>
+        <thead>
+          <tr>
+            {selectable ? (
+              <th style={{ width: 40 }}>
+                <Checkbox checked={allSelected} indeterminate={selectedIds.length > 0 && !allSelected} onChange={() => onToggleAll && onToggleAll(!allSelected)} aria-label="Select all rows" />
+              </th>
+            ) : null}
+            {columns.map((c) => (
+              <th key={c.key} data-numeric={c.numeric || undefined} style={c.width ? { width: c.width } : undefined}>
+                {c.sortable ? (
+                  <button
+                    type="button"
+                    onClick={() => onSort && onSort(c.key)}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, border: "none", background: "none", padding: 0, cursor: "pointer", font: "inherit", color: "inherit", letterSpacing: "inherit", textTransform: "inherit" }}
+                  >
+                    {c.header}
+                    <Icon name={sortKey === c.key ? (sortDirection === "asc" ? "arrow-up" : "arrow-down") : "chevrons-up-down"} size={12} />
+                  </button>
+                ) : c.header}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const id = row[rowKey];
+            const selected = selectedIds.includes(id);
+            return (
+              <tr
+                key={id}
+                data-selected={selected || undefined}
+                data-exception={row.exception || undefined}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                style={onRowClick ? { cursor: "pointer" } : undefined}
+              >
+                {selectable ? (
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <Checkbox checked={selected} onChange={() => onToggleRow && onToggleRow(id)} aria-label={`Select ${id}`} />
+                  </td>
+                ) : null}
+                {columns.map((c) => (
+                  <td key={c.key} data-numeric={c.numeric || undefined}>
+                    {c.render ? c.render(row) : row[c.key]}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function TableToolbar({ children, ...rest }) {
+  return <div className="qos-table-toolbar" {...rest}>{children}</div>;
+}
+
+export function TableBulkBar({ count, children, ...rest }) {
+  return (
+    <div className="qos-table-bulk" {...rest}>
+      <strong style={{ fontWeight: "var(--fw-semibold)" }}>{count} selected</strong>
+      <div style={{ display: "flex", gap: "var(--space-2)", marginLeft: "auto" }}>{children}</div>
+    </div>
+  );
+}
+
+===== FILE: components/data/DataTable.prompt.md =====
+# DataTable
+
+The operational data grid — orders, products, locations, releases.
+
+```jsx
+<DataTable columns={cols} rows={rows} selectable selectedIds={ids} onToggleRow={toggle} />
+```
+
+Set `row.exception = true` to tint problem rows so they outrank healthy ones. Pair with `TableToolbar` (search + filters), `TableBulkBar` (selection actions) and `Pagination`.
+
+===== FILE: components/data/EmptyState.d.ts =====
+import * as React from "react";
+
+export interface EmptyStateProps {
+  icon?: string;
+  title?: string;
+  body?: string;
+  tone?: "default" | "brand";
+  actions?: React.ReactNode;
+}
+
+export declare function EmptyState(props: EmptyStateProps): JSX.Element;
+
+===== FILE: components/data/EmptyState.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+export function EmptyState({ icon = "inbox", title, body, tone = "default", actions, ...rest }) {
+  return (
+    <div className="qos-empty" data-tone={tone} {...rest}>
+      <span className="qos-empty-art"><Icon name={icon} size={28} /></span>
+      {title ? <div className="qos-empty-title">{title}</div> : null}
+      {body ? <p className="qos-empty-body">{body}</p> : null}
+      {actions ? <div style={{ display: "flex", gap: "var(--space-2)", marginTop: 4 }}>{actions}</div> : null}
+    </div>
+  );
+}
+
+===== FILE: components/data/EmptyState.prompt.md =====
+# EmptyState
+
+First-use, no-results and permission-restricted states.
+
+```jsx
+<EmptyState icon="store" title="No sales channels yet" body="Connect a channel to start taking orders." actions={<Button icon="plus">Add channel</Button>} />
+```
+
+`tone="brand"` uses the gradient wash — for first-use and onboarding moments only, not for “no results”.
+
+===== FILE: components/data/KpiCard.d.ts =====
+import * as React from "react";
+
+export interface KpiCardProps {
+  label: string;
+  value: React.ReactNode;
+  unit?: string;
+  delta?: string;
+  deltaDirection?: "up" | "down" | "flat";
+  caption?: string;
+  icon?: string;
+  href?: string;
+  onClick?: () => void;
+  children?: React.ReactNode;
+}
+
+export declare function KpiCard(props: KpiCardProps): JSX.Element;
+
+===== FILE: components/data/KpiCard.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+export function KpiCard({ label, value, unit, delta, deltaDirection = "flat", caption, icon, href, onClick, children, ...rest }) {
+  return (
+    <div className="qos-card" data-padding="md" data-interactive={onClick || href ? "true" : undefined} onClick={onClick} {...rest}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "var(--space-3)" }}>
+        <div style={{ minWidth: 0 }}>
+          <div className="qos-kpi-label">{label}</div>
+          <div className="qos-kpi-value">
+            {value}
+            {unit ? <span style={{ fontSize: 16, fontWeight: "var(--fw-medium)", color: "var(--text-secondary)", marginLeft: 3 }}>{unit}</span> : null}
+          </div>
+        </div>
+        {icon ? <span className="qos-kpi-icon"><Icon name={icon} size={16} /></span> : null}
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginTop: 8, flexWrap: "wrap" }}>
+        {delta ? (
+          <span className="qos-kpi-delta" data-dir={deltaDirection}>
+            <Icon name={deltaDirection === "up" ? "trending-up" : deltaDirection === "down" ? "trending-down" : "minus"} size={13} />
+            {delta}
+          </span>
+        ) : null}
+        {caption ? <span style={{ fontSize: "var(--text-meta-size)", color: "var(--text-secondary)" }}>{caption}</span> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+===== FILE: components/data/KpiCard.prompt.md =====
+# KpiCard
+
+A single operational metric with movement and context.
+
+```jsx
+<KpiCard label="Orders today" value="1,284" delta="12%" deltaDirection="up" caption="vs. same day last week" icon="receipt" />
+```
+
+Max four per row. Only ship a KPI an operator would act on.
+
+===== FILE: components/data/Pagination.d.ts =====
+import * as React from "react";
+
+export interface PaginationProps {
+  page?: number;
+  pageCount?: number;
+  pageSize?: number;
+  total?: number;
+  onPageChange?: (page: number) => void;
+}
+
+export declare function Pagination(props: PaginationProps): JSX.Element;
+
+===== FILE: components/data/Pagination.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+export function Pagination({ page = 1, pageCount = 1, pageSize, total, onPageChange, ...rest }) {
+  const pages = [];
+  for (let p = 1; p <= pageCount; p += 1) {
+    if (p === 1 || p === pageCount || Math.abs(p - page) <= 1) pages.push(p);
+    else if (pages[pages.length - 1] !== "…") pages.push("…");
+  }
+  return (
+    <div className="qos-pagination" {...rest}>
+      <span>
+        {total != null && pageSize != null
+          ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, total)} of ${total.toLocaleString()}`
+          : `Page ${page} of ${pageCount}`}
+      </span>
+      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <button type="button" className="qos-page-btn" disabled={page <= 1} onClick={() => onPageChange && onPageChange(page - 1)} aria-label="Previous page"><Icon name="chevron-left" size={14} /></button>
+        {pages.map((p, i) => p === "…"
+          ? <span key={`gap${i}`} style={{ padding: "0 4px", color: "var(--text-tertiary)" }}>…</span>
+          : <button key={p} type="button" className="qos-page-btn" data-selected={p === page || undefined} onClick={() => onPageChange && onPageChange(p)}>{p}</button>)}
+        <button type="button" className="qos-page-btn" disabled={page >= pageCount} onClick={() => onPageChange && onPageChange(page + 1)} aria-label="Next page"><Icon name="chevron-right" size={14} /></button>
+      </div>
+    </div>
+  );
+}
+
+===== FILE: components/data/Pagination.prompt.md =====
+# Pagination
+
+Range summary plus page controls for long collections.
+
+```jsx
+<Pagination page={2} pageCount={64} pageSize={25} total={1583} onPageChange={setPage} />
+```
+
+===== FILE: components/data/ProgressBar.d.ts =====
+import * as React from "react";
+
+export interface ProgressBarProps {
+  value?: number;
+  tone?: "brand" | "intelligence";
+  indeterminate?: boolean;
+  label?: string;
+}
+
+export declare function ProgressBar(props: ProgressBarProps): JSX.Element;
+
+===== FILE: components/data/ProgressBar.jsx =====
+import React from "react";
+
+export function ProgressBar({ value = 0, tone = "brand", indeterminate = false, label, ...rest }) {
+  return (
+    <div {...rest}>
+      {label ? (
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "var(--text-meta-size)", color: "var(--text-secondary)", marginBottom: 6 }}>
+          <span>{label}</span>
+          {!indeterminate ? <span style={{ fontVariantNumeric: "tabular-nums" }}>{Math.round(value)}%</span> : null}
+        </div>
+      ) : null}
+      <div className="qos-progress" data-tone={tone} data-indeterminate={indeterminate || undefined} role="progressbar" aria-valuenow={indeterminate ? undefined : Math.round(value)} aria-valuemin={0} aria-valuemax={100}>
+        <div className="qos-progress-fill" style={{ width: indeterminate ? undefined : `${Math.max(0, Math.min(100, value))}%` }} />
+      </div>
+    </div>
+  );
+}
+
+===== FILE: components/data/ProgressBar.prompt.md =====
+# ProgressBar
+
+Determinate or indeterminate progress for publishes, syncs and imports.
+
+```jsx
+<ProgressBar label="Publishing release" value={64} />
+```
+
+`tone="intelligence"` (gradient fill) only while an AI operation is running.
+
+===== FILE: components/data/Skeleton.d.ts =====
+import * as React from "react";
+
+export interface SkeletonProps {
+  width?: number | string;
+  height?: number | string;
+  radius?: string;
+  style?: React.CSSProperties;
+}
+
+export declare function Skeleton(props: SkeletonProps): JSX.Element;
+
+export interface SkeletonTextProps {
+  lines?: number;
+  gap?: number;
+}
+
+export declare function SkeletonText(props: SkeletonTextProps): JSX.Element;
+
+===== FILE: components/data/Skeleton.jsx =====
+import React from "react";
+
+export function Skeleton({ width = "100%", height = 12, radius = "var(--radius-sm)", style, ...rest }) {
+  return <span className="qos-skel" style={{ display: "block", width, height, borderRadius: radius, ...style }} {...rest} />;
+}
+
+export function SkeletonText({ lines = 3, gap = 8, ...rest }) {
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap }} {...rest}>
+      {Array.from({ length: lines }, (_, i) => (
+        <Skeleton key={i} width={i === lines - 1 ? "60%" : "100%"} height={10} />
+      ))}
+    </div>
+  );
+}
+
+===== FILE: components/data/Skeleton.prompt.md =====
+# Skeleton
+
+Loading placeholder that matches the shape of the content it replaces.
+
+```jsx
+<Skeleton width={120} height={28} />
+<SkeletonText lines={3} />
+```
+
+Use for partial loading inside a rendered shell; never replace a whole page with skeletons when the shell is already known.
+
+===== FILE: components/data/Timeline.d.ts =====
+import * as React from "react";
+
+export interface TimelineProps {
+  items?: Array<{ id?: string; title: React.ReactNode; meta?: React.ReactNode; tone?: "neutral" | "success" | "error" | "processing" | "intelligence"; icon?: string; detail?: React.ReactNode }>;
+}
+
+export declare function Timeline(props: TimelineProps): JSX.Element;
+
+===== FILE: components/data/Timeline.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+/* Event timeline — order lifecycle, integration activity, publishing history.
+   items: {title, meta, tone, icon, detail} */
+export function Timeline({ items = [], ...rest }) {
+  return (
+    <div className="qos-timeline" {...rest}>
+      {items.map((it, i) => (
+        <div className="qos-tl-item" key={it.id || i}>
+          <span className="qos-tl-dot" data-tone={it.tone || "neutral"}><Icon name={it.icon || "circle"} size={12} /></span>
+          <div>
+            <div className="qos-tl-title">{it.title}</div>
+            {it.meta ? <div className="qos-tl-meta">{it.meta}</div> : null}
+            {it.detail ? <div style={{ marginTop: 6 }}>{it.detail}</div> : null}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+===== FILE: components/data/Timeline.prompt.md =====
+# Timeline
+
+Chronological event list: order lifecycle, integration activity, publishing history.
+
+```jsx
+<Timeline items={[{ title: "Release 42 published", meta: "12 Sep, 09:14 · Jamie Doyle", tone: "success", icon: "upload-cloud" }]} />
+```
+
+===== FILE: components/data/TrendChart.d.ts =====
+import * as React from "react";
+
+export interface TrendChartProps {
+  series?: Array<{ label?: string; values: number[]; color?: string }>;
+  labels?: string[];
+  height?: number;
+  area?: boolean;
+  yTicks?: number;
+  valueFormat?: (v: number) => React.ReactNode;
+}
+
+export declare function TrendChart(props: TrendChartProps): JSX.Element;
+
+export interface SparklineProps {
+  values?: number[];
+  width?: number;
+  height?: number;
+  tone?: string;
+}
+
+export declare function Sparkline(props: SparklineProps): JSX.Element;
+
+export interface BarChartProps {
+  data?: Array<{ label: string; value: number; color?: string }>;
+  height?: number;
+  valueFormat?: (v: number) => React.ReactNode;
+}
+
+export declare function BarChart(props: BarChartProps): JSX.Element;
+
+export interface ChartLegendProps {
+  items?: Array<{ label: string; color?: string }>;
+}
+
+export declare function ChartLegend(props: ChartLegendProps): JSX.Element;
+
+===== FILE: components/data/TrendChart.jsx =====
+import React from "react";
+
+function path(values, w, h, pad) {
+  const max = Math.max(...values), min = Math.min(...values);
+  const span = max - min || 1;
+  const step = (w - pad * 2) / (values.length - 1 || 1);
+  return values.map((v, i) => `${i === 0 ? "M" : "L"}${(pad + i * step).toFixed(1)},${(h - pad - ((v - min) / span) * (h - pad * 2)).toFixed(1)}`).join(" ");
+}
+
+/* Line/area trend chart. QOS charting rule: one accent hue per series in --viz order,
+   hairline grid, tabular numeric axis labels, no decorative gradients behind the plot. */
+export function TrendChart({ series = [], labels = [], height = 200, area = true, yTicks = 4, valueFormat = (v) => v, ...rest }) {
+  const w = 1000, pad = 8;
+  const all = series.flatMap((s) => s.values);
+  const max = Math.max(...all, 0), min = Math.min(...all, 0);
+  const gid = React.useId ? React.useId().replace(/:/g, "") : "g";
+  return (
+    <div {...rest}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", fontSize: 11, color: "var(--viz-axis)", fontVariantNumeric: "tabular-nums", height, paddingBottom: 16 }}>
+          {Array.from({ length: yTicks + 1 }, (_, i) => (
+            <span key={i}>{valueFormat(Math.round(max - ((max - min) / yTicks) * i))}</span>
+          ))}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <svg className="qos-chart" viewBox={`0 0 ${w} ${height}`} preserveAspectRatio="none" style={{ height }} role="img">
+            {Array.from({ length: yTicks + 1 }, (_, i) => (
+              <line key={i} x1="0" x2={w} y1={(height / yTicks) * i} y2={(height / yTicks) * i} stroke="var(--viz-grid)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+            ))}
+            {series.map((s, si) => {
+              const color = s.color || `var(--viz-${(si % 6) + 1})`;
+              const d = path(s.values, w, height, pad);
+              return (
+                <g key={s.label || si}>
+                  {area ? (
+                    <>
+                      <defs>
+                        <linearGradient id={`${gid}-${si}`} x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+                          <stop offset="100%" stopColor={color} stopOpacity="0" />
+                        </linearGradient>
+                      </defs>
+                      <path d={`${d} L${w - pad},${height} L${pad},${height} Z`} fill={`url(#${gid}-${si})`} />
+                    </>
+                  ) : null}
+                  <path d={d} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+                </g>
+              );
+            })}
+          </svg>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: "var(--viz-axis)", marginTop: 6 }}>
+            {labels.map((l) => <span key={l}>{l}</span>)}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Sparkline({ values = [], width = 96, height = 28, tone = "var(--viz-1)", ...rest }) {
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} style={{ width, height, display: "block" }} aria-hidden="true" {...rest}>
+      <path d={path(values, width, height, 2)} fill="none" stroke={tone} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+export function BarChart({ data = [], height = 180, valueFormat = (v) => v, ...rest }) {
+  const max = Math.max(...data.map((d) => d.value), 1);
+  return (
+    <div {...rest}>
+      <div style={{ display: "flex", alignItems: "flex-end", gap: 10, height }}>
+        {data.map((d, i) => (
+          <div key={d.label} style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "center", gap: 6, height: "100%" }}>
+            <span style={{ fontSize: 11, color: "var(--text-secondary)", fontVariantNumeric: "tabular-nums" }}>{valueFormat(d.value)}</span>
+            <div style={{ width: "100%", maxWidth: 44, height: `${(d.value / max) * 100}%`, background: d.color || `var(--viz-${(i % 6) + 1})`, borderRadius: "var(--radius-xs) var(--radius-xs) 2px 2px", minHeight: 2 }} />
+          </div>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 10, marginTop: 8 }}>
+        {data.map((d) => <span key={d.label} style={{ flex: 1, textAlign: "center", fontSize: 11, color: "var(--viz-axis)" }}>{d.label}</span>)}
+      </div>
+    </div>
+  );
+}
+
+export function ChartLegend({ items = [], ...rest }) {
+  return (
+    <div className="qos-legend" {...rest}>
+      {items.map((it, i) => (
+        <span key={it.label} className="qos-legend-key">
+          <span className="qos-legend-swatch" style={{ background: it.color || `var(--viz-${(i % 6) + 1})` }} />
+          {it.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+===== FILE: components/data/TrendChart.prompt.md =====
+# TrendChart
+
+QOS data-visualisation primitives.
+
+```jsx
+<TrendChart series={[{ label: "Orders", values: data }]} labels={days} height={200} />
+```
+
+Series colours come from `--viz-1…6` in order (blue, violet, cyan, navy, then tints). Hairline grid, tabular axis numbers, no decorative gradients behind the plot. `Sparkline` for in-row trends, `BarChart` for categorical comparison, `ChartLegend` when more than one series is shown.
+
+===== FILE: components/feedback/Alert.d.ts =====
+import * as React from "react";
+
+export interface AlertProps {
+  tone?: "info" | "success" | "warning" | "error" | "neutral" | "intelligence";
+  title?: React.ReactNode;
+  children?: React.ReactNode;
+  icon?: string;
+  actions?: React.ReactNode;
+  onDismiss?: () => void;
+}
+
+export declare function Alert(props: AlertProps): JSX.Element;
+
+===== FILE: components/feedback/Alert.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+import { IconButton } from "../primitives/IconButton.jsx";
+
+const TONE_ICON = { info: "info", success: "check-circle-2", warning: "alert-triangle", error: "alert-circle", neutral: "info", intelligence: "sparkles" };
+
+export function Alert({ tone = "info", title, children, icon, actions, onDismiss, ...rest }) {
+  return (
+    <div className="qos-alert" data-tone={tone} role={tone === "error" ? "alert" : "status"} {...rest}>
+      <span className="qos-alert-icon" style={{ color: `var(--status-${tone === "intelligence" ? "info" : tone}-fg, var(--text-intelligence))` }}>
+        <Icon name={icon || TONE_ICON[tone]} size={16} />
+      </span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {title ? <div className="qos-alert-title">{title}</div> : null}
+        {children ? <div className="qos-alert-body">{children}</div> : null}
+        {actions ? <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>{actions}</div> : null}
+      </div>
+      {onDismiss ? <IconButton icon="x" label="Dismiss" size="sm" onClick={onDismiss} /> : null}
+    </div>
+  );
+}
+
+===== FILE: components/feedback/Alert.prompt.md =====
+# Alert
+
+Inline message scoped to a page or section.
+
+```jsx
+<Alert tone="warning" title="2 products unavailable" actions={<Button size="sm" variant="secondary">Review</Button>}>Delivery is disabled for Marina Walk.</Alert>
+```
+
+===== FILE: components/feedback/Banner.d.ts =====
+import * as React from "react";
+
+export interface BannerProps {
+  tone?: "info" | "success" | "warning" | "error";
+  icon?: string;
+  children?: React.ReactNode;
+  actions?: React.ReactNode;
+  onDismiss?: () => void;
+}
+
+export declare function Banner(props: BannerProps): JSX.Element;
+
+===== FILE: components/feedback/Banner.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+import { IconButton } from "../primitives/IconButton.jsx";
+
+/* Full-width, shell-level message: environment notice, unsaved changes, degraded integration. */
+export function Banner({ tone = "info", icon, children, actions, onDismiss, ...rest }) {
+  return (
+    <div className="qos-banner" data-tone={tone} {...rest}>
+      {icon ? <Icon name={icon} size={15} style={{ color: `var(--status-${tone}-fg)` }} /> : null}
+      <span style={{ flex: 1, minWidth: 0 }}>{children}</span>
+      {actions}
+      {onDismiss ? <IconButton icon="x" label="Dismiss" size="sm" onClick={onDismiss} /> : null}
+    </div>
+  );
+}
+
+===== FILE: components/feedback/Banner.prompt.md =====
+# Banner
+
+Shell-level, full-width notice: environment, unsaved changes, degraded integration.
+
+```jsx
+<Banner tone="warning" icon="circle-dot" actions={<Button size="sm">Save changes</Button>}>You have unpublished changes.</Banner>
+```
+
+===== FILE: components/feedback/Drawer.d.ts =====
+import * as React from "react";
+
+export interface DrawerProps {
+  open?: boolean;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  children?: React.ReactNode;
+  footer?: React.ReactNode;
+  width?: number | string;
+  onClose?: () => void;
+}
+
+export declare function Drawer(props: DrawerProps): JSX.Element;
+
+===== FILE: components/feedback/Drawer.jsx =====
+import React from "react";
+import { IconButton } from "../primitives/IconButton.jsx";
+
+export function Drawer({ open = true, title, description, children, footer, width, onClose, ...rest }) {
+  if (!open) return null;
+  return (
+    <div className="qos-drawer-scrim" onClick={onClose}>
+      <aside className="qos-drawer" role="dialog" aria-modal="true" style={width ? { width } : undefined} onClick={(e) => e.stopPropagation()} {...rest}>
+        <div className="qos-drawer-head">
+          <div>
+            <div className="qos-modal-title" style={{ fontSize: "var(--text-section-size)", lineHeight: "var(--text-section-lh)" }}>{title}</div>
+            {description ? <div style={{ fontSize: "var(--text-meta-size)", color: "var(--text-secondary)", marginTop: 3 }}>{description}</div> : null}
+          </div>
+          {onClose ? <IconButton icon="x" label="Close" size="sm" onClick={onClose} /> : null}
+        </div>
+        <div className="qos-drawer-body">{children}</div>
+        {footer ? <div className="qos-drawer-foot">{footer}</div> : null}
+      </aside>
+    </div>
+  );
+}
+
+===== FILE: components/feedback/Drawer.prompt.md =====
+# Drawer
+
+Right-side panel for detail and secondary editing without losing list context.
+
+```jsx
+<Drawer title="Order QO-10428" description="Online Store · Marina Walk" onClose={close}>…</Drawer>
+```
+
+===== FILE: components/feedback/Modal.d.ts =====
+import * as React from "react";
+
+export interface ModalProps {
+  open?: boolean;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  children?: React.ReactNode;
+  footer?: React.ReactNode;
+  size?: "sm" | "md" | "lg";
+  tone?: "default" | "danger";
+  onClose?: () => void;
+}
+
+export declare function Modal(props: ModalProps): JSX.Element;
+
+export interface ConfirmDialogProps {
+  open?: boolean;
+  title?: React.ReactNode;
+  description?: React.ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  tone?: "default" | "danger";
+  onConfirm?: () => void;
+  onClose?: () => void;
+  children?: React.ReactNode;
+}
+
+export declare function ConfirmDialog(props: ConfirmDialogProps): JSX.Element;
+
+===== FILE: components/feedback/Modal.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+import { Button } from "../primitives/Button.jsx";
+import { IconButton } from "../primitives/IconButton.jsx";
+
+export function Modal({ open = true, title, description, children, footer, size = "md", onClose, tone = "default", ...rest }) {
+  if (!open) return null;
+  return (
+    <div className="qos-scrim" onClick={onClose}>
+      <div className="qos-modal" data-size={size} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} {...rest}>
+        <div className="qos-modal-head" style={{ display: "flex", gap: "var(--space-3)", alignItems: "flex-start" }}>
+          {tone === "danger" ? (
+            <span style={{ width: 32, height: 32, borderRadius: "var(--radius-md)", background: "var(--action-danger-subtle)", color: "var(--status-error-fg)", display: "grid", placeItems: "center", flex: "none" }}>
+              <Icon name="alert-triangle" size={16} />
+            </span>
+          ) : null}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="qos-modal-title">{title}</div>
+            {description ? <div style={{ fontSize: "var(--text-body-sm-size)", color: "var(--text-secondary)", marginTop: 4 }}>{description}</div> : null}
+          </div>
+          {onClose ? <IconButton icon="x" label="Close" size="sm" onClick={onClose} /> : null}
+        </div>
+        {children ? <div className="qos-modal-body">{children}</div> : null}
+        {footer ? <div className="qos-modal-foot">{footer}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+/* High-impact confirmation: publish, rollback, disconnect, delete.
+   Always names the object and the consequence. */
+export function ConfirmDialog({ open = true, title, description, confirmLabel = "Confirm", cancelLabel = "Cancel", tone = "default", onConfirm, onClose, children, ...rest }) {
+  return (
+    <Modal
+      open={open}
+      title={title}
+      description={description}
+      tone={tone}
+      size="sm"
+      onClose={onClose}
+      footer={<>
+        <Button variant="secondary" onClick={onClose}>{cancelLabel}</Button>
+        <Button variant={tone === "danger" ? "danger" : "primary"} onClick={onConfirm}>{confirmLabel}</Button>
+      </>}
+      {...rest}
+    >
+      {children}
+    </Modal>
+  );
+}
+
+===== FILE: components/feedback/Modal.prompt.md =====
+# Modal
+
+Focused decision or short form that must block the canvas.
+
+```jsx
+<ConfirmDialog tone="danger" title="Roll back to release 41?" description="Release 42 will be replaced on quotes.qosapp.com." confirmLabel="Roll back" onConfirm={...} onClose={...} />
+```
+
+`ConfirmDialog` is required for publishing, rollback, disconnecting an integration and any destructive action. Name the object and the consequence in the title and description.
+
+===== FILE: components/feedback/Toast.d.ts =====
+import * as React from "react";
+
+export interface ToastProps {
+  tone?: "info" | "success" | "warning" | "error" | "processing";
+  title?: React.ReactNode;
+  children?: React.ReactNode;
+  action?: React.ReactNode;
+  onDismiss?: () => void;
+}
+
+export declare function Toast(props: ToastProps): JSX.Element;
+
+export interface ToastStackProps {
+  children?: React.ReactNode;
+}
+
+export declare function ToastStack(props: ToastStackProps): JSX.Element;
+
+===== FILE: components/feedback/Toast.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+import { IconButton } from "../primitives/IconButton.jsx";
+
+const TONE_ICON = { info: "info", success: "check-circle-2", warning: "alert-triangle", error: "alert-circle", processing: "loader" };
+
+export function Toast({ tone = "info", title, children, action, onDismiss, ...rest }) {
+  return (
+    <div className="qos-toast" role="status" {...rest}>
+      <span style={{ color: `var(--status-${tone}-fg)`, marginTop: 1 }}><Icon name={TONE_ICON[tone]} size={16} /></span>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {title ? <div style={{ fontWeight: "var(--fw-semibold)" }}>{title}</div> : null}
+        {children ? <div style={{ color: "var(--text-secondary)", marginTop: 1 }}>{children}</div> : null}
+        {action ? <div style={{ marginTop: "var(--space-2)" }}>{action}</div> : null}
+      </div>
+      {onDismiss ? <IconButton icon="x" label="Dismiss" size="sm" onClick={onDismiss} /> : null}
+    </div>
+  );
+}
+
+export function ToastStack({ children, ...rest }) {
+  return (
+    <div style={{ position: "fixed", right: 24, bottom: 24, display: "flex", flexDirection: "column", gap: 10, zIndex: 80 }} {...rest}>
+      {children}
+    </div>
+  );
+}
+
+===== FILE: components/feedback/Toast.prompt.md =====
+# Toast
+
+Transient confirmation of an action the user just took.
+
+```jsx
+<ToastStack><Toast tone="success" title="Release 42 published">Live on quotes.qosapp.com</Toast></ToastStack>
+```
+
+Never the only record of a consequential change — pair with an audit entry.
+
+===== FILE: components/navigation/Breadcrumbs.d.ts =====
+import * as React from "react";
+
+export interface BreadcrumbsProps {
+  items?: Array<{ id?: string; label: string; href?: string }>;
+  onNavigate?: (id?: string) => void;
+}
+
+export declare function Breadcrumbs(props: BreadcrumbsProps): JSX.Element;
+
+===== FILE: components/navigation/Breadcrumbs.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+export function Breadcrumbs({ items = [], onNavigate, ...rest }) {
+  return (
+    <nav className="qos-crumbs" aria-label="Breadcrumb" {...rest}>
+      {items.map((it, i) => {
+        const last = i === items.length - 1;
+        return (
+          <React.Fragment key={it.id || it.label}>
+            {last
+              ? <span className="qos-crumb-current" aria-current="page">{it.label}</span>
+              : <a href={it.href || "#"} onClick={(e) => { if (onNavigate) { e.preventDefault(); onNavigate(it.id); } }}>{it.label}</a>}
+            {!last ? <Icon name="chevron-right" size={13} className="qos-crumb-sep" style={{ color: "var(--text-tertiary)" }} /> : null}
+          </React.Fragment>
+        );
+      })}
+    </nav>
+  );
+}
+
+===== FILE: components/navigation/Breadcrumbs.prompt.md =====
+# Breadcrumbs
+
+Shows where an object sits in Platform → Tenant → Channel/Location → object.
+
+```jsx
+<Breadcrumbs items={[{id:"channels",label:"Sales Channels"},{label:"Online Store"}]} onNavigate={go} />
+```
+
+===== FILE: components/navigation/CommandPalette.d.ts =====
+import * as React from "react";
+
+export interface CommandPaletteProps {
+  open?: boolean;
+  query?: string;
+  onQueryChange?: (q: string) => void;
+  groups?: Array<{ label: string; items: Array<{ id: string; label: string; meta?: string; kind?: string; icon?: string; intelligence?: boolean }> }>;
+  onSelect?: (item: any) => void;
+  onClose?: () => void;
+  placeholder?: string;
+}
+
+export declare function CommandPalette(props: CommandPaletteProps): JSX.Element;
+
+===== FILE: components/navigation/CommandPalette.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+/* Global search / command surface. Intelligent results are marked with the intelligence
+   accent; system records are not. */
+export function CommandPalette({ open = true, query = "", onQueryChange, groups = [], onSelect, onClose, placeholder = "Search businesses, orders, products, locations…", ...rest }) {
+  const [active, setActive] = React.useState(0);
+  if (!open) return null;
+  const flat = groups.flatMap((g) => g.items.map((i) => ({ ...i, group: g.label })));
+  return (
+    <div className="qos-scrim" style={{ alignItems: "flex-start", paddingTop: "12vh" }} onClick={onClose}>
+      <div className="qos-cmd" role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} {...rest}>
+        <div className="qos-cmd-input">
+          <Icon name="search" size={17} style={{ color: "var(--text-tertiary)" }} />
+          <input
+            autoFocus
+            value={query}
+            placeholder={placeholder}
+            onChange={(e) => onQueryChange && onQueryChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "ArrowDown") setActive((a) => Math.min(a + 1, flat.length - 1));
+              if (e.key === "ArrowUp") setActive((a) => Math.max(a - 1, 0));
+              if (e.key === "Enter" && flat[active] && onSelect) onSelect(flat[active]);
+              if (e.key === "Escape" && onClose) onClose();
+            }}
+          />
+          <span className="qos-kbd">Esc</span>
+        </div>
+        <div className="qos-cmd-list">
+          {groups.map((g) => (
+            <div key={g.label}>
+              <div className="qos-menu-label">{g.label}</div>
+              {g.items.map((it) => {
+                const idx = flat.findIndex((f) => f.id === it.id);
+                return (
+                  <div
+                    key={it.id}
+                    className="qos-cmd-item"
+                    data-active={idx === active || undefined}
+                    onMouseEnter={() => setActive(idx)}
+                    onClick={() => onSelect && onSelect(it)}
+                  >
+                    <span style={it.intelligence ? { color: "var(--intelligence-accent)" } : { color: "var(--text-tertiary)" }}>
+                      <Icon name={it.icon || (it.intelligence ? "sparkles" : "file")} size={15} />
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      {it.label}
+                      {it.meta ? <span style={{ display: "block", fontSize: "var(--text-meta-size)", color: "var(--text-secondary)" }}>{it.meta}</span> : null}
+                    </span>
+                    <span className="qos-cmd-kind">{it.kind}</span>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== FILE: components/navigation/CommandPalette.prompt.md =====
+# CommandPalette
+
+Global search and command surface (⌘K).
+
+```jsx
+<CommandPalette open query={q} onQueryChange={setQ} groups={results} onSelect={go} onClose={close} />
+```
+
+Set `intelligence: true` on a result to mark it as an AI-derived suggestion rather than a system record.
+
+===== FILE: components/navigation/Menu.d.ts =====
+import * as React from "react";
+
+export interface MenuProps {
+  items?: Array<{ id?: string; label?: string; icon?: string; tone?: "danger"; selected?: boolean; shortcut?: string; separator?: boolean; header?: string }>;
+  onSelect?: (id?: string) => void;
+  align?: "left" | "right";
+  style?: React.CSSProperties;
+}
+
+export declare function Menu(props: MenuProps): JSX.Element;
+
+===== FILE: components/navigation/Menu.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+/* Anchored dropdown. items: {id,label,icon,tone,separator,label-only} */
+export function Menu({ items = [], onSelect, align = "right", style, ...rest }) {
+  return (
+    <div className="qos-menu" style={{ top: 40, [align]: 0, ...style }} role="menu" {...rest}>
+      {items.map((it, i) => {
+        if (it.separator) return <div className="qos-menu-sep" key={`sep${i}`} />;
+        if (it.header) return <div className="qos-menu-label" key={`h${i}`}>{it.header}</div>;
+        return (
+          <button
+            key={it.id}
+            type="button"
+            role="menuitem"
+            className="qos-menu-item"
+            data-selected={it.selected || undefined}
+            style={it.tone === "danger" ? { color: "var(--status-error-fg)" } : undefined}
+            onClick={() => onSelect && onSelect(it.id)}
+          >
+            {it.icon ? <Icon name={it.icon} size={15} style={{ color: it.tone === "danger" ? "inherit" : "var(--text-tertiary)" }} /> : null}
+            <span style={{ flex: 1, minWidth: 0 }}>{it.label}</span>
+            {it.shortcut ? <span className="qos-kbd">{it.shortcut}</span> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+===== FILE: components/navigation/Menu.prompt.md =====
+# Menu
+
+Anchored dropdown for row actions, profile menus and overflow.
+
+```jsx
+<Menu items={[{id:"edit",label:"Edit",icon:"pencil"},{separator:true},{id:"del",label:"Delete",icon:"trash-2",tone:"danger"}]} onSelect={run} />
+```
+
+Position the anchor with `position: relative` on the parent.
+
+===== FILE: components/navigation/PageHeader.d.ts =====
+import * as React from "react";
+
+export interface PageHeaderProps {
+  title: React.ReactNode;
+  subtitle?: React.ReactNode;
+  breadcrumbs?: React.ReactNode;
+  badge?: React.ReactNode;
+  actions?: React.ReactNode;
+  meta?: React.ReactNode;
+  tabs?: React.ReactNode;
+}
+
+export declare function PageHeader(props: PageHeaderProps): JSX.Element;
+
+===== FILE: components/navigation/PageHeader.jsx =====
+import React from "react";
+
+export function PageHeader({ title, subtitle, breadcrumbs, badge, actions, meta, tabs, ...rest }) {
+  return (
+    <div {...rest}>
+      {breadcrumbs ? <div style={{ marginBottom: "var(--space-3)" }}>{breadcrumbs}</div> : null}
+      <div className="qos-pagehead">
+        <div style={{ minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
+            <h1 className="qos-pagetitle">{title}</h1>
+            {badge}
+          </div>
+          {subtitle ? <p className="qos-pagesub">{subtitle}</p> : null}
+          {meta ? <div style={{ display: "flex", gap: "var(--space-4)", flexWrap: "wrap", marginTop: "var(--space-3)", fontSize: "var(--text-meta-size)", color: "var(--text-secondary)" }}>{meta}</div> : null}
+        </div>
+        {actions ? <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", flexWrap: "wrap" }}>{actions}</div> : null}
+      </div>
+      {tabs ? <div style={{ marginTop: "var(--space-5)" }}>{tabs}</div> : null}
+    </div>
+  );
+}
+
+===== FILE: components/navigation/PageHeader.prompt.md =====
+# PageHeader
+
+Standard page header: breadcrumbs, title, state badge, metadata, actions, tabs.
+
+```jsx
+<PageHeader title="Online Store" badge={<StatusBadge state="live" />} actions={<Button icon="upload-cloud">Publish</Button>} tabs={<Tabs … />} />
+```
+
+===== FILE: components/navigation/SideNav.d.ts =====
+import * as React from "react";
+
+export interface SideNavProps {
+  groups?: Array<{ label?: string; items: Array<{ id: string; label: string; icon?: string; count?: number; children?: Array<{ id: string; label: string; count?: number }> }> }>;
+  activeId?: string;
+  onNavigate?: (id: string) => void;
+  brand?: React.ReactNode;
+  footer?: React.ReactNode;
+  collapsed?: boolean;
+}
+
+export declare function SideNav(props: SideNavProps): JSX.Element;
+
+===== FILE: components/navigation/SideNav.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+/* QOS left navigation. groups: [{label, items:[{id,label,icon,count,children:[…]}]}]
+   Theme it dark by wrapping in [data-qos-theme="dark"] for the branded shell. */
+export function SideNav({ groups = [], activeId, onNavigate, brand, footer, collapsed = false, ...rest }) {
+  const [open, setOpen] = React.useState(() => {
+    const init = {};
+    groups.forEach((g) => g.items.forEach((i) => { if (i.children && i.children.some((c) => c.id === activeId)) init[i.id] = true; }));
+    return init;
+  });
+  return (
+    <nav className="qos-sidenav" style={collapsed ? { width: "var(--layout-nav-width-collapsed)" } : undefined} {...rest}>
+      {brand ? <div className="qos-sidenav-brand">{brand}</div> : null}
+      <div className="qos-sidenav-scroll">
+        {groups.map((g, gi) => (
+          <div key={g.label || gi}>
+            {g.label && !collapsed ? <div className="qos-nav-group-label">{g.label}</div> : null}
+            <div style={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {g.items.map((item) => {
+                const hasChildren = item.children && item.children.length > 0;
+                const isOpen = !!open[item.id];
+                const selected = activeId === item.id || (hasChildren && !isOpen && item.children.some((c) => c.id === activeId));
+                return (
+                  <div key={item.id}>
+                    <button
+                      type="button"
+                      className="qos-nav-item"
+                      data-selected={selected || undefined}
+                      title={collapsed ? item.label : undefined}
+                      onClick={() => {
+                        if (hasChildren) setOpen((s) => ({ ...s, [item.id]: !s[item.id] }));
+                        if (onNavigate) onNavigate(item.id);
+                      }}
+                    >
+                      <Icon name={item.icon || "circle"} size={16} />
+                      {!collapsed ? <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</span> : null}
+                      {!collapsed && item.count != null ? <span className="qos-nav-item-count">{item.count}</span> : null}
+                      {!collapsed && hasChildren ? <Icon name={isOpen ? "chevron-down" : "chevron-right"} size={13} style={{ color: "var(--text-tertiary)" }} /> : null}
+                    </button>
+                    {hasChildren && isOpen && !collapsed ? (
+                      <div className="qos-nav-sub">
+                        {item.children.map((c) => (
+                          <button key={c.id} type="button" className="qos-nav-item" data-selected={activeId === c.id || undefined} onClick={() => onNavigate && onNavigate(c.id)}>
+                            <span style={{ flex: 1, minWidth: 0 }}>{c.label}</span>
+                            {c.count != null ? <span className="qos-nav-item-count">{c.count}</span> : null}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </div>
+      {footer ? <div style={{ padding: "var(--space-3)", borderTop: "1px solid var(--border-subtle)" }}>{footer}</div> : null}
+    </nav>
+  );
+}
+
+===== FILE: components/navigation/SideNav.prompt.md =====
+# SideNav
+
+The QOS left navigation, with expandable groups.
+
+```jsx
+<SideNav brand={<Logo variant="navy" height={20} />} groups={NAV} activeId="orders" onNavigate={go} />
+```
+
+Wrap in `[data-qos-theme="dark"]` for the branded deep-navy shell. Nav order is fixed platform-wide: Home, Orders, Catalogue, Customers, Sales Channels, Locations, Integrations, Analytics, Team, Settings.
+
+===== FILE: components/navigation/Stepper.d.ts =====
+import * as React from "react";
+
+export interface StepperProps {
+  steps?: Array<string | { label: string }>;
+  current?: number;
+}
+
+export declare function Stepper(props: StepperProps): JSX.Element;
+
+===== FILE: components/navigation/Stepper.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+export function Stepper({ steps = [], current = 0, ...rest }) {
+  return (
+    <div className="qos-stepper" {...rest}>
+      {steps.map((s, i) => {
+        const label = typeof s === "string" ? s : s.label;
+        const state = i < current ? "complete" : i === current ? "current" : "upcoming";
+        return (
+          <React.Fragment key={label}>
+            <div className="qos-step" data-state={state}>
+              <span className="qos-step-dot">{state === "complete" ? <Icon name="check" size={12} /> : i + 1}</span>
+              {label}
+            </div>
+            {i < steps.length - 1 ? <span className="qos-step-line" /> : null}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+===== FILE: components/navigation/Stepper.prompt.md =====
+# Stepper
+
+Progress through a wizard: integration setup, onboarding, first publish.
+
+```jsx
+<Stepper steps={["Connect","Configure","Map locations","Done"]} current={1} />
+```
+
+===== FILE: components/navigation/Tabs.d.ts =====
+import * as React from "react";
+
+export interface TabsProps {
+  tabs?: Array<string | { id: string; label: string; icon?: string; count?: number; tone?: string; disabled?: boolean }>;
+  value?: string;
+  onChange?: (id: string) => void;
+}
+
+export declare function Tabs(props: TabsProps): JSX.Element;
+
+===== FILE: components/navigation/Tabs.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+export function Tabs({ tabs = [], value, onChange, ...rest }) {
+  return (
+    <div className="qos-tabs" role="tablist" {...rest}>
+      {tabs.map((t) => {
+        const id = typeof t === "string" ? t : t.id;
+        const label = typeof t === "string" ? t : t.label;
+        return (
+          <button
+            key={id}
+            type="button"
+            role="tab"
+            aria-selected={id === value}
+            className="qos-tab"
+            data-selected={id === value || undefined}
+            disabled={typeof t === "object" && t.disabled}
+            onClick={() => onChange && onChange(id)}
+          >
+            {typeof t === "object" && t.icon ? <Icon name={t.icon} size={14} /> : null}
+            {label}
+            {typeof t === "object" && t.count != null ? <span className="qos-tab-count">{t.count}</span> : null}
+            {typeof t === "object" && t.tone ? <span className="qos-dot" style={{ background: `var(--status-${t.tone}-solid)` }} /> : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+===== FILE: components/navigation/Tabs.prompt.md =====
+# Tabs
+
+In-page section switching for a single object (product, location, channel, order).
+
+```jsx
+<Tabs tabs={[{id:"overview",label:"Overview"},{id:"pages",label:"Pages",count:6}]} value={tab} onChange={setTab} />
+```
+
+Use `tone` to surface a warning dot on a tab holding a problem.
+
+===== FILE: components/navigation/TenantSwitcher.d.ts =====
+import * as React from "react";
+
+export interface TenantSwitcherProps {
+  tenants?: Array<{ id: string; name: string; meta?: string }>;
+  value?: string;
+  onChange?: (id: string) => void;
+  label?: string;
+}
+
+export declare function TenantSwitcher(props: TenantSwitcherProps): JSX.Element;
+
+===== FILE: components/navigation/TenantSwitcher.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+export function TenantSwitcher({ tenants = [], value, onChange, label = "Business", ...rest }) {
+  const [open, setOpen] = React.useState(false);
+  const current = tenants.find((t) => t.id === value) || tenants[0] || {};
+  const initials = (current.name || "").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase();
+  return (
+    <div style={{ position: "relative" }} {...rest}>
+      <button type="button" className="qos-tenant" onClick={() => setOpen((o) => !o)} aria-haspopup="listbox" aria-expanded={open}>
+        <span className="qos-tenant-mark">{initials}</span>
+        <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.15 }}>
+          <span style={{ fontSize: 9, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--text-tertiary)", fontWeight: "var(--fw-semibold)" }}>{label}</span>
+          <span>{current.name}</span>
+        </span>
+        <Icon name="chevrons-up-down" size={14} style={{ color: "var(--text-tertiary)" }} />
+      </button>
+      {open ? (
+        <div className="qos-menu" role="listbox" style={{ top: 40, left: 0, minWidth: 280 }}>
+          <div className="qos-menu-label">Switch business</div>
+          {tenants.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              role="option"
+              aria-selected={t.id === current.id}
+              className="qos-menu-item"
+              data-selected={t.id === current.id || undefined}
+              onClick={() => { setOpen(false); onChange && onChange(t.id); }}
+            >
+              <span className="qos-tenant-mark" style={t.id === current.id ? undefined : { background: "var(--surface-sunken)", color: "var(--text-secondary)" }}>
+                {(t.name || "").split(/\s+/).slice(0, 2).map((w) => w[0]).join("").toUpperCase()}
+              </span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                {t.name}
+                {t.meta ? <span style={{ display: "block", fontSize: "var(--text-meta-size)", color: "var(--text-secondary)" }}>{t.meta}</span> : null}
+              </span>
+              {t.id === current.id ? <Icon name="check" size={14} /> : null}
+            </button>
+          ))}
+          <div className="qos-menu-sep" />
+          <button type="button" className="qos-menu-item"><Icon name="building-2" size={15} />All businesses</button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+===== FILE: components/navigation/TenantSwitcher.prompt.md =====
+# TenantSwitcher
+
+The multi-tenant business selector — always visible in the top bar because every screen is tenant-scoped.
+
+```jsx
+<TenantSwitcher tenants={[{ id: "quotes", name: "Quotes", meta: "12 locations · AED" }]} value="quotes" onChange={setTenant} />
+```
+
+===== FILE: components/navigation/TopBar.d.ts =====
+import * as React from "react";
+
+export interface TopBarProps {
+  children?: React.ReactNode;
+}
+
+export declare function TopBar(props: TopBarProps): JSX.Element;
+
+===== FILE: components/navigation/TopBar.jsx =====
+import React from "react";
+
+export function TopBar({ children, ...rest }) {
+  return <header className="qos-topbar" {...rest}>{children}</header>;
+}
+
+===== FILE: components/navigation/TopBar.prompt.md =====
+# TopBar
+
+Application top bar shell — tenant selector, search, actions, notifications, profile.
+
+```jsx
+<TopBar><TenantSwitcher tenants={t} value={id} /><SearchInput /></TopBar>
+```
+
+===== FILE: components/intelligence/IntelligenceCard.d.ts =====
+import * as React from "react";
+
+export interface IntelligenceCardProps {
+  /** Names what this is: Insight, Anomaly, Recommendation, Summary, Mapping. */
+  kind?: string;
+  title?: React.ReactNode;
+  /** Ordered claims. kind is the epistemic label: "System fact", "AI interpretation", "AI recommendation". */
+  claims?: Array<{ kind: string; text: React.ReactNode }>;
+  children?: React.ReactNode;
+  actions?: React.ReactNode;
+  confidence?: string;
+}
+
+export declare function IntelligenceCard(props: IntelligenceCardProps): JSX.Element;
+
+export interface AiBadgeProps {
+  children?: React.ReactNode;
+}
+
+export declare function AiBadge(props: AiBadgeProps): JSX.Element;
+
+===== FILE: components/intelligence/IntelligenceCard.jsx =====
+import React from "react";
+import { Icon } from "../primitives/Icon.jsx";
+
+/* The QOS intelligence surface. Rules:
+   - kind names what the panel is: Insight, Anomaly, Recommendation, Summary, Mapping.
+   - claims separate SYSTEM FACT from AI INTERPRETATION from AI RECOMMENDATION.
+   - nothing is applied until the operator approves; the footer always shows the approval action. */
+export function IntelligenceCard({ kind = "Insight", title, claims = [], children, actions, confidence, ...rest }) {
+  return (
+    <section className="qos-ai" {...rest}>
+      <div className="qos-ai-head">
+        <span className="qos-ai-mark"><Icon name="sparkles" size={13} /></span>
+        <span className="qos-ai-kind">QOS Intelligence · {kind}</span>
+        {confidence ? (
+          <span style={{ marginLeft: "auto", fontSize: "var(--text-meta-size)", color: "var(--text-secondary)" }}>Confidence {confidence}</span>
+        ) : null}
+      </div>
+      <div className="qos-ai-body">
+        {title ? <h3 style={{ fontSize: "var(--text-section-size)", lineHeight: "var(--text-section-lh)", fontWeight: "var(--fw-semibold)", marginBottom: 8 }}>{title}</h3> : null}
+        {claims.length ? (
+          <div className="qos-ai-claim">
+            {claims.map((c, i) => (
+              <React.Fragment key={i}>
+                <span className="qos-ai-claim-kind">{c.kind}</span>
+                <span style={{ color: c.kind && c.kind.toLowerCase().includes("fact") ? "var(--text-primary)" : "var(--text-secondary)" }}>{c.text}</span>
+              </React.Fragment>
+            ))}
+          </div>
+        ) : null}
+        {children}
+      </div>
+      {actions ? <div className="qos-ai-foot">{actions}</div> : null}
+    </section>
+  );
+}
+
+export function AiBadge({ children = "AI", ...rest }) {
+  return (
+    <span className="qos-badge" data-tone="intelligence" {...rest}>
+      <Icon name="sparkles" size={11} />{children}
+    </span>
+  );
+}
+
+===== FILE: components/intelligence/IntelligenceCard.prompt.md =====
+# IntelligenceCard
+
+The QOS intelligence surface — the only place the brand gradient appears in operational UI.
+
+```jsx
+<IntelligenceCard kind="Anomaly" title="Delivery orders down 34% at Marina Walk"
+  claims={[{kind:"System fact",text:"18 orders in the last 2 hours vs. 27 expected."},
+           {kind:"AI interpretation",text:"The POS connector has been failing since 14:02."},
+           {kind:"AI recommendation",text:"Reconnect Lightspeed and replay 9 failed orders."}]}
+  actions={<><Button variant="intelligence" icon="check">Approve and reconnect</Button><Button variant="ghost">Dismiss</Button></>} />
+```
+
+Always separate system fact from AI interpretation from AI recommendation, and never apply a consequential change without an explicit approval action. `AiBadge` marks smaller AI-derived values inline.

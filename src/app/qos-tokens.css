@@ -1,0 +1,481 @@
+/* QOS design tokens — flattened for handover.
+   Source: qos design system, tokens/*.css in @import order from styles.css.
+   Drop this into the app (e.g. src/app/qos-tokens.css) and @import it before Tailwind.
+   Fonts are intentionally omitted: qos-app already loads them via next/font in src/app/layout.tsx. */
+
+/* ==================== tokens/colors.css ==================== */
+/* QOS primitive colour tokens. Source: QOS brand guide section 02 (authoritative hex values).
+   Scales are tonal ramps derived from the six brand anchors; the anchor step is marked. */
+:root {
+  /* Brand anchors */
+  --qos-deep-navy: #0B0F1A;   /* Trust & Depth */
+  --qos-electric-blue: #3B82FF; /* Innovation */
+  --qos-cyan: #00E5FF;         /* Acceleration */
+  --qos-violet: #A855FF;       /* Intelligence */
+  --qos-soft-slate: #94A3B8;   /* Balance */
+  --qos-cloud: #F8FAFC;        /* Clean Spaces */
+
+  /* Navy / neutral ramp — surfaces, borders, ink */
+  --navy-950: #05070E;
+  --navy-900: #0B0F1A; /* anchor: Deep Navy */
+  --navy-850: #111725;
+  --navy-800: #172033;
+  --navy-700: #1F2A42;
+  --navy-600: #2C3A56;
+  --navy-500: #475569;
+  --navy-400: #64748B;
+  --navy-300: #94A3B8; /* anchor: Soft Slate */
+  --navy-200: #CBD5E1;
+  --navy-150: #E2E8F0;
+  --navy-100: #EDF1F7;
+  --navy-50: #F8FAFC;  /* anchor: Cloud */
+  --white: #FFFFFF;
+
+  /* Electric blue ramp — primary interactive */
+  --blue-900: #10245C;
+  --blue-800: #17347F;
+  --blue-700: #2154B8;
+  --blue-600: #2E6BE0;
+  --blue-500: #3B82FF; /* anchor: Electric Blue */
+  --blue-400: #6BA1FF;
+  --blue-300: #9CC0FF;
+  --blue-200: #C6DAFF;
+  --blue-100: #E4EDFF;
+  --blue-50: #F2F7FF;
+
+  /* Cyan ramp — acceleration / active */
+  --cyan-800: #005E6B;
+  --cyan-700: #0089A0;
+  --cyan-600: #00B4CE;
+  --cyan-500: #00E5FF; /* anchor: Cyan */
+  --cyan-400: #4DEDFF;
+  --cyan-300: #8CF4FF;
+  --cyan-200: #C2F9FF;
+  --cyan-100: #E4FCFF;
+
+  /* Violet ramp — intelligence / AI */
+  --violet-900: #3B1268;
+  --violet-800: #551A96;
+  --violet-700: #7B2BD1;
+  --violet-600: #9440EE;
+  --violet-500: #A855FF; /* anchor: Violet */
+  --violet-400: #BE81FF;
+  --violet-300: #D3AAFF;
+  --violet-200: #E7D1FF;
+  --violet-100: #F4EBFF;
+
+  /* Status primitives */
+  --green-700: #0F7A50;
+  --green-600: #12925F;
+  --green-500: #16A971;
+  --green-100: #DCF6EA;
+  --amber-700: #8A5200;
+  --amber-600: #B36A00;
+  --amber-500: #E08700;
+  --amber-100: #FDF0D8;
+  --red-700: #B01C2E;
+  --red-600: #CE2138;
+  --red-500: #E63E52;
+  --red-100: #FDE5E8;
+
+  /* Signature gradient — Violet -> Electric Blue -> Cyan (brand guide 02) */
+  --qos-gradient: linear-gradient(90deg, #A855FF 0%, #3B82FF 52%, #00E5FF 100%); /* @kind other */
+  --qos-gradient-diagonal: linear-gradient(135deg, #A855FF 0%, #3B82FF 52%, #00E5FF 100%); /* @kind other */
+  --qos-gradient-soft: linear-gradient(135deg, rgba(168,85,255,.14) 0%, rgba(59,130,255,.14) 52%, rgba(0,229,255,.14) 100%); /* @kind other */
+}
+
+/* ==================== tokens/typography.css ==================== */
+/* QOS typography tokens. Marketing scale from brand guide 03; product scale compressed for
+   enterprise density (see readme.md VISUAL FOUNDATIONS). */
+:root {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  /* Weights */
+  --fw-regular: 400; /* @kind font */
+  --fw-medium: 500; /* @kind font */
+  --fw-semibold: 600; /* @kind font */
+  --fw-bold: 700; /* @kind font */
+
+  /* Marketing / brand scale (brand guide 03) */
+  --text-display-size: 72px;   --text-display-lh: 76px;  --text-display-ls: -0.03em;
+  --text-h1-size: 56px;        --text-h1-lh: 64px;       --text-h1-ls: -0.024em;  /* H1 Bold 56/64 */
+  --text-h2-size: 40px;        --text-h2-lh: 48px;       --text-h2-ls: -0.02em;   /* H2 SemiBold 40/48 */
+  --text-h3-size: 28px;        --text-h3-lh: 36px;       --text-h3-ls: -0.015em;  /* H3 Medium 28/36 */
+  --text-h4-size: 20px;        --text-h4-lh: 28px;       --text-h4-ls: -0.01em;
+
+  /* Product scale — used inside the application shell */
+  --text-page-title-size: 24px; --text-page-title-lh: 32px; --text-page-title-ls: -0.015em;
+  --text-section-size: 16px;    --text-section-lh: 24px;    --text-section-ls: -0.006em;
+  --text-body-lg-size: 18px;    --text-body-lg-lh: 28px;
+  --text-body-size: 16px;       --text-body-lh: 24px;       /* Body Regular 16/24 */
+  --text-body-sm-size: 14px;    --text-body-sm-lh: 20px;
+  --text-caption-size: 14px;    --text-caption-lh: 20px;    /* Caption Regular 14/20 */
+  --text-label-size: 13px;      --text-label-lh: 18px;      --text-label-ls: -0.002em;
+  --text-meta-size: 12px;       --text-meta-lh: 16px;       --text-meta-ls: 0.01em;
+  --text-overline-size: 11px;   --text-overline-lh: 14px;   --text-overline-ls: 0.14em;
+  --text-table-size: 13px;      --text-table-lh: 18px;
+
+  /* Numerical / KPI values — tabular figures, tightened */
+  --text-kpi-size: 30px;        --text-kpi-lh: 36px;        --text-kpi-ls: -0.02em;
+  --text-kpi-sm-size: 22px;     --text-kpi-sm-lh: 28px;     --text-kpi-sm-ls: -0.018em;
+  --numeric-features: "tnum" 1, "cv01" 1; /* @kind other */
+}
+
+/* ==================== tokens/spacing.css ==================== */
+/* QOS spacing & layout tokens. 4px base scale. */
+:root {
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+  --space-11: 80px;
+  --space-12: 96px;
+
+  /* Application layout */
+  --layout-nav-width: 248px;
+  --layout-nav-width-collapsed: 64px;
+  --layout-topbar-height: 56px;
+  --layout-subnav-height: 44px;
+  --layout-canvas-max: 1440px;
+  --layout-content-max: 1120px;
+  --layout-form-max: 720px;
+  --layout-gutter: 24px;
+  --layout-gutter-tablet: 20px;
+  --layout-gutter-mobile: 16px;
+  --layout-drawer-width: 480px;
+  --layout-panel-width: 360px;
+
+  /* Component spacing */
+  --card-padding: 20px;
+  --card-padding-compact: 16px;
+  --card-gap: 16px;
+  --section-gap: 32px;
+  --field-gap: 16px;
+  --field-label-gap: 6px;
+  --table-cell-x: 16px;
+  --table-cell-y: 12px;
+  --table-cell-y-dense: 8px;
+  --control-height-sm: 28px;
+  --control-height: 36px;
+  --control-height-lg: 44px;
+  --touch-target-min: 44px;
+}
+
+/* ==================== tokens/radius.css ==================== */
+/* QOS radius tokens. Rounded geometric language from the wordmark; pills reserved for
+   tags, filters, compact status and toggles (brand guide 01 letterform construction). */
+:root {
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 20px;
+  --radius-pill: 999px;
+
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-surface: 16px;
+  --radius-modal: 16px;
+  --radius-badge: 999px;
+  --radius-avatar: 999px;
+}
+
+/* ==================== tokens/elevation.css ==================== */
+/* QOS elevation. Light mode uses navy-tinted, low-spread shadows; dark mode elevates with
+   layered surfaces + a hairline rather than shadow. */
+:root {
+  --shadow-xs: 0 1px 2px rgba(11, 15, 26, .06);
+  --shadow-sm: 0 1px 2px rgba(11, 15, 26, .06), 0 1px 3px rgba(11, 15, 26, .05);
+  --shadow-md: 0 2px 4px rgba(11, 15, 26, .05), 0 6px 16px rgba(11, 15, 26, .07);
+  --shadow-lg: 0 8px 24px rgba(11, 15, 26, .10), 0 2px 6px rgba(11, 15, 26, .05);
+  --shadow-xl: 0 24px 56px rgba(11, 15, 26, .16), 0 4px 12px rgba(11, 15, 26, .06);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, .6);
+
+  /* Focus & brand glow — the only place glow is allowed in operational UI */
+  --ring-focus: 0 0 0 3px rgba(59, 130, 255, .32);
+  --ring-focus-inverse: 0 0 0 3px rgba(0, 229, 255, .38);
+  --ring-danger: 0 0 0 3px rgba(230, 62, 82, .28);
+  --glow-intelligence: 0 0 0 1px rgba(168, 85, 255, .32), 0 6px 24px rgba(168, 85, 255, .18);
+  --glow-cyan: 0 0 18px rgba(0, 229, 255, .35);
+}
+
+/* ==================== tokens/motion.css ==================== */
+/* QOS motion. Orchestration language: things move along a path, settle, and never bounce. */
+:root {
+  --dur-instant: 80ms; /* @kind other */
+  --dur-fast: 140ms; /* @kind other */
+  --dur-base: 200ms; /* @kind other */
+  --dur-slow: 320ms; /* @kind other */
+  --dur-deliberate: 480ms; /* @kind other */
+  --dur-ambient: 12s; /* @kind other */
+
+  --ease-standard: cubic-bezier(.2, 0, .2, 1); /* @kind other */
+  --ease-out: cubic-bezier(.16, 1, .3, 1); /* @kind other */
+  --ease-in: cubic-bezier(.4, 0, 1, 1); /* @kind other */
+  --ease-inout: cubic-bezier(.45, 0, .25, 1); /* @kind other */
+
+  --motion-hover: background-color var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard); /* @kind other */
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 0ms; /* @kind other */ --dur-base: 0ms; /* @kind other */ --dur-slow: 0ms; /* @kind other */ --dur-deliberate: 0ms; /* @kind other */ --dur-ambient: 0ms; /* @kind other */ }
+}
+
+/* ==================== tokens/semantic-light.css ==================== */
+/* QOS semantic tokens — LIGHT (primary operating environment).
+   Components must reference these, never the primitives directly. */
+:root, [data-qos-theme="light"] {
+  color-scheme: light;
+
+  /* Surfaces */
+  --surface-canvas: var(--navy-50);
+  --surface-default: var(--white);
+  --surface-subtle: var(--navy-50);
+  --surface-sunken: var(--navy-100);
+  --surface-hover: var(--navy-50);
+  --surface-active: var(--navy-100);
+  --surface-selected: var(--blue-50);
+  --surface-inverse: var(--navy-900);
+  --surface-inverse-subtle: var(--navy-800);
+  --surface-overlay: var(--white);
+  --surface-scrim: rgba(11, 15, 26, .48);
+  --surface-brand: var(--blue-500);
+  --surface-brand-subtle: var(--blue-50);
+  --surface-intelligence: var(--violet-100);
+  --surface-disabled: var(--navy-100);
+
+  /* Text */
+  --text-primary: var(--navy-900);
+  --text-secondary: var(--navy-500);
+  --text-tertiary: var(--navy-400);
+  --text-inverse: var(--white);
+  --text-inverse-secondary: var(--navy-300);
+  --text-brand: var(--blue-600);
+  --text-link: var(--blue-600);
+  --text-link-hover: var(--blue-700);
+  --text-intelligence: var(--violet-700);
+  --text-disabled: var(--navy-400);
+  --text-on-brand: var(--white);
+  --text-placeholder: var(--navy-400);
+
+  /* Borders */
+  --border-subtle: var(--navy-150);
+  --border-default: var(--navy-200);
+  --border-strong: var(--navy-300);
+  --border-inverse: rgba(255, 255, 255, .14);
+  --border-brand: var(--blue-500);
+  --border-focus: var(--blue-500);
+  --border-intelligence: var(--violet-300);
+
+  /* Actions */
+  --action-primary: var(--blue-500);
+  --action-primary-hover: var(--blue-600);
+  --action-primary-active: var(--blue-700);
+  --action-primary-disabled: var(--blue-200);
+  --action-secondary: var(--white);
+  --action-secondary-hover: var(--navy-50);
+  --action-secondary-active: var(--navy-100);
+  --action-ghost-hover: var(--navy-100);
+  --action-danger: var(--red-600);
+  --action-danger-hover: var(--red-700);
+  --action-danger-subtle: var(--red-100);
+
+  /* Status — always paired with an icon or text label, never colour alone */
+  --status-success-fg: var(--green-700);
+  --status-success-bg: var(--green-100);
+  --status-success-border: #A7E5C9;
+  --status-success-solid: var(--green-500);
+  --status-warning-fg: var(--amber-700);
+  --status-warning-bg: var(--amber-100);
+  --status-warning-border: #F2D49A;
+  --status-warning-solid: var(--amber-500);
+  --status-error-fg: var(--red-700);
+  --status-error-bg: var(--red-100);
+  --status-error-border: #F5B9C1;
+  --status-error-solid: var(--red-500);
+  --status-info-fg: var(--blue-700);
+  --status-info-bg: var(--blue-100);
+  --status-info-border: var(--blue-200);
+  --status-info-solid: var(--blue-500);
+  --status-neutral-fg: var(--navy-500);
+  --status-neutral-bg: var(--navy-100);
+  --status-neutral-border: var(--navy-200);
+  --status-neutral-solid: var(--navy-400);
+  --status-processing-fg: var(--cyan-800);
+  --status-processing-bg: var(--cyan-100);
+  --status-processing-border: var(--cyan-200);
+  --status-processing-solid: var(--cyan-600);
+
+  /* Intelligence (AI) */
+  --intelligence-accent: var(--violet-500);
+  --intelligence-accent-strong: var(--violet-700);
+  --intelligence-surface: var(--violet-100);
+  --intelligence-border: var(--violet-200);
+  --intelligence-gradient: var(--qos-gradient);
+
+  /* Data visualisation — ordered categorical sequence, AA on light surfaces */
+  --viz-1: var(--blue-500);
+  --viz-2: var(--violet-500);
+  --viz-3: var(--cyan-600);
+  --viz-4: var(--navy-600);
+  --viz-5: var(--blue-300);
+  --viz-6: var(--violet-300);
+  --viz-grid: var(--navy-150);
+  --viz-axis: var(--navy-400);
+  --viz-area-from: rgba(59, 130, 255, .22);
+  --viz-area-to: rgba(59, 130, 255, 0);
+
+  /* Skeleton */
+  --skeleton-base: var(--navy-100);
+  --skeleton-sheen: rgba(255, 255, 255, .75);
+}
+
+/* ==================== tokens/semantic-dark.css ==================== */
+/* QOS semantic tokens — DARK. Deep navy surfaces, layered elevation, accents used sparingly.
+   Applied with [data-qos-theme="dark"] on any ancestor (the nav and AI/command surfaces use it
+   inside an otherwise light app). */
+[data-qos-theme="dark"] {
+  color-scheme: dark;
+
+  --surface-canvas: var(--navy-950);
+  --surface-default: var(--navy-900);
+  --surface-subtle: var(--navy-850);
+  --surface-sunken: var(--navy-950);
+  --surface-hover: rgba(255, 255, 255, .05);
+  --surface-active: rgba(255, 255, 255, .09);
+  --surface-selected: rgba(59, 130, 255, .16);
+  --surface-inverse: var(--white);
+  --surface-inverse-subtle: var(--navy-100);
+  --surface-overlay: var(--navy-850);
+  --surface-scrim: rgba(5, 7, 14, .68);
+  --surface-brand: var(--blue-500);
+  --surface-brand-subtle: rgba(59, 130, 255, .14);
+  --surface-intelligence: rgba(168, 85, 255, .16);
+  --surface-disabled: rgba(255, 255, 255, .06);
+
+  --text-primary: #EEF2F8;
+  --text-secondary: var(--navy-300);
+  --text-tertiary: var(--navy-400);
+  --text-inverse: var(--navy-900);
+  --text-inverse-secondary: var(--navy-500);
+  --text-brand: var(--blue-400);
+  --text-link: var(--blue-400);
+  --text-link-hover: var(--cyan-400);
+  --text-intelligence: var(--violet-300);
+  --text-disabled: var(--navy-500);
+  --text-on-brand: var(--white);
+  --text-placeholder: var(--navy-500);
+
+  --border-subtle: rgba(255, 255, 255, .08);
+  --border-default: rgba(255, 255, 255, .14);
+  --border-strong: rgba(255, 255, 255, .26);
+  --border-inverse: var(--navy-200);
+  --border-brand: var(--blue-500);
+  --border-focus: var(--cyan-500);
+  --border-intelligence: rgba(168, 85, 255, .42);
+
+  --action-primary: var(--blue-500);
+  --action-primary-hover: var(--blue-400);
+  --action-primary-active: var(--blue-600);
+  --action-primary-disabled: rgba(59, 130, 255, .32);
+  --action-secondary: rgba(255, 255, 255, .06);
+  --action-secondary-hover: rgba(255, 255, 255, .11);
+  --action-secondary-active: rgba(255, 255, 255, .16);
+  --action-ghost-hover: rgba(255, 255, 255, .08);
+  --action-danger: var(--red-500);
+  --action-danger-hover: #F05568;
+  --action-danger-subtle: rgba(230, 62, 82, .16);
+
+  --status-success-fg: #5FE0A6;
+  --status-success-bg: rgba(22, 169, 113, .16);
+  --status-success-border: rgba(22, 169, 113, .38);
+  --status-success-solid: var(--green-500);
+  --status-warning-fg: #F5C069;
+  --status-warning-bg: rgba(224, 135, 0, .16);
+  --status-warning-border: rgba(224, 135, 0, .40);
+  --status-warning-solid: var(--amber-500);
+  --status-error-fg: #FF8D9B;
+  --status-error-bg: rgba(230, 62, 82, .16);
+  --status-error-border: rgba(230, 62, 82, .40);
+  --status-error-solid: var(--red-500);
+  --status-info-fg: var(--blue-300);
+  --status-info-bg: rgba(59, 130, 255, .16);
+  --status-info-border: rgba(59, 130, 255, .40);
+  --status-info-solid: var(--blue-500);
+  --status-neutral-fg: var(--navy-300);
+  --status-neutral-bg: rgba(255, 255, 255, .07);
+  --status-neutral-border: rgba(255, 255, 255, .16);
+  --status-neutral-solid: var(--navy-400);
+  --status-processing-fg: var(--cyan-300);
+  --status-processing-bg: rgba(0, 229, 255, .14);
+  --status-processing-border: rgba(0, 229, 255, .34);
+  --status-processing-solid: var(--cyan-500);
+
+  --intelligence-accent: var(--violet-400);
+  --intelligence-accent-strong: var(--violet-300);
+  --intelligence-surface: rgba(168, 85, 255, .14);
+  --intelligence-border: rgba(168, 85, 255, .38);
+
+  --viz-1: var(--blue-400);
+  --viz-2: var(--violet-400);
+  --viz-3: var(--cyan-400);
+  --viz-4: var(--navy-300);
+  --viz-5: var(--blue-200);
+  --viz-6: var(--violet-200);
+  --viz-grid: rgba(255, 255, 255, .10);
+  --viz-axis: var(--navy-400);
+  --viz-area-from: rgba(59, 130, 255, .34);
+  --viz-area-to: rgba(59, 130, 255, 0);
+
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, .4);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .45);
+  --shadow-md: 0 6px 18px rgba(0, 0, 0, .5);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, .55);
+  --shadow-xl: 0 28px 64px rgba(0, 0, 0, .6);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, .06);
+  --ring-focus: 0 0 0 3px rgba(0, 229, 255, .34);
+
+  --skeleton-base: rgba(255, 255, 255, .07);
+  --skeleton-sheen: rgba(255, 255, 255, .14);
+}
+
+/* ==================== tokens/base.css ==================== */
+/* QOS base layer — minimal resets and the handful of global behaviours the system relies on. */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: var(--text-body-size);
+  line-height: var(--text-body-lh);
+  font-weight: var(--fw-regular);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+h1, h2, h3, h4, h5, h6, p, figure { margin: 0; }
+h1, h2, h3, h4 { text-wrap: pretty; letter-spacing: -0.015em; font-weight: var(--fw-semibold); }
+a { color: var(--text-link); text-decoration: none; }
+a:hover { color: var(--text-link-hover); text-decoration: underline; text-underline-offset: 2px; }
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible, input:focus-visible,
+select:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+code, kbd, samp, pre { font-family: var(--font-mono); font-size: .92em; }
+table { border-collapse: collapse; }
+:root { --qos-tabular: var(--numeric-features); }
+.qos-numeric { font-variant-numeric: tabular-nums; font-feature-settings: "tnum" 1; }
+[hidden] { display: none !important; }
+::selection { background: rgba(59, 130, 255, .22); }

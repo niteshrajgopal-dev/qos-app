@@ -1,0 +1,1663 @@
+QOS design system — screen reference source
+
+High-fidelity layout specifications for the QOS staff-side platform: 8 screens, the app shell
+and the fixture data. Design references, not production code. See docs/CURSOR_HANDOFF.md.
+
+Each file is delimited by a line of the form:
+
+    ===== FILE: <relative/path> =====
+
+To unpack: write every block to its path, relative to this file's directory.
+
+===== FILE: screens/AnalyticsScreen.jsx =====
+const { PageHeader, Card, Button, SegmentedControl, TrendChart, BarChart, ChartLegend, DataTable, Badge, StatusBadge, Select, IntelligenceCard, Icon, Tabs } = window.QOSDesignSystem_913581;
+
+function AnalyticsScreen() {
+  const [range, setRange] = React.useState("7 days");
+  return (
+    <>
+      <PageHeader
+        title="Analytics"
+        subtitle="One reporting model across channels, locations and products — the same data the operational screens use."
+        actions={<>
+          <Select id="loc" options={["All locations", "Marina Walk", "Downtown", "Al Quoz", "JBR Beachfront"]} />
+          <SegmentedControl options={["24 hours", "7 days", "30 days", "Quarter"]} value={range} onChange={setRange} />
+          <Button variant="secondary" icon="download">Export</Button>
+        </>}
+        tabs={<Tabs tabs={[{ id: "business", label: "Business" }, { id: "channels", label: "Channels" }, { id: "locations", label: "Locations" }, { id: "products", label: "Products" }, { id: "ops", label: "Operations" }]} value="business" onChange={() => {}} />}
+      />
+
+      <window.Grid cols={4} style={{ marginTop: 20 }}>
+        {[["Revenue", "312,480", "AED", "6.4%", "up"], ["Orders", "8,914", "", "9.1%", "up"], ["Average order value", "35.05", "AED", "2.4%", "down"], ["Repeat customers", "41.2", "%", "1.1%", "up"]].map(([l, v, u, d, dir]) => (
+          <Card key={l} padding="md">
+            <div className="qos-kpi-label">{l}</div>
+            <div className="qos-kpi-value">{v}{u ? <span style={{ fontSize: 16, fontWeight: 500, color: "var(--text-secondary)", marginLeft: 3 }}>{u}</span> : null}</div>
+            <span className="qos-kpi-delta" data-dir={dir} style={{ marginTop: 8 }}><Icon name={dir === "up" ? "trending-up" : "trending-down"} size={13} />{d} vs. previous {range}</span>
+          </Card>
+        ))}
+      </window.Grid>
+
+      <window.Grid cols={3} style={{ marginTop: 16, alignItems: "start" }}>
+        <Card header="Revenue by day" subtitle={`Last ${range}`} style={{ gridColumn: "span 2" }}>
+          <TrendChart
+            series={[{ label: "This period", values: window.REVENUE_TREND }, { label: "Previous period", values: window.REVENUE_TREND.map((v, i) => Math.round(v * (0.82 + (i % 5) * 0.03))) }]}
+            labels={["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]}
+            height={220}
+            valueFormat={(v) => `${v}k`}
+          />
+          <ChartLegend items={[{ label: "This period" }, { label: "Previous period" }]} style={{ marginTop: 12 }} />
+        </Card>
+        <Card header="Revenue by channel">
+          <BarChart
+            data={[{ label: "Store", value: 148 }, { label: "POS", value: 96 }, { label: "Deliveroo", value: 44 }, { label: "Talabat", value: 24 }]}
+            height={186}
+            valueFormat={(v) => `${v}k`}
+          />
+        </Card>
+      </window.Grid>
+
+      <window.Grid cols={3} style={{ marginTop: 16, alignItems: "start" }}>
+        <Card header="Top products" padding="none" style={{ gridColumn: "span 2" }}>
+          <DataTable
+            density="dense"
+            columns={[
+              { key: "name", header: "Product" },
+              { key: "category", header: "Category" },
+              { key: "units", header: "Units", numeric: true, render: (r) => <span>{(r.variants * 412).toLocaleString()}</span> },
+              { key: "rev", header: "Revenue (AED)", numeric: true, render: (r) => <span>{(r.variants * 8420).toLocaleString()}</span> },
+              { key: "share", header: "Share", numeric: true, render: (r) => <span>{(r.variants * 4.1).toFixed(1)}%</span> },
+              { key: "state", header: "Status", render: (r) => <StatusBadge state={r.state} /> },
+            ]}
+            rows={window.PRODUCTS.filter((p) => p.state === "published")}
+          />
+        </Card>
+        <IntelligenceCard
+          kind="Insight"
+          title="Collection orders are growing twice as fast as delivery"
+          claims={[
+            { kind: "System fact", text: "Collection grew 18% and delivery 9% over the last 30 days." },
+            { kind: "AI interpretation", text: "Growth is concentrated at Downtown and Al Quoz, both within 500m of an office cluster." },
+            { kind: "AI recommendation", text: "Enable scheduled collection slots at those two branches." },
+          ]}
+          actions={<><Button variant="intelligence" icon="arrow-right">Review change</Button><Button variant="ghost">Dismiss</Button></>}
+        />
+      </window.Grid>
+
+      <window.Grid cols={2} style={{ marginTop: 16, alignItems: "start" }}>
+        <Card header="Location performance" padding="none">
+          <DataTable
+            density="dense"
+            columns={[
+              { key: "name", header: "Branch" },
+              { key: "orders", header: "Orders", numeric: true, render: (r) => <span>{r.id === "marina" ? "2,918" : r.id === "downtown" ? "2,410" : r.id === "alquoz" ? "1,986" : "1,140"}</span> },
+              { key: "aov", header: "AOV (AED)", numeric: true, render: () => <span>35.05</span> },
+              { key: "state", header: "Status", render: (r) => <StatusBadge state={r.state} label={r.state === "warning" ? "Degraded" : undefined} /> },
+            ]}
+            rows={window.LOCATIONS}
+          />
+        </Card>
+        <Card header="Operational reliability" subtitle="Integration and publishing health affect revenue, so they are reported here too.">
+          <div style={{ display: "grid", gap: 12, fontSize: 13 }}>
+            {[["Order push success rate", "99.81%", "success"], ["Catalogue syncs completed", "1,344 of 1,346", "success"], ["Failed publishes", "1", "warning"], ["Orders held for replay", "9", "error"]].map(([l, v, tone]) => (
+              <div key={l} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 10, borderBottom: "1px solid var(--border-subtle)" }}>
+                <span style={{ color: "var(--text-secondary)" }}>{l}</span>
+                <Badge tone={tone}>{v}</Badge>
+              </div>
+            ))}
+          </div>
+        </Card>
+      </window.Grid>
+    </>
+  );
+}
+
+Object.assign(window, { AnalyticsScreen });
+
+===== FILE: screens/AppShell.jsx =====
+const { SideNav, TopBar, TenantSwitcher, SearchInput, IconButton, Avatar, Badge, Logo, Banner, Button, CommandPalette } = window.QOSDesignSystem_913581;
+
+function AppShell({ screen, onNavigate, tenant, onTenantChange, banner, children, theme = "light", onThemeChange }) {
+  const [cmd, setCmd] = React.useState(false);
+  const [q, setQ] = React.useState("");
+  React.useEffect(() => {
+    const h = (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "k") { e.preventDefault(); setCmd(true); } };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []);
+  return (
+    <div data-qos-theme={theme} style={{ display: "flex", height: "100vh", overflow: "hidden", background: "var(--surface-canvas)", color: "var(--text-primary)" }}>
+      <div style={{ display: "flex", flex: "none" }}>
+        <SideNav
+          brand={<Logo variant={theme === "dark" ? "navy" : "light"} height={17} assetBase="../../assets/" />}
+          groups={window.NAV}
+          activeId={screen}
+          onNavigate={onNavigate}
+          footer={
+            <button type="button" className="qos-nav-item" style={{ height: 40 }}>
+              <Avatar name="Jamie Doyle" size="sm" />
+              <span style={{ flex: 1, minWidth: 0, textAlign: "left", lineHeight: 1.2 }}>
+                Jamie Doyle
+                <span style={{ display: "block", fontSize: 10, color: "var(--text-tertiary)", fontWeight: 400 }}>Administrator</span>
+              </span>
+            </button>
+          }
+        />
+      </div>
+      <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+        <TopBar>
+          <TenantSwitcher tenants={window.TENANTS} value={tenant} onChange={onTenantChange} />
+          <button type="button" onClick={() => setCmd(true)} style={{ flex: 1, minWidth: 0, maxWidth: 380, height: 34, display: "flex", alignItems: "center", gap: 8, padding: "0 12px", borderRadius: "var(--radius-md)", border: "1px solid var(--border-default)", background: "var(--surface-subtle)", color: "var(--text-placeholder)", fontSize: 13, cursor: "pointer", overflow: "hidden" }}>
+            <span className="qos-badge" style={{ border: "none", background: "none", padding: 0, color: "var(--text-tertiary)", flex: "none" }}>⌕</span>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textAlign: "left" }}>Search businesses, orders, products, locations…</span>
+            <span className="qos-kbd" style={{ flex: "none" }}>⌘K</span>
+          </button>
+          <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6 }}>
+            <Badge tone="processing" dot pulse>Development</Badge>
+            <IconButton
+              icon={theme === "dark" ? "sun" : "moon"}
+              label={theme === "dark" ? "Switch to light theme" : "Switch to dark theme"}
+              onClick={() => onThemeChange && onThemeChange(theme === "dark" ? "light" : "dark")}
+            />
+            <IconButton icon="circle-help" label="Help" />
+            <span style={{ position: "relative", display: "inline-flex" }}>
+              <IconButton icon="bell" label="Notifications" />
+              <span style={{ position: "absolute", top: 5, right: 5, width: 7, height: 7, borderRadius: 999, background: "var(--status-error-solid)", border: "1.5px solid var(--surface-default)" }} />
+            </span>
+            <Avatar name="Jamie Doyle" size="sm" />
+          </div>
+        </TopBar>
+        {banner}
+        <main style={{ flex: 1, overflowY: "auto" }}>
+          <div style={{ maxWidth: "var(--layout-canvas-max)", margin: "0 auto", padding: "24px var(--layout-gutter) 64px" }}>{children}</div>
+        </main>
+      </div>
+      <CommandPalette
+        open={cmd}
+        query={q}
+        onQueryChange={setQ}
+        onClose={() => setCmd(false)}
+        onSelect={(it) => { setCmd(false); if (it.screen) onNavigate(it.screen); }}
+        groups={[
+          { label: "Suggested by QOS Intelligence", items: [
+            { id: "ai1", label: "9 orders failed to reach Lightspeed", meta: "Marina Walk · since 14:02", kind: "Anomaly", intelligence: true, screen: "orders" },
+          ] },
+          { label: "Orders", items: [
+            { id: "o1", label: "QO-10428 · A. Rahman", meta: "Online Store · 184.00 AED", kind: "Order", icon: "receipt", screen: "orders" },
+            { id: "o2", label: "QO-10427 · L. Fernandes", meta: "POS · 62.50 AED", kind: "Order", icon: "receipt", screen: "orders" },
+          ] },
+          { label: "Catalogue", items: [
+            { id: "p1", label: "Flat white", meta: "Coffee · 3 variants", kind: "Product", icon: "package", screen: "catalogue" },
+            { id: "p2", label: "Main menu", meta: "6 sections · 84 items", kind: "Menu", icon: "book-open", screen: "catalogue" },
+          ] },
+          { label: "Locations", items: [
+            { id: "l1", label: "Marina Walk", meta: "Integration error", kind: "Location", icon: "map-pin", screen: "locations" },
+          ] },
+        ]}
+      />
+    </div>
+  );
+}
+
+function Section({ title, action, children, style }) {
+  return (
+    <section style={{ marginTop: "var(--section-gap)", ...style }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, marginBottom: 12 }}>
+        <h2 style={{ fontSize: "var(--text-section-size)", lineHeight: "var(--text-section-lh)", fontWeight: "var(--fw-semibold)", letterSpacing: "var(--text-section-ls)" }}>{title}</h2>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function Grid({ cols = 4, children, gap = 16, style }) {
+  return <div style={{ display: "grid", gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`, gap, ...style }}>{children}</div>;
+}
+
+function DefinitionList({ items }) {
+  return (
+    <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "10px 20px", margin: 0, fontSize: 13 }}>
+      {items.map((it) => (
+        <React.Fragment key={it.label}>
+          <dt style={{ color: "var(--text-secondary)" }}>{it.label}</dt>
+          <dd style={{ margin: 0, fontWeight: "var(--fw-medium)" }}>{it.value}</dd>
+        </React.Fragment>
+      ))}
+    </dl>
+  );
+}
+
+Object.assign(window, { AppShell, Section, Grid, DefinitionList });
+
+===== FILE: screens/CatalogueScreen.jsx =====
+const { PageHeader, Card, Button, DataTable, TableToolbar, TableBulkBar, Pagination, SearchInput, Chip, StatusBadge, Badge, Tabs, Breadcrumbs, Input, Select, Textarea, Switch, Checkbox, Banner, Toast, ToastStack, Icon, IconButton, Tag, EmptyState, AiBadge } = window.QOSDesignSystem_913581;
+
+/* Flow 2 — catalogue → product → edit → modifiers/availability → save → success. */
+function CatalogueScreen() {
+  const [product, setProduct] = React.useState(null);
+  const [sel, setSel] = React.useState([]);
+  const [toast, setToast] = React.useState(null);
+  if (product) return <ProductEditor product={product} onBack={() => setProduct(null)} onSaved={(m) => { setProduct(null); setToast(m); }} toast={toast} setToast={setToast} />;
+
+  const columns = [
+    { key: "name", header: "Product", sortable: true, render: (r) => (
+      <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <span style={{ width: 28, height: 28, borderRadius: "var(--radius-sm)", background: "var(--surface-sunken)", display: "grid", placeItems: "center", color: "var(--text-tertiary)" }}><Icon name="image" size={13} /></span>
+        <span style={{ fontWeight: 500 }}>{r.name}</span>
+      </span>
+    ) },
+    { key: "category", header: "Category" },
+    { key: "variants", header: "Variants", numeric: true },
+    { key: "price", header: "Price (AED)", numeric: true },
+    { key: "channels", header: "Channel visibility", render: (r) => r.channels === "—" ? <span style={{ color: "var(--text-tertiary)" }}>—</span> : <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.channels}</span> },
+    { key: "availability", header: "Locations", render: (r) => r.exception ? <Badge tone="warning" icon="alert-triangle">{r.availability}</Badge> : <span>{r.availability}</span> },
+    { key: "state", header: "Status", render: (r) => <StatusBadge state={r.state} /> },
+    { key: "act", header: "", width: 40, render: () => <IconButton icon="more-horizontal" label="Actions" size="sm" /> },
+  ];
+
+  return (
+    <>
+      <PageHeader
+        breadcrumbs={<Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />}
+        title="Products"
+        subtitle="1,583 products across 18 categories. Availability is controlled per location and per channel."
+        actions={<><Button variant="secondary" icon="upload">Import</Button><Button icon="plus">New product</Button></>}
+        tabs={<Tabs tabs={[{ id: "all", label: "All", count: 1583 }, { id: "published", label: "Published", count: 1502 }, { id: "draft", label: "Drafts", count: 63 }, { id: "issues", label: "Needs attention", count: 15, tone: "warning" }, { id: "archived", label: "Archived", count: 18 }]} value="all" onChange={() => {}} />}
+      />
+      <div style={{ marginTop: 20 }}>
+        <Card padding="none">
+          <TableToolbar>
+            <SearchInput placeholder="Search 1,583 products" style={{ width: 240 }} />
+            <Chip>Category</Chip>
+            <Chip>Channel</Chip>
+            <Chip>Location</Chip>
+            <Chip icon="alert-triangle" count={15}>Needs attention</Chip>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+              <IconButton icon="columns-3" label="Columns" variant="outline" />
+              <IconButton icon="rows-3" label="Density" variant="outline" />
+            </div>
+          </TableToolbar>
+          {sel.length ? (
+            <TableBulkBar count={sel.length}>
+              <Button size="sm" variant="secondary" icon="eye">Change visibility</Button>
+              <Button size="sm" variant="secondary" icon="tag">Set price</Button>
+              <Button size="sm" variant="secondary" icon="map-pin">Location availability</Button>
+              <Button size="sm" variant="ghost" onClick={() => setSel([])}>Clear</Button>
+            </TableBulkBar>
+          ) : null}
+          <DataTable
+            columns={columns}
+            rows={window.PRODUCTS}
+            selectable
+            selectedIds={sel}
+            onToggleRow={(id) => setSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id])}
+            onToggleAll={(n) => setSel(n ? window.PRODUCTS.map((r) => r.id) : [])}
+            onRowClick={(r) => setProduct(r)}
+            sortKey="name"
+          />
+          <Pagination page={1} pageCount={264} pageSize={6} total={1583} />
+        </Card>
+      </div>
+      {toast ? <ToastStack><Toast tone="success" title="Saved" onDismiss={() => setToast(null)}>{toast}</Toast></ToastStack> : null}
+    </>
+  );
+}
+
+function ProductEditor({ product, onBack, onSaved }) {
+  const [tab, setTab] = React.useState("details");
+  const [dirty, setDirty] = React.useState(false);
+  const [delivery, setDelivery] = React.useState(true);
+  return (
+    <>
+      {dirty ? (
+        <div style={{ margin: "-24px calc(-1 * var(--layout-gutter)) 20px" }}>
+          <Banner tone="warning" icon="circle-dot" actions={<><Button size="sm" variant="ghost" onClick={onBack}>Discard</Button><Button size="sm" icon="check" onClick={() => onSaved(`${product.name} updated · changes are live on 3 channels`)}>Save changes</Button></>}>
+            Unsaved changes to <strong>{product.name}</strong>.
+          </Banner>
+        </div>
+      ) : null}
+      <PageHeader
+        breadcrumbs={<Breadcrumbs items={[{ id: "catalogue", label: "Catalogue" }, { id: "catalogue", label: "Products" }, { label: product.name }]} onNavigate={onBack} />}
+        title={product.name}
+        badge={<StatusBadge state={product.state} />}
+        subtitle={`${product.category} · ${product.variants} variants · available at ${product.availability} locations`}
+        actions={<><Button variant="ghost" onClick={onBack}>Cancel</Button><Button variant="secondary" icon="eye">Preview in store</Button><Button icon="check" onClick={() => onSaved(`${product.name} updated · changes are live on 3 channels`)}>Save</Button></>}
+        tabs={<Tabs tabs={[{ id: "details", label: "Details" }, { id: "variants", label: "Variants", count: product.variants }, { id: "modifiers", label: "Modifiers", count: 2 }, { id: "availability", label: "Availability", tone: product.exception ? "warning" : undefined }, { id: "media", label: "Media" }, { id: "channels", label: "Channels" }]} value={tab} onChange={setTab} />}
+      />
+      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, alignItems: "start" }}>
+        <div style={{ display: "grid", gap: 16 }}>
+          {tab === "details" ? (
+            <>
+              <Card header="Product details">
+                <div style={{ display: "grid", gap: 16, maxWidth: "var(--layout-form-max)" }}>
+                  <Input id="pname" label="Display name" defaultValue={product.name} onChange={() => setDirty(true)} />
+                  <Textarea id="pdesc" label="Description" rows={3} defaultValue="Double shot of our house espresso with velvet steamed milk." onChange={() => setDirty(true)} />
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    <Select id="pcat" label="Category" options={["Coffee", "Tea", "Bakery", "Kitchen"]} defaultValue={product.category} onChange={() => setDirty(true)} />
+                    <Input id="psku" label="SKU" leadingIcon="hash" defaultValue="QTS-0142" onChange={() => setDirty(true)} />
+                  </div>
+                </div>
+              </Card>
+              <Card header="Pricing" subtitle="Base prices apply everywhere unless a location override exists.">
+                <div style={{ display: "grid", gap: 12 }}>
+                  {[["Small", "18.00"], ["Regular", "21.00"], ["Large", "24.00"]].map(([n, p]) => (
+                    <div key={n} style={{ display: "grid", gridTemplateColumns: "1fr 140px 150px", gap: 12, alignItems: "end" }}>
+                      <Input id={`v${n}`} label={n === "Small" ? "Variant" : undefined} defaultValue={n} onChange={() => setDirty(true)} />
+                      <Input id={`p${n}`} label={n === "Small" ? "Price (AED)" : undefined} defaultValue={p} onChange={() => setDirty(true)} />
+                      <Select id={`o${n}`} label={n === "Small" ? "Location overrides" : undefined} options={["None", "2 locations"]} onChange={() => setDirty(true)} />
+                    </div>
+                  ))}
+                  <Button size="sm" variant="secondary" icon="plus" style={{ justifySelf: "start" }}>Add variant</Button>
+                </div>
+              </Card>
+            </>
+          ) : null}
+          {tab === "modifiers" ? (
+            <Card header="Modifier groups" subtitle="Groups are reusable across products." actions={<Button size="sm" variant="secondary" icon="plus">Attach group</Button>}>
+              <div style={{ display: "grid", gap: 10 }}>
+                {[["Milk", "Required · choose 1", 5], ["Extras", "Optional · choose up to 3", 7]].map(([n, rule, count]) => (
+                  <div key={n} style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-card)" }}>
+                    <Icon name="list" size={15} style={{ color: "var(--text-tertiary)" }} />
+                    <span style={{ flex: 1 }}><strong style={{ fontWeight: 500, fontSize: 13 }}>{n}</strong><span style={{ display: "block", fontSize: 12, color: "var(--text-secondary)" }}>{rule} · {count} options</span></span>
+                    <Badge tone="neutral">{count} options</Badge>
+                    <IconButton icon="pencil" label="Edit group" size="sm" />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+          {tab === "availability" ? (
+            <Card header="Location availability" subtitle="Turn a product off at a single branch without unpublishing it." padding="none">
+              <div style={{ padding: "var(--card-padding)", display: "grid", gap: 12 }}>
+                {window.LOCATIONS.map((l) => (
+                  <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 12, borderBottom: "1px solid var(--border-subtle)" }}>
+                    <span style={{ flex: 1 }}><strong style={{ fontWeight: 500, fontSize: 13 }}>{l.name}</strong><span style={{ display: "block", fontSize: 12, color: "var(--text-secondary)" }}>{l.fulfilment}</span></span>
+                    {l.id === "marina" ? <Badge tone="warning" icon="alert-triangle">Out of stock</Badge> : null}
+                    <Switch label="Available" checked={l.id !== "marina"} onChange={() => setDirty(true)} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+          {tab === "variants" ? <EmptyState icon="layers" title="Variants are managed under Pricing" body="Size and price variants for this product live on the Details tab so price and option stay together." actions={<Button variant="secondary" onClick={() => setTab("details")}>Go to Details</Button>} /> : null}
+          {tab === "media" ? <EmptyState icon="image" title="No images yet" body="Products without an image convert 23% worse on the Online Store." actions={<Button icon="upload">Upload image</Button>} /> : null}
+          {tab === "channels" ? (
+            <Card header="Channel visibility">
+              <div style={{ display: "grid", gap: 12 }}>
+                {window.CHANNELS.slice(0, 4).map((c) => (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Icon name={c.icon} size={15} style={{ color: "var(--text-tertiary)" }} />
+                    <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
+                    <Checkbox checked={c.id !== "talabat"} onChange={() => setDirty(true)} label="Visible" />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+        </div>
+        <div style={{ display: "grid", gap: 16 }}>
+          <Card header="Status" padding="sm">
+            <div style={{ display: "grid", gap: 10 }}>
+              <Select id="pstate" label="Publishing state" options={["Draft", "Published", "Archived"]} defaultValue="Published" onChange={() => setDirty(true)} />
+              <Switch label="Available for delivery" checked={delivery} onChange={() => { setDelivery(!delivery); setDirty(true); }} />
+              <Switch label="Available for collection" checked onChange={() => setDirty(true)} />
+            </div>
+          </Card>
+          <Card tone="intelligence" padding="sm">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><AiBadge>AI suggestion</AiBadge></div>
+            <p style={{ fontSize: 13, lineHeight: "19px", color: "var(--text-secondary)", margin: 0 }}>
+              Similar products at Marina Walk use a 5% delivery uplift. Applying it here would add AED 0.90 to the regular size.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <Button size="sm" variant="intelligence">Review change</Button>
+              <Button size="sm" variant="ghost">Dismiss</Button>
+            </div>
+          </Card>
+          <Card header="Applied to" padding="sm">
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+              <Tag>Main menu</Tag><Tag>Delivery menu</Tag><Tag>Coffee</Tag>
+            </div>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
+
+Object.assign(window, { CatalogueScreen });
+
+===== FILE: screens/ChannelsScreen.jsx =====
+const { PageHeader, Card, Button, StatusBadge, Badge, Tabs, Breadcrumbs, Icon, IconButton, Input, Select, Switch, SegmentedControl, DataTable, Timeline, Alert, Banner, Toast, ToastStack, ConfirmDialog, Drawer, Chip, Logo, ProgressBar, Tag } = window.QOSDesignSystem_913581;
+
+/* Flow 3 — configure the Online Store. Flow 7 — publishing history and rollback. */
+function ChannelsScreen() {
+  const [channel, setChannel] = React.useState(null);
+  if (channel === "store") return <OnlineStore onBack={() => setChannel(null)} />;
+  return (
+    <>
+      <PageHeader
+        title="Sales Channels"
+        subtitle="Every channel consumes the same catalogue and location configuration from QOS."
+        actions={<Button icon="plus">Add channel</Button>}
+        tabs={<Tabs tabs={[{ id: "connected", label: "Connected", count: 4 }, { id: "available", label: "Available", count: 2 }]} value="connected" onChange={() => {}} />}
+      />
+      <window.Grid cols={3} style={{ marginTop: 20 }}>
+        {window.CHANNELS.map((c) => (
+          <Card key={c.id} padding="none" interactive={c.id === "store"} onClick={c.id === "store" ? () => setChannel("store") : undefined}>
+            <div style={{ padding: "var(--card-padding)", display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <span style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: "var(--surface-subtle)", display: "grid", placeItems: "center", color: "var(--text-secondary)", flex: "none" }}><Icon name={c.icon} size={17} /></span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <strong style={{ fontSize: 15, fontWeight: 600 }}>{c.name}</strong>
+                  <StatusBadge state={c.state} />
+                </span>
+                <span style={{ display: "block", fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{c.kind}</span>
+              </span>
+            </div>
+            <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "12px var(--card-padding)", display: "grid", gap: 7, fontSize: 12 }}>
+              <Row label="Locations" value={c.locations} />
+              <Row label="Catalogue" value={c.catalogue} />
+              <Row label="Sync health" value={<StatusBadge state={c.sync} />} />
+            </div>
+            <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "10px var(--card-padding)", display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-secondary)" }}>
+              <Icon name="history" size={13} />
+              <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.activity}</span>
+              {c.state === "available" ? <Button size="sm" variant="secondary">Connect</Button> : <Icon name="chevron-right" size={14} />}
+            </div>
+          </Card>
+        ))}
+      </window.Grid>
+    </>
+  );
+}
+
+function Row({ label, value }) {
+  return (
+    <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+      <span style={{ color: "var(--text-secondary)" }}>{label}</span>
+      <span style={{ fontWeight: 500 }}>{value}</span>
+    </span>
+  );
+}
+
+function OnlineStore({ onBack }) {
+  const [tab, setTab] = React.useState("overview");
+  const [device, setDevice] = React.useState("Desktop");
+  const [dirty, setDirty] = React.useState(false);
+  const [publishing, setPublishing] = React.useState(false);
+  const [confirm, setConfirm] = React.useState(null);
+  const [toast, setToast] = React.useState(null);
+  const [release, setRelease] = React.useState(null);
+  const [activeRelease, setActiveRelease] = React.useState(42);
+
+  return (
+    <>
+      {dirty ? (
+        <div style={{ margin: "-24px calc(-1 * var(--layout-gutter)) 20px" }}>
+          <Banner tone="warning" icon="circle-dot" actions={<><Button size="sm" variant="ghost" onClick={() => setDirty(false)}>Discard draft</Button><Button size="sm" icon="upload-cloud" onClick={() => setConfirm("publish")}>Publish</Button></>}>
+            Draft has unpublished changes. Customers still see <strong>Release {activeRelease}</strong>.
+          </Banner>
+        </div>
+      ) : null}
+      <PageHeader
+        breadcrumbs={<Breadcrumbs items={[{ id: "channels", label: "Sales Channels" }, { label: "Online Store" }]} onNavigate={onBack} />}
+        title="Online Store"
+        badge={<StatusBadge state="live" />}
+        subtitle="Shared QOS Storefront renderer · quotes.qosapp.com"
+        meta={<>
+          <span><Icon name="globe" size={12} /> quotes.qosapp.com</span>
+          <span><Icon name="history" size={12} /> Release {activeRelease} published 4h ago</span>
+          <span><Icon name="map-pin" size={12} /> 12 of 12 locations</span>
+          <span><Icon name="package" size={12} /> Main menu</span>
+        </>}
+        actions={<><Button variant="secondary" icon="external-link">View store</Button><Button icon="upload-cloud" onClick={() => setConfirm("publish")}>Publish</Button></>}
+        tabs={<Tabs
+          tabs={[{ id: "overview", label: "Overview" }, { id: "appearance", label: "Appearance" }, { id: "pages", label: "Pages", count: 7 }, { id: "menus", label: "Menus" }, { id: "branches", label: "Branches & fulfilment" }, { id: "domains", label: "Domains" }, { id: "payments", label: "Payments" }, { id: "history", label: "Publishing history" }]}
+          value={tab} onChange={setTab} />}
+      />
+
+      <div style={{ marginTop: 20 }}>
+        {tab === "overview" ? (
+          <window.Grid cols={3} style={{ alignItems: "start" }}>
+            <Card header="Store health" style={{ gridColumn: "span 2" }} padding="none">
+              <div style={{ padding: "var(--card-padding)", display: "grid", gap: 12, fontSize: 13 }}>
+                <Row label="Status" value={<StatusBadge state="live" />} />
+                <Row label="Primary domain" value="quotes.qosapp.com" />
+                <Row label="Domain verification" value={<StatusBadge state="verified" />} />
+                <Row label="Payments" value={<StatusBadge state="connected" label="Stripe connected" />} />
+                <Row label="Catalogue sync" value={<StatusBadge state="synced" />} />
+                <Row label="Active release" value={`Release ${activeRelease} · 12 Sep, 09:14`} />
+              </div>
+            </Card>
+            <div style={{ display: "grid", gap: 16 }}>
+              <Alert tone="info" title="Publishing creates a release">Draft edits never touch the live store. Publishing produces an immutable release you can roll back to.</Alert>
+              <Card header="Recent changes" padding="sm">
+                <Timeline items={window.RELEASES.slice(0, 3).map((r) => ({ title: r.version, meta: `${r.date} · ${r.user}`, tone: r.state === "failed" ? "error" : "success", icon: r.state === "failed" ? "x-circle" : "upload-cloud" }))} />
+              </Card>
+            </div>
+          </window.Grid>
+        ) : null}
+
+        {tab === "appearance" ? (
+          <window.Grid cols={2} style={{ alignItems: "start" }}>
+            <Card header="Brand & theme" subtitle="Applied to the shared storefront renderer for this tenant only.">
+              <div style={{ display: "grid", gap: 16 }}>
+                <div>
+                  <div className="qos-field-label" style={{ marginBottom: 8 }}>Logo</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 14, border: "1px dashed var(--border-default)", borderRadius: "var(--radius-card)" }}>
+                    <span style={{ fontSize: 18, fontWeight: 700, letterSpacing: "-.02em" }}>Quotes</span>
+                    <Button size="sm" variant="secondary" icon="upload" onClick={() => setDirty(true)}>Replace</Button>
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Input id="brandcol" label="Brand colour" defaultValue="#1B4332" leadingIcon="palette" onChange={() => setDirty(true)} />
+                  <Select id="brandfont" label="Typeface" options={["Inter", "Source Serif", "Space Grotesk"]} onChange={() => setDirty(true)} />
+                </div>
+                <Select id="theme" label="Theme preset" options={["Classic", "Editorial", "Compact"]} onChange={() => setDirty(true)} />
+                <Switch label="Show opening hours in header" checked onChange={() => setDirty(true)} />
+                <Switch label="Show location picker on first visit" onChange={() => setDirty(true)} />
+              </div>
+            </Card>
+            <Card
+              header="Preview"
+              subtitle={dirty ? "Draft — not yet published" : `Release ${activeRelease} — live`}
+              actions={<SegmentedControl options={[{ value: "Desktop", label: "Desktop", icon: "monitor" }, { value: "Mobile", label: "Mobile", icon: "smartphone" }]} value={device} onChange={setDevice} />}
+            >
+              <StorePreview device={device} draft={dirty} />
+            </Card>
+          </window.Grid>
+        ) : null}
+
+        {tab === "pages" ? (
+          <window.Grid cols={2} style={{ alignItems: "start" }}>
+            <Card header="Homepage blocks" subtitle="Reusable blocks only — the storefront is a renderer, not a website builder." actions={<Button size="sm" variant="secondary" icon="plus">Add block</Button>} padding="none">
+              <div style={{ padding: 12, display: "grid", gap: 8 }}>
+                {window.BLOCKS.map((b) => (
+                  <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-card)", background: "var(--surface-default)" }}>
+                    <Icon name="grip-vertical" size={14} style={{ color: "var(--text-tertiary)", cursor: "grab" }} />
+                    <Icon name={b.icon} size={15} style={{ color: "var(--text-secondary)" }} />
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <strong style={{ fontSize: 13, fontWeight: 500 }}>{b.name}</strong>
+                      <span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)" }}>{b.note}</span>
+                    </span>
+                    {b.state === "draft" ? <StatusBadge state="draft" /> : null}
+                    <Switch checked={b.id !== "featured"} onChange={() => setDirty(true)} />
+                    <IconButton icon="settings-2" label={`Configure ${b.name}`} size="sm" onClick={() => setDirty(true)} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+            <Card header="Preview" subtitle={dirty ? "Draft — not yet published" : `Release ${activeRelease} — live`} actions={<SegmentedControl options={[{ value: "Desktop", label: "Desktop", icon: "monitor" }, { value: "Mobile", label: "Mobile", icon: "smartphone" }]} value={device} onChange={setDevice} />}>
+              <StorePreview device={device} draft={dirty} />
+            </Card>
+          </window.Grid>
+        ) : null}
+
+        {tab === "history" ? (
+          <Card padding="none" header="Publishing history" subtitle="Every publish produces an immutable release. Rollback re-activates a previous release without a deployment.">
+            <DataTable
+              columns={[
+                { key: "version", header: "Version", render: (r) => <span style={{ fontWeight: 500 }}>{r.version}{r.id === activeRelease ? <Badge tone="success" style={{ marginLeft: 8 }}>Active</Badge> : null}</span> },
+                { key: "date", header: "Published" },
+                { key: "user", header: "By" },
+                { key: "changes", header: "Changes" },
+                { key: "state", header: "Status", render: (r) => <StatusBadge state={r.state} /> },
+                { key: "act", header: "", width: 190, render: (r) => (
+                  <span style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>
+                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); setRelease(r); }}>Inspect</Button>
+                    {r.id !== activeRelease && r.state === "published" ? <Button size="sm" variant="secondary" icon="rotate-ccw" onClick={(e) => { e.stopPropagation(); setConfirm(r); }}>Roll back</Button> : null}
+                  </span>
+                ) },
+              ]}
+              rows={window.RELEASES}
+              rowKey="id"
+            />
+          </Card>
+        ) : null}
+
+        {["menus", "branches", "domains", "payments"].includes(tab) ? (
+          <window.Grid cols={2} style={{ alignItems: "start" }}>
+            <Card header={{ menus: "Menu assignment", branches: "Branches & fulfilment", domains: "Domains", payments: "Payments" }[tab]}>
+              {tab === "menus" ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <Select id="m1" label="Default menu" options={["Main menu", "Delivery menu", "Breakfast menu"]} onChange={() => setDirty(true)} />
+                  <Row label="Sections" value="6" />
+                  <Row label="Items" value="84" />
+                  <Row label="Last synced" value="20 minutes ago" />
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Tag>Main menu</Tag><Tag>en-AE</Tag><Tag>ar-AE</Tag></div>
+                </div>
+              ) : null}
+              {tab === "branches" ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  {window.LOCATIONS.map((l) => (
+                    <div key={l.id} style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 12, borderBottom: "1px solid var(--border-subtle)" }}>
+                      <span style={{ flex: 1 }}><strong style={{ fontSize: 13, fontWeight: 500 }}>{l.name}</strong><span style={{ display: "block", fontSize: 12, color: "var(--text-secondary)" }}>{l.fulfilment}</span></span>
+                      <Switch label="Exposed" checked={l.state !== "paused"} onChange={() => setDirty(true)} />
+                    </div>
+                  ))}
+                  <p style={{ fontSize: 12, color: "var(--text-tertiary)", margin: 0 }}>Locations are never exposed automatically — each one is explicitly allowed on this storefront.</p>
+                </div>
+              ) : null}
+              {tab === "domains" ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}><Icon name="globe" size={15} /><span style={{ flex: 1, fontSize: 13 }}>quotes.qosapp.com</span><Badge tone="neutral">Platform subdomain</Badge><StatusBadge state="verified" /></div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}><Icon name="globe" size={15} /><span style={{ flex: 1, fontSize: 13 }}>order.quotes.ae</span><Badge tone="neutral">Custom domain</Badge><StatusBadge state="pending" label="Verifying" /></div>
+                  <Alert tone="info" title="Add a CNAME record">Point <code>order.quotes.ae</code> at <code>qos-dev-storefront.azurefd.net</code>, then verify.</Alert>
+                  <Button variant="secondary" icon="plus" style={{ justifySelf: "start" }}>Add domain</Button>
+                </div>
+              ) : null}
+              {tab === "payments" ? (
+                <div style={{ display: "grid", gap: 12 }}>
+                  <Row label="Provider" value="Stripe" />
+                  <Row label="Status" value={<StatusBadge state="connected" />} />
+                  <Row label="Methods" value="Card, Apple Pay, Google Pay" />
+                  <Row label="Payouts" value="Daily · AED" />
+                  <Alert tone="warning" title="Changing the provider affects live checkout">Customers mid-checkout may see an error for up to 30 seconds.</Alert>
+                </div>
+              ) : null}
+            </Card>
+            <Card header="Preview" subtitle={dirty ? "Draft — not yet published" : `Release ${activeRelease} — live`} actions={<SegmentedControl options={[{ value: "Desktop", label: "Desktop", icon: "monitor" }, { value: "Mobile", label: "Mobile", icon: "smartphone" }]} value={device} onChange={setDevice} />}>
+              <StorePreview device={device} draft={dirty} />
+            </Card>
+          </window.Grid>
+        ) : null}
+      </div>
+
+      {release ? (
+        <Drawer title={release.version} description={`${release.date} · ${release.user}`} onClose={() => setRelease(null)}
+          footer={<><Button variant="ghost" onClick={() => setRelease(null)}>Close</Button>{release.id !== activeRelease && release.state === "published" ? <Button icon="rotate-ccw" onClick={() => { setConfirm(release); setRelease(null); }}>Roll back to this release</Button> : null}</>}>
+          <window.DefinitionList items={[
+            { label: "Release", value: release.version },
+            { label: "Status", value: <StatusBadge state={release.state} /> },
+            { label: "Published", value: release.date },
+            { label: "By", value: release.user },
+            { label: "Changes", value: release.changes },
+            { label: "Menu", value: "Main menu · 84 items" },
+            { label: "Locations", value: "12 exposed" },
+            { label: "Snapshot", value: <code>rel_{release.id}_8f31c9</code> },
+          ]} />
+          <div style={{ marginTop: 20 }}>
+            <StorePreview device="Desktop" draft={false} />
+          </div>
+        </Drawer>
+      ) : null}
+
+      {confirm === "publish" ? (
+        <ConfirmDialog
+          title="Publish draft to quotes.qosapp.com?"
+          description="A new immutable release is created and served to customers immediately. The previous release stays available for rollback."
+          confirmLabel="Publish release 43"
+          onClose={() => setConfirm(null)}
+          onConfirm={() => { setConfirm(null); setPublishing(true); setTimeout(() => { setPublishing(false); setDirty(false); setActiveRelease(43); setToast("Release 43 is live on quotes.qosapp.com"); }, 1400); }}
+        >
+          <window.DefinitionList items={[
+            { label: "Channel", value: "Online Store" },
+            { label: "Domain", value: "quotes.qosapp.com" },
+            { label: "Changes", value: "Homepage blocks, theme colour" },
+            { label: "Locations affected", value: "12" },
+          ]} />
+        </ConfirmDialog>
+      ) : null}
+
+      {confirm && confirm !== "publish" ? (
+        <ConfirmDialog
+          tone="danger"
+          title={`Roll back to ${confirm.version}?`}
+          description={`Release ${activeRelease} will stop being served. Customers will see ${confirm.version} within a few seconds. Nothing is deleted.`}
+          confirmLabel={`Roll back to ${confirm.version}`}
+          onClose={() => setConfirm(null)}
+          onConfirm={() => { const v = confirm; setConfirm(null); setActiveRelease(v.id); setToast(`${v.version} is now active on quotes.qosapp.com`); }}
+        >
+          <window.DefinitionList items={[
+            { label: "Currently live", value: `Release ${activeRelease}` },
+            { label: "Rolling back to", value: `${confirm.version} · ${confirm.date}` },
+            { label: "Difference", value: confirm.changes },
+          ]} />
+        </ConfirmDialog>
+      ) : null}
+
+      {publishing ? (
+        <div className="qos-scrim">
+          <div className="qos-modal" data-size="sm" style={{ padding: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+              <Logo variant="light" height={16} assetBase="../../assets/" />
+              <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>Publishing release 43</span>
+            </div>
+            <ProgressBar tone="intelligence" indeterminate label="Validating draft, snapshotting catalogue, activating release" />
+          </div>
+        </div>
+      ) : null}
+      {toast ? <ToastStack><Toast tone="success" title="Published" onDismiss={() => setToast(null)}>{toast}</Toast></ToastStack> : null}
+    </>
+  );
+}
+
+/* A deliberately schematic representation of the customer-facing storefront.
+   The real storefront runtime is a separate application and was not supplied. */
+function StorePreview({ device, draft }) {
+  const w = device === "Mobile" ? 260 : "100%";
+  return (
+    <div style={{ background: "var(--surface-sunken)", borderRadius: "var(--radius-card)", padding: 16, display: "grid", placeItems: "center" }}>
+      <div style={{ width: w, maxWidth: "100%", background: "#fff", borderRadius: 10, border: "1px solid var(--border-default)", overflow: "hidden", boxShadow: "var(--shadow-sm)" }}>
+        <div style={{ height: 26, background: "var(--navy-100)", display: "flex", alignItems: "center", gap: 5, padding: "0 8px" }}>
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--navy-300)" }} />
+          <span style={{ width: 6, height: 6, borderRadius: 999, background: "var(--navy-300)" }} />
+          <span style={{ flex: 1, height: 12, borderRadius: 999, background: "#fff", fontSize: 7, color: "var(--text-tertiary)", display: "grid", placeItems: "center" }}>quotes.qosapp.com</span>
+        </div>
+        <div style={{ padding: device === "Mobile" ? 10 : 14 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#1B4332" }}>Quotes</span>
+            <span style={{ display: "flex", gap: 6 }}>{["Menu", "Locations", "Order"].map((t) => <span key={t} style={{ fontSize: 7, color: "#4b5563" }}>{t}</span>)}</span>
+          </div>
+          <div style={{ height: device === "Mobile" ? 70 : 96, borderRadius: 6, background: draft ? "linear-gradient(120deg,#1B4332,#2d6a4f)" : "linear-gradient(120deg,#22303c,#3c4f5c)", display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: 10, color: "#fff" }}>
+            <span style={{ fontSize: device === "Mobile" ? 10 : 13, fontWeight: 600 }}>Coffee, all day.</span>
+            <span style={{ fontSize: 7, opacity: .85 }}>Order for collection or delivery</span>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: device === "Mobile" ? "1fr 1fr" : "repeat(4,1fr)", gap: 6, marginTop: 10 }}>
+            {["Coffee", "Tea", "Bakery", "Kitchen"].map((c) => (
+              <div key={c} style={{ border: "1px solid #e5e7eb", borderRadius: 5, padding: "8px 6px", fontSize: 7, color: "#374151", textAlign: "center" }}>{c}</div>
+            ))}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: device === "Mobile" ? "1fr 1fr" : "repeat(4,1fr)", gap: 6, marginTop: 8 }}>
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} style={{ border: "1px solid #e5e7eb", borderRadius: 5, overflow: "hidden" }}>
+                <div style={{ height: 30, background: "#f3f4f6" }} />
+                <div style={{ padding: 5, fontSize: 7, color: "#374151" }}>Flat white<br /><span style={{ color: "#6b7280" }}>AED 21.00</span></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ marginTop: 10, fontSize: 11, color: "var(--text-secondary)", display: "flex", alignItems: "center", gap: 6 }}>
+        {draft ? <><span className="qos-badge" data-tone="neutral">Draft</span> Not visible to customers</> : <><span className="qos-badge" data-tone="success">Published</span> Live for customers</>}
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { ChannelsScreen });
+
+===== FILE: screens/HomeScreen.jsx =====
+const { PageHeader, KpiCard, Card, Button, StatusBadge, Badge, TrendChart, SegmentedControl, IntelligenceCard, Alert, Timeline, Icon, Sparkline, Avatar, ConfirmDialog, Toast, ToastStack } = window.QOSDesignSystem_913581;
+
+/* Flow 1 — situational awareness. Flow 8 — dashboard anomaly to approved action.
+   Exceptions and next actions come before metrics. */
+function HomeScreen({ onNavigate }) {
+  const [range, setRange] = React.useState("Today");
+  const [confirm, setConfirm] = React.useState(false);
+  const [toast, setToast] = React.useState(null);
+  const [resolved, setResolved] = React.useState(false);
+  return (
+    <>
+      <PageHeader
+        title="Good morning, Jamie"
+        subtitle="Quotes · 12 locations · 4 sales channels. Two things need your attention."
+        actions={<>
+          <SegmentedControl options={["Today", "7 days", "30 days"]} value={range} onChange={setRange} />
+          <Button variant="secondary" icon="download">Export</Button>
+        </>}
+      />
+
+      <window.Section title="Needs attention">
+        <window.Grid cols={2}>
+          {!resolved ? (
+            <IntelligenceCard
+              kind="Anomaly"
+              title="Delivery orders down 34% at Marina Walk"
+              confidence="High"
+              claims={[
+                { kind: "System fact", text: "18 delivery orders in the last two hours against 27 expected for this window." },
+                { kind: "AI interpretation", text: "The Lightspeed POS connector has returned 502 responses since 14:02, so new orders are not reaching the kitchen." },
+                { kind: "AI recommendation", text: "Reconnect Lightspeed for Marina Walk and replay the 9 failed orders." },
+              ]}
+              actions={<>
+                <Button variant="intelligence" icon="check" onClick={() => setConfirm(true)}>Approve and reconnect</Button>
+                <Button variant="ghost" onClick={() => onNavigate("integrations")}>View integration</Button>
+                <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-secondary)" }}>Nothing changes until you approve</span>
+              </>}
+            />
+          ) : (
+            <Alert tone="success" title="Lightspeed reconnected" actions={<Button size="sm" variant="secondary" onClick={() => onNavigate("orders")}>View replayed orders</Button>}>
+              9 orders were replayed successfully. Marina Walk is accepting delivery orders again.
+            </Alert>
+          )}
+          <div style={{ display: "grid", gap: 12, alignContent: "start" }}>
+            <Alert tone="error" title="2 orders failed to reach the POS" actions={<Button size="sm" variant="secondary" onClick={() => onNavigate("orders")}>Open exceptions</Button>}>
+              QO-10428 and QO-10424 are paid but not sent. Marina Walk.
+            </Alert>
+            <Alert tone="warning" title="Talabat location mapping incomplete" actions={<Button size="sm" variant="secondary" onClick={() => onNavigate("integrations")}>Finish setup</Button>}>
+              1 of 3 locations is unmapped, so its menu is not live.
+            </Alert>
+          </div>
+        </window.Grid>
+      </window.Section>
+
+      <window.Section title="Today">
+        <window.Grid cols={4}>
+          <KpiCard label="Orders" value="1,284" delta="12%" deltaDirection="up" caption="vs. same day last week" icon="receipt" onClick={() => onNavigate("orders")} />
+          <KpiCard label="Revenue" value="48,210" unit="AED" delta="4%" deltaDirection="down" caption="vs. same day last week" icon="wallet" />
+          <KpiCard label="Average order value" value="37.55" unit="AED" delta="1.2%" deltaDirection="up" icon="scale" />
+          <KpiCard label="Orders needing attention" value="9" delta="3 new" deltaDirection="up" caption="Payment or POS exceptions" icon="alert-triangle" onClick={() => onNavigate("orders")} />
+        </window.Grid>
+      </window.Section>
+
+      <window.Grid cols={3} style={{ marginTop: 16, alignItems: "start" }}>
+        <Card header="Orders and revenue" subtitle="Last 24 hours, all channels" style={{ gridColumn: "span 2" }} actions={<Badge tone="neutral">Updated 2m ago</Badge>}>
+          <TrendChart
+            series={[{ label: "Orders", values: window.ORDER_TREND }, { label: "Revenue", values: window.REVENUE_TREND }]}
+            labels={["00:00", "06:00", "12:00", "18:00", "now"]}
+            height={188}
+          />
+          <div className="qos-legend" style={{ marginTop: 12 }}>
+            <span className="qos-legend-key"><span className="qos-legend-swatch" style={{ background: "var(--viz-1)" }} />Orders</span>
+            <span className="qos-legend-key"><span className="qos-legend-swatch" style={{ background: "var(--viz-2)" }} />Revenue (AED, hundreds)</span>
+          </div>
+        </Card>
+        <Card header="Channel health" actions={<Button size="sm" variant="ghost" onClick={() => onNavigate("channels")}>All channels</Button>} padding="none">
+          {window.CHANNELS.slice(0, 4).map((c) => (
+            <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px var(--card-padding)", borderBottom: "1px solid var(--border-subtle)" }}>
+              <span style={{ width: 28, height: 28, borderRadius: "var(--radius-md)", background: "var(--surface-subtle)", display: "grid", placeItems: "center", color: "var(--text-secondary)" }}><Icon name={c.icon} size={14} /></span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <span style={{ display: "block", fontSize: 13, fontWeight: 500 }}>{c.name}</span>
+                <span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.activity}</span>
+              </span>
+              <StatusBadge state={c.state} />
+            </div>
+          ))}
+        </Card>
+      </window.Grid>
+
+      <window.Grid cols={3} style={{ marginTop: 16, alignItems: "start" }}>
+        <Card header="What changed" subtitle="Publishing and configuration activity" style={{ gridColumn: "span 2" }}>
+          <Timeline items={[
+            { title: <>Release 42 published to <strong>quotes.qosapp.com</strong></>, meta: "09:14 · Jamie Doyle · Homepage hero, 3 pages, opening hours", tone: "success", icon: "upload-cloud" },
+            { title: "Talabat channel paused", meta: "2d ago · Jamie Doyle", tone: "neutral", icon: "pause" },
+            { title: "Main menu synced to Deliveroo", meta: "20m ago · System · 84 items", tone: "neutral", icon: "refresh-cw" },
+            { title: "Lightspeed connector started failing", meta: "14:02 · System · 502 Bad Gateway", tone: "error", icon: "alert-circle" },
+          ]} />
+        </Card>
+        <div style={{ display: "grid", gap: 16 }}>
+          <Card padding="sm">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+              <div><div className="qos-kpi-label">Storefront uptime</div><div className="qos-kpi-value" style={{ fontSize: 22, lineHeight: "28px" }}>99.98%</div></div>
+              <Sparkline values={[98, 99, 100, 99, 100, 100, 99, 100]} tone="var(--viz-3)" />
+            </div>
+          </Card>
+          <Card header="Product availability" padding="sm">
+            <div style={{ display: "grid", gap: 8, fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Out of stock</span><strong>4 items</strong></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Paused by staff</span><strong>2 items</strong></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span>Missing images</span><strong>11 items</strong></div>
+            </div>
+            <Button size="sm" variant="secondary" fullWidth style={{ marginTop: 12 }} onClick={() => onNavigate("catalogue")}>Review catalogue</Button>
+          </Card>
+        </div>
+      </window.Grid>
+
+      {confirm ? (
+        <ConfirmDialog
+          tone="default"
+          title="Reconnect Lightspeed and replay 9 orders?"
+          description="This re-authorises the POS connector for all 12 locations and resends 9 failed orders. Customers will not be charged again."
+          confirmLabel="Approve and reconnect"
+          onClose={() => setConfirm(false)}
+          onConfirm={() => { setConfirm(false); setResolved(true); setToast("Lightspeed reconnected · 9 orders replayed"); }}
+        >
+          <div style={{ display: "grid", gap: 8 }}>
+            <window.DefinitionList items={[
+              { label: "Integration", value: "Lightspeed · POS" },
+              { label: "Scope", value: "12 locations" },
+              { label: "Orders to replay", value: "QO-10428, QO-10424 and 7 more" },
+              { label: "Approved by", value: "Jamie Doyle (Administrator)" },
+            ]} />
+          </div>
+        </ConfirmDialog>
+      ) : null}
+      {toast ? <ToastStack><Toast tone="success" title="Action approved" onDismiss={() => setToast(null)}>{toast}</Toast></ToastStack> : null}
+    </>
+  );
+}
+
+Object.assign(window, { HomeScreen });
+
+===== FILE: screens/IntegrationsScreen.jsx =====
+const { PageHeader, Card, Button, StatusBadge, Badge, Tabs, Breadcrumbs, Icon, Input, Select, Switch, Stepper, Alert, Modal, Toast, ToastStack, DataTable, Timeline, Chip, SearchInput, ProgressBar, AiBadge, EmptyState } = window.QOSDesignSystem_913581;
+
+/* Flow 5 — integrations → provider → connect → configure → map locations → connected. */
+function IntegrationsScreen() {
+  const [detail, setDetail] = React.useState(null);
+  const [wizard, setWizard] = React.useState(null);
+  const [toast, setToast] = React.useState(null);
+  const [connected, setConnected] = React.useState([]);
+
+  if (detail) return <IntegrationDetail integration={detail} onBack={() => setDetail(null)} onToast={setToast} toast={toast} />;
+
+  return (
+    <>
+      <PageHeader
+        title="Integration Centre"
+        subtitle="QOS is POS-agnostic. Every integration is configured once and mapped to the locations that use it."
+        actions={<Button variant="secondary" icon="book-open">Developer docs</Button>}
+        tabs={<Tabs tabs={[{ id: "all", label: "All", count: 8 }, { id: "connected", label: "Connected", count: 4 }, { id: "attention", label: "Needs attention", count: 2, tone: "warning" }, { id: "available", label: "Available", count: 4 }]} value="all" onChange={() => {}} />}
+      />
+      <div style={{ marginTop: 20 }}>
+        <Alert tone="error" title="Lightspeed POS is returning errors" actions={<Button size="sm" variant="secondary" onClick={() => setDetail(window.INTEGRATIONS[0])}>Open integration</Button>}>
+          9 order pushes failed in the last hour across 12 locations. Orders are being held in QOS, not lost.
+        </Alert>
+      </div>
+      <window.Grid cols={4} style={{ marginTop: 20 }}>
+        {window.INTEGRATIONS.map((i) => {
+          const state = connected.includes(i.id) ? "connected" : i.state;
+          return (
+            <Card key={i.id} padding="none" interactive onClick={() => (state === "available" ? setWizard(i) : setDetail({ ...i, state }))}>
+              <div style={{ padding: "var(--card-padding)", display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <span style={{ width: 36, height: 36, borderRadius: "var(--radius-md)", background: "var(--surface-subtle)", display: "grid", placeItems: "center", color: "var(--text-secondary)", flex: "none" }}><Icon name={i.icon} size={17} /></span>
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <strong style={{ fontSize: 14, fontWeight: 600 }}>{i.name}</strong>
+                  <span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)" }}>{i.kind}</span>
+                </span>
+              </div>
+              <div style={{ padding: "0 var(--card-padding) 12px" }}>
+                <StatusBadge state={state} />
+                <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: "8px 0 0", lineHeight: "17px" }}>{connected.includes(i.id) ? "Healthy · connected just now" : i.health}</p>
+              </div>
+              <div style={{ borderTop: "1px solid var(--border-subtle)", padding: "9px var(--card-padding)", display: "flex", alignItems: "center", justifyContent: "space-between", fontSize: 11, color: "var(--text-secondary)" }}>
+                <span>{connected.includes(i.id) ? "12 mapped" : i.locations}</span>
+                {state === "available" ? <Button size="sm" variant="secondary" onClick={(e) => { e.stopPropagation(); setWizard(i); }}>Connect</Button> : <Icon name="chevron-right" size={14} />}
+              </div>
+            </Card>
+          );
+        })}
+      </window.Grid>
+      {wizard ? <ConnectWizard integration={wizard} onClose={() => setWizard(null)} onDone={() => { setConnected((c) => [...c, wizard.id]); setToast(`${wizard.name} connected · 12 locations mapped`); setWizard(null); }} /> : null}
+      {toast ? <ToastStack><Toast tone="success" title="Connected" onDismiss={() => setToast(null)}>{toast}</Toast></ToastStack> : null}
+    </>
+  );
+}
+
+function ConnectWizard({ integration, onClose, onDone }) {
+  const [step, setStep] = React.useState(0);
+  const steps = ["Connect", "Configure", "Map locations", "Verify"];
+  const next = () => (step < 3 ? setStep(step + 1) : onDone());
+  return (
+    <Modal
+      open
+      size="lg"
+      title={`Connect ${integration.name}`}
+      description={`${integration.kind} · configuration applies to every location you map`}
+      onClose={onClose}
+      footer={<>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        {step > 0 ? <Button variant="secondary" onClick={() => setStep(step - 1)}>Back</Button> : null}
+        <Button icon={step === 3 ? "check" : undefined} iconTrailing={step === 3 ? undefined : "arrow-right"} onClick={next}>
+          {step === 3 ? "Finish and activate" : "Continue"}
+        </Button>
+      </>}
+    >
+      <div style={{ marginBottom: 20 }}><Stepper steps={steps} current={step} /></div>
+      {step === 0 ? (
+        <div style={{ display: "grid", gap: 14 }}>
+          <Alert tone="info" title="You will be redirected to {integration.name}">QOS never stores your provider password. Access is granted through an authorised connection.</Alert>
+          <Input id="acct" label="Account or merchant ID" placeholder="e.g. QTS-AE-0142" />
+          <Select id="env" label="Environment" options={["Production", "Sandbox"]} />
+        </div>
+      ) : null}
+      {step === 1 ? (
+        <div style={{ display: "grid", gap: 14 }}>
+          <Select id="dir" label="Sync direction" options={["QOS is the source of truth", "Provider is the source of truth", "Two-way"]} />
+          <Select id="freq" label="Catalogue sync frequency" options={["Every 15 minutes", "Hourly", "Manual only"]} />
+          <Switch label="Push orders automatically" checked />
+          <Switch label="Hold orders when the provider is unhealthy" checked description="Orders stay in QOS and are replayed instead of failing." />
+        </div>
+      ) : null}
+      {step === 2 ? (
+        <div style={{ display: "grid", gap: 12 }}>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0 }}>Map each QOS location to a provider site. Unmapped locations will not sync.</p>
+          <Card tone="intelligence" padding="sm">
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}><AiBadge>AI mapping</AiBadge><span style={{ fontSize: 11, color: "var(--text-secondary)" }}>Suggested from names and addresses — review before applying</span></div>
+            <p style={{ fontSize: 13, margin: 0, color: "var(--text-secondary)" }}>4 of 4 locations matched with high confidence.</p>
+          </Card>
+          {window.LOCATIONS.map((l) => (
+            <div key={l.id} style={{ display: "grid", gridTemplateColumns: "1fr 24px 1fr", gap: 10, alignItems: "center" }}>
+              <span style={{ fontSize: 13, fontWeight: 500 }}>{l.name}</span>
+              <Icon name="arrow-right" size={14} style={{ color: "var(--text-tertiary)", justifySelf: "center" }} />
+              <Select id={`map${l.id}`} options={[`${l.name} (site ${l.id.toUpperCase()})`, "Not mapped"]} />
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {step === 3 ? (
+        <div style={{ display: "grid", gap: 14 }}>
+          <ProgressBar label="Verifying connection" value={100} />
+          <Timeline items={[
+            { title: "Credentials accepted", meta: "Provider responded in 240ms", tone: "success", icon: "check" },
+            { title: "4 locations mapped", meta: "No unmapped locations remain", tone: "success", icon: "map-pin" },
+            { title: "Catalogue test sync", meta: "84 items · 0 errors", tone: "success", icon: "refresh-cw" },
+            { title: "Ready to activate", meta: "Orders will start flowing once you finish", tone: "processing", icon: "clock" },
+          ]} />
+        </div>
+      ) : null}
+    </Modal>
+  );
+}
+
+function IntegrationDetail({ integration, onBack, onToast, toast }) {
+  const [tab, setTab] = React.useState(integration.state === "error" ? "health" : "connection");
+  return (
+    <>
+      <PageHeader
+        breadcrumbs={<Breadcrumbs items={[{ id: "integrations", label: "Integrations" }, { label: integration.name }]} onNavigate={onBack} />}
+        title={integration.name}
+        badge={<StatusBadge state={integration.state} />}
+        subtitle={`${integration.kind} · ${integration.locations}`}
+        actions={<>
+          <Button variant="secondary" icon="file-text">Download logs</Button>
+          {integration.state === "error" ? <Button icon="refresh-cw" onClick={() => onToast(`${integration.name} reconnected`)}>Reconnect</Button> : <Button variant="secondary" icon="unplug">Disconnect</Button>}
+        </>}
+        tabs={<Tabs tabs={[{ id: "connection", label: "Connection" }, { id: "config", label: "Configuration" }, { id: "mapping", label: "Mapping" }, { id: "locations", label: "Locations", count: 12 }, { id: "health", label: "Sync health", tone: integration.state === "error" ? "error" : undefined }, { id: "logs", label: "Activity & logs" }]} value={tab} onChange={setTab} />}
+      />
+      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, alignItems: "start" }}>
+        <div style={{ display: "grid", gap: 16 }}>
+          {integration.state === "error" ? (
+            <Alert tone="error" title="Connector unhealthy since 14:02" actions={<><Button size="sm" icon="refresh-cw" onClick={() => onToast(`${integration.name} reconnected`)}>Reconnect</Button><Button size="sm" variant="secondary">Replay 9 held orders</Button></>}>
+              The provider is returning <code>502 Bad Gateway</code>. QOS is holding orders rather than dropping them.
+            </Alert>
+          ) : null}
+          {tab === "health" ? (
+            <Card header="Sync health" subtitle="Last 24 hours">
+              <window.Grid cols={3} gap={12} style={{ marginBottom: 16 }}>
+                <div><div className="qos-kpi-label">Successful calls</div><div className="qos-kpi-value" style={{ fontSize: 22, lineHeight: "28px" }}>4,812</div></div>
+                <div><div className="qos-kpi-label">Failed calls</div><div className="qos-kpi-value" style={{ fontSize: 22, lineHeight: "28px", color: "var(--status-error-fg)" }}>9</div></div>
+                <div><div className="qos-kpi-label">Median latency</div><div className="qos-kpi-value" style={{ fontSize: 22, lineHeight: "28px" }}>240<span style={{ fontSize: 14, color: "var(--text-secondary)" }}>ms</span></div></div>
+              </window.Grid>
+              <Timeline items={[
+                { title: "Connector degraded", meta: "14:02 · 502 Bad Gateway", tone: "error", icon: "alert-circle" },
+                { title: "9 orders held for replay", meta: "14:02 – 14:07 · Marina Walk, Downtown", tone: "warning", icon: "pause" },
+                { title: "Catalogue sync completed", meta: "13:45 · 84 items", tone: "success", icon: "refresh-cw" },
+              ]} />
+            </Card>
+          ) : null}
+          {tab === "connection" ? (
+            <Card header="Connection">
+              <div style={{ display: "grid", gap: 16, maxWidth: "var(--layout-form-max)" }}>
+                <window.DefinitionList items={[
+                  { label: "Provider", value: integration.name },
+                  { label: "Account", value: "QTS-AE-0142" },
+                  { label: "Environment", value: "Production" },
+                  { label: "Connected", value: "02 Aug 2026 · Jamie Doyle" },
+                  { label: "Credential", value: <span style={{ display: "flex", alignItems: "center", gap: 8 }}><code>••••••••••8f31</code><Button size="sm" variant="ghost">Rotate</Button></span> },
+                ]} />
+              </div>
+            </Card>
+          ) : null}
+          {tab === "config" ? (
+            <Card header="Configuration">
+              <div style={{ display: "grid", gap: 14, maxWidth: "var(--layout-form-max)" }}>
+                <Select id="dir2" label="Sync direction" options={["QOS is the source of truth", "Provider is the source of truth", "Two-way"]} />
+                <Select id="freq2" label="Catalogue sync frequency" options={["Every 15 minutes", "Hourly", "Manual only"]} />
+                <Switch label="Push orders automatically" checked />
+                <Switch label="Hold orders when the provider is unhealthy" checked description="Orders stay in QOS and are replayed instead of failing." />
+                <Switch label="Send refunds to the provider" />
+              </div>
+            </Card>
+          ) : null}
+          {tab === "mapping" ? (
+            <Card header="Catalogue mapping" subtitle="84 of 84 items mapped" padding="none">
+              <DataTable
+                density="dense"
+                columns={[
+                  { key: "name", header: "QOS product" },
+                  { key: "provider", header: `${integration.name} item`, render: (r) => <code style={{ fontSize: 12 }}>{r.id.toUpperCase().slice(0, 8)}-01</code> },
+                  { key: "category", header: "Category" },
+                  { key: "state", header: "Mapping", render: (r) => <StatusBadge state={r.state === "draft" ? "config_required" : "synced"} /> },
+                ]}
+                rows={window.PRODUCTS}
+              />
+            </Card>
+          ) : null}
+          {tab === "locations" ? (
+            <Card header="Location mapping" padding="none">
+              <DataTable
+                columns={[
+                  { key: "name", header: "QOS location" },
+                  { key: "site", header: "Provider site", render: (r) => <code style={{ fontSize: 12 }}>site_{r.id}</code> },
+                  { key: "integration", header: "Health", render: (r) => <StatusBadge state={r.integration} /> },
+                ]}
+                rows={window.LOCATIONS}
+              />
+            </Card>
+          ) : null}
+          {tab === "logs" ? (
+            <Card header="Activity & logs" subtitle="Technical detail is available but never required to resolve an issue.">
+              <pre style={{ margin: 0, padding: 14, background: "var(--surface-sunken)", borderRadius: "var(--radius-card)", fontSize: 12, lineHeight: "18px", overflowX: "auto", color: "var(--text-secondary)" }}>{`14:07:02  POST /v3/orders        502  ord_8f31c9a2  Marina Walk
+14:05:41  POST /v3/orders        502  ord_8f31c9a2  Marina Walk
+14:04:12  POST /v3/orders        502  ord_7c22a118  Marina Walk
+14:02:00  GET  /v3/health        degraded
+13:45:10  POST /v3/catalogue     200  84 items      all locations
+13:30:04  GET  /v3/health        healthy`}</pre>
+            </Card>
+          ) : null}
+        </div>
+        <div style={{ display: "grid", gap: 16 }}>
+          <Card header="Status" padding="sm">
+            <div style={{ display: "grid", gap: 10, fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>State</span><StatusBadge state={integration.state} /></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Locations</span><strong>{integration.locations}</strong></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Last sync</span><strong>13:45</strong></div>
+            </div>
+          </Card>
+          <Card header="Who can change this" padding="sm">
+            <p style={{ fontSize: 12, color: "var(--text-secondary)", margin: 0, lineHeight: "18px" }}>Managing integrations is restricted to Administrators. Users can view health and logs.</p>
+          </Card>
+        </div>
+      </div>
+      {toast ? <ToastStack><Toast tone="success" title="Done" onDismiss={() => onToast(null)}>{toast}</Toast></ToastStack> : null}
+    </>
+  );
+}
+
+Object.assign(window, { IntegrationsScreen });
+
+===== FILE: screens/LocationsScreen.jsx =====
+const { PageHeader, Card, Button, DataTable, StatusBadge, Badge, Tabs, Breadcrumbs, Icon, Input, Select, Switch, Checkbox, Banner, Toast, ToastStack, Alert, TableToolbar, SearchInput, Chip } = window.QOSDesignSystem_913581;
+
+/* Flow 4 — locations → location → hours / fulfilment → catalogue availability → save. */
+function LocationsScreen() {
+  const [loc, setLoc] = React.useState(null);
+  const [toast, setToast] = React.useState(null);
+  if (loc) return <LocationDetail location={loc} onBack={() => setLoc(null)} onSaved={(m) => { setLoc(null); setToast(m); }} />;
+  return (
+    <>
+      <PageHeader
+        title="Locations"
+        subtitle="Branches are the unit of operational control: hours, fulfilment, availability and integrations all resolve per location."
+        actions={<Button icon="plus">Add location</Button>}
+      />
+      <div style={{ marginTop: 20 }}>
+        <Card padding="none">
+          <TableToolbar>
+            <SearchInput placeholder="Search locations" style={{ width: 220 }} />
+            <Chip icon="alert-triangle" count={1}>Needs attention</Chip>
+            <Chip>All channels</Chip>
+            <Chip>Open now</Chip>
+          </TableToolbar>
+          <DataTable
+            columns={[
+              { key: "name", header: "Branch", sortable: true, render: (r) => <span><strong style={{ fontWeight: 500 }}>{r.name}</strong><span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)" }}>{r.city}</span></span> },
+              { key: "state", header: "Operational status", render: (r) => <StatusBadge state={r.state} label={r.state === "warning" ? "Degraded" : undefined} /> },
+              { key: "hours", header: "Opening state", render: (r) => <span style={{ fontSize: 12, color: r.state === "paused" ? "var(--text-secondary)" : "var(--text-primary)" }}>{r.hours}</span> },
+              { key: "channels", header: "Channels", render: (r) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.channels}</span> },
+              { key: "fulfilment", header: "Fulfilment", render: (r) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.fulfilment}</span> },
+              { key: "integration", header: "Integration health", render: (r) => <StatusBadge state={r.integration} /> },
+            ]}
+            rows={window.LOCATIONS}
+            onRowClick={setLoc}
+            sortKey="name"
+          />
+        </Card>
+      </div>
+      {toast ? <ToastStack><Toast tone="success" title="Saved" onDismiss={() => setToast(null)}>{toast}</Toast></ToastStack> : null}
+    </>
+  );
+}
+
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
+function LocationDetail({ location, onBack, onSaved }) {
+  const [tab, setTab] = React.useState("hours");
+  const [dirty, setDirty] = React.useState(false);
+  return (
+    <>
+      {dirty ? (
+        <div style={{ margin: "-24px calc(-1 * var(--layout-gutter)) 20px" }}>
+          <Banner tone="warning" icon="circle-dot" actions={<><Button size="sm" variant="ghost" onClick={() => setDirty(false)}>Discard</Button><Button size="sm" icon="check" onClick={() => onSaved(`${location.name} updated · hours and fulfilment are live`)}>Save changes</Button></>}>
+            Unsaved changes to <strong>{location.name}</strong>. Hours and fulfilment apply to every channel immediately once saved.
+          </Banner>
+        </div>
+      ) : null}
+      <PageHeader
+        breadcrumbs={<Breadcrumbs items={[{ id: "locations", label: "Locations" }, { label: location.name }]} onNavigate={onBack} />}
+        title={location.name}
+        badge={<StatusBadge state={location.state} label={location.state === "warning" ? "Degraded" : undefined} />}
+        subtitle={location.city}
+        meta={<>
+          <span><Icon name="clock" size={12} /> {location.hours}</span>
+          <span><Icon name="truck" size={12} /> {location.fulfilment}</span>
+          <span><Icon name="store" size={12} /> {location.channels}</span>
+        </>}
+        actions={<><Button variant="secondary" icon="pause">Pause orders</Button><Button icon="check" onClick={() => onSaved(`${location.name} updated`)}>Save</Button></>}
+        tabs={<Tabs tabs={[{ id: "details", label: "Details" }, { id: "hours", label: "Hours" }, { id: "fulfilment", label: "Fulfilment" }, { id: "availability", label: "Catalogue availability" }, { id: "channels", label: "Channels" }, { id: "integrations", label: "Integrations", tone: location.integration === "error" ? "error" : undefined }, { id: "orders", label: "Orders" }]} value={tab} onChange={setTab} />}
+      />
+      <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "minmax(0,1fr) 320px", gap: 20, alignItems: "start" }}>
+        <div style={{ display: "grid", gap: 16 }}>
+          {tab === "hours" ? (
+            <Card header="Opening hours" subtitle="Used by every channel to decide whether this branch can accept orders.">
+              <div style={{ display: "grid", gap: 10 }}>
+                {DAYS.map((d) => (
+                  <div key={d} style={{ display: "grid", gridTemplateColumns: "120px 110px 110px 1fr", gap: 12, alignItems: "center" }}>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>{d}</span>
+                    <Input id={`o${d}`} defaultValue="07:00" onChange={() => setDirty(true)} />
+                    <Input id={`c${d}`} defaultValue={d === "Friday" || d === "Saturday" ? "00:00" : "23:00"} onChange={() => setDirty(true)} />
+                    <Switch label="Open" checked onChange={() => setDirty(true)} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+          {tab === "fulfilment" ? (
+            <Card header="Fulfilment" subtitle="What this branch can do, and how far it will go.">
+              <div style={{ display: "grid", gap: 16, maxWidth: "var(--layout-form-max)" }}>
+                <div style={{ display: "grid", gap: 10 }}>
+                  <Checkbox label="Delivery" description="Own drivers and marketplace couriers" checked onChange={() => setDirty(true)} />
+                  <Checkbox label="Collection" description="Customer collects in store" checked onChange={() => setDirty(true)} />
+                  <Checkbox label="Dine-in" description="Table ordering through POS" checked onChange={() => setDirty(true)} />
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Input id="radius" label="Delivery radius (km)" defaultValue="6" onChange={() => setDirty(true)} />
+                  <Input id="prep" label="Preparation time (min)" defaultValue="18" onChange={() => setDirty(true)} />
+                  <Input id="minorder" label="Minimum order (AED)" defaultValue="25.00" onChange={() => setDirty(true)} />
+                  <Select id="slots" label="Scheduling" options={["ASAP only", "ASAP and scheduled", "Scheduled only"]} onChange={() => setDirty(true)} />
+                </div>
+              </div>
+            </Card>
+          ) : null}
+          {tab === "availability" ? (
+            <Card header="Catalogue availability" subtitle="Stop-sale at this branch without touching the published catalogue." padding="none">
+              <DataTable
+                density="dense"
+                columns={[
+                  { key: "name", header: "Product" },
+                  { key: "category", header: "Category" },
+                  { key: "price", header: "Price (AED)", numeric: true },
+                  { key: "av", header: "Available here", render: (r) => <Switch checked={!(r.exception)} onChange={() => setDirty(true)} /> },
+                  { key: "state", header: "Catalogue status", render: (r) => <StatusBadge state={r.state} /> },
+                ]}
+                rows={window.PRODUCTS}
+              />
+            </Card>
+          ) : null}
+          {tab === "details" ? (
+            <Card header="Branch details">
+              <div style={{ display: "grid", gap: 16, maxWidth: "var(--layout-form-max)" }}>
+                <Input id="lname" label="Branch name" defaultValue={location.name} onChange={() => setDirty(true)} />
+                <Input id="laddr" label="Address" defaultValue={location.city} onChange={() => setDirty(true)} />
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                  <Input id="lphone" label="Phone" defaultValue="+971 4 555 0142" onChange={() => setDirty(true)} />
+                  <Select id="ltz" label="Timezone" options={["Asia/Dubai", "Asia/Riyadh"]} onChange={() => setDirty(true)} />
+                </div>
+              </div>
+            </Card>
+          ) : null}
+          {tab === "integrations" ? (
+            <div style={{ display: "grid", gap: 16 }}>
+              {location.integration === "error" ? <Alert tone="error" title="Lightspeed is failing for this branch" actions={<Button size="sm" variant="secondary">Open integration</Button>}>9 orders have not reached the POS since 14:02.</Alert> : null}
+              <Card header="Connected at this branch" padding="none">
+                {window.INTEGRATIONS.slice(0, 4).map((i) => (
+                  <div key={i.id} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px var(--card-padding)", borderBottom: "1px solid var(--border-subtle)" }}>
+                    <Icon name={i.icon} size={15} style={{ color: "var(--text-secondary)" }} />
+                    <span style={{ flex: 1, fontSize: 13 }}>{i.name}<span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)" }}>{i.kind} · {i.health}</span></span>
+                    <StatusBadge state={i.state} />
+                  </div>
+                ))}
+              </Card>
+            </div>
+          ) : null}
+          {tab === "channels" ? (
+            <Card header="Channels exposing this branch">
+              <div style={{ display: "grid", gap: 12 }}>
+                {window.CHANNELS.slice(0, 4).map((c) => (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Icon name={c.icon} size={15} style={{ color: "var(--text-tertiary)" }} />
+                    <span style={{ flex: 1, fontSize: 13 }}>{c.name}</span>
+                    <Switch label="Exposed" checked={c.id !== "talabat"} onChange={() => setDirty(true)} />
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+          {tab === "orders" ? (
+            <Card header="Recent orders at this branch" padding="none">
+              <DataTable
+                density="dense"
+                columns={[
+                  { key: "id", header: "Order", render: (r) => <span style={{ fontFamily: "var(--font-mono)" }}>{r.id}</span> },
+                  { key: "customer", header: "Customer" },
+                  { key: "channel", header: "Channel" },
+                  { key: "state", header: "Status", render: (r) => <StatusBadge state={r.state} /> },
+                  { key: "amount", header: "Amount", numeric: true },
+                  { key: "time", header: "Time", numeric: true },
+                ]}
+                rows={window.ORDERS.filter((o) => o.location === location.name)}
+              />
+            </Card>
+          ) : null}
+        </div>
+        <div style={{ display: "grid", gap: 16 }}>
+          <Card header="Today" padding="sm">
+            <div style={{ display: "grid", gap: 9, fontSize: 13 }}>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Orders</span><strong>142</strong></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Revenue</span><strong>5,480 AED</strong></div>
+              <div style={{ display: "flex", justifyContent: "space-between" }}><span style={{ color: "var(--text-secondary)" }}>Exceptions</span><strong style={{ color: "var(--status-error-fg)" }}>2</strong></div>
+            </div>
+          </Card>
+          <Card header="Live controls" subtitle="Take effect immediately" padding="sm">
+            <div style={{ display: "grid", gap: 10 }}>
+              <Switch label="Accepting orders" checked onChange={() => setDirty(true)} />
+              <Switch label="Delivery enabled" checked onChange={() => setDirty(true)} />
+              <Switch label="Busy mode (+10 min)" onChange={() => setDirty(true)} />
+            </div>
+          </Card>
+        </div>
+      </div>
+    </>
+  );
+}
+
+Object.assign(window, { LocationsScreen });
+
+===== FILE: screens/LoginScreen.jsx =====
+const { Logo, Button, Input, Card, Avatar, Badge, StatusBadge } = window.QOSDesignSystem_913581;
+
+/* Flow 1, step 1 — login, then tenant selection. The brand is loud here and quiet everywhere else. */
+function LoginScreen({ onSignIn, step, tenant, onPickTenant }) {
+  return (
+    <div data-qos-theme="dark" style={{ minHeight: "100vh", display: "grid", gridTemplateColumns: "1.15fr 1fr", background: "var(--surface-canvas)", color: "var(--text-primary)" }}>
+      <div style={{ position: "relative", overflow: "hidden", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "40px 48px" }}>
+        <img src="../../assets/motif-orbital-hero.png" alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.9 }} />
+        <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(5,7,14,.35), rgba(5,7,14,.85))" }} />
+        <Logo variant="navy" height={26} assetBase="../../assets/" style={{ position: "relative" }} />
+        <div style={{ position: "relative", maxWidth: 460 }}>
+          <h1 style={{ fontSize: 40, lineHeight: "48px", letterSpacing: "-.02em", fontWeight: 600 }}>Ideas today.<br />Impact tomorrow.</h1>
+          <p style={{ marginTop: 14, fontSize: 16, lineHeight: "24px", color: "var(--text-secondary)" }}>
+            The orchestration layer for your commerce operations — channels, catalogue, locations and integrations in one place.
+          </p>
+        </div>
+        <div style={{ position: "relative", display: "flex", gap: 24, fontSize: 11, letterSpacing: ".14em", textTransform: "uppercase", color: "var(--text-secondary)" }}>
+          <span>Higher quality</span><span>Brighter possibilities</span>
+        </div>
+      </div>
+      <div style={{ display: "grid", placeItems: "center", padding: 40, background: "var(--surface-default)" }}>
+        {step === "login" ? (
+          <div style={{ width: "100%", maxWidth: 340, display: "grid", gap: 16 }}>
+            <div>
+              <h2 style={{ fontSize: 24, lineHeight: "32px", fontWeight: 600, letterSpacing: "-.015em" }}>Sign in to QOS</h2>
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>Use your work account.</p>
+            </div>
+            <Input id="email" label="Work email" defaultValue="jamie.doyle@quotes.ae" />
+            <Input id="pw" label="Password" type="password" defaultValue="••••••••••" />
+            <Button size="lg" fullWidth iconTrailing="arrow-right" onClick={onSignIn}>Continue</Button>
+            <div style={{ fontSize: 12, color: "var(--text-secondary)", textAlign: "center" }}>
+              Trouble signing in? <a href="#">Request staff access</a>
+            </div>
+          </div>
+        ) : (
+          <div style={{ width: "100%", maxWidth: 380, display: "grid", gap: 14 }}>
+            <div>
+              <h2 style={{ fontSize: 24, lineHeight: "32px", fontWeight: 600, letterSpacing: "-.015em" }}>Choose a business</h2>
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>You have access to 2 businesses on this platform.</p>
+            </div>
+            {window.TENANTS.map((t) => (
+              <button key={t.id} type="button" onClick={() => onPickTenant(t.id)} className="qos-card" data-padding="sm" data-interactive="true" style={{ display: "flex", alignItems: "center", gap: 12, textAlign: "left", cursor: "pointer" }}>
+                <Avatar name={t.name} tone="brand" size="lg" />
+                <span style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{ display: "block", fontWeight: 600, fontSize: 15 }}>{t.name}</span>
+                  <span style={{ display: "block", fontSize: 12, color: "var(--text-secondary)" }}>{t.meta}</span>
+                </span>
+                {t.id === "quotes" ? <StatusBadge state="live" /> : <Badge tone="neutral">Retail</Badge>}
+              </button>
+            ))}
+            <p style={{ fontSize: 12, color: "var(--text-tertiary)" }}>Quotes is Customer #1 on the shared QOS Storefront Platform.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+Object.assign(window, { LoginScreen });
+
+===== FILE: screens/OrdersScreen.jsx =====
+const { PageHeader, Card, Button, DataTable, TableToolbar, TableBulkBar, Pagination, SearchInput, Chip, StatusBadge, Badge, Drawer, Timeline, Alert, Tabs, IconButton, Select, Icon, Toast, ToastStack } = window.QOSDesignSystem_913581;
+
+/* Flow 6 — order exception: list → problem order → failure detail → integration event → resolve. */
+function OrdersScreen() {
+  const [view, setView] = React.useState("exceptions");
+  const [sel, setSel] = React.useState([]);
+  const [open, setOpen] = React.useState(null);
+  const [tab, setTab] = React.useState("lifecycle");
+  const [toast, setToast] = React.useState(null);
+
+  const rows = view === "exceptions" ? window.ORDERS.filter((o) => o.exception) : window.ORDERS;
+  const columns = [
+    { key: "id", header: "Order", sortable: true, render: (r) => <span style={{ fontFamily: "var(--font-mono)", fontWeight: 500 }}>{r.id}</span> },
+    { key: "customer", header: "Customer" },
+    { key: "channel", header: "Channel" },
+    { key: "location", header: "Location" },
+    { key: "fulfilment", header: "Fulfilment" },
+    { key: "state", header: "Status", render: (r) => <StatusBadge state={r.state} /> },
+    { key: "payment", header: "Payment", render: (r) => <span style={{ color: r.payment === "Paid" ? "var(--text-primary)" : "var(--status-warning-fg)" }}>{r.payment}</span> },
+    { key: "issue", header: "Exception", render: (r) => r.issue ? <Badge tone="error" icon="alert-circle">{r.issue}</Badge> : <span style={{ color: "var(--text-tertiary)" }}>—</span> },
+    { key: "amount", header: "Amount", numeric: true, render: (r) => <span>{r.amount}</span> },
+    { key: "time", header: "Time", numeric: true },
+  ];
+
+  return (
+    <>
+      <PageHeader
+        title="Orders"
+        subtitle="Live order flow across every channel and location."
+        badge={<Badge tone="error" icon="alert-triangle">3 exceptions</Badge>}
+        actions={<><Button variant="secondary" icon="download">Export</Button><Button variant="secondary" icon="bookmark">Save view</Button></>}
+      />
+      <div style={{ marginTop: 20 }}>
+        <Card padding="none">
+          <TableToolbar>
+            <SearchInput placeholder="Order ID, customer, phone" style={{ width: 240 }} />
+            <Chip icon="alert-triangle" selected={view === "exceptions"} count={3} onClick={() => setView("exceptions")}>Exceptions</Chip>
+            <Chip selected={view === "all"} onClick={() => setView("all")}>All orders</Chip>
+            <Chip>Today</Chip>
+            <Chip>All channels</Chip>
+            <Chip>All locations</Chip>
+            <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+              <IconButton icon="columns-3" label="Columns" variant="outline" />
+              <IconButton icon="rows-3" label="Density" variant="outline" />
+            </div>
+          </TableToolbar>
+          {sel.length ? (
+            <TableBulkBar count={sel.length}>
+              <Button size="sm" variant="secondary" icon="refresh-cw" onClick={() => { setToast(`${sel.length} orders queued for retry`); setSel([]); }}>Retry send to POS</Button>
+              <Button size="sm" variant="secondary" icon="printer">Print</Button>
+              <Button size="sm" variant="ghost" onClick={() => setSel([])}>Clear</Button>
+            </TableBulkBar>
+          ) : null}
+          <DataTable
+            columns={columns}
+            rows={rows}
+            density="dense"
+            selectable
+            selectedIds={sel}
+            onToggleRow={(id) => setSel((s) => s.includes(id) ? s.filter((x) => x !== id) : [...s, id])}
+            onToggleAll={(n) => setSel(n ? rows.map((r) => r.id) : [])}
+            onRowClick={(r) => { setOpen(r); setTab("lifecycle"); }}
+            sortKey="id"
+            sortDirection="desc"
+          />
+          <Pagination page={1} pageCount={view === "exceptions" ? 1 : 198} pageSize={rows.length} total={view === "exceptions" ? 3 : 1583} />
+        </Card>
+      </div>
+
+      {open ? (
+        <Drawer
+          title={<span style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontFamily: "var(--font-mono)" }}>{open.id}</span><StatusBadge state={open.state} /></span>}
+          description={`${open.channel} · ${open.location} · ${open.fulfilment} · ${open.time}`}
+          onClose={() => setOpen(null)}
+          footer={<>
+            <Button variant="ghost">Refund</Button>
+            <Button variant="secondary" icon="printer">Print</Button>
+            <Button icon="refresh-cw" onClick={() => { setToast(`${open.id} resent to Lightspeed`); setOpen(null); }}>Resend to POS</Button>
+          </>}
+        >
+          {open.exception ? (
+            <Alert tone="error" title="Order has not reached the POS" style={{ marginBottom: 16 }}>
+              Lightspeed returned <code>502 Bad Gateway</code> on 3 attempts. The customer has been charged and is expecting this order.
+            </Alert>
+          ) : null}
+          <Tabs tabs={[{ id: "lifecycle", label: "Lifecycle" }, { id: "items", label: "Items", count: 3 }, { id: "integration", label: "Integration events", tone: open.exception ? "error" : undefined }]} value={tab} onChange={setTab} />
+          <div style={{ marginTop: 18 }}>
+            {tab === "lifecycle" ? (
+              <div style={{ display: "grid", gap: 20 }}>
+                <window.DefinitionList items={[
+                  { label: "Customer", value: `${open.customer} · +971 50 •••• 41` },
+                  { label: "Payment", value: `${open.payment} · Stripe · AED ${open.amount}` },
+                  { label: "Location", value: open.location },
+                  { label: "Fulfilment", value: `${open.fulfilment} · ASAP` },
+                  { label: "Channel", value: open.channel },
+                ]} />
+                <Timeline items={[
+                  { title: "Order placed", meta: `${open.time} · ${open.channel}`, tone: "success", icon: "check" },
+                  { title: "Payment authorised", meta: `${open.time} · Stripe`, tone: "success", icon: "credit-card" },
+                  { title: "Send to POS failed (attempt 3 of 3)", meta: "14:07 · Lightspeed · 502 Bad Gateway", tone: "error", icon: "x-circle" },
+                  { title: "Awaiting operator action", meta: "Now", tone: "processing", icon: "clock" },
+                ]} />
+              </div>
+            ) : null}
+            {tab === "items" ? (
+              <div style={{ display: "grid", gap: 10, fontSize: 13 }}>
+                {[["2 × Flat white", "Oat milk, extra shot", "48.00"], ["1 × Avocado toast", "No chilli", "38.00"], ["1 × Cold brew", "", "22.00"]].map(([n, m, p]) => (
+                  <div key={n} style={{ display: "flex", justifyContent: "space-between", gap: 12, paddingBottom: 10, borderBottom: "1px solid var(--border-subtle)" }}>
+                    <span><strong style={{ fontWeight: 500 }}>{n}</strong>{m ? <span style={{ display: "block", color: "var(--text-secondary)", fontSize: 12 }}>{m}</span> : null}</span>
+                    <span style={{ fontVariantNumeric: "tabular-nums" }}>{p}</span>
+                  </div>
+                ))}
+                <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, marginTop: 4 }}><span>Total</span><span style={{ fontVariantNumeric: "tabular-nums" }}>AED {open.amount}</span></div>
+              </div>
+            ) : null}
+            {tab === "integration" ? (
+              <div style={{ display: "grid", gap: 14 }}>
+                <window.DefinitionList items={[
+                  { label: "Integration", value: "Lightspeed · POS" },
+                  { label: "Endpoint", value: <code>POST /v3/orders</code> },
+                  { label: "Attempts", value: "3 · last 14:07" },
+                  { label: "Correlation ID", value: <code>ord_8f31c9a2</code> },
+                ]} />
+                <pre style={{ margin: 0, padding: 14, background: "var(--surface-sunken)", borderRadius: "var(--radius-card)", fontSize: 12, lineHeight: "18px", overflowX: "auto", color: "var(--text-secondary)" }}>{`14:07:02  POST /v3/orders  → 502 Bad Gateway
+14:05:41  POST /v3/orders  → 502 Bad Gateway
+14:04:12  POST /v3/orders  → 502 Bad Gateway
+14:02:00  connector health → degraded`}</pre>
+                <Button variant="secondary" icon="external-link">Open integration</Button>
+              </div>
+            ) : null}
+          </div>
+        </Drawer>
+      ) : null}
+      {toast ? <ToastStack><Toast tone="success" title="Queued" onDismiss={() => setToast(null)}>{toast}</Toast></ToastStack> : null}
+    </>
+  );
+}
+
+Object.assign(window, { OrdersScreen });
+
+===== FILE: screens/data.js =====
+/* Fake data for the QOS platform UI kit. Object names follow the qosapp domain model
+   (tenants → organizations → brands → locations; storefronts, releases, catalogue, menus). */
+const TENANTS = [
+  { id: "quotes", name: "Quotes", meta: "12 locations · AED · hospitality" },
+  { id: "petal", name: "Petal & Stem", meta: "3 locations · AED · generic retail" },
+];
+
+const NAV = [
+  { items: [
+    { id: "home", label: "Home", icon: "layout-dashboard" },
+    { id: "orders", label: "Orders", icon: "receipt", count: 9 },
+  ] },
+  { label: "Commerce", items: [
+    { id: "catalogue", label: "Catalogue", icon: "package", children: [
+      { id: "catalogue", label: "Products", count: 1583 },
+      { id: "menus", label: "Menus", count: 6 },
+      { id: "modifiers", label: "Modifier groups", count: 24 },
+      { id: "categories", label: "Categories", count: 18 },
+    ] },
+    { id: "customers", label: "Customers", icon: "users" },
+    { id: "channels", label: "Sales Channels", icon: "store", children: [
+      { id: "channels", label: "All channels" },
+      { id: "store", label: "Online Store" },
+      { id: "pos", label: "POS" },
+    ] },
+    { id: "locations", label: "Locations", icon: "map-pin", count: 12 },
+  ] },
+  { label: "Platform", items: [
+    { id: "integrations", label: "Integrations", icon: "plug", count: 2 },
+    { id: "analytics", label: "Analytics", icon: "bar-chart-3" },
+    { id: "team", label: "Team", icon: "shield-check" },
+    { id: "settings", label: "Settings", icon: "settings" },
+  ] },
+];
+
+const ORDERS = [
+  { id: "QO-10428", customer: "A. Rahman", channel: "Online Store", location: "Marina Walk", state: "failed", fulfilment: "Delivery", payment: "Authorised", amount: "184.00", time: "14:06", exception: true, issue: "Not sent to POS" },
+  { id: "QO-10427", customer: "L. Fernandes", channel: "POS", location: "Downtown", state: "live", fulfilment: "Dine-in", payment: "Paid", amount: "62.50", time: "14:04" },
+  { id: "QO-10426", customer: "S. Habib", channel: "Deliveroo", location: "Marina Walk", state: "processing", fulfilment: "Delivery", payment: "Paid", amount: "96.00", time: "14:01" },
+  { id: "QO-10425", customer: "M. Okafor", channel: "Online Store", location: "Al Quoz", state: "published", fulfilment: "Collection", payment: "Paid", amount: "241.75", time: "13:58" },
+  { id: "QO-10424", customer: "N. Sharma", channel: "Online Store", location: "Marina Walk", state: "failed", fulfilment: "Delivery", payment: "Authorised", amount: "77.25", time: "13:54", exception: true, issue: "Not sent to POS" },
+  { id: "QO-10423", customer: "K. Mensah", channel: "POS", location: "Downtown", state: "published", fulfilment: "Dine-in", payment: "Paid", amount: "128.00", time: "13:49" },
+  { id: "QO-10422", customer: "R. Iyer", channel: "Talabat", location: "Al Quoz", state: "paused", fulfilment: "Delivery", payment: "Pending", amount: "54.00", time: "13:41", exception: true, issue: "Payment pending 24m" },
+  { id: "QO-10421", customer: "D. Costa", channel: "Online Store", location: "Marina Walk", state: "published", fulfilment: "Collection", payment: "Paid", amount: "33.50", time: "13:37" },
+];
+
+const PRODUCTS = [
+  { id: "flat-white", name: "Flat white", category: "Coffee", variants: 3, price: "18.00 – 24.00", state: "published", channels: "Online Store, POS, Deliveroo", availability: "12 of 12" },
+  { id: "cortado", name: "Cortado", category: "Coffee", variants: 2, price: "16.00", state: "published", channels: "Online Store, POS", availability: "12 of 12" },
+  { id: "cold-brew", name: "Cold brew", category: "Coffee", variants: 2, price: "22.00", state: "draft", channels: "—", availability: "0 of 12" },
+  { id: "avo-toast", name: "Avocado toast", category: "Kitchen", variants: 1, price: "38.00", state: "published", channels: "Online Store, POS", availability: "9 of 12", exception: true },
+  { id: "banana-bread", name: "Banana bread", category: "Bakery", variants: 1, price: "21.00", state: "published", channels: "Online Store, POS, Talabat", availability: "12 of 12" },
+  { id: "matcha-latte", name: "Matcha latte", category: "Tea", variants: 3, price: "24.00 – 29.00", state: "archived", channels: "—", availability: "0 of 12" },
+];
+
+const LOCATIONS = [
+  { id: "marina", name: "Marina Walk", city: "Dubai Marina", state: "warning", channels: "Online Store, POS, Deliveroo", fulfilment: "Delivery, Collection, Dine-in", hours: "Open until 23:00", integration: "error", exception: true },
+  { id: "downtown", name: "Downtown", city: "Sheikh Mohammed Bin Rashid Blvd", state: "active", channels: "Online Store, POS", fulfilment: "Collection, Dine-in", hours: "Open until 00:00", integration: "connected" },
+  { id: "alquoz", name: "Al Quoz", city: "Alserkal Avenue", state: "active", channels: "Online Store, POS, Talabat", fulfilment: "Delivery, Collection", hours: "Open until 22:00", integration: "connected" },
+  { id: "jbr", name: "JBR Beachfront", city: "Jumeirah Beach Residence", state: "paused", channels: "Online Store", fulfilment: "Collection", hours: "Closed · reopens 07:00", integration: "connected" },
+];
+
+const CHANNELS = [
+  { id: "store", name: "Online Store", kind: "QOS Storefront", icon: "globe", state: "live", locations: "12 of 12", catalogue: "Main menu", sync: "synced", activity: "Release 42 published 4h ago", domain: "quotes.qosapp.com" },
+  { id: "pos", name: "Lightspeed POS", kind: "Point of sale", icon: "monitor", state: "error", locations: "12 of 12", catalogue: "Mirrored", sync: "out_of_sync", activity: "9 orders failed since 14:02" },
+  { id: "deliveroo", name: "Deliveroo", kind: "Delivery marketplace", icon: "truck", state: "live", locations: "4 of 12", catalogue: "Delivery menu", sync: "synced", activity: "Menu synced 20m ago" },
+  { id: "talabat", name: "Talabat", kind: "Delivery marketplace", icon: "truck", state: "paused", locations: "2 of 12", catalogue: "Delivery menu", sync: "synced", activity: "Paused by Jamie Doyle 2d ago" },
+  { id: "kiosk", name: "Self-order kiosk", kind: "In-store", icon: "tablet", state: "available", locations: "—", catalogue: "—", sync: "disconnected", activity: "Not connected" },
+  { id: "whatsapp", name: "WhatsApp ordering", kind: "Messaging", icon: "message-circle", state: "available", locations: "—", catalogue: "—", sync: "disconnected", activity: "Not connected" },
+];
+
+const INTEGRATIONS = [
+  { id: "lightspeed", name: "Lightspeed", kind: "POS", state: "error", health: "9 failed calls in the last hour", locations: "12 mapped", icon: "monitor" },
+  { id: "stripe", name: "Stripe", kind: "Payments", state: "connected", health: "Healthy · 0 failures today", locations: "12 mapped", icon: "credit-card" },
+  { id: "deliveroo", name: "Deliveroo", kind: "Delivery", state: "connected", health: "Healthy · menu synced 20m ago", locations: "4 mapped", icon: "truck" },
+  { id: "talabat", name: "Talabat", kind: "Delivery", state: "config_required", health: "Location mapping incomplete", locations: "2 of 3 mapped", icon: "truck" },
+  { id: "xero", name: "Xero", kind: "Accounting", state: "available", health: "Not connected", locations: "—", icon: "book-open" },
+  { id: "klaviyo", name: "Klaviyo", kind: "CRM", state: "available", health: "Not connected", locations: "—", icon: "users" },
+  { id: "finedine", name: "FineDine", kind: "Menu import", state: "connected", health: "Healthy · last import 2d ago", locations: "12 mapped", icon: "package" },
+  { id: "twilio", name: "Twilio", kind: "Messaging", state: "available", health: "Not connected", locations: "—", icon: "message-circle" },
+];
+
+const RELEASES = [
+  { id: 42, version: "Release 42", date: "12 Sep 2026, 09:14", user: "Jamie Doyle", changes: "Homepage hero, 3 pages, opening hours", state: "published", active: true },
+  { id: 41, version: "Release 41", date: "08 Sep 2026, 17:02", user: "Priya Nair", changes: "Menu assignment, footer links", state: "published" },
+  { id: 40, version: "Release 40", date: "02 Sep 2026, 11:20", user: "Jamie Doyle", changes: "Brand colours, logo", state: "published" },
+  { id: 39, version: "Release 39", date: "29 Aug 2026, 08:47", user: "System", changes: "Domain verification", state: "failed" },
+];
+
+const ORDER_TREND = [12, 18, 15, 24, 21, 30, 27, 34, 29, 38, 31, 26, 44, 39, 47, 41, 52, 48, 55, 43, 38, 30, 22, 16];
+const REVENUE_TREND = [8, 12, 11, 18, 16, 22, 20, 26, 23, 30, 26, 21, 34, 31, 37, 33, 41, 38, 44, 35, 30, 24, 18, 13];
+
+const BLOCKS = [
+  { id: "hero", name: "Hero", icon: "image", note: "Image, headline, order button", state: "published" },
+  { id: "categories", name: "Category navigation", icon: "layout-grid", note: "6 categories from Main menu", state: "published" },
+  { id: "featured", name: "Featured products", icon: "star", note: "4 products · manual selection", state: "draft" },
+  { id: "story", name: "Story / brand content", icon: "book-open", note: "Two columns, image left", state: "published" },
+  { id: "locations", name: "Locations", icon: "map-pin", note: "All 12 locations, map", state: "published" },
+  { id: "hours", name: "Opening hours", icon: "clock", note: "Pulled from location hours", state: "published" },
+  { id: "footer", name: "Footer", icon: "panel-bottom", note: "Links, socials, legal", state: "published" },
+];
+
+Object.assign(window, { TENANTS, NAV, ORDERS, PRODUCTS, LOCATIONS, CHANNELS, INTEGRATIONS, RELEASES, ORDER_TREND, REVENUE_TREND, BLOCKS });
