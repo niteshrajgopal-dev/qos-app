@@ -274,6 +274,7 @@ async function buildBasketResponse(
 
   return {
     contractVersion: BASKET_CONTRACT_VERSION,
+    ownership: "anonymous",
     basketPublicId: basket.publicId,
     version: basket.version,
     tenantPublicId: tenant.publicId,
@@ -540,12 +541,56 @@ export async function createAnonymousBasket(
   });
 }
 
+export type AnonymousBasketSessionContext = {
+  tenantId: string;
+  sessionId: string;
+  basketId: string;
+  csrfToken: string;
+  sessionToken: string;
+};
+
+export async function resolveAnonymousBasketSession(
+  db: DbClient,
+  sessionToken: string | null,
+): Promise<AnonymousBasketSessionContext> {
+  return authenticateSession(db, sessionToken);
+}
+
 export async function getAnonymousBasket(db: DbClient, sessionToken: string | null) {
   const context = await authenticateSession(db, sessionToken);
 
   return withTenantContext(db, context.tenantId, async (tx) =>
     buildBasketResponse(tx, context.tenantId, context.basketId),
   );
+}
+
+export async function retireAnonymousBasket(
+  db: DbClient,
+  tenantId: string,
+  sessionId: string,
+  basketId: string,
+) {
+  return withTenantContext(db, tenantId, async (tx) => {
+    await tx
+      .update(storefrontAnonymousSessions)
+      .set({ status: "expired" })
+      .where(
+        and(
+          eq(storefrontAnonymousSessions.tenantId, tenantId),
+          eq(storefrontAnonymousSessions.id, sessionId),
+        ),
+      );
+
+    await tx
+      .update(storefrontAnonymousBaskets)
+      .set({ status: "expired", updatedAt: new Date() })
+      .where(
+        and(
+          eq(storefrontAnonymousBaskets.tenantId, tenantId),
+          eq(storefrontAnonymousBaskets.id, basketId),
+        ),
+      );
+  });
 }
 
 export async function upsertAnonymousBasketLine(

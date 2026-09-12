@@ -1559,6 +1559,155 @@ export const storefrontAnonymousBasketMutations = qos.table(
   ],
 );
 
+export const storefrontCustomerBaskets = qos.table(
+  "storefront_customer_baskets",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    storefrontId: uuid("storefront_id").notNull(),
+    locationId: uuid("location_id").notNull(),
+    menuId: uuid("menu_id").notNull(),
+    customerUserId: text("customer_user_id")
+      .notNull()
+      .references(() => customerAuthUsers.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    version: integer("version").notNull().default(1),
+    status: anonymousBasketStatusEnum("status").notNull().default("active"),
+    locale: text("locale").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.storefrontId],
+      foreignColumns: [storefronts.tenantId, storefronts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.tenantId, table.menuId],
+      foreignColumns: [catalogueMenus.tenantId, catalogueMenus.id],
+    }).onDelete("restrict"),
+    unique("storefront_customer_baskets_tenant_public_id_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    unique("storefront_customer_baskets_context_unique").on(
+      table.tenantId,
+      table.customerUserId,
+      table.storefrontId,
+      table.locationId,
+    ),
+    unique("storefront_customer_baskets_tenant_id_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    index("storefront_customer_baskets_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const storefrontCustomerBasketLines = qos.table(
+  "storefront_customer_basket_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    basketId: uuid("basket_id").notNull(),
+    publicId: text("public_id").notNull(),
+    productPublicId: text("product_public_id").notNull(),
+    quantity: integer("quantity").notNull(),
+    unitAmountMinor: integer("unit_amount_minor").notNull(),
+    unitCurrency: char("unit_currency", { length: 3 }).notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.basketId],
+      foreignColumns: [storefrontCustomerBaskets.tenantId, storefrontCustomerBaskets.id],
+    }).onDelete("restrict"),
+    unique("storefront_customer_basket_lines_tenant_public_id_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    unique("storefront_customer_basket_lines_product_unique").on(
+      table.tenantId,
+      table.basketId,
+      table.productPublicId,
+    ),
+    index("storefront_customer_basket_lines_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const storefrontCustomerBasketMutations = qos.table(
+  "storefront_customer_basket_mutations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    basketId: uuid("basket_id").notNull(),
+    mutationId: text("mutation_id").notNull(),
+    responseSnapshot: jsonb("response_snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.basketId],
+      foreignColumns: [storefrontCustomerBaskets.tenantId, storefrontCustomerBaskets.id],
+    }).onDelete("restrict"),
+    unique("storefront_customer_basket_mutations_unique").on(
+      table.tenantId,
+      table.basketId,
+      table.mutationId,
+    ),
+    index("storefront_customer_basket_mutations_tenant_id_idx").on(
+      table.tenantId,
+    ),
+  ],
+);
+
+export const storefrontBasketMergeOperations = qos.table(
+  "storefront_basket_merge_operations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    customerUserId: text("customer_user_id")
+      .notNull()
+      .references(() => customerAuthUsers.id, { onDelete: "restrict" }),
+    anonymousBasketId: uuid("anonymous_basket_id").notNull(),
+    accountBasketId: uuid("account_basket_id").notNull(),
+    operationId: text("operation_id").notNull(),
+    decision: text("decision").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    anonymousExpectedVersion: integer("anonymous_expected_version").notNull(),
+    accountExpectedVersion: integer("account_expected_version").notNull(),
+    responseSnapshot: jsonb("response_snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("storefront_basket_merge_operations_unique").on(
+      table.tenantId,
+      table.customerUserId,
+      table.operationId,
+    ),
+    index("storefront_basket_merge_operations_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
 export const mediaAssetStatusEnum = qos.enum("media_asset_status", [
   "pending_upload",
   "uploaded",
@@ -1877,6 +2026,10 @@ export const schema = {
   storefrontAnonymousBaskets,
   storefrontAnonymousBasketLines,
   storefrontAnonymousBasketMutations,
+  storefrontCustomerBaskets,
+  storefrontCustomerBasketLines,
+  storefrontCustomerBasketMutations,
+  storefrontBasketMergeOperations,
   staffIdentities,
   staffMemberships,
   staffInvitations,

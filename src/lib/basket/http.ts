@@ -6,6 +6,8 @@ import {
 } from "@/lib/basket/anonymous-basket";
 import { AnonymousBasketAuthError } from "@/lib/basket/session-cookies";
 import { BasketMenuEligibilityError } from "@/lib/basket/menu-eligibility";
+import { CustomerBasketError } from "@/lib/basket/customer-basket";
+import { BasketMergeError } from "@/lib/basket/basket-merge";
 import { CustomerAuthError } from "@/lib/customer/session";
 
 export function mapBasketRouteError(error: unknown) {
@@ -31,6 +33,24 @@ export function mapBasketRouteError(error: unknown) {
     return {
       statusCode: error.statusCode,
       body: { error: error.message, field: error.field },
+    };
+  }
+
+  if (error instanceof CustomerBasketError) {
+    return {
+      statusCode: error.statusCode,
+      body: { error: error.message, field: error.field },
+    };
+  }
+
+  if (error instanceof BasketMergeError) {
+    return {
+      statusCode: error.statusCode,
+      body: {
+        error: error.message,
+        field: error.field,
+        lineValidations: error.lineValidations,
+      },
     };
   }
 

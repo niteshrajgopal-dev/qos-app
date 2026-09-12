@@ -12,7 +12,7 @@ export type BasketLineResponse = {
   };
 };
 
-export type AnonymousBasketResponse = {
+export type BasketContextResponse = {
   contractVersion: typeof BASKET_CONTRACT_VERSION;
   basketPublicId: string;
   version: number;
@@ -26,6 +26,56 @@ export type AnonymousBasketResponse = {
   lines: BasketLineResponse[];
   itemCount: number;
   provisionalSubtotalMinor: number;
+};
+
+export type AnonymousBasketResponse = BasketContextResponse & {
+  ownership: "anonymous";
+};
+
+export type CustomerBasketResponse = BasketContextResponse & {
+  ownership: "account";
+};
+
+export const BASKET_MERGE_DECISIONS = [
+  "keep_account",
+  "replace_with_anonymous",
+  "merge",
+] as const;
+
+export type BasketMergeDecision = (typeof BASKET_MERGE_DECISIONS)[number];
+
+export type BasketMergeLineValidationStatus =
+  | "ok"
+  | "unavailable"
+  | "price_changed"
+  | "quantity_exceeds_limit";
+
+export type BasketMergeLineValidation = {
+  productPublicId: string;
+  source: "anonymous" | "account" | "both";
+  status: BasketMergeLineValidationStatus;
+  storedUnitPrice?: BasketLineResponse["unitPrice"];
+  currentUnitPrice?: BasketLineResponse["unitPrice"];
+  combinedQuantity?: number;
+  maxLineQuantity?: number;
+};
+
+export type BasketMergePreviewResponse = {
+  contractVersion: typeof BASKET_CONTRACT_VERSION;
+  anonymousBasket: AnonymousBasketResponse;
+  accountBasket: CustomerBasketResponse;
+  lineValidations: BasketMergeLineValidation[];
+  availableDecisions: readonly BasketMergeDecision[];
+  decisionPayloadHashes: Record<BasketMergeDecision, string>;
+  proposedOutcomes: Record<BasketMergeDecision, CustomerBasketResponse>;
+};
+
+export type BasketMergeCommitResponse = {
+  contractVersion: typeof BASKET_CONTRACT_VERSION;
+  decision: BasketMergeDecision;
+  operationId: string;
+  accountBasket: CustomerBasketResponse;
+  anonymousBasketRetired: true;
 };
 
 export class BasketContractError extends Error {
