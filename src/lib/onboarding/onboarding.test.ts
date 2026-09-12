@@ -5,6 +5,8 @@ import {
   locations,
   staffInvitations,
   staffMemberships,
+  storefrontDomains,
+  storefronts,
   tenants,
 } from "@/db/schema";
 import {
@@ -12,7 +14,10 @@ import {
   resetAndMigrate,
 } from "@/db/test-utils";
 import { addTenantLocation } from "@/lib/onboarding/add-location";
-import { provisionBusiness } from "@/lib/onboarding/provision-business";
+import {
+  previewProvisionBusiness,
+  provisionBusiness,
+} from "@/lib/onboarding/provision-business";
 import {
   OperatorAuthorizationError,
   requireOperatorIdentity,
@@ -32,7 +37,7 @@ describeIntegration("operator onboarding", () => {
   });
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.staff_access_request_locations, qos.staff_access_requests, qos.business_provisioning_operations, qos.staff_invitations, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.storefront_published_collections, qos.storefront_locations, qos.storefront_domains, qos.storefront_releases, qos.storefronts, qos.staff_access_request_locations, qos.staff_access_requests, qos.business_provisioning_operations, qos.staff_invitations, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
   });
 
   afterAll(async () => {
@@ -89,6 +94,14 @@ describeIntegration("operator onboarding", () => {
 
     const invitations = await db.select().from(staffInvitations);
     expect(invitations).toHaveLength(2);
+
+    const storefrontRows = await db.select().from(storefronts);
+    expect(storefrontRows).toHaveLength(2);
+    expect(quotes.storefront.status).toBe("draft");
+    expect(quotes.platformDomain.lifecycleStatus).toBe("provisioning");
+    expect(quotes.onboardingStatus.storefrontDraftReady).toBe(true);
+    expect(quotes.platformDomain.hostname).toContain("dev.qosapp.com");
+    expect(flowers.platformDomain.hostname).not.toBe(quotes.platformDomain.hostname);
   });
 
   it("replays the same idempotency key without creating a duplicate tenant", async () => {
@@ -107,9 +120,14 @@ describeIntegration("operator onboarding", () => {
 
     expect(second.idempotentReplay).toBe(true);
     expect(second.tenant.id).toBe(first.tenant.id);
+    expect(second.storefront.publicId).toBe(first.storefront.publicId);
+    expect(second.platformDomain.hostname).toBe(first.platformDomain.hostname);
 
     const tenantRows = await db.select().from(tenants);
     expect(tenantRows).toHaveLength(1);
+
+    const storefrontRows = await db.select().from(storefronts);
+    expect(storefrontRows).toHaveLength(1);
   });
 
   it("rejects cross-tenant brand usage when adding a location", async () => {
@@ -166,6 +184,77 @@ describeIntegration("operator onboarding", () => {
       .where(eq(tenants.id, result.tenant.id));
 
     expect(tenant.provisionedByOperatorId).toBe(operator.subject);
+  });
+
+  it("resolves platform hostname collisions without invalidating either tenant", async () => {
+    const sharedBrandPayload = {
+      businessName: "Acme Cafe North",
+      businessProfile: "hospitality" as const,
+      brandName: "Acme Cafe",
+      locationName: "North Branch",
+      locationTimezone: "Asia/Dubai",
+      administratorEmail: "north@acme.test",
+      baseCurrency: "AED",
+      defaultLocale: "en",
+      supportedLocales: ["en", "ar"],
+    };
+
+    const first = await provisionBusiness(
+      db,
+      operator,
+      "op-acme-north",
+      sharedBrandPayload,
+    );
+    const second = await provisionBusiness(db, operator, "op-acme-south", {
+      ...sharedBrandPayload,
+      businessName: "Acme Cafe South",
+      locationName: "South Branch",
+      administratorEmail: "south@acme.test",
+    });
+
+    expect(first.platformDomain.hostname).toBe("acme-cafe.dev.qosapp.com");
+    expect(second.platformDomain.collisionSuffix).toBe("1");
+    expect(second.platformDomain.hostname).toBe("acme-cafe-1.dev.qosapp.com");
+    expect(first.tenant.id).not.toBe(second.tenant.id);
+
+    const domains = await db.select().from(storefrontDomains);
+    expect(domains).toHaveLength(2);
+  });
+
+  it("seeds profile-specific storefront themes without auto-publishing", async () => {
+    const quotes = await provisionBusiness(
+      db,
+      operator,
+      "op-theme-quotes",
+      quotesPayload,
+    );
+    const flowers = await provisionBusiness(
+      db,
+      operator,
+      "op-theme-flowers",
+      flowerPayload,
+    );
+
+    const [quotesStorefront] = await db
+      .select()
+      .from(storefronts)
+      .where(eq(storefronts.publicId, quotes.storefront.publicId));
+    const [flowerStorefront] = await db
+      .select()
+      .from(storefronts)
+      .where(eq(storefronts.publicId, flowers.storefront.publicId));
+
+    expect(quotesStorefront.draftConfig.theme).toMatchObject({
+      preset: "hospitality_baseline",
+    });
+    expect(flowerStorefront.draftConfig.theme).toMatchObject({
+      preset: "generic_retail_baseline",
+    });
+    expect(quotesStorefront.activeReleaseId).toBeNull();
+    expect(flowerStorefront.activeReleaseId).toBeNull();
+
+    const preview = previewProvisionBusiness(quotesPayload);
+    expect(preview.proposedPlatformHostname).toBe("quotes.dev.qosapp.com");
   });
 });
 

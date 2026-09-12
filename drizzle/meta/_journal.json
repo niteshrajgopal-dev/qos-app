@@ -36,6 +36,69 @@
       "when": 1789156787837,
       "tag": "0004_hesitant_microbe",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1789200710974,
+      "tag": "0005_daily_pete_wisdom",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789201344040,
+      "tag": "0006_plain_black_knight",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789202002288,
+      "tag": "0007_secret_maginty",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1789202611113,
+      "tag": "0008_hesitant_jamie_braddock",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1789203093812,
+      "tag": "0009_black_sheva_callister",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1789203570797,
+      "tag": "0010_good_lady_ursula",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1789206688706,
+      "tag": "0011_real_omega_flight",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1789209098456,
+      "tag": "0012_loose_spot",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1789210392945,
+      "tag": "0013_lyrical_shadowcat",
+      "breakpoints": true
     }
   ]
 }

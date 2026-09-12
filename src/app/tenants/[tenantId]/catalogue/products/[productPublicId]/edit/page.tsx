@@ -30,12 +30,26 @@ export default async function EditCatalogueProductPage({ params }: PageProps) {
               .
             </p>
           </div>
-          <Link
-            href="/"
-            className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
-          >
-            Home
-          </Link>
+          <div className="flex flex-col items-end gap-2">
+            <Link
+              href={`/tenants/${tenantId}/catalogue/products/${productPublicId}/translations`}
+              className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
+            >
+              Translation review
+            </Link>
+            <Link
+              href={`/tenants/${tenantId}/catalogue/products/${productPublicId}/location-prices`}
+              className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
+            >
+              Location prices
+            </Link>
+            <Link
+              href="/"
+              className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
+            >
+              Home
+            </Link>
+          </div>
         </div>
         <ProductEditor tenantId={tenantId} productPublicId={productPublicId} />
       </main>

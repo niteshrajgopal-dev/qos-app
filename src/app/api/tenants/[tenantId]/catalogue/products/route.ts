@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { catalogueErrorResponse } from "@/lib/catalogue/http";
 import { createDraftProduct } from "@/lib/catalogue/products";
+import { listCatalogueProductSummaries } from "@/lib/catalogue/repository";
 import {
   requireActiveStaffMembership,
   requireStaffIdentity,
@@ -13,6 +14,19 @@ export const dynamic = "force-dynamic";
 type RouteContext = {
   params: Promise<{ tenantId: string }>;
 };
+
+export async function GET(request: Request, context: RouteContext) {
+  try {
+    const { tenantId } = await context.params;
+    const identity = requireStaffIdentity(request.headers);
+    await requireActiveStaffMembership(db, tenantId, identity.subject);
+    const products = await listCatalogueProductSummaries(db, tenantId);
+
+    return NextResponse.json({ products });
+  } catch (error) {
+    return catalogueErrorResponse(error);
+  }
+}
 
 export async function POST(request: Request, context: RouteContext) {
   try {

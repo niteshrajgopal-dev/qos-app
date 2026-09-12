@@ -17,6 +17,12 @@ import {
   slugify,
   type ProvisionBusinessInput,
 } from "@/lib/onboarding/validation";
+import {
+  deriveDefaultStorefrontSlug,
+  previewDefaultPlatformHostname,
+  provisionDefaultStorefront,
+} from "@/lib/storefront/provision-default-storefront";
+import { setTenantContext } from "@/lib/tenant/context";
 
 export type ProvisionBusinessPreview = {
   businessName: string;
@@ -30,6 +36,9 @@ export type ProvisionBusinessPreview = {
   supportedLocales: string[];
   administratorRole: NonNullable<ProvisionBusinessInput["administratorRole"]>;
   derivedLocationSlug: string;
+  derivedStorefrontSlug: string;
+  proposedPlatformHostname: string;
+  platformDomainSuffix: string;
 };
 
 export type ProvisionBusinessResult = {
@@ -51,6 +60,27 @@ export type ProvisionBusinessResult = {
     status: string;
     deliveryStatus: string;
   };
+  storefront: {
+    publicId: string;
+    slug: string;
+    status: "draft" | "active" | "archived";
+  };
+  platformDomain: {
+    hostname: string;
+    lifecycleStatus: "provisioning" | "active" | "inactive";
+    verificationStatus: "pending" | "verified" | "failed";
+    collisionSuffix: string | null;
+  };
+  onboardingStatus: {
+    businessReady: true;
+    storefrontDraftReady: true;
+    platformAddress: {
+      hostname: string;
+      lifecycleStatus: "provisioning" | "active" | "inactive";
+      verificationStatus: "pending" | "verified" | "failed";
+    };
+    customDomainOptional: true;
+  };
   provisionedByOperatorId: string;
   idempotentReplay: boolean;
 };
@@ -59,6 +89,8 @@ export function previewProvisionBusiness(
   input: ProvisionBusinessInput,
 ): ProvisionBusinessPreview {
   const normalized = normalizeProvisionBusinessInput(input);
+
+  const platformPreview = previewDefaultPlatformHostname(normalized.brandName);
 
   return {
     businessName: normalized.businessName,
@@ -72,6 +104,9 @@ export function previewProvisionBusiness(
     supportedLocales: normalized.supportedLocales,
     administratorRole: normalized.administratorRole ?? "administrator",
     derivedLocationSlug: slugify(normalized.locationName),
+    derivedStorefrontSlug: deriveDefaultStorefrontSlug(normalized.brandName),
+    proposedPlatformHostname: platformPreview.proposedHostname,
+    platformDomainSuffix: platformPreview.platformDomainSuffix,
   };
 }
 
@@ -219,6 +254,19 @@ export async function provisionBusiness(
       throw new Error("Pending invitation must not create staff membership.");
     }
 
+    await setTenantContext(tx, tenant.id);
+
+    const defaultStorefront = await provisionDefaultStorefront(tx, {
+      tenantId: tenant.id,
+      brandId: brand.id,
+      brandName: normalized.brandName,
+      businessProfile: normalized.businessProfile,
+      locationId: location.id,
+      locationPublicId: location.publicId,
+      defaultLocale: normalized.defaultLocale,
+      supportedLocales: normalized.supportedLocales,
+    });
+
     const result: ProvisionBusinessResult = {
       operationId: operation.id,
       idempotencyKey: trimmedKey,
@@ -251,6 +299,18 @@ export async function provisionBusiness(
         status: invitation.status,
         deliveryStatus: invitation.deliveryStatus,
       },
+      storefront: {
+        publicId: defaultStorefront.storefront.publicId,
+        slug: defaultStorefront.storefront.slug,
+        status: defaultStorefront.storefront.status,
+      },
+      platformDomain: {
+        hostname: defaultStorefront.domain.hostname,
+        lifecycleStatus: defaultStorefront.domain.lifecycleStatus,
+        verificationStatus: defaultStorefront.domain.verificationStatus,
+        collisionSuffix: defaultStorefront.domain.collisionSuffix,
+      },
+      onboardingStatus: defaultStorefront.onboardingStatus,
       provisionedByOperatorId: operator.subject,
       idempotentReplay: false,
     };

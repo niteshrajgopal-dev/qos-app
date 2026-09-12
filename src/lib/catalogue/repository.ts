@@ -226,3 +226,35 @@ export async function listCatalogueProductPublicIds(
     return rows.map((row) => row.publicId);
   });
 }
+
+export async function listCatalogueProductSummaries(
+  db: DbClient,
+  tenantId: string,
+  locale = "en",
+) {
+  return withTenantContext(db, tenantId, async (tx) => {
+    const rows = await tx
+      .select({
+        publicId: catalogueProducts.publicId,
+        internalName: catalogueProducts.internalName,
+        displayName: catalogueProductTranslations.displayName,
+      })
+      .from(catalogueProducts)
+      .leftJoin(
+        catalogueProductTranslations,
+        and(
+          eq(catalogueProductTranslations.tenantId, tenantId),
+          eq(catalogueProductTranslations.productId, catalogueProducts.id),
+          eq(catalogueProductTranslations.locale, locale),
+        ),
+      )
+      .where(eq(catalogueProducts.tenantId, tenantId))
+      .orderBy(asc(catalogueProducts.publicId));
+
+    return rows.map((row) => ({
+      publicId: row.publicId,
+      internalName: row.internalName,
+      displayName: row.displayName ?? row.internalName,
+    }));
+  });
+}

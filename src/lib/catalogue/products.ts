@@ -20,6 +20,7 @@ import {
 } from "@/lib/catalogue/validation";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
+import { invalidateArabicApprovalAfterEnglishChange } from "@/lib/catalogue/translation-approval";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class CatalogueProductError extends Error {
@@ -518,6 +519,10 @@ export async function updateDraftProduct(
               description: nextDescription,
               translationVersion: existingTranslation.translationVersion + 1,
               approvalStatus: "draft",
+              approvedBySubject: null,
+              approvedAt: null,
+              approvedTranslationVersion: null,
+              approvedSourceTranslationVersion: null,
               updatedAt: new Date(),
             })
             .where(
@@ -530,6 +535,14 @@ export async function updateDraftProduct(
                 ),
               ),
             );
+
+          if (locale === "en") {
+            await invalidateArabicApprovalAfterEnglishChange(
+              tx,
+              tenantId,
+              product.id,
+            );
+          }
         }
       }
 
@@ -553,10 +566,29 @@ export async function updateDraftProduct(
           );
         }
 
+        const [currentPrice] = await tx
+          .select({ version: catalogueVariantPrices.version })
+          .from(catalogueVariantPrices)
+          .where(
+            and(
+              eq(catalogueVariantPrices.tenantId, tenantId),
+              eq(catalogueVariantPrices.variantId, defaultVariant.id),
+            ),
+          )
+          .limit(1);
+
+        if (!currentPrice) {
+          throw new CatalogueProductError(
+            "Default variant price is missing for this product.",
+            500,
+          );
+        }
+
         await tx
           .update(catalogueVariantPrices)
           .set({
             amountMinor: validated.defaultVariant.amountMinor,
+            version: currentPrice.version + 1,
             updatedAt: new Date(),
           })
           .where(

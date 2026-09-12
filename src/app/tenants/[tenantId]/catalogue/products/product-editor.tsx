@@ -94,6 +94,11 @@ export function ProductEditor({
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [imageUploading, setImageUploading] = useState(false);
+  const [imageStatus, setImageStatus] = useState<string | null>(null);
+  const [thumbnailPublicId, setThumbnailPublicId] = useState<string | null>(
+    null,
+  );
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
@@ -207,6 +212,103 @@ export function ProductEditor({
     setError(null);
     setFieldError(null);
     setSavedMessage(null);
+  }
+
+  async function uploadProductImage(file: File) {
+    if (!productPublicId) {
+      return;
+    }
+
+    setImageUploading(true);
+    setImageStatus(null);
+    setError(null);
+
+    try {
+      const grantResponse = await fetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/upload-grants`,
+        {
+          method: "POST",
+          headers: staffHeaders,
+          body: JSON.stringify({
+            expectedByteSize: file.size,
+            expectedContentType: file.type,
+          }),
+        },
+      );
+
+      const grantPayload = (await grantResponse.json()) as {
+        grant?: {
+          assetPublicId: string;
+          grantToken: string;
+        };
+        error?: string;
+      };
+
+      if (!grantResponse.ok || !grantPayload.grant) {
+        throw new Error(grantPayload.error ?? "Unable to create upload grant.");
+      }
+
+      const uploadResponse = await fetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/upload`,
+        {
+          method: "PUT",
+          headers: {
+            "X-QOS-Staff-Subject": staffSubject,
+            "X-QOS-Staff-Email": staffEmail,
+            "X-QOS-Upload-Grant": grantPayload.grant.grantToken,
+            "Content-Type": file.type,
+          },
+          body: file,
+        },
+      );
+
+      const uploadPayload = (await uploadResponse.json()) as {
+        error?: string;
+      };
+
+      if (!uploadResponse.ok) {
+        throw new Error(uploadPayload.error ?? "Unable to upload image.");
+      }
+
+      const processResponse = await fetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/process`,
+        {
+          method: "POST",
+          headers: staffHeaders,
+          body: JSON.stringify({
+            assetPublicId: grantPayload.grant.assetPublicId,
+          }),
+        },
+      );
+
+      const processPayload = (await processResponse.json()) as {
+        media?: {
+          derivatives: Array<{
+            kind: string;
+            publicDerivativeId: string;
+          }>;
+        };
+        error?: string;
+      };
+
+      if (!processResponse.ok || !processPayload.media) {
+        throw new Error(processPayload.error ?? "Unable to process image.");
+      }
+
+      const thumbnail = processPayload.media.derivatives.find(
+        (derivative) => derivative.kind === "thumbnail",
+      );
+      setThumbnailPublicId(thumbnail?.publicDerivativeId ?? null);
+      setImageStatus("Product image approved and ready for menu publish.");
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Unable to upload product image.",
+      );
+    } finally {
+      setImageUploading(false);
+    }
   }
 
   async function saveProduct() {
@@ -613,6 +715,47 @@ export function ProductEditor({
           ) : null}
         </div>
       </section>
+
+      {isEditMode && productPublicId ? (
+        <section className="rounded-xl border border-zinc-200 p-5">
+          <h2 className="text-lg font-semibold">Product image</h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            Upload a JPEG or PNG image. It is quarantined, validated, and
+            converted to approved public derivatives for menu publish.
+          </p>
+          <div className="mt-4 space-y-3">
+            <input
+              type="file"
+              accept="image/jpeg,image/png"
+              disabled={imageUploading}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  void uploadProductImage(file);
+                }
+                event.target.value = "";
+              }}
+              className="block w-full text-sm text-zinc-700 file:mr-4 file:rounded-full file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium"
+            />
+            {imageUploading ? (
+              <p className="text-sm text-zinc-600">Uploading and processing…</p>
+            ) : null}
+            {imageStatus ? (
+              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                {imageStatus}
+              </p>
+            ) : null}
+            {thumbnailPublicId ? (
+              <p className="text-xs text-zinc-500">
+                Thumbnail public id:{" "}
+                <code className="rounded bg-zinc-100 px-1.5 py-0.5">
+                  {thumbnailPublicId}
+                </code>
+              </p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
 
       {error ? (
         <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
