@@ -22,7 +22,7 @@ export async function POST(request: Request, context: RouteContext) {
   try {
     const { tenantId, productPublicId, locationPublicId } =
       await context.params;
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     const membership = await requireActiveStaffMembership(
       db,
       tenantId,

@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
+
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type TranslationFormState = {
   displayName: string;
@@ -80,8 +83,6 @@ export function ProductEditor({
   initialBusinessProfile = "generic_retail",
 }: ProductEditorProps) {
   const isEditMode = Boolean(productPublicId);
-  const [staffSubject, setStaffSubject] = useState("admin@quotes.test");
-  const [staffEmail, setStaffEmail] = useState("admin@quotes.test");
   const [form, setForm] = useState<ProductEditorState>(() =>
     createEmptyFormState(initialBusinessProfile),
   );
@@ -102,15 +103,6 @@ export function ProductEditor({
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
-
-  const staffHeaders = useMemo(
-    () => ({
-      "X-QOS-Staff-Subject": staffSubject,
-      "X-QOS-Staff-Email": staffEmail,
-      "Content-Type": "application/json",
-    }),
-    [staffEmail, staffSubject],
-  );
 
   const applyProductPayload = useCallback(
     (product: {
@@ -172,9 +164,8 @@ export function ProductEditor({
     setFieldError(null);
 
     try {
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/products/${productPublicId}`,
-        { headers: staffHeaders },
       );
       const payload = (await response.json()) as {
         product?: Parameters<typeof applyProductPayload>[0];
@@ -194,7 +185,7 @@ export function ProductEditor({
     } finally {
       setLoading(false);
     }
-  }, [applyProductPayload, productPublicId, staffHeaders, tenantId]);
+  }, [applyProductPayload, productPublicId, tenantId]);
 
   function resetForm() {
     if (!isDirty) {
@@ -224,11 +215,10 @@ export function ProductEditor({
     setError(null);
 
     try {
-      const grantResponse = await fetch(
+      const grantResponse = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/upload-grants`,
         {
           method: "POST",
-          headers: staffHeaders,
           body: JSON.stringify({
             expectedByteSize: file.size,
             expectedContentType: file.type,
@@ -248,13 +238,11 @@ export function ProductEditor({
         throw new Error(grantPayload.error ?? "Unable to create upload grant.");
       }
 
-      const uploadResponse = await fetch(
+      const uploadResponse = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/upload`,
         {
           method: "PUT",
           headers: {
-            "X-QOS-Staff-Subject": staffSubject,
-            "X-QOS-Staff-Email": staffEmail,
             "X-QOS-Upload-Grant": grantPayload.grant.grantToken,
             "Content-Type": file.type,
           },
@@ -270,11 +258,10 @@ export function ProductEditor({
         throw new Error(uploadPayload.error ?? "Unable to upload image.");
       }
 
-      const processResponse = await fetch(
+      const processResponse = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/process`,
         {
           method: "POST",
-          headers: staffHeaders,
           body: JSON.stringify({
             assetPublicId: grantPayload.grant.assetPublicId,
           }),
@@ -327,11 +314,10 @@ export function ProductEditor({
 
     try {
       if (isEditMode && productPublicId) {
-        const response = await fetch(
+        const response = await staffApiFetch(
           `/api/tenants/${tenantId}/catalogue/products/${productPublicId}`,
           {
             method: "PATCH",
-            headers: staffHeaders,
             body: JSON.stringify({
               expectedVersion: form.version,
               internalName: form.internalName,
@@ -382,11 +368,10 @@ export function ProductEditor({
         return;
       }
 
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/products`,
         {
           method: "POST",
-          headers: staffHeaders,
           body: JSON.stringify({
             internalName: form.internalName,
             sku: form.sku || null,
@@ -477,26 +462,13 @@ export function ProductEditor({
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">
-            Staff subject
-          </span>
-          <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={staffSubject}
-            onChange={(event) => setStaffSubject(event.target.value)}
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">Staff email</span>
-          <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={staffEmail}
-            onChange={(event) => setStaffEmail(event.target.value)}
-          />
-        </label>
-      </div>
+      <p className="text-sm text-zinc-600">
+        Sign in at{" "}
+        <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
+          staff sign-in
+        </Link>{" "}
+        before saving products or uploading media.
+      </p>
 
       {isEditMode ? (
         <button

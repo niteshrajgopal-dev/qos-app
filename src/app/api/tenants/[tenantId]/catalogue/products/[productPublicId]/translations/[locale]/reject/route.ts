@@ -22,7 +22,7 @@ type RejectBody = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { tenantId, productPublicId, locale } = await context.params;
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     const body = (await request.json()) as RejectBody;
     const expectedTranslationVersion = Number(body.expectedTranslationVersion);
 

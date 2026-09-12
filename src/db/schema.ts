@@ -258,6 +258,13 @@ export const staffInvitations = qos.table(
       .notNull()
       .default("pending"),
     invitedByOperatorId: text("invited_by_operator_id").notNull(),
+    tokenHash: text("token_hash"),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+    acceptedByStaffIdentityId: uuid("accepted_by_staff_identity_id").references(
+      () => staffIdentities.id,
+      { onDelete: "restrict" },
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -266,8 +273,41 @@ export const staffInvitations = qos.table(
       .defaultNow(),
   },
   (table) => [
+    unique("staff_invitations_tenant_id_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
     index("staff_invitations_tenant_id_idx").on(table.tenantId),
     index("staff_invitations_email_idx").on(table.email),
+    unique("staff_invitations_token_hash_unique").on(table.tokenHash),
+  ],
+);
+
+export const staffInvitationLocations = qos.table(
+  "staff_invitation_locations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    invitationId: uuid("invitation_id").notNull(),
+    locationId: uuid("location_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.invitationId],
+      foreignColumns: [staffInvitations.tenantId, staffInvitations.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.id],
+    }).onDelete("restrict"),
+    unique("staff_invitation_locations_unique").on(
+      table.invitationId,
+      table.locationId,
+    ),
+    index("staff_invitation_locations_tenant_id_idx").on(table.tenantId),
   ],
 );
 
@@ -1357,6 +1397,84 @@ export const customerAuthVerifications = qos.table("customer_auth_verifications"
     .defaultNow(),
 });
 
+export const staffAuthUsers = qos.table(
+  "staff_auth_users",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    emailVerified: boolean("email_verified").notNull().default(false),
+    image: text("image"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique("staff_auth_users_email_unique").on(table.email)],
+);
+
+export const staffAuthSessions = qos.table(
+  "staff_auth_sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => staffAuthUsers.id, { onDelete: "cascade" }),
+    token: text("token").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    ipAddress: text("ip_address"),
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [unique("staff_auth_sessions_token_unique").on(table.token)],
+);
+
+export const staffAuthAccounts = qos.table("staff_auth_accounts", {
+  id: text("id").primaryKey(),
+  userId: text("user_id")
+    .notNull()
+    .references(() => staffAuthUsers.id, { onDelete: "cascade" }),
+  accountId: text("account_id").notNull(),
+  providerId: text("provider_id").notNull(),
+  accessToken: text("access_token"),
+  refreshToken: text("refresh_token"),
+  idToken: text("id_token"),
+  accessTokenExpiresAt: timestamp("access_token_expires_at", {
+    withTimezone: true,
+  }),
+  refreshTokenExpiresAt: timestamp("refresh_token_expires_at", {
+    withTimezone: true,
+  }),
+  scope: text("scope"),
+  password: text("password"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
+export const staffAuthVerifications = qos.table("staff_auth_verifications", {
+  id: text("id").primaryKey(),
+  identifier: text("identifier").notNull(),
+  value: text("value").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
+
 export const storefrontCustomerAssociations = qos.table(
   "storefront_customer_associations",
   {
@@ -1708,6 +1826,236 @@ export const storefrontBasketMergeOperations = qos.table(
   ],
 );
 
+export const storefrontCheckoutQuotes = qos.table(
+  "storefront_checkout_quotes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    customerUserId: text("customer_user_id")
+      .notNull()
+      .references(() => customerAuthUsers.id, { onDelete: "restrict" }),
+    basketId: uuid("basket_id").notNull(),
+    publicId: text("public_id").notNull(),
+    version: integer("version").notNull().default(1),
+    basketVersion: integer("basket_version").notNull(),
+    basketPublicId: text("basket_public_id").notNull(),
+    pricingPolicyVersion: integer("pricing_policy_version").notNull(),
+    couponCode: text("coupon_code"),
+    locale: text("locale").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    isTest: boolean("is_test").notNull().default(true),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    snapshot: jsonb("snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.basketId],
+      foreignColumns: [storefrontCustomerBaskets.tenantId, storefrontCustomerBaskets.id],
+    }).onDelete("restrict"),
+    unique("storefront_checkout_quotes_tenant_public_id_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    unique("storefront_checkout_quotes_tenant_id_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    index("storefront_checkout_quotes_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const storefrontCheckoutQuoteOperations = qos.table(
+  "storefront_checkout_quote_operations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    customerUserId: text("customer_user_id")
+      .notNull()
+      .references(() => customerAuthUsers.id, { onDelete: "restrict" }),
+    basketId: uuid("basket_id").notNull(),
+    operationId: text("operation_id").notNull(),
+    requestHash: text("request_hash").notNull(),
+    quoteId: uuid("quote_id").notNull(),
+    responseSnapshot: jsonb("response_snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.quoteId],
+      foreignColumns: [storefrontCheckoutQuotes.tenantId, storefrontCheckoutQuotes.id],
+    }).onDelete("restrict"),
+    unique("storefront_checkout_quote_operations_unique").on(
+      table.tenantId,
+      table.customerUserId,
+      table.operationId,
+    ),
+    index("storefront_checkout_quote_operations_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const checkoutPaymentAttemptStatusEnum = qos.enum(
+  "checkout_payment_attempt_status",
+  [
+    "pending",
+    "provider_handoff",
+    "unknown",
+    "succeeded",
+    "failed",
+    "cancelled",
+    "expired",
+  ],
+);
+
+export const checkoutProviderEventProcessingStatusEnum = qos.enum(
+  "checkout_provider_event_processing_status",
+  ["received", "processed", "rejected", "ignored"],
+);
+
+export const checkoutPaymentProviderModeEnum = qos.enum(
+  "checkout_payment_provider_mode",
+  ["sandbox", "fixture"],
+);
+
+export const storefrontCheckoutPaymentAttempts = qos.table(
+  "storefront_checkout_payment_attempts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    customerUserId: text("customer_user_id")
+      .notNull()
+      .references(() => customerAuthUsers.id, { onDelete: "restrict" }),
+    quoteId: uuid("quote_id").notNull(),
+    basketId: uuid("basket_id").notNull(),
+    publicId: text("public_id").notNull(),
+    status: checkoutPaymentAttemptStatusEnum("status").notNull().default("pending"),
+    provider: text("provider").notNull().default("stripe"),
+    providerMode: checkoutPaymentProviderModeEnum("provider_mode").notNull(),
+    amountMinor: integer("amount_minor").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    quoteSnapshot: jsonb("quote_snapshot").notNull(),
+    providerReference: text("provider_reference"),
+    providerIdempotencyKey: text("provider_idempotency_key").notNull(),
+    returnUrl: text("return_url").notNull(),
+    cancelUrl: text("cancel_url").notNull(),
+    handoffSnapshot: jsonb("handoff_snapshot"),
+    outcomeSnapshot: jsonb("outcome_snapshot"),
+    reconciledAt: timestamp("reconciled_at", { withTimezone: true }),
+    lastProviderEventId: text("last_provider_event_id"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.quoteId],
+      foreignColumns: [storefrontCheckoutQuotes.tenantId, storefrontCheckoutQuotes.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.tenantId, table.basketId],
+      foreignColumns: [storefrontCustomerBaskets.tenantId, storefrontCustomerBaskets.id],
+    }).onDelete("restrict"),
+    unique("storefront_checkout_payment_attempts_tenant_public_id_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    index("storefront_checkout_payment_attempts_customer_public_id_idx").on(
+      table.tenantId,
+      table.customerUserId,
+      table.publicId,
+    ),
+    unique("storefront_checkout_payment_attempts_tenant_id_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    index("storefront_checkout_payment_attempts_tenant_id_idx").on(table.tenantId),
+    index("storefront_checkout_payment_attempts_quote_id_idx").on(
+      table.tenantId,
+      table.quoteId,
+    ),
+  ],
+);
+
+export const storefrontCheckoutProviderEvents = qos.table(
+  "storefront_checkout_provider_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    provider: text("provider").notNull().default("stripe"),
+    providerEventId: text("provider_event_id").notNull(),
+    eventType: text("event_type").notNull(),
+    livemode: boolean("livemode").notNull().default(false),
+    paymentAttemptId: uuid("payment_attempt_id"),
+    payloadSummary: jsonb("payload_summary").notNull(),
+    processingStatus: checkoutProviderEventProcessingStatusEnum("processing_status")
+      .notNull()
+      .default("received"),
+    rejectionReason: text("rejection_reason"),
+    receivedAt: timestamp("received_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.paymentAttemptId],
+      foreignColumns: [
+        storefrontCheckoutPaymentAttempts.tenantId,
+        storefrontCheckoutPaymentAttempts.id,
+      ],
+    }).onDelete("restrict"),
+    unique("storefront_checkout_provider_events_provider_event_unique").on(
+      table.provider,
+      table.providerEventId,
+    ),
+    index("storefront_checkout_provider_events_tenant_id_idx").on(table.tenantId),
+    index("storefront_checkout_provider_events_payment_attempt_idx").on(
+      table.tenantId,
+      table.paymentAttemptId,
+    ),
+  ],
+);
+
+export const storefrontCheckoutPaymentOperations = qos.table(
+  "storefront_checkout_payment_operations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    customerUserId: text("customer_user_id")
+      .notNull()
+      .references(() => customerAuthUsers.id, { onDelete: "restrict" }),
+    operationId: text("operation_id").notNull(),
+    requestHash: text("request_hash").notNull(),
+    paymentAttemptId: uuid("payment_attempt_id").notNull(),
+    responseSnapshot: jsonb("response_snapshot").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.paymentAttemptId],
+      foreignColumns: [
+        storefrontCheckoutPaymentAttempts.tenantId,
+        storefrontCheckoutPaymentAttempts.id,
+      ],
+    }).onDelete("restrict"),
+    unique("storefront_checkout_payment_operations_unique").on(
+      table.tenantId,
+      table.customerUserId,
+      table.operationId,
+    ),
+    index("storefront_checkout_payment_operations_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
 export const mediaAssetStatusEnum = qos.enum("media_asset_status", [
   "pending_upload",
   "uploaded",
@@ -2021,6 +2369,10 @@ export const schema = {
   customerAuthSessions,
   customerAuthAccounts,
   customerAuthVerifications,
+  staffAuthUsers,
+  staffAuthSessions,
+  staffAuthAccounts,
+  staffAuthVerifications,
   storefrontCustomerAssociations,
   storefrontAnonymousSessions,
   storefrontAnonymousBaskets,
@@ -2030,9 +2382,15 @@ export const schema = {
   storefrontCustomerBasketLines,
   storefrontCustomerBasketMutations,
   storefrontBasketMergeOperations,
+  storefrontCheckoutQuotes,
+  storefrontCheckoutQuoteOperations,
+  storefrontCheckoutPaymentAttempts,
+  storefrontCheckoutPaymentOperations,
+  storefrontCheckoutProviderEvents,
   staffIdentities,
   staffMemberships,
   staffInvitations,
+  staffInvitationLocations,
   staffAccessRequests,
   staffAccessRequestLocations,
   businessProvisioningOperations,

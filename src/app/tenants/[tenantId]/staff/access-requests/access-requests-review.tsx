@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useState } from "react";
+
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type AccessRequest = {
   id: string;
@@ -27,8 +30,6 @@ type AccessRequestsReviewProps = {
 };
 
 export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
-  const [adminSubject, setAdminSubject] = useState("admin@quotes.test");
-  const [adminEmail, setAdminEmail] = useState("admin@quotes.test");
   const [requests, setRequests] = useState<AccessRequest[]>([]);
   const [locations, setLocations] = useState<LocationOption[]>([]);
   const [selectedLocations, setSelectedLocations] = useState<
@@ -40,18 +41,9 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
   const loadData = useCallback(async () => {
     setError(null);
 
-    const headers = {
-      "X-QOS-Staff-Subject": adminSubject,
-      "X-QOS-Staff-Email": adminEmail,
-    };
-
     const [requestsResponse, locationsResponse] = await Promise.all([
-      fetch(`/api/tenants/${tenantId}/staff/access-requests`, {
-        headers,
-      }),
-      fetch(`/api/tenants/${tenantId}/staff/locations`, {
-        headers,
-      }),
+      staffApiFetch(`/api/tenants/${tenantId}/staff/access-requests`),
+      staffApiFetch(`/api/tenants/${tenantId}/staff/locations`),
     ]);
 
     const requestsPayload = (await requestsResponse.json()) as {
@@ -73,7 +65,7 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
 
     setRequests(requestsPayload.requests ?? []);
     setLocations(locationsPayload.locations ?? []);
-  }, [adminEmail, adminSubject, tenantId]);
+  }, [tenantId]);
 
   function toggleLocation(requestId: string, locationId: string) {
     setSelectedLocations((current) => {
@@ -95,15 +87,10 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
 
     try {
       const locationIds = selectedLocations[request.id] ?? [];
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/staff/access-requests/${request.id}/approve`,
         {
           method: "POST",
-          headers: {
-            "X-QOS-Staff-Subject": adminSubject,
-            "X-QOS-Staff-Email": adminEmail,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             expectedVersion: request.version,
             role,
@@ -134,15 +121,10 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
     setError(null);
 
     try {
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/staff/access-requests/${request.id}/reject`,
         {
           method: "POST",
-          headers: {
-            "X-QOS-Staff-Subject": adminSubject,
-            "X-QOS-Staff-Email": adminEmail,
-            "Content-Type": "application/json",
-          },
           body: JSON.stringify({
             expectedVersion: request.version,
             decisionNote: "Rejected from administrator review UI.",
@@ -169,28 +151,13 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">
-            Administrator subject
-          </span>
-          <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={adminSubject}
-            onChange={(event) => setAdminSubject(event.target.value)}
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">
-            Administrator email
-          </span>
-          <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={adminEmail}
-            onChange={(event) => setAdminEmail(event.target.value)}
-          />
-        </label>
-      </div>
+      <p className="text-sm text-zinc-600">
+        Sign in as an administrator at{" "}
+        <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
+          staff sign-in
+        </Link>{" "}
+        before loading or deciding requests.
+      </p>
 
       <button
         type="button"

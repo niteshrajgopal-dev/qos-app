@@ -1,7 +1,10 @@
 import { and, eq } from "drizzle-orm";
 
+import { db } from "@/db";
 import type { DbClient } from "@/db/client";
 import { staffIdentities, staffMemberships } from "@/db/schema";
+import { ensureStaffIdentityRecord } from "@/lib/staff/identity-sync";
+import { requireVerifiedStaffSession } from "@/lib/staff/session";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export type StaffIdentity = {
@@ -19,26 +22,14 @@ export class StaffAuthorizationError extends Error {
   }
 }
 
-function readHeader(headers: Headers, name: string) {
-  return headers.get(name)?.trim() ?? "";
-}
+export async function requireStaffIdentity(request: Request): Promise<StaffIdentity> {
+  const session = await requireVerifiedStaffSession(request);
+  await ensureStaffIdentityRecord(db, session.user.id, session.user.email);
 
-export function requireStaffIdentity(headers: Headers): StaffIdentity {
-  const subject = readHeader(headers, "x-qos-staff-subject");
-  const email = readHeader(headers, "x-qos-staff-email");
-
-  if (!subject) {
-    throw new StaffAuthorizationError(
-      "Staff identity subject is required.",
-      401,
-    );
-  }
-
-  if (!email) {
-    throw new StaffAuthorizationError("Staff email is required.", 401);
-  }
-
-  return { subject, email };
+  return {
+    subject: session.user.id,
+    email: session.user.email,
+  };
 }
 
 export type ActiveStaffMembership = {

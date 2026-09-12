@@ -351,7 +351,7 @@ type AccountBasketContext = {
   customerUserId: string;
 };
 
-async function authenticateAccountBasket(
+export async function resolveCustomerAccountBasketContext(
   db: DbClient,
   request: Request,
   input: BasketContextInput,
@@ -448,7 +448,7 @@ export async function getCustomerAccountBasket(
   request: Request,
   input: BasketContextInput,
 ) {
-  const context = await authenticateAccountBasket(db, request, input);
+  const context = await resolveCustomerAccountBasketContext(db, request, input);
 
   return withTenantContext(db, context.tenantId, async (tx) =>
     buildBasketResponse(tx, context.tenantId, context.basketId),
@@ -465,7 +465,7 @@ export async function upsertCustomerAccountBasketLine(
     mutationId?: string;
   },
 ) {
-  const context = await authenticateAccountBasket(db, request, input);
+  const context = await resolveCustomerAccountBasketContext(db, request, input);
   const config = readAnonymousBasketConfig();
 
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
@@ -614,7 +614,7 @@ export async function removeCustomerAccountBasketLine(
     mutationId?: string;
   },
 ) {
-  const context = await authenticateAccountBasket(db, request, input);
+  const context = await resolveCustomerAccountBasketContext(db, request, input);
 
   return withTenantContext(db, context.tenantId, async (tx) => {
     const cached = await readIdempotentMutation(

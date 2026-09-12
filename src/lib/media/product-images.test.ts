@@ -16,7 +16,6 @@ import {
   resolvePublicMediaDerivative,
 } from "@/lib/media/product-images";
 import { LocalMediaStorage, setMediaStorage } from "@/lib/media/storage";
-import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createQuotesTwoLocationTenant } from "@/lib/tenant/fixtures-two-locations";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
@@ -172,7 +171,7 @@ integrationDescribe("product image media", () => {
     expect(served.bytes.byteLength).toBeGreaterThan(0);
   });
 
-  it("rejects non-administrators from creating upload grants", async () => {
+  it("allows user-role staff to create upload grants", async () => {
     const quotes = await createQuotesTwoLocationTenant(db);
     const admin = await seedAdministrator(quotes.tenant.id);
     const user = await seedUser(quotes.tenant.id);
@@ -184,18 +183,19 @@ integrationDescribe("product image media", () => {
     );
     const pngBytes = await createTestPng();
 
-    await expect(
-      createProductImageUploadGrant(
-        db,
-        quotes.tenant.id,
-        user,
-        product.publicId,
-        {
-          expectedByteSize: pngBytes.byteLength,
-          expectedContentType: "image/png",
-        },
-      ),
-    ).rejects.toBeInstanceOf(StaffAuthorizationError);
+    const grant = await createProductImageUploadGrant(
+      db,
+      quotes.tenant.id,
+      user,
+      product.publicId,
+      {
+        expectedByteSize: pngBytes.byteLength,
+        expectedContentType: "image/png",
+      },
+    );
+
+    expect(grant.grantToken).toBeTruthy();
+    expect(grant.uploadPath).toContain(product.publicId);
   });
 
   it("rejects uploads whose bytes do not match the declared content type", async () => {

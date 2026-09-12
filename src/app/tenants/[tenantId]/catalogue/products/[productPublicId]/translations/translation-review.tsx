@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
+
 type TranslationReviewView = {
   locale: "en" | "ar";
   displayName: string;
@@ -48,8 +50,6 @@ export function TranslationReview({
   tenantId,
   productPublicId,
 }: TranslationReviewProps) {
-  const [adminSubject, setAdminSubject] = useState("admin.quotes@test");
-  const [adminEmail, setAdminEmail] = useState("admin.quotes@test");
   const [review, setReview] = useState<ReviewBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyLocale, setBusyLocale] = useState<"en" | "ar" | null>(null);
@@ -57,14 +57,8 @@ export function TranslationReview({
   const loadReview = useCallback(async () => {
     setError(null);
 
-    const response = await fetch(
+    const response = await staffApiFetch(
       `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/translations/review`,
-      {
-        headers: {
-          "X-QOS-Staff-Subject": adminSubject,
-          "X-QOS-Staff-Email": adminEmail,
-        },
-      },
     );
 
     const payload = (await response.json()) as {
@@ -77,7 +71,7 @@ export function TranslationReview({
     }
 
     setReview(payload.review ?? null);
-  }, [adminEmail, adminSubject, productPublicId, tenantId]);
+  }, [productPublicId, tenantId]);
 
   async function mutateTranslation(
     locale: "en" | "ar",
@@ -92,15 +86,10 @@ export function TranslationReview({
 
     try {
       const translation = review.translations[locale];
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/translations/${locale}/${action}`,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-QOS-Staff-Subject": adminSubject,
-            "X-QOS-Staff-Email": adminEmail,
-          },
           body: JSON.stringify({
             expectedTranslationVersion: translation.translationVersion,
           }),
@@ -134,27 +123,13 @@ export function TranslationReview({
   return (
     <div className="space-y-8">
       <section className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Reviewer identity
-        </h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700">Staff subject</span>
-            <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
-              value={adminSubject}
-              onChange={(event) => setAdminSubject(event.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700">Staff email</span>
-            <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
-              value={adminEmail}
-              onChange={(event) => setAdminEmail(event.target.value)}
-            />
-          </label>
-        </div>
+        <p className="text-sm text-zinc-600">
+          Sign in at{" "}
+          <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
+            staff sign-in
+          </Link>{" "}
+          before reviewing translations.
+        </p>
         <button
           type="button"
           onClick={() => {

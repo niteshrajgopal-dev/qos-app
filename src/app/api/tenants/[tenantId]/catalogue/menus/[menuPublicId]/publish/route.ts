@@ -19,7 +19,7 @@ type PublishBody = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { tenantId, menuPublicId } = await context.params;
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     const body = (await request.json()) as PublishBody;
     const locationIds = body.locationIds ?? [];
 

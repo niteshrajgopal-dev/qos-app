@@ -6,10 +6,15 @@ import {
   businessProvisioningOperations,
   locations,
   organizations,
+  staffInvitationLocations,
   staffInvitations,
   staffMemberships,
   tenants,
 } from "@/db/schema";
+import {
+  buildStaffInvitationExpiry,
+  generateStaffInvitationToken,
+} from "@/lib/staff/invitations";
 import type { OperatorIdentity } from "@/lib/platform/operator-auth";
 import {
   buildPublicId,
@@ -235,6 +240,9 @@ export async function provisionBusiness(
       })
       .returning();
 
+    const { token, tokenHash } = generateStaffInvitationToken();
+    const expiresAt = buildStaffInvitationExpiry();
+
     const [invitation] = await tx
       .insert(staffInvitations)
       .values({
@@ -242,8 +250,27 @@ export async function provisionBusiness(
         email: normalized.administratorEmail,
         role: normalized.administratorRole ?? "administrator",
         invitedByOperatorId: operator.subject,
+        tokenHash,
+        expiresAt,
       })
       .returning();
+
+    await tx.insert(staffInvitationLocations).values({
+      tenantId: tenant.id,
+      invitationId: invitation.id,
+      locationId: location.id,
+    });
+
+    console.info(
+      JSON.stringify({
+        type: "staff_invitation_created",
+        tenantId: tenant.id,
+        invitationId: invitation.id,
+        email: normalized.administratorEmail,
+        expiresAt: expiresAt.toISOString(),
+        invitationToken: token,
+      }),
+    );
 
     const memberships = await tx
       .select()

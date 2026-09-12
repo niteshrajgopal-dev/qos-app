@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
+
 type MenuSummary = {
   publicId: string;
   internalName: string;
@@ -21,21 +23,14 @@ type MenuManagementProps = {
 };
 
 export function MenuManagement({ tenantId }: MenuManagementProps) {
-  const [staffSubject, setStaffSubject] = useState("admin@quotes.test");
-  const [staffEmail, setStaffEmail] = useState("admin@quotes.test");
   const [menus, setMenus] = useState<MenuSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const headers = {
-    "X-QOS-Staff-Subject": staffSubject,
-    "X-QOS-Staff-Email": staffEmail,
-  };
-
   const loadMenus = useCallback(async () => {
     setError(null);
-    const response = await fetch(`/api/tenants/${tenantId}/catalogue/menus`, {
-      headers,
-    });
+    const response = await staffApiFetch(
+      `/api/tenants/${tenantId}/catalogue/menus`,
+    );
     const payload = (await response.json()) as {
       menus?: MenuSummary[];
       error?: string;
@@ -46,30 +41,17 @@ export function MenuManagement({ tenantId }: MenuManagementProps) {
     }
 
     setMenus(payload.menus ?? []);
-  }, [staffEmail, staffSubject, tenantId]);
+  }, [tenantId]);
 
   return (
     <div className="space-y-6">
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">
-            Staff subject
-          </span>
-          <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={staffSubject}
-            onChange={(event) => setStaffSubject(event.target.value)}
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">Staff email</span>
-          <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={staffEmail}
-            onChange={(event) => setStaffEmail(event.target.value)}
-          />
-        </label>
-      </div>
+      <p className="text-sm text-zinc-600">
+        Sign in at{" "}
+        <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
+          staff sign-in
+        </Link>{" "}
+        to load and edit menus with your session cookie.
+      </p>
 
       <div className="flex flex-wrap gap-3">
         <button
@@ -91,7 +73,7 @@ export function MenuManagement({ tenantId }: MenuManagementProps) {
           href={`/tenants/${tenantId}/catalogue/menus/new`}
           className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
         >
-          Create a menu
+          New menu
         </Link>
       </div>
 
@@ -101,38 +83,26 @@ export function MenuManagement({ tenantId }: MenuManagementProps) {
         </p>
       ) : null}
 
-      <div className="grid gap-4">
-        {menus.length === 0 ? (
-          <p className="text-sm text-zinc-600">No draft menus yet.</p>
-        ) : (
-          menus.map((menu) => (
-            <article
-              key={menu.publicId}
-              className="rounded-xl border border-zinc-200 p-4"
+      <div className="space-y-3">
+        {menus.map((menu) => (
+          <article
+            key={menu.publicId}
+            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 p-4"
+          >
+            <div>
+              <p className="font-medium text-zinc-900">{menu.displayName}</p>
+              <p className="text-sm text-zinc-600">
+                {menu.internalName} · {menu.status} · v{menu.version}
+              </p>
+            </div>
+            <Link
+              href={`/tenants/${tenantId}/catalogue/menus/${menu.publicId}/edit`}
+              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="font-medium text-zinc-900">{menu.displayName}</p>
-                  <p className="text-sm text-zinc-600">
-                    {menu.internalName} · {menu.sectionCount} sections ·{" "}
-                    {menu.itemCount} items
-                  </p>
-                  <p className="text-sm text-zinc-600">
-                    Status: {menu.status}
-                    {menu.isLive ? " · Live" : ""}
-                    {menu.hasUnpublishedChanges ? " · Unpublished changes" : ""}
-                  </p>
-                </div>
-                <Link
-                  href={`/tenants/${tenantId}/catalogue/menus/${menu.publicId}/edit`}
-                  className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
-                >
-                  Edit menu
-                </Link>
-              </div>
-            </article>
-          ))
-        )}
+              Edit
+            </Link>
+          </article>
+        ))}
       </div>
     </div>
   );

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
+
 type LocationPriceView = {
   locationPublicId: string;
   locationName: string;
@@ -46,8 +48,6 @@ export function LocationPriceOverrides({
   tenantId,
   productPublicId,
 }: LocationPriceOverridesProps) {
-  const [adminSubject, setAdminSubject] = useState("admin.quotes@test");
-  const [adminEmail, setAdminEmail] = useState("admin.quotes@test");
   const [bundle, setBundle] = useState<LocationPriceBundle | null>(null);
   const [draftAmounts, setDraftAmounts] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
@@ -58,14 +58,8 @@ export function LocationPriceOverrides({
   const loadPrices = useCallback(async () => {
     setError(null);
 
-    const response = await fetch(
+    const response = await staffApiFetch(
       `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/location-prices`,
-      {
-        headers: {
-          "X-QOS-Staff-Subject": adminSubject,
-          "X-QOS-Staff-Email": adminEmail,
-        },
-      },
     );
 
     const payload = (await response.json()) as {
@@ -90,7 +84,7 @@ export function LocationPriceOverrides({
         ),
       );
     }
-  }, [adminEmail, adminSubject, productPublicId, tenantId]);
+  }, [productPublicId, tenantId]);
 
   async function saveOverride(locationPublicId: string) {
     const amountMinor = majorToMinor(draftAmounts[locationPublicId] ?? "");
@@ -103,15 +97,10 @@ export function LocationPriceOverrides({
     setError(null);
 
     try {
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/locations/${locationPublicId}/price`,
         {
           method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-QOS-Staff-Subject": adminSubject,
-            "X-QOS-Staff-Email": adminEmail,
-          },
           body: JSON.stringify({ amountMinor }),
         },
       );
@@ -154,14 +143,10 @@ export function LocationPriceOverrides({
     setError(null);
 
     try {
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/locations/${locationPublicId}/price/reset`,
         {
           method: "POST",
-          headers: {
-            "X-QOS-Staff-Subject": adminSubject,
-            "X-QOS-Staff-Email": adminEmail,
-          },
         },
       );
 
@@ -201,27 +186,13 @@ export function LocationPriceOverrides({
   return (
     <div className="space-y-8">
       <section className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500">
-          Staff identity
-        </h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700">Staff subject</span>
-            <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
-              value={adminSubject}
-              onChange={(event) => setAdminSubject(event.target.value)}
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700">Staff email</span>
-            <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
-              value={adminEmail}
-              onChange={(event) => setAdminEmail(event.target.value)}
-            />
-          </label>
-        </div>
+        <p className="text-sm text-zinc-600">
+          Sign in at{" "}
+          <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
+            staff sign-in
+          </Link>{" "}
+          before loading or editing location prices.
+        </p>
         <button
           type="button"
           onClick={() => {

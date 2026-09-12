@@ -17,7 +17,7 @@ type RouteContext = {
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { tenantId, menuPublicId } = await context.params;
-    const identity = requireStaffIdentity(_request.headers);
+    const identity = await requireStaffIdentity(_request);
     await requireActiveStaffMembership(db, tenantId, identity.subject);
     const menu = await getDraftMenu(db, tenantId, menuPublicId);
 
@@ -30,7 +30,7 @@ export async function GET(_request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { tenantId, menuPublicId } = await context.params;
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     const membership = await requireActiveStaffMembership(
       db,
       tenantId,

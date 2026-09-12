@@ -17,7 +17,7 @@ type RouteContext = {
 export async function GET(request: Request, context: RouteContext) {
   try {
     const { tenantId } = await context.params;
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     await requireActiveStaffMembership(db, tenantId, identity.subject);
     const menus = await listDraftMenus(db, tenantId);
 
@@ -30,7 +30,7 @@ export async function GET(request: Request, context: RouteContext) {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { tenantId } = await context.params;
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     const membership = await requireActiveStaffMembership(
       db,
       tenantId,

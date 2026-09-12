@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
+
 type LocationOption = {
   id: string;
   name: string;
@@ -30,8 +32,6 @@ type MenuPublishPanelProps = {
   menuVersion: number;
   assignedLocationIds: string[];
   locations: LocationOption[];
-  staffSubject: string;
-  staffEmail: string;
 };
 
 function minorToMajor(value: number) {
@@ -44,8 +44,6 @@ export function MenuPublishPanel({
   menuVersion,
   assignedLocationIds,
   locations,
-  staffSubject,
-  staffEmail,
 }: MenuPublishPanelProps) {
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
   const [previewTargets, setPreviewTargets] = useState<PublishPreviewTarget[]>(
@@ -59,15 +57,6 @@ export function MenuPublishPanel({
   const assignedLocations = useMemo(
     () => locations.filter((location) => assignedLocationIds.includes(location.id)),
     [assignedLocationIds, locations],
-  );
-
-  const headers = useMemo(
-    () => ({
-      "Content-Type": "application/json",
-      "X-QOS-Staff-Subject": staffSubject,
-      "X-QOS-Staff-Email": staffEmail,
-    }),
-    [staffEmail, staffSubject],
   );
 
   const toggleLocation = useCallback((locationId: string) => {
@@ -94,9 +83,8 @@ export function MenuPublishPanel({
         params.append("locationId", locationId);
       }
 
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/menus/${menuPublicId}/publish-preview?${params.toString()}`,
-        { headers },
       );
       const payload = (await response.json()) as {
         preview?: { targets: PublishPreviewTarget[] };
@@ -117,7 +105,7 @@ export function MenuPublishPanel({
     } finally {
       setBusy(false);
     }
-  }, [headers, menuPublicId, selectedLocationIds, tenantId]);
+  }, [menuPublicId, selectedLocationIds, tenantId]);
 
   const publishMenu = useCallback(async () => {
     if (selectedLocationIds.length === 0) {
@@ -130,11 +118,10 @@ export function MenuPublishPanel({
     setMessage(null);
 
     try {
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/menus/${menuPublicId}/publish`,
         {
           method: "POST",
-          headers,
           body: JSON.stringify({
             locationIds: selectedLocationIds,
             operationId: operationId.trim() || undefined,
@@ -183,7 +170,7 @@ export function MenuPublishPanel({
     } finally {
       setBusy(false);
     }
-  }, [headers, menuPublicId, operationId, selectedLocationIds, tenantId]);
+  }, [menuPublicId, operationId, selectedLocationIds, tenantId]);
 
   return (
     <section className="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50 p-5">

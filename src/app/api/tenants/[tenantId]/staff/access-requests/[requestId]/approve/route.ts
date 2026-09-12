@@ -20,7 +20,7 @@ type ApproveBody = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { tenantId, requestId } = await context.params;
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     await requireAdministratorMembership(db, tenantId, identity.subject);
 
     const body = (await request.json()) as ApproveBody;

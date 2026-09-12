@@ -1,6 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
+
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type SubmitResponse = {
   id: string;
@@ -20,14 +23,8 @@ type StatusResponse = {
   decidedAt: string | null;
 };
 
-const defaultForm = {
-  tenantPublicId: "ten_quotes_dev",
-  staffSubject: "staff.requester@qosapp.com",
-  staffEmail: "staff.requester@qosapp.com",
-};
-
 export function RequestAccessForm() {
-  const [form, setForm] = useState(defaultForm);
+  const [tenantPublicId, setTenantPublicId] = useState("ten_quotes_dev");
   const [submitted, setSubmitted] = useState<SubmitResponse | null>(null);
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -39,14 +36,9 @@ export function RequestAccessForm() {
     setError(null);
 
     try {
-      const response = await fetch("/api/staff/access-requests", {
+      const response = await staffApiFetch("/api/staff/access-requests", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-QOS-Staff-Subject": form.staffSubject,
-          "X-QOS-Staff-Email": form.staffEmail,
-        },
-        body: JSON.stringify({ tenantPublicId: form.tenantPublicId }),
+        body: JSON.stringify({ tenantPublicId }),
       });
 
       const payload = (await response.json()) as SubmitResponse & {
@@ -79,14 +71,8 @@ export function RequestAccessForm() {
     setError(null);
 
     try {
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/staff/access-requests/${submitted.id}`,
-        {
-          headers: {
-            "X-QOS-Staff-Subject": form.staffSubject,
-            "X-QOS-Staff-Email": form.staffEmail,
-          },
-        },
       );
 
       const payload = (await response.json()) as StatusResponse & {
@@ -111,6 +97,14 @@ export function RequestAccessForm() {
 
   return (
     <div className="space-y-6">
+      <p className="text-sm text-zinc-600">
+        Sign in first at{" "}
+        <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
+          staff sign-in
+        </Link>
+        . This form uses your verified staff session cookie.
+      </p>
+
       <form onSubmit={handleSubmit} className="space-y-4">
         <label className="block space-y-2">
           <span className="text-sm font-medium text-zinc-700">
@@ -118,46 +112,8 @@ export function RequestAccessForm() {
           </span>
           <input
             className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={form.tenantPublicId}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                tenantPublicId: event.target.value,
-              }))
-            }
-            required
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">
-            Staff subject (provider identity)
-          </span>
-          <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={form.staffSubject}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                staffSubject: event.target.value,
-              }))
-            }
-            required
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">
-            Staff email (display only)
-          </span>
-          <input
-            type="email"
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={form.staffEmail}
-            onChange={(event) =>
-              setForm((current) => ({
-                ...current,
-                staffEmail: event.target.value,
-              }))
-            }
+            value={tenantPublicId}
+            onChange={(event) => setTenantPublicId(event.target.value)}
             required
           />
         </label>

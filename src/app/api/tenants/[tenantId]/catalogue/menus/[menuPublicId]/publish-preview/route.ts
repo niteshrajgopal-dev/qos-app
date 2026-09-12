@@ -14,7 +14,7 @@ type RouteContext = {
 export async function GET(request: Request, context: RouteContext) {
   try {
     const { tenantId, menuPublicId } = await context.params;
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     const url = new URL(request.url);
     const locationIds = url.searchParams.getAll("locationId");
 

@@ -103,12 +103,6 @@ export async function createProductImageUploadGrant(
   productPublicId: string,
   input: CreateUploadGrantInput,
 ) {
-  if (membership.role !== "administrator") {
-    throw new StaffAuthorizationError(
-      "Only administrators can upload product media.",
-    );
-  }
-
   const config = readMediaConfig();
 
   if (
@@ -274,12 +268,6 @@ export async function processProductImage(
   assetPublicId: string,
   publisherSubject: string,
 ) {
-  if (membership.role !== "administrator") {
-    throw new StaffAuthorizationError(
-      "Only administrators can process product media.",
-    );
-  }
-
   try {
     return await withTenantContext(db, tenantId, async (tx) => {
       const product = await requireDraftProduct(tx, tenantId, productPublicId);

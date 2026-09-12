@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
 import { MenuPublishPanel } from "@/app/tenants/[tenantId]/catalogue/menus/menu-publish-panel";
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type TranslationState = {
   displayName: string;
@@ -98,8 +99,6 @@ function normalizeSections(sections: SectionState[]) {
 
 export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
   const isEditMode = Boolean(menuPublicId);
-  const [staffSubject, setStaffSubject] = useState("admin@quotes.test");
-  const [staffEmail, setStaffEmail] = useState("admin@quotes.test");
   const [form, setForm] = useState<MenuEditorState>(createInitialState);
   const [baseline, setBaseline] = useState("");
   const [products, setProducts] = useState<ProductOption[]>([]);
@@ -112,15 +111,6 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
-
-  const staffHeaders = useMemo(
-    () => ({
-      "X-QOS-Staff-Subject": staffSubject,
-      "X-QOS-Staff-Email": staffEmail,
-      "Content-Type": "application/json",
-    }),
-    [staffEmail, staffSubject],
-  );
 
   const applyMenuPayload = useCallback(
     (menu: {
@@ -198,12 +188,8 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
 
   const loadSupportData = useCallback(async () => {
     const [productsResponse, locationsResponse] = await Promise.all([
-      fetch(`/api/tenants/${tenantId}/catalogue/products`, {
-        headers: staffHeaders,
-      }),
-      fetch(`/api/tenants/${tenantId}/staff/locations`, {
-        headers: staffHeaders,
-      }),
+      staffApiFetch(`/api/tenants/${tenantId}/catalogue/products`),
+      staffApiFetch(`/api/tenants/${tenantId}/staff/locations`),
     ]);
 
     const productsPayload = (await productsResponse.json()) as {
@@ -225,7 +211,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
 
     setProducts(productsPayload.products ?? []);
     setLocations(locationsPayload.locations ?? []);
-  }, [staffHeaders, tenantId]);
+  }, [tenantId]);
 
   const loadMenu = useCallback(async () => {
     if (!menuPublicId) {
@@ -237,9 +223,9 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
 
     try {
       await loadSupportData();
-      const response = await fetch(
+      const response = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/menus/${menuPublicId}`,
-        { headers: staffHeaders },
+        {},
       );
       const payload = (await response.json()) as {
         menu?: Parameters<typeof applyMenuPayload>[0];
@@ -258,7 +244,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
     } finally {
       setLoading(false);
     }
-  }, [applyMenuPayload, loadSupportData, menuPublicId, staffHeaders, tenantId]);
+  }, [applyMenuPayload, loadSupportData, menuPublicId, tenantId]);
 
   async function prepareNewMenu() {
     setLoading(true);
@@ -362,11 +348,10 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
 
     try {
       if (isEditMode && menuPublicId) {
-        const response = await fetch(
+        const response = await staffApiFetch(
           `/api/tenants/${tenantId}/catalogue/menus/${menuPublicId}`,
           {
             method: "PATCH",
-            headers: staffHeaders,
             body: JSON.stringify({
               expectedVersion: form.version,
               internalName: form.internalName,
@@ -395,9 +380,8 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         return;
       }
 
-      const response = await fetch(`/api/tenants/${tenantId}/catalogue/menus`, {
+      const response = await staffApiFetch(`/api/tenants/${tenantId}/catalogue/menus`, {
         method: "POST",
-        headers: staffHeaders,
         body: JSON.stringify({
           internalName: form.internalName,
           locationIds: form.locationIds,
@@ -470,26 +454,13 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
 
   return (
     <div className="space-y-6 pb-24">
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">
-            Staff subject
-          </span>
-          <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={staffSubject}
-            onChange={(event) => setStaffSubject(event.target.value)}
-          />
-        </label>
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">Staff email</span>
-          <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
-            value={staffEmail}
-            onChange={(event) => setStaffEmail(event.target.value)}
-          />
-        </label>
-      </div>
+      <p className="text-sm text-zinc-600">
+        Sign in at{" "}
+        <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
+          staff sign-in
+        </Link>{" "}
+        before saving or publishing menus.
+      </p>
 
       <section className="rounded-xl border border-zinc-200 p-5">
         <h2 className="text-lg font-semibold">Menu details</h2>
@@ -857,8 +828,6 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
           menuVersion={form.version}
           assignedLocationIds={form.locationIds}
           locations={locations}
-          staffSubject={staffSubject}
-          staffEmail={staffEmail}
         />
       ) : null}
 

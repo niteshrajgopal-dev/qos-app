@@ -17,7 +17,7 @@ type RouteContext = {
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { tenantId, productPublicId } = await context.params;
-    const identity = requireStaffIdentity(_request.headers);
+    const identity = await requireStaffIdentity(_request);
     const membership = await requireActiveStaffMembership(
       db,
       tenantId,

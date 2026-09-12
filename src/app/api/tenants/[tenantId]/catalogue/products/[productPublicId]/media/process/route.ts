@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { productMediaErrorResponse } from "@/lib/media/http";
 import { processProductImage } from "@/lib/media/product-images";
 import {
-  requireAdministratorMembership,
+  requireActiveStaffMembership,
   requireStaffIdentity,
 } from "@/lib/staff/auth";
 
@@ -17,8 +17,8 @@ type RouteContext = {
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { tenantId, productPublicId } = await context.params;
-    const identity = requireStaffIdentity(request.headers);
-    const membership = await requireAdministratorMembership(
+    const identity = await requireStaffIdentity(request);
+    const membership = await requireActiveStaffMembership(
       db,
       tenantId,
       identity.subject,

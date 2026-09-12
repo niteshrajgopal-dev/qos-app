@@ -13,7 +13,7 @@ type RouteContext = {
 
 export async function GET(request: Request, context: RouteContext) {
   try {
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     const { requestId } = await context.params;
     const result = await getRequesterAccessRequest(
       db,

@@ -13,7 +13,7 @@ type SubmitAccessRequestBody = {
 
 export async function POST(request: Request) {
   try {
-    const identity = requireStaffIdentity(request.headers);
+    const identity = await requireStaffIdentity(request);
     const body = (await request.json()) as SubmitAccessRequestBody;
     const result = await submitAccessRequest(db, {
       tenantPublicId: body.tenantPublicId ?? "",
