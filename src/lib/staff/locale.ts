@@ -10,6 +10,33 @@ export function isStaffLocale(value: string | null | undefined): value is StaffL
   return value === "en" || value === "ar";
 }
 
+export function readStoredStaffLocale(): StaffLocale {
+  if (typeof window === "undefined") {
+    return "en";
+  }
+
+  const stored = window.localStorage.getItem(STAFF_LOCALE_STORAGE_KEY);
+  return isStaffLocale(stored) ? stored : "en";
+}
+
+const staffLocaleListeners = new Set<() => void>();
+
+export function subscribeStaffLocale(onStoreChange: () => void) {
+  staffLocaleListeners.add(onStoreChange);
+  window.addEventListener("storage", onStoreChange);
+  return () => {
+    staffLocaleListeners.delete(onStoreChange);
+    window.removeEventListener("storage", onStoreChange);
+  };
+}
+
+export function setStoredStaffLocale(locale: StaffLocale) {
+  window.localStorage.setItem(STAFF_LOCALE_STORAGE_KEY, locale);
+  for (const listener of staffLocaleListeners) {
+    listener();
+  }
+}
+
 export const STAFF_UI_COPY = {
   en: {
     signInTitle: "Sign in to QOS",

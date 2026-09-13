@@ -130,16 +130,6 @@ function assertSameContext(
   }
 }
 
-function buildWorkingLines(
-  lines: BasketLineResponse[],
-): Map<string, BasketLineResponse> {
-  const map = new Map<string, BasketLineResponse>();
-  for (const line of lines) {
-    map.set(line.productPublicId, { ...line });
-  }
-  return map;
-}
-
 function toCustomerBasketResponse(
   template: CustomerBasketResponse,
   lines: BasketLineResponse[],

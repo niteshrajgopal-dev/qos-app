@@ -85,13 +85,13 @@ integrationDescribe("storefront manifest resolver", () => {
   }
 
   it("returns profile-specific manifests for Quotes and flower tenants", async () => {
-    const quotes = await seedPublishedStorefront({
+    await seedPublishedStorefront({
       tenantFixture: quotesTenantFixture(),
       slug: "quotes",
       hostname: "quotes.dev.qosapp.com",
       businessProfile: "hospitality",
     });
-    const flowers = await seedPublishedStorefront({
+    await seedPublishedStorefront({
       tenantFixture: flowerTenantFixture(),
       slug: "flowers",
       hostname: "flowers.dev.qosapp.com",

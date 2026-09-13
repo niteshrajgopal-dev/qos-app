@@ -199,7 +199,7 @@ integrationDescribe("catalogue modifier groups", () => {
 
   it("loads flower fixture modifier groups through product assignment APIs", async () => {
     const { tenantId } = await seedFlowerDevTenant(db);
-    const admin = await seedStaffMember(
+    await seedStaffMember(
       tenantId,
       "administrator",
       "admin.flowers@test",

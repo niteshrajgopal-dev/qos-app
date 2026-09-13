@@ -16,7 +16,7 @@ import {
   resolvePublicMediaDerivative,
 } from "@/lib/media/product-images";
 import { LocalMediaStorage, setMediaStorage } from "@/lib/media/storage";
-import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
+import { flowerTenantFixture } from "@/lib/tenant/fixtures";
 import { createQuotesTwoLocationTenant } from "@/lib/tenant/fixtures-two-locations";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
 

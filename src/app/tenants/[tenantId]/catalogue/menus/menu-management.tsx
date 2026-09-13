@@ -33,7 +33,6 @@ export function MenuManagement({ tenantId }: MenuManagementProps) {
   const [loaded, setLoaded] = useState(false);
 
   const loadMenus = useCallback(async () => {
-    setError(null);
     const response = await staffApiFetch(
       `/api/tenants/${tenantId}/catalogue/menus`,
     );
@@ -46,17 +45,24 @@ export function MenuManagement({ tenantId }: MenuManagementProps) {
       throw new Error(payload.error ?? "Unable to load menus.");
     }
 
+    setError(null);
     setMenus(payload.menus ?? []);
     setLoaded(true);
   }, [tenantId]);
 
   useEffect(() => {
-    void loadMenus().catch((loadError) => {
-      setError(
-        loadError instanceof Error ? loadError.message : "Unable to load menus.",
-      );
-      setLoaded(true);
-    });
+    const timer = window.setTimeout(() => {
+      void loadMenus().catch((loadError) => {
+        setError(
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load menus.",
+        );
+        setLoaded(true);
+      });
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [loadMenus]);
 
   return (

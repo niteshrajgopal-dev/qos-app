@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   isStaffLocale,
+  readStoredStaffLocale,
+  setStoredStaffLocale,
   staffDocumentDirection,
   staffNavLabel,
   staffUiCopy,
@@ -16,6 +18,25 @@ describe("staff locale", () => {
   it("accepts only staff locales", () => {
     expect(isStaffLocale("ar")).toBe(true);
     expect(isStaffLocale("fr")).toBe(false);
+  });
+
+  it("reads and writes the stored staff locale", () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: (key: string) => store.get(key) ?? null,
+          setItem: (key: string, value: string) => {
+            store.set(key, value);
+          },
+        },
+      },
+    });
+
+    expect(readStoredStaffLocale()).toBe("en");
+    setStoredStaffLocale("ar");
+    expect(readStoredStaffLocale()).toBe("ar");
   });
 
   it("returns Arabic chrome copy for the shell", () => {

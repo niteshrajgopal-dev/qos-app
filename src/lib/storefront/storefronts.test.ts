@@ -98,7 +98,7 @@ integrationDescribe("storefront entities", () => {
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
     const flowers = await createTenantHierarchy(db, flowerTenantFixture());
 
-    const storefront = await createStorefront(db, quotes.tenant.id, {
+    await createStorefront(db, quotes.tenant.id, {
       brandPublicId: quotes.brand.publicId,
       internalName: "Quotes Website",
       slug: "quotes",

@@ -27,10 +27,7 @@ import {
   recordTenantAuditEventInTx,
 } from "@/lib/audit/tenant-audit";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
-import {
-  requireAdministratorMembership,
-  type ActiveStaffMembership,
-} from "@/lib/staff/auth";
+import { requireAdministratorMembership } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class LocationAvailabilityError extends Error {

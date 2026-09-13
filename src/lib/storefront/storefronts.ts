@@ -389,16 +389,19 @@ function canonicalizeJson(value: unknown): unknown {
   return value;
 }
 
+function comparableReleasePayload(payload: StorefrontReleasePayload) {
+  const comparable = { ...payload };
+  delete comparable.releaseVersion;
+  return comparable;
+}
+
 export function storefrontReleasePayloadsEqual(
   left: StorefrontReleasePayload,
   right: StorefrontReleasePayload,
 ) {
-  const { releaseVersion: _leftVersion, ...leftComparable } = left;
-  const { releaseVersion: _rightVersion, ...rightComparable } = right;
-
   return (
-    JSON.stringify(canonicalizeJson(leftComparable)) ===
-    JSON.stringify(canonicalizeJson(rightComparable))
+    JSON.stringify(canonicalizeJson(comparableReleasePayload(left))) ===
+    JSON.stringify(canonicalizeJson(comparableReleasePayload(right)))
   );
 }
 

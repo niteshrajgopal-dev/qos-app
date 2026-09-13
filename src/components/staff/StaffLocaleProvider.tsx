@@ -5,14 +5,15 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
 import {
-  isStaffLocale,
-  STAFF_LOCALE_STORAGE_KEY,
+  readStoredStaffLocale,
+  setStoredStaffLocale,
   staffDocumentDirection,
+  subscribeStaffLocale,
   type StaffLocale,
 } from "@/lib/staff/locale";
 
@@ -27,30 +28,21 @@ const StaffLocaleContext = createContext<StaffLocaleContextValue>({
 });
 
 export function StaffLocaleProvider({ children }: { children: ReactNode }) {
-  const [locale, setLocaleState] = useState<StaffLocale>("en");
-  const [hydrated, setHydrated] = useState(false);
+  const locale = useSyncExternalStore(
+    subscribeStaffLocale,
+    readStoredStaffLocale,
+    () => "en",
+  );
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STAFF_LOCALE_STORAGE_KEY);
-    if (isStaffLocale(stored)) {
-      setLocaleState(stored);
-    }
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) {
-      return;
-    }
     document.documentElement.lang = locale;
     document.documentElement.dir = staffDocumentDirection(locale);
-    window.localStorage.setItem(STAFF_LOCALE_STORAGE_KEY, locale);
-  }, [hydrated, locale]);
+  }, [locale]);
 
   const value = useMemo(
     () => ({
       locale,
-      setLocale: setLocaleState,
+      setLocale: setStoredStaffLocale,
     }),
     [locale],
   );
