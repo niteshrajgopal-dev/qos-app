@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import * as XLSX from "xlsx";
 
 import {
   IMPORT_LIMITS,
@@ -8,6 +7,7 @@ import {
   suggestColumnMapping,
 } from "@/lib/catalogue/catalogue-import-parser";
 import { CATALOGUE_IMPORT_SAMPLE_CSV } from "@/lib/catalogue/catalogue-import-sample";
+import { writeWorksheetMatrix } from "@/lib/catalogue/catalogue-import-xlsx";
 
 describe("catalogue import parser", () => {
   it("sanitizes spreadsheet formula prefixes", () => {
@@ -18,8 +18,8 @@ describe("catalogue import parser", () => {
     expect(sanitizeSpreadsheetCell("Flat White")).toBe("Flat White");
   });
 
-  it("parses CSV with Arabic Unicode and AED minor units", () => {
-    const parsed = parseSpreadsheetUpload({
+  it("parses CSV with Arabic Unicode and AED minor units", async () => {
+    const parsed = await parseSpreadsheetUpload({
       fileName: "quotes-synthetic.csv",
       bytes: Buffer.from(CATALOGUE_IMPORT_SAMPLE_CSV, "utf8"),
     });
@@ -31,8 +31,8 @@ describe("catalogue import parser", () => {
     expect(parsed.rows[2]?.display_name_en).toBe("'=SUM(1,2)");
   });
 
-  it("parses the first worksheet from XLSX uploads", () => {
-    const worksheet = XLSX.utils.aoa_to_sheet([
+  it("parses the first worksheet from XLSX uploads", async () => {
+    const bytes = await writeWorksheetMatrix("catalogue", [
       [
         "source_id",
         "internal_name",
@@ -50,13 +50,10 @@ describe("catalogue import parser", () => {
         "AED",
       ],
     ]);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "catalogue");
-    const bytes = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
 
-    const parsed = parseSpreadsheetUpload({
+    const parsed = await parseSpreadsheetUpload({
       fileName: "flower-shop.xlsx",
-      bytes: Buffer.from(bytes),
+      bytes,
     });
 
     expect(parsed.rows).toHaveLength(1);
@@ -79,12 +76,12 @@ describe("catalogue import parser", () => {
     expect(mapping.amountMinor).toBe("amount_minor");
   });
 
-  it("rejects oversize files", () => {
-    expect(() =>
+  it("rejects oversize files", async () => {
+    await expect(
       parseSpreadsheetUpload({
         fileName: "too-large.csv",
         bytes: Buffer.alloc(IMPORT_LIMITS.maxFileBytes + 1),
       }),
-    ).toThrow(/byte limit/i);
+    ).rejects.toThrow(/byte limit/i);
   });
 });

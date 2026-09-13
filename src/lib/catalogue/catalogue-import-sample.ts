@@ -1,4 +1,4 @@
-import * as XLSX from "xlsx";
+import { writeWorksheetMatrix } from "@/lib/catalogue/catalogue-import-xlsx";
 
 export const CATALOGUE_IMPORT_SAMPLE_ROWS = [
   {
@@ -51,18 +51,23 @@ export const CATALOGUE_IMPORT_SAMPLE_CSV = [
   ),
 ].join("\n");
 
-export function buildCatalogueImportSampleXlsx() {
-  const worksheet = XLSX.utils.json_to_sheet(
-    CATALOGUE_IMPORT_SAMPLE_ROWS.map((row) => ({
-      source_id: row.source_id,
-      internal_name: row.internal_name,
-      display_name_en: row.display_name_en,
-      display_name_ar: row.display_name_ar,
-      amount_minor: row.amount_minor,
-      currency: row.currency,
-    })),
-  );
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, "catalogue");
-  return XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer;
+export async function buildCatalogueImportSampleXlsx() {
+  return writeWorksheetMatrix("catalogue", [
+    [
+      "source_id",
+      "internal_name",
+      "display_name_en",
+      "display_name_ar",
+      "amount_minor",
+      "currency",
+    ],
+    ...CATALOGUE_IMPORT_SAMPLE_ROWS.map((row) => [
+      row.source_id,
+      row.internal_name,
+      row.display_name_en,
+      row.display_name_ar,
+      row.amount_minor,
+      row.currency,
+    ]),
+  ]);
 }

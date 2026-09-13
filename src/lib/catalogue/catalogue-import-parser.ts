@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import * as XLSX from "xlsx";
+import { readFirstWorksheetMatrix } from "@/lib/catalogue/catalogue-import-xlsx";
 
 export class CatalogueImportParseError extends Error {
   readonly field?: string;
@@ -116,10 +116,10 @@ function rowsToRecords(headers: string[], bodyRows: string[][]) {
   );
 }
 
-export function parseSpreadsheetUpload(input: {
+export async function parseSpreadsheetUpload(input: {
   fileName: string;
   bytes: Buffer;
-}): ParsedSpreadsheet {
+}): Promise<ParsedSpreadsheet> {
   if (input.bytes.byteLength > IMPORT_LIMITS.maxFileBytes) {
     throw new CatalogueImportParseError(
       `Import file exceeds the ${IMPORT_LIMITS.maxFileBytes}-byte limit.`,
@@ -135,31 +135,19 @@ export function parseSpreadsheetUpload(input: {
     const content = input.bytes.toString("utf8");
     matrix = parseCsv(content);
   } else if (lowerName.endsWith(".xlsx")) {
-    const workbook = XLSX.read(input.bytes, {
-      type: "buffer",
-      cellFormula: false,
-      cellHTML: false,
-      cellStyles: false,
-      bookVBA: false,
-      bookSheets: false,
-      sheetRows: IMPORT_LIMITS.maxRows + 1,
-    });
+    const workbook = await readFirstWorksheetMatrix(input.bytes);
 
-    if (workbook.SheetNames.length === 0) {
+    if (workbook.sheetCount === 0) {
       throw new CatalogueImportParseError("Workbook contains no sheets.", "file");
     }
 
-    if (workbook.SheetNames.length > 1) {
+    if (workbook.sheetCount > 1) {
       warnings.push("Only the first worksheet was imported.");
     }
 
-    const sheet = workbook.Sheets[workbook.SheetNames[0]!];
-    matrix = XLSX.utils.sheet_to_json<string[]>(sheet, {
-      header: 1,
-      raw: false,
-      defval: "",
-      blankrows: false,
-    }).map((row) => row.map((cell) => sanitizeSpreadsheetCell(String(cell ?? ""))));
+    matrix = workbook.rows.map((row) =>
+      row.map((cell) => sanitizeSpreadsheetCell(cell)),
+    );
   } else {
     throw new CatalogueImportParseError(
       "Import file must be .csv or .xlsx.",

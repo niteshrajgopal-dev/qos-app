@@ -26,7 +26,7 @@ export async function GET(request: Request, context: RouteContext) {
     const format = new URL(request.url).searchParams.get("format")?.toLowerCase();
 
     if (format === "xlsx") {
-      const bytes = buildCatalogueImportSampleXlsx();
+      const bytes = await buildCatalogueImportSampleXlsx();
       return new NextResponse(new Uint8Array(bytes), {
         status: 200,
         headers: {

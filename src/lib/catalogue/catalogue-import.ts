@@ -337,7 +337,7 @@ export async function previewCatalogueImport(
   },
 ) {
   const connectionKey = validateConnectionKey(input.connectionKey);
-  const parsed = parseSpreadsheetUpload({
+  const parsed = await parseSpreadsheetUpload({
     fileName: input.fileName,
     bytes: input.bytes,
   });
