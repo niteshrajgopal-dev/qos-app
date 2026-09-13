@@ -1,7 +1,6 @@
-import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { tenantAuditEvents } from "@/db/schema";
+import { staffIdentities, staffMemberships } from "@/db/schema";
 import {
   grantRoleMembership,
   hasIntegrationDatabase,
@@ -109,8 +108,26 @@ integrationDescribe("tenant audit events", () => {
   });
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.storefront_releases, qos.storefronts, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.storefront_locations, qos.storefront_releases, qos.storefronts, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
   });
+
+  async function seedAdministrator(tenantId: string) {
+    const [identity] = await db
+      .insert(staffIdentities)
+      .values({
+        providerSubject: "admin.quotes@test",
+        email: "admin.quotes@test",
+      })
+      .returning();
+
+    await db.insert(staffMemberships).values({
+      tenantId,
+      staffIdentityId: identity.id,
+      role: "administrator",
+    });
+
+    return "admin.quotes@test";
+  }
 
   it("records publish and rollback audit events without idempotent duplicates", async () => {
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
@@ -124,7 +141,7 @@ integrationDescribe("tenant audit events", () => {
       locationPublicIds: [quotes.location.publicId],
     });
 
-    const admin = "admin.quotes@test";
+    const admin = await seedAdministrator(quotes.tenant.id);
 
     const firstPublish = await publishStorefrontRelease(
       db,
@@ -274,18 +291,13 @@ integrationDescribe("tenant audit events", () => {
     );
 
     await runAsRole(sqlClient, "qos_app", async () => {
-      await withTenantContext(db, quotes.tenant.id, async (tx) => {
-        await expect(
-          tx
-            .update(tenantAuditEvents)
-            .set({ action: "storefront.publish" })
-            .where(eq(tenantAuditEvents.id, event.id)),
-        ).rejects.toThrow();
+      await expect(
+        sqlClient`update qos.tenant_audit_events set action = ${"storefront.publish"} where id = ${event.id}`,
+      ).rejects.toThrow(/permission denied/);
 
-        await expect(
-          tx.delete(tenantAuditEvents).where(eq(tenantAuditEvents.id, event.id)),
-        ).rejects.toThrow();
-      });
+      await expect(
+        sqlClient`delete from qos.tenant_audit_events where id = ${event.id}`,
+      ).rejects.toThrow(/permission denied/);
     });
 
     const stillPresent = await withTenantContext(
