@@ -484,34 +484,40 @@ async function ensurePublishedDemoMenu(
     };
   }
 
-  const product =
-    existingProduct ??
-    (await createDraftProduct(db, tenantId, admin, {
-      internalName: PRODUCT_INTERNAL_NAME,
-      translations: {
-        en: {
-          displayName: "Demo Latte",
-          description: "Sandbox checkout item for the Phase 1 demo",
+  const createdProduct = existingProduct
+    ? null
+    : await createDraftProduct(db, tenantId, admin, {
+        internalName: PRODUCT_INTERNAL_NAME,
+        translations: {
+          en: {
+            displayName: "Demo Latte",
+            description: "Sandbox checkout item for the Phase 1 demo",
+          },
+          ar: {
+            displayName: "لاتيه تجريبي",
+            description: "عنصر دفع تجريبي",
+          },
         },
-        ar: {
-          displayName: "لاتيه تجريبي",
-          description: "عنصر دفع تجريبي",
-        },
-      },
-      defaultVariant: { amountMinor: 1800, currency: "AED" },
-    }));
+        defaultVariant: { amountMinor: 1800, currency: "AED" },
+      });
 
-  if (!existingProduct && "translations" in product) {
+  const product = existingProduct ?? createdProduct;
+
+  if (!product) {
+    throw new Error("Unable to seed the demo product.");
+  }
+
+  if (createdProduct) {
     for (const locale of ["en", "ar"] as const) {
       await approveProductTranslation(
         db,
         tenantId,
         admin.subject,
-        product.publicId,
+        createdProduct.publicId,
         locale,
         {
           expectedTranslationVersion:
-            product.translations[locale].translationVersion,
+            createdProduct.translations[locale].translationVersion,
         },
       );
     }

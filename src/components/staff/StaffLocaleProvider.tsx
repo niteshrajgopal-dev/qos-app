@@ -31,7 +31,7 @@ export function StaffLocaleProvider({ children }: { children: ReactNode }) {
   const locale = useSyncExternalStore(
     subscribeStaffLocale,
     readStoredStaffLocale,
-    () => "en",
+    (): StaffLocale => "en",
   );
 
   useEffect(() => {

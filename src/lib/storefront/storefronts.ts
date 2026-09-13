@@ -390,9 +390,17 @@ function canonicalizeJson(value: unknown): unknown {
 }
 
 function comparableReleasePayload(payload: StorefrontReleasePayload) {
-  const comparable = { ...payload };
-  delete comparable.releaseVersion;
-  return comparable;
+  return {
+    storefrontPublicId: payload.storefrontPublicId,
+    defaultLocale: payload.defaultLocale,
+    supportedLocales: payload.supportedLocales,
+    theme: payload.theme,
+    navigation: payload.navigation,
+    contentBlocks: payload.contentBlocks,
+    locations: payload.locations,
+    publishedCollections: payload.publishedCollections,
+    featureFlags: payload.featureFlags,
+  };
 }
 
 export function storefrontReleasePayloadsEqual(
