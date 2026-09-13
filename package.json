@@ -17,7 +17,8 @@
     "db:generate": "drizzle-kit generate",
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsx scripts/seed-dev.ts"
+    "db:seed": "tsx scripts/seed-dev.ts",
+    "verify:stripe-sandbox": "tsx scripts/verify-stripe-sandbox.ts"
   },
   "dependencies": {
     "better-auth": "^1.7.4",

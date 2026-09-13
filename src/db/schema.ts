@@ -2403,6 +2403,7 @@ export type BrandRecord = typeof brands.$inferSelect;
 export type LocationRecord = typeof locations.$inferSelect;
 
 export const tenantContextSetting = "qos.current_tenant_id";
+export const operatorProvisioningSetting = "qos.operator_provisioning";
 
 export function currentTenantIdSql() {
   return sql`current_setting(${tenantContextSetting}, true)::uuid`;

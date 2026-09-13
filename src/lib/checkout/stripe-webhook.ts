@@ -2,7 +2,7 @@ import Stripe from "stripe";
 
 import type { DbClient } from "@/db/client";
 import {
-  assertStripeSecretKeyIsSandboxOnly,
+  assertSandboxStripeRuntimeReady,
   readCheckoutPaymentConfig,
 } from "@/lib/checkout/payment-config";
 import {
@@ -28,9 +28,7 @@ export async function handleStripeCheckoutWebhook(
     throw new CheckoutWebhookError("Missing Stripe-Signature header.", 400);
   }
 
-  if (config.stripeSecretKey) {
-    assertStripeSecretKeyIsSandboxOnly(config.stripeSecretKey);
-  }
+  assertSandboxStripeRuntimeReady(config);
 
   let event: Stripe.Event;
   try {

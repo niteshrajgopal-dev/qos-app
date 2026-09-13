@@ -1,7 +1,10 @@
 import { sql } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
-import { tenantContextSetting } from "@/db/schema";
+import {
+  operatorProvisioningSetting,
+  tenantContextSetting,
+} from "@/db/schema";
 
 export type DbTransaction = Parameters<
   Parameters<DbClient["transaction"]>[0]
@@ -28,6 +31,20 @@ export async function setTenantContext(
 export async function clearTenantContext(executor: TenantDbExecutor) {
   await executor.execute(
     sql`select set_config(${tenantContextSetting}, '', true)`,
+  );
+}
+
+export async function setOperatorProvisioningContext(executor: TenantDbExecutor) {
+  await executor.execute(
+    sql`select set_config(${operatorProvisioningSetting}, 'true', true)`,
+  );
+}
+
+export async function clearOperatorProvisioningContext(
+  executor: TenantDbExecutor,
+) {
+  await executor.execute(
+    sql`select set_config(${operatorProvisioningSetting}, '', true)`,
   );
 }
 

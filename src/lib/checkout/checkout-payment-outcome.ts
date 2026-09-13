@@ -290,6 +290,82 @@ async function loadPaymentAttemptByPublicId(
   return attempt ?? null;
 }
 
+async function loadPaymentAttemptByProviderReference(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  customerUserId: string,
+  providerReference: string,
+) {
+  const [attempt] = await tx
+    .select()
+    .from(storefrontCheckoutPaymentAttempts)
+    .where(
+      and(
+        eq(storefrontCheckoutPaymentAttempts.tenantId, tenantId),
+        eq(storefrontCheckoutPaymentAttempts.customerUserId, customerUserId),
+        eq(storefrontCheckoutPaymentAttempts.providerReference, providerReference),
+      ),
+    )
+    .limit(1);
+
+  return attempt ?? null;
+}
+
+async function resolvePaymentAttemptOutcome(
+  db: DbClient,
+  tx: TenantDbExecutor,
+  tenantId: string,
+  customerUserId: string,
+  attempt: typeof storefrontCheckoutPaymentAttempts.$inferSelect,
+) {
+  const paymentConfig = readCheckoutPaymentConfig();
+  if (
+    (attempt.status === "unknown" || attempt.status === "provider_handoff") &&
+    attempt.providerReference &&
+    attempt.providerMode === "sandbox" &&
+    paymentConfig.stripeSecretKey
+  ) {
+    await reconcilePaymentAttemptFromProviderSession(
+      db,
+      tenantId,
+      attempt.providerReference,
+    );
+
+    attempt =
+      (await loadPaymentAttemptForCustomer(
+        tx,
+        tenantId,
+        customerUserId,
+        attempt.publicId,
+      )) ??
+      (await loadPaymentAttemptByProviderReference(
+        tx,
+        tenantId,
+        customerUserId,
+        attempt.providerReference,
+      )) ??
+      attempt;
+  }
+
+  if (attempt.outcomeSnapshot) {
+    return attempt.outcomeSnapshot as CheckoutPaymentOutcomeResponse;
+  }
+
+  const quote = attempt.quoteSnapshot as CheckoutQuoteResponse;
+
+  return buildPaymentOutcomeResponse({
+    paymentAttemptPublicId: attempt.publicId,
+    status: attempt.status as CheckoutPaymentOutcomeStatus,
+    providerMode: attempt.providerMode,
+    quote,
+    providerReference: attempt.providerReference,
+    reconciledAt: attempt.reconciledAt,
+    diagnostics: attempt.providerMode === "fixture"
+      ? { isLabelledFixture: true }
+      : undefined,
+  });
+}
+
 async function persistProviderEventIntake(
   tx: TenantDbExecutor,
   input: {
@@ -657,7 +733,7 @@ export async function getAuthenticatedPaymentOutcome(
   );
 
   return withTenantContext(db, accountContext.tenantId, async (tx) => {
-    let attempt = await loadPaymentAttemptForCustomer(
+    const attempt = await loadPaymentAttemptForCustomer(
       tx,
       accountContext.tenantId,
       accountContext.customerUserId,
@@ -668,45 +744,64 @@ export async function getAuthenticatedPaymentOutcome(
       throw new CheckoutPaymentOutcomeError("Payment attempt not found.", 404);
     }
 
-    const paymentConfig = readCheckoutPaymentConfig();
-    if (
-      (attempt.status === "unknown" || attempt.status === "provider_handoff") &&
-      attempt.providerReference &&
-      attempt.providerMode === "sandbox" &&
-      paymentConfig.stripeSecretKey
-    ) {
-      await reconcilePaymentAttemptFromProviderSession(
-        db,
-        accountContext.tenantId,
-        attempt.providerReference,
-      );
+    return resolvePaymentAttemptOutcome(
+      db,
+      tx,
+      accountContext.tenantId,
+      accountContext.customerUserId,
+      attempt,
+    );
+  });
+}
 
-      attempt =
-        (await loadPaymentAttemptForCustomer(
-          tx,
-          accountContext.tenantId,
-          accountContext.customerUserId,
-          paymentAttemptPublicId.trim(),
-        )) ?? attempt;
+export async function getAuthenticatedPaymentOutcomeByProviderReference(
+  db: DbClient,
+  request: Request,
+  contextInput: BasketContextInput,
+  providerReference: string,
+) {
+  const trimmedReference = providerReference.trim();
+  if (!trimmedReference) {
+    throw new CheckoutPaymentOutcomeError(
+      "providerReference is required.",
+      400,
+      "providerReference",
+    );
+  }
+
+  if (!trimmedReference.startsWith("cs_")) {
+    throw new CheckoutPaymentOutcomeError(
+      "providerReference must be a Stripe checkout session id.",
+      400,
+      "providerReference",
+    );
+  }
+
+  const accountContext = await resolveCustomerAccountBasketContext(
+    db,
+    request,
+    contextInput,
+  );
+
+  return withTenantContext(db, accountContext.tenantId, async (tx) => {
+    const attempt = await loadPaymentAttemptByProviderReference(
+      tx,
+      accountContext.tenantId,
+      accountContext.customerUserId,
+      trimmedReference,
+    );
+
+    if (!attempt) {
+      throw new CheckoutPaymentOutcomeError("Payment attempt not found.", 404);
     }
 
-    if (attempt.outcomeSnapshot) {
-      return attempt.outcomeSnapshot as CheckoutPaymentOutcomeResponse;
-    }
-
-    const quote = attempt.quoteSnapshot as CheckoutQuoteResponse;
-
-    return buildPaymentOutcomeResponse({
-      paymentAttemptPublicId: attempt.publicId,
-      status: attempt.status as CheckoutPaymentOutcomeStatus,
-      providerMode: attempt.providerMode,
-      quote,
-      providerReference: attempt.providerReference,
-      reconciledAt: attempt.reconciledAt,
-      diagnostics: attempt.providerMode === "fixture"
-        ? { isLabelledFixture: true }
-        : undefined,
-    });
+    return resolvePaymentAttemptOutcome(
+      db,
+      tx,
+      accountContext.tenantId,
+      accountContext.customerUserId,
+      attempt,
+    );
   });
 }
 

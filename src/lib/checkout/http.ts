@@ -10,6 +10,7 @@ import {
 import { CheckoutQuoteContractError } from "@/lib/checkout/checkout-quote-contract";
 import { CheckoutQuoteError } from "@/lib/checkout/checkout-quote";
 import { CheckoutPricingError } from "@/lib/checkout/pricing-arithmetic";
+import { CheckoutPaymentConfigError } from "@/lib/checkout/payment-config";
 
 export function mapCheckoutRouteError(error: unknown) {
   if (error instanceof CheckoutPaymentContractError) {
@@ -36,6 +37,13 @@ export function mapCheckoutRouteError(error: unknown) {
   if (error instanceof CheckoutWebhookError) {
     return {
       statusCode: error.statusCode,
+      body: { error: error.message },
+    };
+  }
+
+  if (error instanceof CheckoutPaymentConfigError) {
+    return {
+      statusCode: 500,
       body: { error: error.message },
     };
   }

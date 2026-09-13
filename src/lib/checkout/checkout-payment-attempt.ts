@@ -21,6 +21,7 @@ import type { CheckoutPaymentAttemptResponse } from "@/lib/checkout/checkout-pay
 import {
   readAllowedCheckoutReturnOrigins,
   readCheckoutPaymentConfig,
+  resolveCheckoutRedirectUrls,
 } from "@/lib/checkout/payment-config";
 import {
   loadPublishedMenuSnapshot,
@@ -74,12 +75,12 @@ function generatePaymentAttemptPublicId() {
 function buildPaymentRequestHash(input: {
   quotePublicId: string;
   expectedQuoteVersion: number;
-  returnPath: string;
-  cancelPath: string;
+  returnUrl: string;
+  cancelUrl: string;
 }) {
   return createHash("sha256")
     .update(
-      `${input.quotePublicId}:${input.expectedQuoteVersion}:${input.returnPath}:${input.cancelPath}`,
+      `${input.quotePublicId}:${input.expectedQuoteVersion}:${input.returnUrl}:${input.cancelUrl}`,
     )
     .digest("hex");
 }
@@ -111,10 +112,6 @@ function parseRelativePath(value: unknown, field: string) {
   }
 
   return trimmed;
-}
-
-export function buildCheckoutReturnUrl(baseUrl: string, path: string) {
-  return new URL(path, `${baseUrl.replace(/\/+$/, "")}/`).toString();
 }
 
 export function assertReturnUrlAllowed(returnUrl: string, allowedOrigins: string[]) {
@@ -253,16 +250,19 @@ export async function createAuthenticatedPaymentAttempt(
 
   const paymentConfig = readCheckoutPaymentConfig();
   const allowedOrigins = readAllowedCheckoutReturnOrigins();
-  const returnUrl = buildCheckoutReturnUrl(paymentConfig.returnBaseUrl, returnPath);
-  const cancelUrl = buildCheckoutReturnUrl(paymentConfig.returnBaseUrl, cancelPath);
+  const { returnUrl, cancelUrl } = resolveCheckoutRedirectUrls(
+    paymentConfig,
+    returnPath,
+    cancelPath,
+  );
   assertReturnUrlAllowed(returnUrl, allowedOrigins);
   assertReturnUrlAllowed(cancelUrl, allowedOrigins);
 
   const requestHash = buildPaymentRequestHash({
     quotePublicId,
     expectedQuoteVersion,
-    returnPath,
-    cancelPath,
+    returnUrl,
+    cancelUrl,
   });
 
   const accountContext = await resolveCustomerAccountBasketContext(

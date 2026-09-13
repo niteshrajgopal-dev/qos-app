@@ -27,7 +27,10 @@ import {
   previewDefaultPlatformHostname,
   provisionDefaultStorefront,
 } from "@/lib/storefront/provision-default-storefront";
-import { setTenantContext } from "@/lib/tenant/context";
+import {
+  setOperatorProvisioningContext,
+  setTenantContext,
+} from "@/lib/tenant/context";
 
 export type ProvisionBusinessPreview = {
   businessName: string;
@@ -160,6 +163,8 @@ export async function provisionBusiness(
   }
 
   return db.transaction(async (tx) => {
+    await setOperatorProvisioningContext(tx);
+
     const [operation] = await tx
       .insert(businessProvisioningOperations)
       .values({
@@ -207,6 +212,8 @@ export async function provisionBusiness(
         provisionedByOperatorId: operator.subject,
       })
       .returning();
+
+    await setTenantContext(tx, tenant.id);
 
     const [organization] = await tx
       .insert(organizations)

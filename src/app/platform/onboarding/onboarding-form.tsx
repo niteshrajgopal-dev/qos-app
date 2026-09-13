@@ -247,23 +247,31 @@ export function OnboardingForm() {
         </label>
       </section>
 
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium"
-          disabled={busy !== null}
-          onClick={() => void handlePreview()}
-        >
-          {busy === "preview" ? "Previewing..." : "Preview defaults"}
-        </button>
-        <button
-          type="button"
-          className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-50"
-          disabled={busy !== null || !preview}
-          onClick={() => void handleCreate()}
-        >
-          {busy === "create" ? "Creating..." : "Create business"}
-        </button>
+      <div className="space-y-3">
+        {!preview && !result ? (
+          <p className="text-sm text-zinc-500">
+            Step 1: click <span className="font-medium text-zinc-700">Preview defaults</span>.
+            Step 2: click <span className="font-medium text-zinc-700">Create business</span>.
+          </p>
+        ) : null}
+        <div className="flex flex-wrap gap-3">
+          <button
+            type="button"
+            className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium"
+            disabled={busy !== null}
+            onClick={() => void handlePreview()}
+          >
+            {busy === "preview" ? "Previewing..." : "Preview defaults"}
+          </button>
+          <button
+            type="button"
+            className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-600"
+            disabled={busy !== null || !preview}
+            onClick={() => void handleCreate()}
+          >
+            {busy === "create" ? "Creating..." : "Create business"}
+          </button>
+        </div>
       </div>
 
       {preview ? (

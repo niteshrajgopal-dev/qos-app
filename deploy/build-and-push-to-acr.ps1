@@ -15,11 +15,22 @@ param(
     [string] $ResourceGroup = "rg-qos-dev-core",
     [string] $ImageName = "qos-api",
     [string] $ImageTag = "0.2",
-    [string] $ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path,
+    [string] $ProjectRoot = "",
     [switch] $ShowLogs
 )
 
 $ErrorActionPreference = "Stop"
+
+if (-not $ProjectRoot) {
+    $scriptDir = $PSScriptRoot
+    if (-not $scriptDir) {
+        $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+    }
+    if (-not $scriptDir) {
+        throw "Could not resolve deploy script directory. Pass -ProjectRoot explicitly."
+    }
+    $ProjectRoot = (Resolve-Path (Join-Path $scriptDir "..")).Path
+}
 
 function Assert-AzCli {
     if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
@@ -51,6 +62,9 @@ try {
         "--only-show-errors"
     )
 
+    # Next.js build output includes Unicode (e.g. ▲). Streaming ACR logs on
+    # Windows PowerShell often crashes az with cp1252 UnicodeEncodeError even
+    # when the remote build succeeds. Default to --no-logs and verify the run.
     if (-not $ShowLogs) {
         $buildArgs += "--no-logs"
     }
@@ -58,24 +72,46 @@ try {
     $buildArgs += "."
 
     $previousErrorActionPreference = $ErrorActionPreference
+    $previousPythonUtf8 = $env:PYTHONUTF8
+    $previousPythonIoEncoding = $env:PYTHONIOENCODING
 
     try {
+        # Best-effort UTF-8 for az log streaming when -ShowLogs is requested.
+        $env:PYTHONUTF8 = "1"
+        $env:PYTHONIOENCODING = "utf-8"
+
         # Windows PowerShell 5.1 can turn native stderr warnings into
         # PowerShell error records. Let az complete and judge success
         # from its process exit code instead.
         $ErrorActionPreference = "Continue"
-    
+
         & az @buildArgs 2>&1 |
             ForEach-Object { Write-Host $_ }
-    
+
         $azExitCode = $LASTEXITCODE
     }
     finally {
         $ErrorActionPreference = $previousErrorActionPreference
+        $env:PYTHONUTF8 = $previousPythonUtf8
+        $env:PYTHONIOENCODING = $previousPythonIoEncoding
     }
-    
+
     if ($azExitCode -ne 0) {
-        throw "ACR build failed with exit code $azExitCode."
+        $latestRun = az acr task list-runs `
+            --registry $RegistryName `
+            --top 1 `
+            -o json `
+            2>$null | ConvertFrom-Json
+
+        if ($latestRun -and $latestRun.status -eq "Succeeded") {
+            Write-Warning @"
+Azure CLI exited with code $azExitCode while streaming build logs, but the latest ACR run succeeded.
+This is a known Windows log-encoding issue with Next.js Unicode output. The image was still published.
+"@
+        }
+        else {
+            throw "ACR build failed with exit code $azExitCode."
+        }
     }
 
     Write-Host ""

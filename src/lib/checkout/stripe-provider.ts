@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import type { CheckoutQuoteResponse } from "@/lib/checkout/checkout-quote-contract";
 import type { CheckoutPaymentHandoffResponse } from "@/lib/checkout/checkout-payment-contract";
 import {
+  assertSandboxStripeRuntimeReady,
   assertStripeSecretKeyIsSandboxOnly,
   readCheckoutPaymentConfig,
 } from "@/lib/checkout/payment-config";
@@ -49,7 +50,14 @@ export async function createStripeCheckoutSession(
     return buildFixtureSession(input);
   }
 
+  assertSandboxStripeRuntimeReady(config);
   assertStripeSecretKeyIsSandboxOnly(config.stripeSecretKey);
+
+  if (input.quote.currency.toUpperCase() !== config.currency) {
+    throw new Error(
+      `Checkout quote currency must match configured Stripe currency (${config.currency}).`,
+    );
+  }
 
   const stripe = new Stripe(config.stripeSecretKey, {
     apiVersion: config.stripeApiVersion as Stripe.LatestApiVersion,

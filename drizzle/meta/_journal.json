@@ -141,6 +141,20 @@
       "when": 1789222234679,
       "tag": "0019_messy_wilson_fisk",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1789224000000,
+      "tag": "0020_operator_provisioning_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1789225000000,
+      "tag": "0021_storefront_public_resolution_rls",
+      "breakpoints": true
     }
   ]
 }
