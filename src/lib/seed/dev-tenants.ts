@@ -329,6 +329,7 @@ async function ensureFlowerCatalogue(db: DbClient, tenantId: string, brandId: st
             sortOrder: optionFixture.sortOrder,
             priceMinor: optionFixture.priceMinor,
             currency: "AED",
+            isDefault: optionFixture.sortOrder === 0,
           })
           .returning();
       }

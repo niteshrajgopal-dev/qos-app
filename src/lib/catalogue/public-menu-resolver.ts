@@ -16,6 +16,7 @@ import {
   type PublicMenuResponse,
   PublicMenuContractError,
 } from "@/lib/catalogue/public-menu-contract";
+import { resolveProductEligibilityMap } from "@/lib/catalogue/item-eligibility";
 import { findTenantByPublicId } from "@/lib/tenant/repository";
 import { withTenantContext } from "@/lib/tenant/context";
 
@@ -162,11 +163,21 @@ export async function resolvePublicMenuByKey(
       );
     }
 
+    const productPublicIds = snapshot.sections.flatMap((section) =>
+      section.products.map((product) => product.productPublicId),
+    );
+    const productEligibility = await resolveProductEligibilityMap(tx, {
+      tenantId: link.tenantId,
+      locationId: link.locationId,
+      productPublicIds,
+    });
+
     return toPublicMenuResponse({
       publicKey,
       tenantPublicId: tenant.publicId,
       locale,
       snapshot,
+      productEligibility,
     });
   });
 }
@@ -242,11 +253,21 @@ export async function resolvePublicMenuByReference(
       );
     }
 
+    const productPublicIds = snapshot.sections.flatMap((section) =>
+      section.products.map((product) => product.productPublicId),
+    );
+    const productEligibility = await resolveProductEligibilityMap(tx, {
+      tenantId: tenant.id,
+      locationId: location.id,
+      productPublicIds,
+    });
+
     return toPublicMenuResponse({
       publicKey,
       tenantPublicId: tenant.publicId,
       locale,
       snapshot,
+      productEligibility,
     });
   });
 }

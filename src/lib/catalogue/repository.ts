@@ -164,6 +164,7 @@ export async function getCatalogueProductView(
         and(
           eq(catalogueProductModifierGroups.tenantId, tenantId),
           eq(catalogueProductModifierGroups.productId, product.id),
+          eq(catalogueModifierGroups.status, "active"),
         ),
       )
       .orderBy(asc(catalogueProductModifierGroups.sortOrder));
@@ -197,6 +198,7 @@ export async function getCatalogueProductView(
           and(
             eq(catalogueModifierOptions.tenantId, tenantId),
             inArray(catalogueModifierOptions.modifierGroupId, groupIds),
+            eq(catalogueModifierOptions.status, "active"),
           ),
         )
         .orderBy(asc(catalogueModifierOptions.sortOrder));

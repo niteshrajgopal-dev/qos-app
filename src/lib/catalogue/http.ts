@@ -9,10 +9,17 @@ import {
   CatalogueProductError,
 } from "@/lib/catalogue/products";
 import {
+  CatalogueModifierConflictError,
+  CatalogueModifierError,
+} from "@/lib/catalogue/modifiers";
+import {
   CatalogueVariantConflictError,
   CatalogueVariantError,
 } from "@/lib/catalogue/variants";
 import { LocationPriceOverrideError } from "@/lib/catalogue/location-price-overrides";
+import { LocationAvailabilityError } from "@/lib/catalogue/location-availability";
+import { CatalogueImportError } from "@/lib/catalogue/catalogue-import";
+import { CatalogueImportParseError } from "@/lib/catalogue/catalogue-import-parser";
 import {
   TranslationApprovalConflictError,
   TranslationApprovalError,
@@ -63,6 +70,20 @@ export function catalogueErrorResponse(error: unknown) {
     );
   }
 
+  if (error instanceof CatalogueModifierConflictError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof CatalogueModifierError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
   if (error instanceof CatalogueVariantConflictError) {
     return NextResponse.json(
       { error: error.message, field: error.field },
@@ -91,10 +112,31 @@ export function catalogueErrorResponse(error: unknown) {
     );
   }
 
+  if (error instanceof LocationAvailabilityError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
   if (error instanceof LocationPriceOverrideError) {
     return NextResponse.json(
       { error: error.message, field: error.field },
       { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof CatalogueImportError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof CatalogueImportParseError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: 400 },
     );
   }
 

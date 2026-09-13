@@ -17,7 +17,7 @@ import {
 } from "@/lib/basket/customer-basket";
 import {
   loadPublishedMenuSnapshot,
-  resolvePublishedProduct,
+  resolvePublishedProductWithAvailability,
 } from "@/lib/basket/menu-eligibility";
 import type { CheckoutQuoteResponse } from "@/lib/checkout/checkout-quote-contract";
 import { readCheckoutQuoteConfig } from "@/lib/checkout/config";
@@ -234,7 +234,12 @@ export async function issueAuthenticatedCheckoutQuote(
     const quoteLines: CheckoutQuoteResponse["lines"] = [];
 
     for (const line of lines) {
-      const product = resolvePublishedProduct(snapshot, line.productPublicId);
+      const product = await resolvePublishedProductWithAvailability(tx, {
+        tenantId: accountContext.tenantId,
+        locationId: basket.locationId,
+        snapshot,
+        productPublicId: line.productPublicId,
+      });
       const currentUnitAmountMinor = product.price.amountMinor;
 
       if (

@@ -12,6 +12,7 @@ export type CreateDraftProductInput = {
   barcode?: string | null;
   primaryMediaAssetId?: string | null;
   nutritionCalories?: number | null;
+  provenance?: "operator_entered" | "imported" | "synthetic_fixture";
   translations: Record<ProductLocale, ProductTranslationInput>;
   defaultVariant: {
     amountMinor: number;
@@ -171,6 +172,7 @@ export function validateCreateDraftProductInput(
       "primaryMediaAssetId",
     ),
     nutritionCalories,
+    provenance: input.provenance ?? "operator_entered",
     translations: {
       en: {
         displayName: input.translations.en.displayName.trim(),

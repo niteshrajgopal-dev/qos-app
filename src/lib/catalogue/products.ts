@@ -370,7 +370,7 @@ export async function createDraftProduct(
           publicId,
           internalName: validated.internalName,
           status: "draft",
-          provenance: "operator_entered",
+          provenance: validated.provenance,
           sku: validated.sku,
           barcode: validated.barcode,
           primaryMediaAssetId: validated.primaryMediaAssetId,

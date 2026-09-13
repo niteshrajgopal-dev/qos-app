@@ -91,6 +91,11 @@ export const translationApprovalStatusEnum = qos.enum(
   ["draft", "approved"],
 );
 
+export const catalogueStopSaleTargetTypeEnum = qos.enum(
+  "catalogue_stop_sale_target_type",
+  ["product", "variant", "modifier_option"],
+);
+
 export const tenants = qos.table(
   "tenants",
   {
@@ -315,6 +320,107 @@ export const staffInvitationLocations = qos.table(
       table.locationId,
     ),
     index("staff_invitation_locations_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const locationWeeklyScheduleWindows = qos.table(
+  "location_weekly_schedule_windows",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    locationId: uuid("location_id").notNull(),
+    dayOfWeek: integer("day_of_week").notNull(),
+    startMinute: integer("start_minute").notNull(),
+    endMinute: integer("end_minute").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.id],
+    }).onDelete("restrict"),
+    index("location_weekly_schedule_windows_tenant_id_idx").on(table.tenantId),
+    index("location_weekly_schedule_windows_location_idx").on(
+      table.tenantId,
+      table.locationId,
+    ),
+  ],
+);
+
+export const locationScheduleExceptions = qos.table(
+  "location_schedule_exceptions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    locationId: uuid("location_id").notNull(),
+    exceptionDate: text("exception_date").notNull(),
+    closedAllDay: boolean("closed_all_day").notNull().default(true),
+    startMinute: integer("start_minute"),
+    endMinute: integer("end_minute"),
+    priority: integer("priority").notNull().default(0),
+    label: text("label"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.id],
+    }).onDelete("restrict"),
+    unique("location_schedule_exceptions_unique").on(
+      table.tenantId,
+      table.locationId,
+      table.exceptionDate,
+      table.priority,
+    ),
+    index("location_schedule_exceptions_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const locationItemStopSales = qos.table(
+  "location_item_stop_sales",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    locationId: uuid("location_id").notNull(),
+    targetType: catalogueStopSaleTargetTypeEnum("target_type").notNull(),
+    targetPublicId: text("target_public_id").notNull(),
+    reason: text("reason").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+    createdBySubject: text("created_by_subject").notNull(),
+    clearedAt: timestamp("cleared_at", { withTimezone: true }),
+    clearedBySubject: text("cleared_by_subject"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.id],
+    }).onDelete("restrict"),
+    index("location_item_stop_sales_tenant_id_idx").on(table.tenantId),
+    index("location_item_stop_sales_lookup_idx").on(
+      table.tenantId,
+      table.locationId,
+      table.targetType,
+      table.targetPublicId,
+    ),
   ],
 );
 
@@ -612,6 +718,8 @@ export const catalogueModifierGroups = qos.table(
     internalName: text("internal_name").notNull(),
     minSelections: integer("min_selections").notNull().default(0),
     maxSelections: integer("max_selections").notNull().default(1),
+    version: integer("version").notNull().default(1),
+    status: productStatusEnum("status").notNull().default("active"),
     provenance: dataProvenanceEnum("provenance").notNull(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
@@ -675,6 +783,10 @@ export const catalogueModifierOptions = qos.table(
     modifierGroupId: uuid("modifier_group_id").notNull(),
     publicId: text("public_id").notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
+    isDefault: boolean("is_default").notNull().default(false),
+    allowsQuantity: boolean("allows_quantity").notNull().default(false),
+    maxQuantity: integer("max_quantity").notNull().default(1),
+    status: productStatusEnum("status").notNull().default("active"),
     priceMinor: integer("price_minor").notNull().default(0),
     currency: char("currency", { length: 3 }).notNull().default("AED"),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -2322,6 +2434,133 @@ export const tenantAuditEvents = qos.table(
   ],
 );
 
+export const catalogueImportOperationStatusEnum = qos.enum(
+  "catalogue_import_operation_status",
+  ["preview_ready", "applied", "failed"],
+);
+
+export type CatalogueImportColumnMapping = {
+  sourceId: string;
+  internalName: string;
+  displayNameEn: string;
+  displayNameAr: string;
+  descriptionEn?: string;
+  descriptionAr?: string;
+  variantLabelEn?: string;
+  variantLabelAr?: string;
+  amountMinor: string;
+  currency: string;
+  sku?: string;
+  barcode?: string;
+};
+
+export type CatalogueImportPreviewRow = {
+  sourceRow: number;
+  sourceId: string;
+  status: "create" | "update" | "unchanged" | "duplicate" | "error";
+  reason: string | null;
+  productPublicId: string | null;
+  expectedProductVersion: number | null;
+  internalName: string | null;
+  displayNameEn: string | null;
+  displayNameAr: string | null;
+  amountMinor: number | null;
+  currency: string | null;
+};
+
+export type CatalogueImportPreviewPayload = {
+  connectionKey: string;
+  fileName: string;
+  rowCount: number;
+  rows: CatalogueImportPreviewRow[];
+  errorCount: number;
+  createCount: number;
+  updateCount: number;
+  unchangedCount: number;
+  duplicateCount: number;
+};
+
+export type CatalogueImportApplyReport = {
+  appliedAt: string;
+  createCount: number;
+  updateCount: number;
+  unchangedCount: number;
+  skippedCount: number;
+  conflictCount: number;
+  errorCount: number;
+  rows: Array<{
+    sourceRow: number;
+    sourceId: string;
+    status: "created" | "updated" | "unchanged" | "skipped" | "conflict" | "error";
+    productPublicId: string | null;
+    reason: string | null;
+  }>;
+};
+
+export const catalogueImportSourceLinks = qos.table(
+  "catalogue_import_source_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    connectionKey: text("connection_key").notNull(),
+    sourceId: text("source_id").notNull(),
+    productId: uuid("product_id").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [catalogueProducts.tenantId, catalogueProducts.id],
+    }).onDelete("restrict"),
+    unique("catalogue_import_source_links_unique").on(
+      table.tenantId,
+      table.connectionKey,
+      table.sourceId,
+    ),
+    index("catalogue_import_source_links_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const catalogueImportOperations = qos.table(
+  "catalogue_import_operations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    operationPublicId: text("operation_public_id").notNull(),
+    staffSubject: text("staff_subject").notNull(),
+    connectionKey: text("connection_key").notNull(),
+    fileName: text("file_name").notNull(),
+    fileFingerprint: text("file_fingerprint").notNull(),
+    columnMapping: jsonb("column_mapping")
+      .$type<CatalogueImportColumnMapping>()
+      .notNull(),
+    previewPayload: jsonb("preview_payload")
+      .$type<CatalogueImportPreviewPayload>()
+      .notNull(),
+    previewHash: text("preview_hash").notNull(),
+    status: catalogueImportOperationStatusEnum("status").notNull(),
+    applyReport: jsonb("apply_report").$type<CatalogueImportApplyReport>(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("catalogue_import_operations_public_id_unique").on(
+      table.tenantId,
+      table.operationPublicId,
+    ),
+    unique("catalogue_import_operations_idempotency_unique").on(
+      table.tenantId,
+      table.idempotencyKey,
+    ),
+    index("catalogue_import_operations_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
 export const businessProvisioningOperations = qos.table(
   "business_provisioning_operations",
   {
@@ -2440,6 +2679,8 @@ export const schema = {
   catalogueMenuLiveRevisions,
   catalogueMenuPublishOperations,
   catalogueMenuPublicLinks,
+  catalogueImportSourceLinks,
+  catalogueImportOperations,
   catalogueMediaAssets,
   catalogueMediaUploadGrants,
   catalogueMediaDerivatives,

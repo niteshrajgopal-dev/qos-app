@@ -11,6 +11,7 @@ import { CheckoutQuoteContractError } from "@/lib/checkout/checkout-quote-contra
 import { CheckoutQuoteError } from "@/lib/checkout/checkout-quote";
 import { CheckoutPricingError } from "@/lib/checkout/pricing-arithmetic";
 import { CheckoutPaymentConfigError } from "@/lib/checkout/payment-config";
+import { BasketMenuEligibilityError } from "@/lib/basket/menu-eligibility";
 
 export function mapCheckoutRouteError(error: unknown) {
   if (error instanceof CheckoutPaymentContractError) {
@@ -74,6 +75,13 @@ export function mapCheckoutRouteError(error: unknown) {
         field: error.field,
         priceCorrections: error.priceCorrections,
       },
+    };
+  }
+
+  if (error instanceof BasketMenuEligibilityError) {
+    return {
+      statusCode: error.statusCode,
+      body: { error: error.message, field: error.field },
     };
   }
 

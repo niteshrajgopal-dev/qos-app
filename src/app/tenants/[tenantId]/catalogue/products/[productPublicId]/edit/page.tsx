@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ProductEditor } from "@/app/tenants/[tenantId]/catalogue/products/product-editor";
+import { ProductModifierGroupsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel";
 import { ProductVariantsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel";
 
 type PageProps = {
@@ -54,6 +55,10 @@ export default async function EditCatalogueProductPage({ params }: PageProps) {
         </div>
         <ProductEditor tenantId={tenantId} productPublicId={productPublicId} />
         <ProductVariantsPanel
+          tenantId={tenantId}
+          productPublicId={productPublicId}
+        />
+        <ProductModifierGroupsPanel
           tenantId={tenantId}
           productPublicId={productPublicId}
         />

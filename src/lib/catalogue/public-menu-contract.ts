@@ -10,6 +10,15 @@ export type PublicMenuProductPrice = {
   inheritanceMode: "inherited" | "override";
 };
 
+export type PublicMenuProductEligibility =
+  | { available: true }
+  | {
+      available: false;
+      reason: "location_closed" | "stop_sale";
+      stopSaleReason: string | null;
+      stopSaleExpiresAt: string | null;
+    };
+
 export type PublicMenuProduct = {
   productPublicId: string;
   sortOrder: number;
@@ -17,9 +26,7 @@ export type PublicMenuProduct = {
   description: string | null;
   price: PublicMenuProductPrice;
   mediaAssetId: string | null;
-  eligibility: {
-    available: true;
-  };
+  eligibility: PublicMenuProductEligibility;
 };
 
 export type PublicMenuSection = {
@@ -79,11 +86,46 @@ function pickLocalizedText(
   };
 }
 
+function mapProductEligibility(
+  productPublicId: string,
+  eligibilityByProduct?: Map<
+    string,
+    {
+      available: boolean;
+      reason: string | null;
+      stopSaleReason: string | null;
+      stopSaleExpiresAt: string | null;
+    }
+  >,
+): PublicMenuProductEligibility {
+  const eligibility = eligibilityByProduct?.get(productPublicId);
+  if (!eligibility || eligibility.available) {
+    return { available: true };
+  }
+
+  return {
+    available: false,
+    reason:
+      eligibility.reason === "stop_sale" ? "stop_sale" : "location_closed",
+    stopSaleReason: eligibility.stopSaleReason,
+    stopSaleExpiresAt: eligibility.stopSaleExpiresAt,
+  };
+}
+
 export function toPublicMenuResponse(input: {
   publicKey: string;
   tenantPublicId: string;
   locale: PublicMenuLocale;
   snapshot: MenuLiveSnapshotPayload;
+  productEligibility?: Map<
+    string,
+    {
+      available: boolean;
+      reason: string | null;
+      stopSaleReason: string | null;
+      stopSaleExpiresAt: string | null;
+    }
+  >;
 }): PublicMenuResponse {
   const menuText = pickLocalizedText(input.snapshot.translations, input.locale);
   const currency =
@@ -123,9 +165,10 @@ export function toPublicMenuResponse(input: {
             description: productText.description,
             price: product.price,
             mediaAssetId: product.mediaAssetId ?? null,
-            eligibility: {
-              available: true,
-            },
+            eligibility: mapProductEligibility(
+              product.productPublicId,
+              input.productEligibility,
+            ),
           };
         }),
       };

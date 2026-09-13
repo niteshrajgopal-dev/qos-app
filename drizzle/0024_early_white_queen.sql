@@ -19,5 +19,4 @@ ALTER TABLE "qos"."tenant_audit_events" ADD CONSTRAINT "tenant_audit_events_tena
 CREATE INDEX "tenant_audit_events_tenant_id_idx" ON "qos"."tenant_audit_events" USING btree ("tenant_id");--> statement-breakpoint
 CREATE INDEX "tenant_audit_events_tenant_occurred_at_idx" ON "qos"."tenant_audit_events" USING btree ("tenant_id","occurred_at");--> statement-breakpoint
 CREATE INDEX "tenant_audit_events_tenant_entity_idx" ON "qos"."tenant_audit_events" USING btree ("tenant_id","entity_type","entity_public_id");--> statement-breakpoint
-CREATE INDEX "tenant_audit_events_tenant_action_idx" ON "qos"."tenant_audit_events" USING btree ("tenant_id","action");--> statement-breakpoint
-ALTER TABLE "qos"."staff_invitations" ADD CONSTRAINT "staff_invitations_tenant_id_id_unique" UNIQUE("tenant_id","id");
+CREATE INDEX "tenant_audit_events_tenant_action_idx" ON "qos"."tenant_audit_events" USING btree ("tenant_id","action");

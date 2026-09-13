@@ -21,7 +21,7 @@ import {
 import { readAnonymousBasketConfig } from "@/lib/basket/config";
 import {
   loadPublishedMenuSnapshot,
-  resolvePublishedProduct,
+  resolvePublishedProductWithAvailability,
 } from "@/lib/basket/menu-eligibility";
 import { requireVerifiedCustomerSession } from "@/lib/customer/session";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -515,7 +515,12 @@ export async function upsertCustomerAccountBasketLine(
       basket.menuId,
       basket.locationId,
     );
-    const product = resolvePublishedProduct(snapshot, input.productPublicId);
+    const product = await resolvePublishedProductWithAvailability(tx, {
+      tenantId: context.tenantId,
+      locationId: basket.locationId,
+      snapshot,
+      productPublicId: input.productPublicId,
+    });
 
     const [existingLine] = await tx
       .select()

@@ -7,6 +7,10 @@ import {
   type MenuLiveSnapshotPayload,
   type PublicMenuProductSnapshot,
 } from "@/db/schema";
+import {
+  assertProductEligibleAtLocation,
+  ItemEligibilityError,
+} from "@/lib/catalogue/item-eligibility";
 
 export class BasketMenuEligibilityError extends Error {
   readonly statusCode: number;
@@ -86,6 +90,43 @@ export function resolvePublishedProduct(
       400,
       "productPublicId",
     );
+  }
+
+  return product;
+}
+
+export async function resolvePublishedProductWithAvailability(
+  tx: DbClient,
+  input: {
+    tenantId: string;
+    locationId: string;
+    snapshot: MenuLiveSnapshotPayload;
+    productPublicId: string;
+    at?: Date;
+  },
+) {
+  const product = resolvePublishedProduct(
+    input.snapshot,
+    input.productPublicId,
+  );
+
+  try {
+    await assertProductEligibleAtLocation(tx, {
+      tenantId: input.tenantId,
+      locationId: input.locationId,
+      productPublicId: input.productPublicId,
+      at: input.at,
+    });
+  } catch (error) {
+    if (error instanceof ItemEligibilityError) {
+      throw new BasketMenuEligibilityError(
+        error.message,
+        error.statusCode,
+        error.field,
+      );
+    }
+
+    throw error;
   }
 
   return product;

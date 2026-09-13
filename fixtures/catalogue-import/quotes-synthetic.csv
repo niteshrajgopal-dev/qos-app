@@ -1,0 +1,4 @@
+source_id,internal_name,display_name_en,display_name_ar,amount_minor,currency
+quotes-fw-001,flat-white,Flat White,فلات وايت,1800,AED
+quotes-es-002,espresso-single,Single Espresso,إسpresso مفرد,1200,AED
+quotes-formula-003,formula-safe,"=SUM(1,2)",+formula,900,AED

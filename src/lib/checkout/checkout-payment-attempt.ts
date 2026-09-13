@@ -25,7 +25,7 @@ import {
 } from "@/lib/checkout/payment-config";
 import {
   loadPublishedMenuSnapshot,
-  resolvePublishedProduct,
+  resolvePublishedProductWithAvailability,
 } from "@/lib/basket/menu-eligibility";
 import { createStripeCheckoutSession } from "@/lib/checkout/stripe-provider";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -171,11 +171,19 @@ async function validateQuoteLineEligibility(
 
   for (const line of quote.lines) {
     try {
-      resolvePublishedProduct(snapshot, line.productPublicId);
-    } catch {
+      await resolvePublishedProductWithAvailability(tx, {
+        tenantId,
+        locationId,
+        snapshot,
+        productPublicId: line.productPublicId,
+      });
+    } catch (error) {
       lineValidations.push({
         productPublicId: line.productPublicId,
-        reason: "Product is no longer available for checkout.",
+        reason:
+          error instanceof Error
+            ? error.message
+            : "Product is no longer available for checkout.",
       });
     }
   }

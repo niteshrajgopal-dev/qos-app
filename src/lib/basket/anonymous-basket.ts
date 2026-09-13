@@ -22,7 +22,7 @@ import {
 import { readAnonymousBasketConfig } from "@/lib/basket/config";
 import {
   loadPublishedMenuSnapshot,
-  resolvePublishedProduct,
+  resolvePublishedProductWithAvailability,
 } from "@/lib/basket/menu-eligibility";
 import {
   AnonymousBasketAuthError,
@@ -670,7 +670,12 @@ export async function upsertAnonymousBasketLine(
       session.menuId,
       session.locationId,
     );
-    const product = resolvePublishedProduct(snapshot, input.productPublicId);
+    const product = await resolvePublishedProductWithAvailability(tx, {
+      tenantId: context.tenantId,
+      locationId: session.locationId,
+      snapshot,
+      productPublicId: input.productPublicId,
+    });
 
     const [existingLine] = await tx
       .select()
