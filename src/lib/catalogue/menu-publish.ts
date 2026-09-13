@@ -738,16 +738,19 @@ export async function publishDraftMenuToLocations(
             ? "completed"
             : "partial";
 
-      await tx.insert(catalogueMenuPublishOperations).values({
-        tenantId,
-        menuId: menu.id,
-        operationPublicId: operationId,
-        publisherSubject: adminSubject,
-        sourceVersion: view.version,
-        targetLocationIds,
-        status,
-        locationResults: results,
-      });
+      const [operation] = await tx
+        .insert(catalogueMenuPublishOperations)
+        .values({
+          tenantId,
+          menuId: menu.id,
+          operationPublicId: operationId,
+          publisherSubject: adminSubject,
+          sourceVersion: view.version,
+          targetLocationIds,
+          status,
+          locationResults: results,
+        })
+        .returning();
 
       if (successCount > 0) {
         await tx
@@ -767,7 +770,7 @@ export async function publishDraftMenuToLocations(
           entityType: "catalogue_menu",
           entityPublicId: menuPublicId,
           entityVersion: view.version,
-          correlationId: operationId,
+          correlationId: operation.id,
           changeSummary: {
             operationId,
             sourceVersion: view.version,

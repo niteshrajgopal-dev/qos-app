@@ -12,6 +12,7 @@ import {
   listTenantAuditEventsInTx,
   parseAuditEventsQuery,
   recordTenantAuditEventInTx,
+  resolveAuditCorrelationId,
   sanitizeAuditChangeSummary,
 } from "@/lib/audit/tenant-audit";
 import { defaultStorefrontDraftConfig } from "@/lib/storefront/default-theme";
@@ -46,6 +47,25 @@ describe("parseAuditEventsQuery", () => {
       actorSubject: "admin.quotes@test",
       limit: 10,
     });
+  });
+});
+
+describe("resolveAuditCorrelationId", () => {
+  it("returns a UUID when omitted", () => {
+    expect(resolveAuditCorrelationId()).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i,
+    );
+  });
+
+  it("accepts a valid UUID", () => {
+    const id = "c76a0c0c-8a65-4178-b20e-76d50f77b030";
+    expect(resolveAuditCorrelationId(id)).toBe(id);
+  });
+
+  it("rejects a public operation id that is not a UUID", () => {
+    expect(() => resolveAuditCorrelationId("pub_retry_1")).toThrow(
+      /correlationId must be a valid UUID/,
+    );
   });
 });
 

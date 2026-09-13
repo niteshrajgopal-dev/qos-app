@@ -57,6 +57,22 @@ export type RecordTenantAuditEventInput = {
 const SENSITIVE_KEY_PATTERN =
   /password|secret|token|credential|api[_-]?key|authorization|private[_-]?key/i;
 
+const AUDIT_CORRELATION_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function resolveAuditCorrelationId(correlationId?: string) {
+  if (!correlationId?.trim()) {
+    return randomUUID();
+  }
+
+  const trimmed = correlationId.trim();
+  if (!AUDIT_CORRELATION_ID_PATTERN.test(trimmed)) {
+    throw new Error("correlationId must be a valid UUID.");
+  }
+
+  return trimmed;
+}
+
 export function sanitizeAuditChangeSummary(
   value: unknown,
 ): Record<string, unknown> | unknown[] | string | number | boolean | null {
@@ -154,7 +170,7 @@ export async function recordTenantAuditEventInTx(
       entityType: input.entityType,
       entityPublicId: input.entityPublicId,
       entityVersion: input.entityVersion ?? null,
-      correlationId: input.correlationId ?? randomUUID(),
+      correlationId: resolveAuditCorrelationId(input.correlationId),
       changeSummary,
     })
     .returning();

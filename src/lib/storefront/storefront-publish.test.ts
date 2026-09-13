@@ -7,6 +7,7 @@ import {
   staffMemberships,
   storefrontReleases,
   storefronts,
+  type StorefrontReleasePayload,
 } from "@/db/schema";
 import {
   hasIntegrationDatabase,
@@ -21,6 +22,7 @@ import {
 import {
   createStorefront,
   publishStorefrontRelease,
+  storefrontReleasePayloadsEqual,
   updateStorefrontDraft,
 } from "@/lib/storefront/storefronts";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
@@ -28,6 +30,61 @@ import { createTenantHierarchy } from "@/lib/tenant/repository";
 import { quotesTenantFixture } from "@/lib/tenant/fixtures";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
+
+function sampleReleasePayload(
+  overrides: Partial<StorefrontReleasePayload> = {},
+): StorefrontReleasePayload {
+  return {
+    storefrontPublicId: "stf_quotes",
+    releaseVersion: 1,
+    defaultLocale: "en",
+    supportedLocales: ["en"],
+    theme: {
+      preset: "hospitality_baseline",
+      colors: { primary: "#2F2322", accent: "#CBB792" },
+    },
+    navigation: [{ id: "menu", labelKey: "nav.menu", href: "/" }],
+    contentBlocks: [],
+    locations: [{ locationPublicId: "loc_quotes_hbz" }],
+    publishedCollections: [],
+    featureFlags: { localeSelector: true },
+    ...overrides,
+  };
+}
+
+describe("storefrontReleasePayloadsEqual", () => {
+  it("ignores jsonb key order and release version", () => {
+    const stored = sampleReleasePayload({ releaseVersion: 1 });
+    const rebuilt = {
+      theme: stored.theme,
+      locations: stored.locations,
+      navigation: stored.navigation,
+      featureFlags: stored.featureFlags,
+      contentBlocks: stored.contentBlocks,
+      defaultLocale: stored.defaultLocale,
+      supportedLocales: stored.supportedLocales,
+      storefrontPublicId: stored.storefrontPublicId,
+      publishedCollections: stored.publishedCollections,
+      releaseVersion: 2,
+    } satisfies StorefrontReleasePayload;
+
+    expect(storefrontReleasePayloadsEqual(stored, rebuilt)).toBe(true);
+  });
+
+  it("detects a real theme change", () => {
+    expect(
+      storefrontReleasePayloadsEqual(
+        sampleReleasePayload(),
+        sampleReleasePayload({
+          theme: {
+            preset: "hospitality_baseline",
+            colors: { primary: "#ff0000", accent: "#CBB792" },
+          },
+        }),
+      ),
+    ).toBe(false);
+  });
+});
 
 integrationDescribe("storefront publish and rollback", () => {
   let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];

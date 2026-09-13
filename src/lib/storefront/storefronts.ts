@@ -372,14 +372,34 @@ export async function assignPublishedCollection(
   });
 }
 
-function storefrontReleasePayloadsEqual(
+function canonicalizeJson(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(canonicalizeJson);
+  }
+
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .filter(([, nested]) => nested !== undefined)
+        .sort(([left], [right]) => left.localeCompare(right))
+        .map(([key, nested]) => [key, canonicalizeJson(nested)]),
+    );
+  }
+
+  return value;
+}
+
+export function storefrontReleasePayloadsEqual(
   left: StorefrontReleasePayload,
   right: StorefrontReleasePayload,
 ) {
   const { releaseVersion: _leftVersion, ...leftComparable } = left;
   const { releaseVersion: _rightVersion, ...rightComparable } = right;
 
-  return JSON.stringify(leftComparable) === JSON.stringify(rightComparable);
+  return (
+    JSON.stringify(canonicalizeJson(leftComparable)) ===
+    JSON.stringify(canonicalizeJson(rightComparable))
+  );
 }
 
 async function buildStorefrontReleasePayload(
