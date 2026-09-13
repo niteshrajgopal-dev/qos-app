@@ -170,13 +170,13 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
             );
           })
         }
-        className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+        className="qos-btn" data-variant="secondary"
       >
         Load requests
       </button>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -188,7 +188,7 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
           requests.map((request) => (
             <article
               key={request.id}
-              className="rounded-xl border border-zinc-200 p-4"
+              className="qos-card" data-padding="sm"
             >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -210,7 +210,7 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
                       onClick={() =>
                         void approveRequest(request, "administrator")
                       }
-                      className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+                      className="qos-btn" data-variant="primary"
                     >
                       Approve as Administrator
                     </button>
@@ -218,7 +218,7 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
                       type="button"
                       disabled={busyRequestId === request.id}
                       onClick={() => void approveRequest(request, "user")}
-                      className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+                      className="qos-btn" data-variant="secondary"
                     >
                       Approve as User
                     </button>
@@ -226,7 +226,7 @@ export function AccessRequestsReview({ tenantId }: AccessRequestsReviewProps) {
                       type="button"
                       disabled={busyRequestId === request.id}
                       onClick={() => void rejectRequest(request)}
-                      className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+                      className="qos-btn" data-variant="secondary"
                     >
                       Reject
                     </button>

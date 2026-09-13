@@ -127,61 +127,59 @@ export default function ModifierGroupsPage({ params }: PageProps) {
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 px-6 py-10 font-sans text-zinc-900">
-      <main className="mx-auto w-full max-w-4xl rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <div className="mb-8 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-              Catalogue
-            </p>
-            <h1 className="mt-2 text-3xl font-semibold">Modifier groups</h1>
-            <p className="mt-2 text-zinc-600">
-              Reusable choice groups such as milk type or gift wrapping.
-            </p>
-          </div>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void createGroup()}
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
-          >
-            New group
-          </button>
-        </div>
-
-        {error ? (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
+    <div style={{ display: "grid", gap: "var(--space-6)" }}>
+      <div className="qos-pagehead">
+        <div>
+          <h1 className="qos-pagetitle">Modifier groups</h1>
+          <p className="qos-pagesub">
+            Reusable choice groups such as milk type or gift wrapping.
           </p>
-        ) : null}
-
-        <div className="space-y-3">
-          {groups.map((group) => (
-            <Link
-              key={group.publicId}
-              href={`/tenants/${tenantId}/catalogue/modifier-groups/${group.publicId}/edit`}
-              className="block rounded-xl border border-zinc-200 p-4 hover:bg-zinc-50"
-            >
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <h2 className="text-lg font-medium">
-                    {group.translations.en.displayName || group.internalName}
-                  </h2>
-                  <p className="mt-1 text-sm text-zinc-600">
-                    {group.publicId} · min {group.minSelections} / max{" "}
-                    {group.maxSelections} · {group.optionCount} option(s) ·{" "}
-                    {group.affectedProductCount} product(s)
-                  </p>
-                </div>
-                <span className="text-sm text-zinc-500">v{group.version}</span>
-              </div>
-            </Link>
-          ))}
-          {!busy && groups.length === 0 ? (
-            <p className="text-sm text-zinc-600">No modifier groups yet.</p>
-          ) : null}
         </div>
-      </main>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => void createGroup()}
+          className="qos-btn"
+          data-variant="primary"
+        >
+          New group
+        </button>
+      </div>
+
+      {error ? (
+        <div className="qos-alert" data-tone="error" role="alert">
+          <div className="qos-alert-body">{error}</div>
+        </div>
+      ) : null}
+
+      <div style={{ display: "grid", gap: 12 }}>
+        {groups.map((group) => (
+          <Link
+            key={group.publicId}
+            href={`/tenants/${tenantId}/catalogue/modifier-groups/${group.publicId}/edit`}
+            className="qos-card"
+            data-padding="sm"
+            data-interactive="true"
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
+              <div>
+                <strong>
+                  {group.translations.en.displayName || group.internalName}
+                </strong>
+                <p className="qos-card-sub">
+                  {group.publicId} · min {group.minSelections} / max{" "}
+                  {group.maxSelections} · {group.optionCount} option(s) ·{" "}
+                  {group.affectedProductCount} product(s)
+                </p>
+              </div>
+              <span className="qos-card-sub">v{group.version}</span>
+            </div>
+          </Link>
+        ))}
+        {!busy && groups.length === 0 ? (
+          <p className="qos-pagesub">No modifier groups yet.</p>
+        ) : null}
+      </div>
     </div>
   );
 }

@@ -1,31 +1,44 @@
-import Link from "next/link";
-
 import { StaffSignInForm } from "@/app/staff/sign-in/staff-sign-in-form";
+import { StaffWordmark } from "@/components/staff/StaffWordmark";
 
 export default function StaffSignInPage() {
   return (
-    <div className="min-h-screen bg-zinc-50 px-6 py-10 font-sans text-zinc-900">
-      <main className="mx-auto w-full max-w-lg rounded-2xl border border-zinc-200 bg-white p-8 shadow-sm">
-        <div className="mb-8">
-          <p className="text-sm font-medium uppercase tracking-wide text-zinc-500">
-            Staff access
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold">Sign in</h1>
-          <p className="mt-2 text-zinc-600">
-            Use a verified staff account before calling protected catalogue and
-            membership APIs.
+    <div className="qos-login" data-qos-theme="dark">
+      <div className="qos-login-brand">
+        <StaffWordmark tone="navy" height={26} />
+        <div style={{ position: "relative", maxWidth: 460 }}>
+          <h1
+            style={{
+              fontSize: 40,
+              lineHeight: "48px",
+              letterSpacing: "-.02em",
+              fontWeight: 600,
+            }}
+          >
+            Ideas today.
+            <br />
+            Impact tomorrow.
+          </h1>
+          <p
+            style={{
+              marginTop: 14,
+              fontSize: 16,
+              lineHeight: "24px",
+              color: "var(--text-secondary)",
+            }}
+          >
+            The orchestration layer for your commerce operations — channels,
+            catalogue, locations and integrations in one place.
           </p>
         </div>
-
+        <div className="qos-login-brand-foot">
+          <span>Higher quality</span>
+          <span>Brighter possibilities</span>
+        </div>
+      </div>
+      <div className="qos-login-panel">
         <StaffSignInForm />
-
-        <p className="mt-8 text-sm text-zinc-600">
-          Need access without an invitation?{" "}
-          <Link href="/staff/request-access" className="font-medium text-zinc-900 underline">
-            Request access
-          </Link>
-        </p>
-      </main>
+      </div>
     </div>
   );
 }

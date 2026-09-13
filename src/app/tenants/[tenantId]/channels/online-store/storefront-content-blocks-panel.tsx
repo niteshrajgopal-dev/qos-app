@@ -204,7 +204,7 @@ export function StorefrontContentBlocksPanel({
 
   if (!loaded) {
     return (
-      <section className="rounded-xl border border-zinc-200 bg-white p-5">
+      <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold text-zinc-900">Content blocks</h2>
         <p className="mt-2 text-sm text-zinc-600">
           {error ?? "Load the online store to edit storefront content blocks."}
@@ -214,7 +214,7 @@ export function StorefrontContentBlocksPanel({
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5">
+    <section className="qos-card" data-padding="md">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">Content blocks</h2>
@@ -228,7 +228,7 @@ export function StorefrontContentBlocksPanel({
             type="button"
             disabled={busy}
             onClick={() => setBlocks(cloneBlocks(loaded.contentBlocks))}
-            className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="qos-btn" data-variant="secondary"
           >
             Cancel
           </button>
@@ -236,7 +236,7 @@ export function StorefrontContentBlocksPanel({
             type="button"
             disabled={busy || !isAdministrator || !isDirty}
             onClick={() => void saveDraft()}
-            className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="qos-btn" data-variant="primary"
           >
             Save draft
           </button>
@@ -250,7 +250,7 @@ export function StorefrontContentBlocksPanel({
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -262,7 +262,7 @@ export function StorefrontContentBlocksPanel({
       ) : null}
 
       {issues.length > 0 ? (
-        <ul className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <ul className="qos-alert" data-tone="error">
           {issues.map((issue) => (
             <li key={`${issue.field}:${issue.message}`}>
               <span className="font-medium">{issue.field}</span>: {issue.message}
@@ -313,7 +313,7 @@ export function StorefrontContentBlocksPanel({
                     type="button"
                     disabled={!isAdministrator || busy || index === 0}
                     onClick={() => moveBlock(index, -1)}
-                    className="rounded-full border border-zinc-300 px-3 py-1 text-sm"
+                    className="qos-btn" data-variant="ghost" data-size="sm"
                   >
                     Move up
                   </button>
@@ -321,7 +321,7 @@ export function StorefrontContentBlocksPanel({
                     type="button"
                     disabled={!isAdministrator || busy || index === blocks.length - 1}
                     onClick={() => moveBlock(index, 1)}
-                    className="rounded-full border border-zinc-300 px-3 py-1 text-sm"
+                    className="qos-btn" data-variant="ghost" data-size="sm"
                   >
                     Move down
                   </button>
@@ -333,7 +333,7 @@ export function StorefrontContentBlocksPanel({
                   <label className="block text-sm">
                     <span className="font-medium text-zinc-700">Title (EN)</span>
                     <input
-                      className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-input"
                       value={title.en}
                       disabled={!isAdministrator || busy}
                       onChange={(event) =>
@@ -356,7 +356,7 @@ export function StorefrontContentBlocksPanel({
                     <span className="font-medium text-zinc-700">Title (AR)</span>
                     <input
                       dir="rtl"
-                      className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-input"
                       value={title.ar}
                       disabled={!isAdministrator || busy}
                       onChange={(event) =>
@@ -378,7 +378,7 @@ export function StorefrontContentBlocksPanel({
                   <label className="block text-sm md:col-span-2">
                     <span className="font-medium text-zinc-700">Subtitle (EN)</span>
                     <textarea
-                      className="mt-1 min-h-20 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-textarea"
                       value={subtitle.en}
                       disabled={!isAdministrator || busy}
                       onChange={(event) =>
@@ -401,7 +401,7 @@ export function StorefrontContentBlocksPanel({
                     <span className="font-medium text-zinc-700">Subtitle (AR)</span>
                     <textarea
                       dir="rtl"
-                      className="mt-1 min-h-20 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-textarea"
                       value={subtitle.ar}
                       disabled={!isAdministrator || busy}
                       onChange={(event) =>
@@ -426,7 +426,7 @@ export function StorefrontContentBlocksPanel({
                   <label className="block text-sm">
                     <span className="font-medium text-zinc-700">Statement (EN)</span>
                     <textarea
-                      className="mt-1 min-h-20 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-textarea"
                       value={statement.en}
                       disabled={!isAdministrator || busy}
                       onChange={(event) =>
@@ -449,7 +449,7 @@ export function StorefrontContentBlocksPanel({
                     <span className="font-medium text-zinc-700">Statement (AR)</span>
                     <textarea
                       dir="rtl"
-                      className="mt-1 min-h-20 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-textarea"
                       value={statement.ar}
                       disabled={!isAdministrator || busy}
                       onChange={(event) =>

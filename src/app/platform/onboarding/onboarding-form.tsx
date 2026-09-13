@@ -139,7 +139,7 @@ export function OnboardingForm() {
         <label className="grid gap-1 text-sm">
           <span className="font-medium text-zinc-700">Business name</span>
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={form.businessName}
             onChange={(event) =>
               setForm((current) => ({
@@ -152,7 +152,7 @@ export function OnboardingForm() {
         <label className="grid gap-1 text-sm">
           <span className="font-medium text-zinc-700">Business profile</span>
           <select
-            className="rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={form.businessProfile}
             onChange={(event) =>
               setForm((current) => ({
@@ -168,7 +168,7 @@ export function OnboardingForm() {
         <label className="grid gap-1 text-sm">
           <span className="font-medium text-zinc-700">Brand name</span>
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={form.brandName}
             onChange={(event) =>
               setForm((current) => ({
@@ -181,7 +181,7 @@ export function OnboardingForm() {
         <label className="grid gap-1 text-sm">
           <span className="font-medium text-zinc-700">Initial location</span>
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={form.locationName}
             onChange={(event) =>
               setForm((current) => ({
@@ -194,7 +194,7 @@ export function OnboardingForm() {
         <label className="grid gap-1 text-sm">
           <span className="font-medium text-zinc-700">Location timezone</span>
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={form.locationTimezone}
             onChange={(event) =>
               setForm((current) => ({
@@ -208,7 +208,7 @@ export function OnboardingForm() {
           <span className="font-medium text-zinc-700">Administrator email</span>
           <input
             type="email"
-            className="rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={form.administratorEmail}
             onChange={(event) =>
               setForm((current) => ({
@@ -221,7 +221,7 @@ export function OnboardingForm() {
         <label className="grid gap-1 text-sm">
           <span className="font-medium text-zinc-700">Operator subject</span>
           <input
-            className="rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={form.operatorSubject}
             onChange={(event) =>
               setForm((current) => ({
@@ -235,7 +235,7 @@ export function OnboardingForm() {
           <span className="font-medium text-zinc-700">Operator API key</span>
           <input
             type="password"
-            className="rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={form.operatorKey}
             onChange={(event) =>
               setForm((current) => ({
@@ -257,7 +257,7 @@ export function OnboardingForm() {
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            className="rounded-full border border-zinc-300 px-5 py-2.5 text-sm font-medium"
+            className="qos-btn" data-variant="secondary"
             disabled={busy !== null}
             onClick={() => void handlePreview()}
           >
@@ -265,7 +265,7 @@ export function OnboardingForm() {
           </button>
           <button
             type="button"
-            className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:bg-zinc-200 disabled:text-zinc-600"
+            className="qos-btn" data-variant="primary"
             disabled={busy !== null || !preview}
             onClick={() => void handleCreate()}
           >
@@ -275,7 +275,7 @@ export function OnboardingForm() {
       </div>
 
       {preview ? (
-        <section className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm">
+        <section className="qos-card" data-padding="sm">
           <h2 className="font-semibold text-zinc-900">Preview</h2>
           <pre className="mt-3 overflow-x-auto whitespace-pre-wrap text-zinc-700">
             {JSON.stringify(preview, null, 2)}
@@ -295,7 +295,7 @@ export function OnboardingForm() {
       ) : null}
 
       {error ? (
-        <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}

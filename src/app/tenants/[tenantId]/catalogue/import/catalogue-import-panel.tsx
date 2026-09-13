@@ -177,7 +177,7 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
         </p>
       </div>
 
-      <section className="rounded-lg border border-zinc-200 p-4">
+      <section className="qos-card" data-padding="sm">
         <h2 className="text-lg font-medium">Format guidance</h2>
         <p className="mt-2 text-sm text-zinc-600">
           Required columns: source ID, internal name, English and Arabic display
@@ -186,13 +186,13 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
         </p>
         <div className="mt-3 flex flex-wrap gap-3">
           <a
-            className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50"
+            className="qos-btn" data-variant="secondary" data-size="sm"
             href={`${basePath}/sample?format=csv`}
           >
             Download sample CSV
           </a>
           <a
-            className="rounded border border-zinc-300 px-3 py-2 text-sm hover:bg-zinc-50"
+            className="qos-btn" data-variant="secondary" data-size="sm"
             href={`${basePath}/sample?format=xlsx`}
           >
             Download sample XLSX
@@ -200,12 +200,12 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
         </div>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 p-4">
+      <section className="qos-card" data-padding="sm">
         <div className="grid gap-4 md:grid-cols-2">
           <label className="flex flex-col gap-1 text-sm">
             Connection key
             <input
-              className="rounded border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={connectionKey}
               onChange={(event) => setConnectionKey(event.target.value)}
               placeholder="quotes.synthetic"
@@ -214,7 +214,7 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
           <label className="flex flex-col gap-1 text-sm">
             Import file
             <input
-              className="rounded border border-zinc-300 px-3 py-2"
+              className="qos-input"
               type="file"
               accept=".csv,.xlsx"
               onChange={(event) => {
@@ -241,7 +241,7 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
               <label key={field} className="flex flex-col gap-1 text-sm">
                 {field}
                 <select
-                  className="rounded border border-zinc-300 px-3 py-2"
+                  className="qos-input"
                   value={columnMapping[field]}
                   onChange={(event) =>
                     updateMappingField(field, event.target.value)
@@ -261,7 +261,7 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
 
         <div className="mt-4 flex flex-wrap gap-3">
           <button
-            className="rounded bg-zinc-900 px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="qos-btn" data-variant="primary"
             disabled={busy || !file}
             onClick={() => void runPreview()}
             type="button"
@@ -269,7 +269,7 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
             Preview import
           </button>
           <button
-            className="rounded border border-zinc-300 px-4 py-2 text-sm disabled:opacity-50"
+            className="qos-btn" data-variant="secondary"
             disabled={busy || !preview}
             onClick={() => void runApply()}
             type="button"
@@ -280,13 +280,13 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
       </section>
 
       {error ? (
-        <p className="rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
 
       {preview ? (
-        <section className="rounded-lg border border-zinc-200 p-4">
+        <section className="qos-card" data-padding="sm">
           <h2 className="text-lg font-medium">Preview</h2>
           <p className="mt-2 text-sm text-zinc-600">
             {preview.preview.createCount} create, {preview.preview.updateCount}{" "}
@@ -337,7 +337,7 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
       ) : null}
 
       {applyResult ? (
-        <section className="rounded-lg border border-zinc-200 p-4">
+        <section className="qos-card" data-padding="sm">
           <h2 className="text-lg font-medium">Apply report</h2>
           <p className="mt-2 text-sm text-zinc-600">
             {applyResult.replayed ? "Replayed prior apply. " : null}

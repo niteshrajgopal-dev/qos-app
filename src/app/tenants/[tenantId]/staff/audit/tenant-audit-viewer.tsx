@@ -119,7 +119,7 @@ export function TenantAuditViewer({ tenantId }: TenantAuditViewerProps) {
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Action</span>
           <input
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={action}
             onChange={(event) => setAction(event.target.value)}
             placeholder="storefront.publish"
@@ -128,7 +128,7 @@ export function TenantAuditViewer({ tenantId }: TenantAuditViewerProps) {
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Entity type</span>
           <input
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={entityType}
             onChange={(event) => setEntityType(event.target.value)}
             placeholder="storefront_release"
@@ -137,7 +137,7 @@ export function TenantAuditViewer({ tenantId }: TenantAuditViewerProps) {
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Entity ID</span>
           <input
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={entityPublicId}
             onChange={(event) => setEntityPublicId(event.target.value)}
             placeholder="rel_..."
@@ -146,7 +146,7 @@ export function TenantAuditViewer({ tenantId }: TenantAuditViewerProps) {
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Actor subject</span>
           <input
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={actorSubject}
             onChange={(event) => setActorSubject(event.target.value)}
             placeholder="admin@example.com"
@@ -156,7 +156,7 @@ export function TenantAuditViewer({ tenantId }: TenantAuditViewerProps) {
           <button
             type="submit"
             disabled={busy}
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="qos-btn" data-variant="primary"
           >
             {busy ? "Loading..." : "Search"}
           </button>
@@ -165,7 +165,7 @@ export function TenantAuditViewer({ tenantId }: TenantAuditViewerProps) {
               type="button"
               disabled={busy}
               onClick={() => void loadPage(nextCursor, true)}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 disabled:opacity-60"
+              className="qos-btn" data-variant="secondary"
             >
               Load more
             </button>
@@ -174,7 +174,7 @@ export function TenantAuditViewer({ tenantId }: TenantAuditViewerProps) {
       </form>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -189,7 +189,7 @@ export function TenantAuditViewer({ tenantId }: TenantAuditViewerProps) {
         {events.map((event) => (
           <article
             key={event.id}
-            className="rounded-xl border border-zinc-200 p-4"
+            className="qos-card" data-padding="sm"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>

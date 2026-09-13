@@ -196,7 +196,7 @@ export function ProductModifierGroupsPanel({
       </div>
 
       {error ? (
-        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -210,7 +210,7 @@ export function ProductModifierGroupsPanel({
         {(view?.modifierGroups ?? []).map((group) => (
           <article
             key={group.modifierGroupPublicId}
-            className="rounded-xl border border-zinc-200 p-4"
+            className="qos-card" data-padding="sm"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -225,7 +225,7 @@ export function ProductModifierGroupsPanel({
                 type="button"
                 disabled={busy}
                 onClick={() => void detachGroup(group.modifierGroupPublicId)}
-                className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                className="qos-btn" data-variant="danger" data-size="sm"
               >
                 Detach
               </button>
@@ -238,7 +238,7 @@ export function ProductModifierGroupsPanel({
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Attach group</span>
           <select
-            className="mt-1 block min-w-64 rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-select"
             value={selectedGroupPublicId}
             disabled={busy || unattachedGroups.length === 0}
             onChange={(event) => setSelectedGroupPublicId(event.target.value)}
@@ -255,7 +255,7 @@ export function ProductModifierGroupsPanel({
           type="button"
           disabled={busy || !selectedGroupPublicId || !view}
           onClick={() => void attachGroup()}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          className="qos-btn" data-variant="primary"
         >
           Attach
         </button>

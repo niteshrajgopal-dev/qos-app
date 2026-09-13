@@ -8,9 +8,11 @@ import {
   staffInvitations,
 } from "@/db/schema";
 import {
+  grantRoleMembership,
   hasIntegrationDatabase,
   integrationDatabaseUrl,
   resetAndMigrate,
+  runAsRole,
 } from "@/db/test-utils";
 import { getCustomerAuth } from "@/lib/customer/auth-server";
 import {
@@ -26,6 +28,7 @@ import {
 } from "@/lib/staff/invitations";
 import {
   changeStaffMembershipRole,
+  listActiveStaffMembershipsForSubject,
   revokeStaffMembership,
   STAFF_MEMBERSHIP_REVOCATION_INTERVAL_MS,
 } from "@/lib/staff/memberships";
@@ -65,6 +68,7 @@ integrationDescribe("staff authentication and membership enforcement", () => {
     const connection = await resetAndMigrate();
     db = connection.db;
     sqlClient = connection.sql;
+    await grantRoleMembership(sqlClient, "qos", "qos_app");
   });
 
   afterAll(async () => {
@@ -288,5 +292,32 @@ integrationDescribe("staff authentication and membership enforcement", () => {
     await expect(
       requireAdministratorMembership(db, quotes.tenant.id, secondaryIdentity.subject),
     ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
+  it("lists active memberships for a subject without a tenant session context", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const { token } = await seedInvitation({
+      tenantId: quotes.tenant.id,
+      locationId: quotes.location.id,
+      email: "staff.admin@qosapp.test",
+    });
+
+    await registerStaff("staff.admin@qosapp.test", "Password123!", "Staff Admin");
+    const request = await signInStaff("staff.admin@qosapp.test", "Password123!");
+    const identity = await requireStaffIdentity(request);
+    await redeemStaffInvitation(db, { token, identity });
+
+    const memberships = await runAsRole(sqlClient, "qos_app", () =>
+      listActiveStaffMembershipsForSubject(db, identity.subject),
+    );
+
+    expect(memberships).toEqual([
+      expect.objectContaining({
+        tenantId: quotes.tenant.id,
+        tenantPublicId: quotes.tenant.publicId,
+        tenantName: quotes.tenant.name,
+        role: "administrator",
+      }),
+    ]);
   });
 });

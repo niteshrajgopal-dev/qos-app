@@ -266,7 +266,7 @@ export function ModifierGroupEditor({
   return (
     <div className="space-y-8">
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -276,7 +276,7 @@ export function ModifierGroupEditor({
         </p>
       ) : null}
 
-      <section className="rounded-xl border border-zinc-200 p-4">
+      <section className="qos-card" data-padding="sm">
         <h2 className="text-lg font-semibold">Group rules</h2>
         <p className="mt-1 text-sm text-zinc-600">
           Attached to {group.affectedProductCount} product(s). Version{" "}
@@ -286,7 +286,7 @@ export function ModifierGroupEditor({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">Internal name</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={group.internalName}
               disabled={busy}
               onChange={(event) =>
@@ -299,7 +299,7 @@ export function ModifierGroupEditor({
             <input
               type="number"
               min={0}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={group.minSelections}
               disabled={busy}
               onChange={(event) =>
@@ -315,7 +315,7 @@ export function ModifierGroupEditor({
             <input
               type="number"
               min={0}
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={group.maxSelections}
               disabled={busy}
               onChange={(event) =>
@@ -329,7 +329,7 @@ export function ModifierGroupEditor({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">English label</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={group.translations.en.displayName}
               disabled={busy}
               onChange={(event) =>
@@ -346,7 +346,7 @@ export function ModifierGroupEditor({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">Arabic label</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={group.translations.ar.displayName}
               disabled={busy}
               onChange={(event) =>
@@ -365,7 +365,7 @@ export function ModifierGroupEditor({
           type="button"
           disabled={busy}
           onClick={() => void saveGroupRules()}
-          className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          className="qos-btn" data-variant="primary"
         >
           Save group
         </button>
@@ -376,7 +376,7 @@ export function ModifierGroupEditor({
         {group.options.map((option) => (
           <article
             key={option.publicId}
-            className="rounded-xl border border-zinc-200 p-4"
+            className="qos-card" data-padding="sm"
           >
             <code className="rounded bg-zinc-100 px-2 py-0.5 text-xs">
               {option.publicId}
@@ -385,7 +385,7 @@ export function ModifierGroupEditor({
               <label className="block text-sm">
                 <span className="font-medium text-zinc-700">English label</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                  className="qos-input"
                   value={option.translations.en.displayName}
                   disabled={busy || option.status === "archived"}
                   onChange={(event) =>
@@ -409,7 +409,7 @@ export function ModifierGroupEditor({
               <label className="block text-sm">
                 <span className="font-medium text-zinc-700">Arabic label</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                  className="qos-input"
                   value={option.translations.ar.displayName}
                   disabled={busy || option.status === "archived"}
                   onChange={(event) =>
@@ -433,7 +433,7 @@ export function ModifierGroupEditor({
               <label className="block text-sm">
                 <span className="font-medium text-zinc-700">AED price delta</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                  className="qos-input"
                   value={minorToMajor(option.priceMinor)}
                   disabled={busy || option.status === "archived"}
                   onChange={(event) => {
@@ -460,7 +460,7 @@ export function ModifierGroupEditor({
                   type="button"
                   disabled={busy}
                   onClick={() => void saveOption(option)}
-                  className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                  className="qos-btn" data-variant="primary" data-size="sm"
                 >
                   Save option
                 </button>
@@ -471,7 +471,7 @@ export function ModifierGroupEditor({
                     onClick={() =>
                       void saveOption({ ...option, isDefault: true })
                     }
-                    className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                    className="qos-btn" data-variant="secondary" data-size="sm"
                   >
                     Make default
                   </button>
@@ -482,7 +482,7 @@ export function ModifierGroupEditor({
                   onClick={() =>
                     void saveOption({ ...option, status: "archived" })
                   }
-                  className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="qos-btn" data-variant="danger" data-size="sm"
                 >
                   Archive
                 </button>
@@ -501,7 +501,7 @@ export function ModifierGroupEditor({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">English label</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={newOption.enLabel}
               disabled={busy}
               onChange={(event) =>
@@ -512,7 +512,7 @@ export function ModifierGroupEditor({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">Arabic label</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={newOption.arLabel}
               disabled={busy}
               onChange={(event) =>
@@ -523,7 +523,7 @@ export function ModifierGroupEditor({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">AED price delta</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={newOption.priceMajor}
               disabled={busy}
               onChange={(event) =>
@@ -535,7 +535,7 @@ export function ModifierGroupEditor({
         <button
           type="submit"
           disabled={busy}
-          className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          className="qos-btn" data-variant="primary"
         >
           Add option
         </button>

@@ -122,14 +122,7 @@ export function TranslationReview({
 
   return (
     <div className="space-y-8">
-      <section className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-        <p className="text-sm text-zinc-600">
-          Sign in at{" "}
-          <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
-            staff sign-in
-          </Link>{" "}
-          before reviewing translations.
-        </p>
+      <section className="qos-card" data-padding="sm">
         <button
           type="button"
           onClick={() => {
@@ -141,14 +134,14 @@ export function TranslationReview({
               );
             });
           }}
-          className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+          className="qos-btn" data-variant="primary"
         >
           Load review
         </button>
       </section>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -169,7 +162,7 @@ export function TranslationReview({
           </div>
 
           <div className="grid gap-6 lg:grid-cols-2">
-            <article className="rounded-xl border border-zinc-200 p-5">
+            <article className="qos-card" data-padding="md">
               <header className="mb-4 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -219,7 +212,7 @@ export function TranslationReview({
                       type="button"
                       disabled={busyLocale === "en"}
                       onClick={() => void mutateTranslation("en", "approve")}
-                      className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      className="qos-btn" data-variant="primary" data-size="sm"
                     >
                       Approve EN
                     </button>
@@ -227,7 +220,7 @@ export function TranslationReview({
                       type="button"
                       disabled={busyLocale === "en"}
                       onClick={() => void mutateTranslation("en", "reject")}
-                      className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 disabled:opacity-50"
+                      className="qos-btn" data-variant="secondary" data-size="sm"
                     >
                       Reject EN
                     </button>
@@ -237,7 +230,7 @@ export function TranslationReview({
             </article>
 
             <article
-              className="rounded-xl border border-zinc-200 p-5"
+              className="qos-card" data-padding="md"
               dir="rtl"
               lang="ar"
             >
@@ -295,7 +288,7 @@ export function TranslationReview({
                       type="button"
                       disabled={busyLocale === "ar"}
                       onClick={() => void mutateTranslation("ar", "approve")}
-                      className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
+                      className="qos-btn" data-variant="primary" data-size="sm"
                     >
                       Approve AR
                     </button>
@@ -303,7 +296,7 @@ export function TranslationReview({
                       type="button"
                       disabled={busyLocale === "ar"}
                       onClick={() => void mutateTranslation("ar", "reject")}
-                      className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 disabled:opacity-50"
+                      className="qos-btn" data-variant="secondary" data-size="sm"
                     >
                       Reject AR
                     </button>

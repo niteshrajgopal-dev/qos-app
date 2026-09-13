@@ -1,7 +1,6 @@
-import { eq } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
-import { staffIdentities } from "@/db/schema";
 
 export async function ensureStaffIdentityRecord(
   db: DbClient,
@@ -10,33 +9,24 @@ export async function ensureStaffIdentityRecord(
 ) {
   const normalizedEmail = email.trim().toLowerCase();
 
-  const [existingBySubject] = await db
-    .select()
-    .from(staffIdentities)
-    .where(eq(staffIdentities.providerSubject, providerSubject))
-    .limit(1);
+  const rows = await db.execute<{
+    id: string;
+    providerSubject: string;
+    email: string;
+    createdAt: Date;
+  }>(sql`
+    SELECT
+      identity_id AS "id",
+      identity_subject AS "providerSubject",
+      identity_email AS "email",
+      identity_created_at AS "createdAt"
+    FROM qos.ensure_staff_identity(${providerSubject}, ${normalizedEmail})
+  `);
 
-  if (existingBySubject) {
-    if (existingBySubject.email.toLowerCase() !== normalizedEmail) {
-      const [updated] = await db
-        .update(staffIdentities)
-        .set({ email: normalizedEmail })
-        .where(eq(staffIdentities.id, existingBySubject.id))
-        .returning();
-
-      return updated;
-    }
-
-    return existingBySubject;
+  const [identity] = Array.isArray(rows) ? rows : [];
+  if (!identity) {
+    throw new Error("Unable to resolve staff identity.");
   }
 
-  const [created] = await db
-    .insert(staffIdentities)
-    .values({
-      providerSubject,
-      email: normalizedEmail,
-    })
-    .returning();
-
-  return created;
+  return identity;
 }

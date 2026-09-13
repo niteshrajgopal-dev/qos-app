@@ -296,14 +296,14 @@ export function ProductVariantsPanel({
           type="button"
           onClick={() => void loadVariants()}
           disabled={busy}
-          className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+          className="qos-btn" data-variant="secondary" data-size="sm"
         >
           Reload
         </button>
       </div>
 
       {error ? (
-        <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -343,7 +343,7 @@ export function ProductVariantsPanel({
               <label className="block text-sm">
                 <span className="font-medium text-zinc-700">English label</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                  className="qos-input"
                   value={variant.translations.en.displayName}
                   disabled={variant.status === "archived" || busy}
                   onChange={(event) => {
@@ -371,7 +371,7 @@ export function ProductVariantsPanel({
               <label className="block text-sm">
                 <span className="font-medium text-zinc-700">Arabic label</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                  className="qos-input"
                   value={variant.translations.ar.displayName}
                   disabled={variant.status === "archived" || busy}
                   onChange={(event) => {
@@ -399,7 +399,7 @@ export function ProductVariantsPanel({
               <label className="block text-sm">
                 <span className="font-medium text-zinc-700">AED price</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                  className="qos-input"
                   value={minorToMajor(variant.amountMinor)}
                   disabled={
                     variant.status === "archived" || busy || !view?.canEditPrice
@@ -424,7 +424,7 @@ export function ProductVariantsPanel({
               <label className="block text-sm">
                 <span className="font-medium text-zinc-700">SKU</span>
                 <input
-                  className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+                  className="qos-input"
                   value={variant.sku ?? ""}
                   disabled={variant.status === "archived" || busy}
                   onChange={(event) => {
@@ -458,7 +458,7 @@ export function ProductVariantsPanel({
                       amountMinor: variant.amountMinor,
                     })
                   }
-                  className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+                  className="qos-btn" data-variant="primary" data-size="sm"
                 >
                   Save variant
                 </button>
@@ -469,7 +469,7 @@ export function ProductVariantsPanel({
                     onClick={() =>
                       void saveVariant(variant.publicId, { isDefault: true })
                     }
-                    className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                    className="qos-btn" data-variant="secondary" data-size="sm"
                   >
                     Make default
                   </button>
@@ -478,7 +478,7 @@ export function ProductVariantsPanel({
                   type="button"
                   disabled={busy}
                   onClick={() => void handleReorder(variant.publicId, "up")}
-                  className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                  className="qos-btn" data-variant="secondary" data-size="sm"
                 >
                   Move up
                 </button>
@@ -486,7 +486,7 @@ export function ProductVariantsPanel({
                   type="button"
                   disabled={busy}
                   onClick={() => void handleReorder(variant.publicId, "down")}
-                  className="rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                  className="qos-btn" data-variant="secondary" data-size="sm"
                 >
                   Move down
                 </button>
@@ -497,7 +497,7 @@ export function ProductVariantsPanel({
                     onClick={() =>
                       void saveVariant(variant.publicId, { status: "archived" })
                     }
-                    className="rounded-lg border border-red-300 px-3 py-1.5 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                    className="qos-btn" data-variant="danger" data-size="sm"
                   >
                     Archive
                   </button>
@@ -517,7 +517,7 @@ export function ProductVariantsPanel({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">English label</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={newVariant.enLabel}
               disabled={busy}
               onChange={(event) =>
@@ -528,7 +528,7 @@ export function ProductVariantsPanel({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">Arabic label</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={newVariant.arLabel}
               disabled={busy}
               onChange={(event) =>
@@ -539,7 +539,7 @@ export function ProductVariantsPanel({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">AED price</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={newVariant.priceMajor}
               disabled={busy || view?.canEditPrice === false}
               onChange={(event) =>
@@ -550,7 +550,7 @@ export function ProductVariantsPanel({
           <label className="block text-sm">
             <span className="font-medium text-zinc-700">Optional public ID</span>
             <input
-              className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               placeholder="var_medium_abc12345"
               value={newVariant.publicId}
               disabled={busy}
@@ -563,7 +563,7 @@ export function ProductVariantsPanel({
         <button
           type="submit"
           disabled={busy || !view}
-          className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-800 disabled:opacity-50"
+          className="qos-btn" data-variant="primary"
         >
           Add variant
         </button>

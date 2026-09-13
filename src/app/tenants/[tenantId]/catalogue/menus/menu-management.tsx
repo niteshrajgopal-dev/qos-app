@@ -1,8 +1,13 @@
 "use client";
 
-import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import { Alert } from "@/components/Alert";
+import { Button } from "@/components/Button";
+import { ButtonLink } from "@/components/ButtonLink";
+import { Card } from "@/components/Card";
+import { EmptyState } from "@/components/EmptyState";
+import { StatusBadge } from "@/components/StatusBadge";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type MenuSummary = {
@@ -25,6 +30,7 @@ type MenuManagementProps = {
 export function MenuManagement({ tenantId }: MenuManagementProps) {
   const [menus, setMenus] = useState<MenuSummary[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   const loadMenus = useCallback(async () => {
     setError(null);
@@ -41,21 +47,23 @@ export function MenuManagement({ tenantId }: MenuManagementProps) {
     }
 
     setMenus(payload.menus ?? []);
+    setLoaded(true);
   }, [tenantId]);
 
-  return (
-    <div className="space-y-6">
-      <p className="text-sm text-zinc-600">
-        Sign in at{" "}
-        <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
-          staff sign-in
-        </Link>{" "}
-        to load and edit menus with your session cookie.
-      </p>
+  useEffect(() => {
+    void loadMenus().catch((loadError) => {
+      setError(
+        loadError instanceof Error ? loadError.message : "Unable to load menus.",
+      );
+      setLoaded(true);
+    });
+  }, [loadMenus]);
 
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <Button
+          variant="secondary"
           onClick={() =>
             void loadMenus().catch((loadError) => {
               setError(
@@ -65,45 +73,63 @@ export function MenuManagement({ tenantId }: MenuManagementProps) {
               );
             })
           }
-          className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
         >
-          Load menus
-        </button>
-        <Link
+          Reload
+        </Button>
+        <ButtonLink
           href={`/tenants/${tenantId}/catalogue/menus/new`}
-          className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+          variant="primary"
         >
           New menu
-        </Link>
+        </ButtonLink>
       </div>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <Alert tone="error" title="Unable to load menus">
           {error}
-        </p>
+        </Alert>
       ) : null}
 
-      <div className="space-y-3">
-        {menus.map((menu) => (
-          <article
-            key={menu.publicId}
-            className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 p-4"
-          >
-            <div>
-              <p className="font-medium text-zinc-900">{menu.displayName}</p>
-              <p className="text-sm text-zinc-600">
-                {menu.internalName} · {menu.status} · v{menu.version}
-              </p>
-            </div>
-            <Link
-              href={`/tenants/${tenantId}/catalogue/menus/${menu.publicId}/edit`}
-              className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
-            >
-              Edit
-            </Link>
-          </article>
-        ))}
-      </div>
+      {loaded && menus.length === 0 ? (
+        <EmptyState
+          icon="book-open"
+          title="No menus yet"
+          body="Create a draft menu, add items, then publish it to a Quotes location."
+        />
+      ) : (
+        <div style={{ display: "grid", gap: 12 }}>
+          {menus.map((menu) => (
+            <Card key={menu.publicId} padding="sm">
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 16,
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                <div>
+                  <strong>{menu.displayName}</strong>
+                  <p className="qos-card-sub">
+                    {menu.internalName} · {menu.itemCount} items · v{menu.version}
+                  </p>
+                </div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <StatusBadge state={menu.isLive ? "live" : menu.status} />
+                  <ButtonLink
+                    href={`/tenants/${tenantId}/catalogue/menus/${menu.publicId}/edit`}
+                    variant="secondary"
+                    size="sm"
+                  >
+                    Edit
+                  </ButtonLink>
+                </div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

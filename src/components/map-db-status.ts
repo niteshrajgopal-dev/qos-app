@@ -53,6 +53,19 @@ export const DB_STATUS_TO_QOS_STATE = {
     draft: "draft",
     approved: "approved",
   },
+  checkout_payment_attempt_status: {
+    pending: "pending",
+    provider_handoff: "processing",
+    unknown: "warning",
+    succeeded: "approved",
+    failed: "failed",
+    cancelled: "inactive",
+    expired: "inactive",
+  },
+  customer_association_status: {
+    active: "active",
+    suspended: "suspended",
+  },
 } as const satisfies Record<string, Record<string, QosStateKey>>;
 
 export type DbStatusEnumName = keyof typeof DB_STATUS_TO_QOS_STATE;

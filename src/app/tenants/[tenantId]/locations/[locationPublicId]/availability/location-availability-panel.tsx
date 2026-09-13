@@ -236,7 +236,7 @@ export function LocationAvailabilityPanel({
               );
             });
           }}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+          className="qos-btn" data-variant="primary"
         >
           Load availability
         </button>
@@ -254,13 +254,13 @@ export function LocationAvailabilityPanel({
       </div>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
 
       {schedule ? (
-        <section className="space-y-4 rounded-xl border border-zinc-200 p-5">
+        <section className="qos-card" data-padding="md">
           <div className="flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">Weekly hours</h2>
             <button
@@ -305,7 +305,7 @@ export function LocationAvailabilityPanel({
                         ),
                       )
                     }
-                    className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2"
+                    className="qos-input"
                   >
                     {DAY_LABELS.map((label, dayOfWeek) => (
                       <option key={label} value={dayOfWeek}>
@@ -331,7 +331,7 @@ export function LocationAvailabilityPanel({
                         ),
                       );
                     }}
-                    className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2"
+                    className="qos-input"
                   />
                 </label>
                 <label className="text-sm">
@@ -351,7 +351,7 @@ export function LocationAvailabilityPanel({
                         ),
                       );
                     }}
-                    className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2"
+                    className="qos-input"
                   />
                 </label>
                 <div className="flex items-end">
@@ -375,14 +375,14 @@ export function LocationAvailabilityPanel({
             type="button"
             disabled={busy}
             onClick={() => void saveWeeklyWindows()}
-            className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="qos-btn" data-variant="primary"
           >
             Save weekly hours
           </button>
         </section>
       ) : null}
 
-      <section className="space-y-4 rounded-xl border border-zinc-200 p-5">
+      <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold">Temporary stop-sale</h2>
         <div className="grid gap-3 md:grid-cols-2">
           <label className="text-sm">
@@ -395,7 +395,7 @@ export function LocationAvailabilityPanel({
                   targetType: event.target.value as StopSaleView["targetType"],
                 }))
               }
-              className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2"
+              className="qos-input"
             >
               <option value="product">Product</option>
               <option value="variant">Variant</option>
@@ -412,7 +412,7 @@ export function LocationAvailabilityPanel({
                   targetPublicId: event.target.value,
                 }))
               }
-              className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2"
+              className="qos-input"
             />
           </label>
           <label className="text-sm md:col-span-2">
@@ -425,7 +425,7 @@ export function LocationAvailabilityPanel({
                   reason: event.target.value,
                 }))
               }
-              className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2"
+              className="qos-input"
             />
           </label>
           <label className="text-sm">
@@ -439,7 +439,7 @@ export function LocationAvailabilityPanel({
                   expiresAt: event.target.value,
                 }))
               }
-              className="mt-1 block w-full rounded-md border border-zinc-300 px-3 py-2"
+              className="qos-input"
             />
           </label>
         </div>
@@ -447,7 +447,7 @@ export function LocationAvailabilityPanel({
           type="button"
           disabled={busy}
           onClick={() => void createStopSale()}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="qos-btn" data-variant="primary"
         >
           Create stop-sale
         </button>

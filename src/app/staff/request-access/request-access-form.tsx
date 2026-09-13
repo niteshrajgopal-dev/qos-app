@@ -111,7 +111,7 @@ export function RequestAccessForm() {
             Business public ID
           </span>
           <input
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={tenantPublicId}
             onChange={(event) => setTenantPublicId(event.target.value)}
             required
@@ -120,20 +120,20 @@ export function RequestAccessForm() {
         <button
           type="submit"
           disabled={busy !== null}
-          className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+          className="qos-btn" data-variant="primary"
         >
           {busy === "submit" ? "Submitting…" : "Submit request"}
         </button>
       </form>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
 
       {submitted ? (
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm">
+        <div className="qos-card" data-padding="sm">
           <p className="font-medium text-zinc-900">Request submitted</p>
           <p className="mt-2 text-zinc-600">Request ID: {submitted.id}</p>
           <p className="text-zinc-600">Status: {submitted.status}</p>
@@ -141,7 +141,7 @@ export function RequestAccessForm() {
             type="button"
             onClick={refreshStatus}
             disabled={busy !== null}
-            className="mt-4 rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+            className="qos-btn" data-variant="secondary"
           >
             {busy === "refresh" ? "Refreshing…" : "Refresh status"}
           </button>

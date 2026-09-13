@@ -226,7 +226,7 @@ export function StorefrontThemePanel({
 
   if (!loaded || !draft) {
     return (
-      <section className="rounded-xl border border-zinc-200 bg-white p-5">
+      <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold text-zinc-900">Theme draft</h2>
         <p className="mt-2 text-sm text-zinc-600">
           {error ?? "Load the online store to edit storefront branding."}
@@ -236,7 +236,7 @@ export function StorefrontThemePanel({
   }
 
   return (
-    <section className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5">
+    <section className="qos-card" data-padding="md">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-lg font-semibold text-zinc-900">Theme draft</h2>
@@ -250,7 +250,7 @@ export function StorefrontThemePanel({
             type="button"
             disabled={busy}
             onClick={() => loaded && setDraft(cloneTheme(loaded.theme))}
-            className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="qos-btn" data-variant="secondary"
           >
             Cancel
           </button>
@@ -258,7 +258,7 @@ export function StorefrontThemePanel({
             type="button"
             disabled={busy || !isAdministrator}
             onClick={() => void resetToDefault()}
-            className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium disabled:opacity-50"
+            className="qos-btn" data-variant="secondary"
           >
             Reset to default
           </button>
@@ -266,7 +266,7 @@ export function StorefrontThemePanel({
             type="button"
             disabled={busy || !isAdministrator || !isDirty}
             onClick={() => void saveDraft()}
-            className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+            className="qos-btn" data-variant="primary"
           >
             Save draft
           </button>
@@ -280,7 +280,7 @@ export function StorefrontThemePanel({
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -292,7 +292,7 @@ export function StorefrontThemePanel({
       ) : null}
 
       {issues.length > 0 ? (
-        <ul className="space-y-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <ul className="qos-alert" data-tone="error">
           {issues.map((issue) => (
             <li key={`${issue.field}:${issue.message}`}>
               <span className="font-medium">{issue.field}</span>: {issue.message}
@@ -305,7 +305,7 @@ export function StorefrontThemePanel({
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Preset</span>
           <select
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={draft.preset}
             disabled={!isAdministrator || busy}
             onChange={(event) =>
@@ -327,7 +327,7 @@ export function StorefrontThemePanel({
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Logo media ID</span>
           <input
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={draft.logo?.publicDerivativeId ?? ""}
             disabled={!isAdministrator || busy}
             placeholder="mda_..."
@@ -360,7 +360,7 @@ export function StorefrontThemePanel({
             <span className="font-medium capitalize text-zinc-700">{token}</span>
             <input
               type="color"
-              className="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-1 py-1"
+              className="qos-input"
               value={draft.colors[token]}
               disabled={!isAdministrator || busy}
               onChange={(event) =>
@@ -385,7 +385,7 @@ export function StorefrontThemePanel({
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Body font</span>
           <select
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={draft.typography.body}
             disabled={!isAdministrator || busy}
             onChange={(event) =>
@@ -410,7 +410,7 @@ export function StorefrontThemePanel({
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Display font</span>
           <select
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={draft.typography.display}
             disabled={!isAdministrator || busy}
             onChange={(event) =>
@@ -435,7 +435,7 @@ export function StorefrontThemePanel({
       </div>
 
       <div
-        className="rounded-lg border border-zinc-200 p-4"
+        className="qos-card" data-padding="sm"
         style={{
           background: draft.colors.background,
           color: draft.colors.text,

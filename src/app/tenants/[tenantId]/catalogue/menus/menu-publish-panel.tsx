@@ -173,7 +173,7 @@ export function MenuPublishPanel({
   }, [menuPublicId, operationId, selectedLocationIds, tenantId]);
 
   return (
-    <section className="space-y-4 rounded-xl border border-zinc-200 bg-zinc-50 p-5">
+    <section className="qos-card" data-padding="md">
       <div>
         <h2 className="text-lg font-semibold">Publish draft</h2>
         <p className="mt-1 text-sm text-zinc-600">
@@ -202,7 +202,7 @@ export function MenuPublishPanel({
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Operation id (retry)</span>
           <input
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={operationId}
             onChange={(event) => setOperationId(event.target.value)}
             placeholder="Optional idempotency key"
@@ -218,7 +218,7 @@ export function MenuPublishPanel({
           type="button"
           disabled={busy}
           onClick={() => void loadPreview()}
-          className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium disabled:opacity-60"
+          className="qos-btn" data-variant="secondary"
         >
           Preview selected targets
         </button>
@@ -226,7 +226,7 @@ export function MenuPublishPanel({
           type="button"
           disabled={busy}
           onClick={() => void publishMenu()}
-          className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="qos-btn" data-variant="primary"
         >
           Publish to selected locations
         </button>
@@ -237,7 +237,7 @@ export function MenuPublishPanel({
           {previewTargets.map((target) => (
             <article
               key={target.locationId}
-              className="rounded-lg border border-zinc-200 bg-white p-4 text-sm"
+              className="qos-card" data-padding="sm"
             >
               <p className="font-medium">
                 {target.locationName}{" "}
@@ -261,7 +261,7 @@ export function MenuPublishPanel({
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}

@@ -185,14 +185,7 @@ export function LocationPriceOverrides({
 
   return (
     <div className="space-y-8">
-      <section className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-        <p className="text-sm text-zinc-600">
-          Sign in at{" "}
-          <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
-            staff sign-in
-          </Link>{" "}
-          before loading or editing location prices.
-        </p>
+      <section className="qos-card" data-padding="sm">
         <button
           type="button"
           onClick={() => {
@@ -204,14 +197,14 @@ export function LocationPriceOverrides({
               );
             });
           }}
-          className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white"
+          className="qos-btn" data-variant="primary"
         >
           Load location prices
         </button>
       </section>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -273,7 +266,7 @@ export function LocationPriceOverrides({
                     <td className="px-4 py-3">
                       {bundle.canEditPrice ? (
                         <input
-                          className="w-28 rounded-lg border border-zinc-300 px-2 py-1"
+                          className="qos-input"
                           value={draftAmounts[location.locationPublicId] ?? ""}
                           onChange={(event) =>
                             setDraftAmounts((current) => ({
@@ -293,7 +286,7 @@ export function LocationPriceOverrides({
                             type="button"
                             disabled={busyLocationPublicId === location.locationPublicId}
                             onClick={() => void saveOverride(location.locationPublicId)}
-                            className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50"
+                            className="qos-btn" data-variant="primary" data-size="sm"
                           >
                             Save override
                           </button>
@@ -306,7 +299,7 @@ export function LocationPriceOverrides({
                               onClick={() =>
                                 void resetOverride(location.locationPublicId)
                               }
-                              className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium text-zinc-700 disabled:opacity-50"
+                              className="qos-btn" data-variant="secondary" data-size="sm"
                             >
                               Reset to central
                             </button>

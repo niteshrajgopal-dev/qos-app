@@ -88,14 +88,6 @@ export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) 
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-zinc-600">
-        Sign in at{" "}
-        <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
-          staff sign-in
-        </Link>{" "}
-        to publish or roll back storefront releases for this tenant.
-      </p>
-
       <div className="flex flex-wrap gap-3">
         <button
           type="button"
@@ -108,20 +100,20 @@ export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) 
               );
             })
           }
-          className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+          className="qos-btn" data-variant="secondary"
         >
           Load online store
         </button>
         <Link
           href={`/tenants/${tenantId}/catalogue/menus`}
-          className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+          className="qos-btn" data-variant="secondary"
         >
           Manage menus
         </Link>
       </div>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -130,7 +122,7 @@ export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) 
         <label className="block text-sm">
           <span className="font-medium text-zinc-700">Storefront</span>
           <select
-            className="mt-1 w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
             value={selectedPublicId ?? ""}
             onChange={(event) => setSelectedPublicId(event.target.value)}
           >

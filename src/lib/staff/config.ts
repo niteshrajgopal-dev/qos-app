@@ -41,6 +41,10 @@ function parseTrustedOrigins(source: EnvSource) {
     .filter(Boolean);
 }
 
+function uniqueOrigins(origins: string[]) {
+  return [...new Set(origins.filter(Boolean))];
+}
+
 export function readStaffInvitationTtlSeconds(
   source: EnvSource = process.env,
 ): number {
@@ -69,7 +73,7 @@ export function readStaffAuthConfig(
   return {
     secret,
     baseUrl,
-    trustedOrigins: parseTrustedOrigins(source),
+    trustedOrigins: uniqueOrigins([baseUrl, ...parseTrustedOrigins(source)]),
     googleClientId: source.STAFF_GOOGLE_CLIENT_ID?.trim() || source.GOOGLE_CLIENT_ID?.trim() || null,
     googleClientSecret:
       source.STAFF_GOOGLE_CLIENT_SECRET?.trim() ||

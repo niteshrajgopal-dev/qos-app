@@ -270,7 +270,7 @@ export function StorefrontPublishPanel({
           type="button"
           disabled={busy}
           onClick={() => void loadReleases()}
-          className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium disabled:opacity-60"
+          className="qos-btn" data-variant="secondary"
         >
           Load publishing history
         </button>
@@ -278,14 +278,14 @@ export function StorefrontPublishPanel({
           type="button"
           disabled={busy || !isAdministrator}
           onClick={() => void publishDraft()}
-          className="rounded-full bg-emerald-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+          className="qos-btn" data-variant="primary"
         >
           Publish draft
         </button>
       </div>
 
       {!isAdministrator ? (
-        <p className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm text-zinc-600">
+        <p className="qos-alert" data-tone="warning">
           Signed-in staff can view history. Administrator membership is required
           to publish or roll back.
         </p>
@@ -335,7 +335,7 @@ export function StorefrontPublishPanel({
                         type="button"
                         disabled={busy}
                         onClick={() => setRollbackTarget(release)}
-                        className="rounded-full border border-zinc-300 px-3 py-1.5 text-xs font-medium disabled:opacity-60"
+                        className="qos-btn" data-variant="secondary" data-size="sm"
                       >
                         Roll back
                       </button>
@@ -382,7 +382,7 @@ export function StorefrontPublishPanel({
       ) : null}
 
       {validationIssues.length > 0 ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="qos-alert" data-tone="error">
           <p className="font-medium">Publish blocked</p>
           <ul className="mt-2 list-disc space-y-1 pl-5">
             {validationIssues.map((issue) => (
@@ -395,7 +395,7 @@ export function StorefrontPublishPanel({
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}

@@ -435,12 +435,12 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
               },
             )
           }
-          className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+          className="qos-btn" data-variant="secondary"
         >
           {isEditMode ? "Load menu" : "Start new menu"}
         </button>
         {error ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="qos-alert" data-tone="error">
             {error}
           </p>
         ) : null}
@@ -454,15 +454,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
 
   return (
     <div className="space-y-6 pb-24">
-      <p className="text-sm text-zinc-600">
-        Sign in at{" "}
-        <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
-          staff sign-in
-        </Link>{" "}
-        before saving or publishing menus.
-      </p>
-
-      <section className="rounded-xl border border-zinc-200 p-5">
+      <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold">Menu details</h2>
         <div className="mt-4 grid gap-4">
           <label className="block space-y-2">
@@ -470,7 +462,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
               Internal name
             </span>
             <input
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={form.internalName}
               onChange={(event) =>
                 setForm((current) => ({
@@ -486,7 +478,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                 English menu name
               </span>
               <input
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+                className="qos-input"
                 value={form.translations.en.displayName}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -508,7 +500,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
               </span>
               <input
                 dir="rtl"
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+                className="qos-input"
                 value={form.translations.ar.displayName}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -567,7 +559,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                 ]),
               }))
             }
-            className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+            className="qos-btn" data-variant="secondary"
           >
             Add section
           </button>
@@ -576,7 +568,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         {form.sections.map((section, sectionIndex) => (
           <article
             key={section.publicId ?? `new-${sectionIndex}`}
-            className="rounded-xl border border-zinc-200 p-4"
+            className="qos-card" data-padding="sm"
           >
             <div className="flex flex-wrap items-start justify-between gap-3">
               <button
@@ -604,14 +596,14 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                 <button
                   type="button"
                   onClick={() => moveSection(sectionIndex, -1)}
-                  className="rounded-full border border-zinc-300 px-3 py-1 text-sm"
+                  className="qos-btn" data-variant="ghost" data-size="sm"
                 >
                   Move up
                 </button>
                 <button
                   type="button"
                   onClick={() => moveSection(sectionIndex, 1)}
-                  className="rounded-full border border-zinc-300 px-3 py-1 text-sm"
+                  className="qos-btn" data-variant="ghost" data-size="sm"
                 >
                   Move down
                 </button>
@@ -626,7 +618,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                       Internal section name
                     </span>
                     <input
-                      className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-input"
                       value={section.internalName}
                       onChange={(event) =>
                         setForm((current) => ({
@@ -645,7 +637,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                       English section label
                     </span>
                     <input
-                      className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-input"
                       value={section.translations.en.displayName}
                       onChange={(event) =>
                         setForm((current) => ({
@@ -674,7 +666,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                     </span>
                     <input
                       dir="rtl"
-                      className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-input"
                       value={section.translations.ar.displayName}
                       onChange={(event) =>
                         setForm((current) => ({
@@ -713,14 +705,14 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                         <button
                           type="button"
                           onClick={() => moveProduct(sectionIndex, productIndex, -1)}
-                          className="rounded-full border border-zinc-300 px-3 py-1 text-xs"
+                          className="qos-btn" data-variant="ghost" data-size="sm"
                         >
                           Move up
                         </button>
                         <button
                           type="button"
                           onClick={() => moveProduct(sectionIndex, productIndex, 1)}
-                          className="rounded-full border border-zinc-300 px-3 py-1 text-xs"
+                          className="qos-btn" data-variant="ghost" data-size="sm"
                         >
                           Move down
                         </button>
@@ -741,7 +733,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                               ),
                             }))
                           }
-                          className="rounded-full border border-zinc-300 px-3 py-1 text-xs"
+                          className="qos-btn" data-variant="ghost" data-size="sm"
                         >
                           Remove
                         </button>
@@ -756,7 +748,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                       Add product
                     </span>
                     <select
-                      className="rounded-lg border border-zinc-300 px-3 py-2"
+                      className="qos-input"
                       defaultValue=""
                       onChange={(event) => {
                         const selected = products.find(
@@ -798,7 +790,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                   </label>
                   <Link
                     href={`/tenants/${tenantId}/catalogue/products/new`}
-                    className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+                    className="qos-btn" data-variant="secondary"
                   >
                     New product
                   </Link>
@@ -810,7 +802,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       </section>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}
@@ -846,7 +838,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
             type="button"
             onClick={resetForm}
             disabled={!isDirty || saving}
-            className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="qos-btn" data-variant="secondary"
           >
             Cancel
           </button>
@@ -854,7 +846,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
             type="button"
             disabled={saving}
             onClick={() => void saveMenu()}
-            className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="qos-btn" data-variant="primary"
           >
             {saving ? "Saving…" : "Save draft"}
           </button>

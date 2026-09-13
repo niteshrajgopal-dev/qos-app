@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
-import { staffIdentities, staffMemberships, tenants } from "@/db/schema";
+import { staffMemberships } from "@/db/schema";
 import { recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -19,6 +19,14 @@ export class StaffMembershipError extends Error {
 }
 
 export const STAFF_MEMBERSHIP_REVOCATION_INTERVAL_MS = 0;
+
+export type ActiveStaffMembershipSummary = {
+  tenantId: string;
+  tenantPublicId: string;
+  tenantName: string;
+  membershipId: string;
+  role: "administrator" | "user";
+};
 
 export async function revokeStaffMembership(
   db: DbClient,
@@ -170,25 +178,16 @@ export async function changeStaffMembershipRole(
 export async function listActiveStaffMembershipsForSubject(
   db: DbClient,
   providerSubject: string,
-) {
-  return db
-    .select({
-      tenantId: staffMemberships.tenantId,
-      tenantPublicId: tenants.publicId,
-      tenantName: tenants.name,
-      membershipId: staffMemberships.id,
-      role: staffMemberships.role,
-    })
-    .from(staffIdentities)
-    .innerJoin(
-      staffMemberships,
-      eq(staffMemberships.staffIdentityId, staffIdentities.id),
-    )
-    .innerJoin(tenants, eq(tenants.id, staffMemberships.tenantId))
-    .where(
-      and(
-        eq(staffIdentities.providerSubject, providerSubject),
-        eq(staffMemberships.status, "active"),
-      ),
-    );
+): Promise<ActiveStaffMembershipSummary[]> {
+  const rows = await db.execute<ActiveStaffMembershipSummary>(sql`
+    SELECT
+      tenant_id AS "tenantId",
+      tenant_public_id AS "tenantPublicId",
+      tenant_name AS "tenantName",
+      membership_id AS "membershipId",
+      role
+    FROM qos.list_active_staff_memberships(${providerSubject})
+  `);
+
+  return Array.isArray(rows) ? [...rows] : [];
 }

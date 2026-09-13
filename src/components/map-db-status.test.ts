@@ -12,6 +12,8 @@ import {
   storefrontStatusEnum,
   tenantStatusEnum,
   translationApprovalStatusEnum,
+  checkoutPaymentAttemptStatusEnum,
+  customerAssociationStatusEnum,
 } from "@/db/schema";
 
 import { qosStateFromDb } from "./map-db-status";
@@ -29,6 +31,8 @@ const SCHEMA_STATUS_ENUMS = {
   invitation_status: invitationStatusEnum,
   provisioning_operation_status: provisioningOperationStatusEnum,
   translation_approval_status: translationApprovalStatusEnum,
+  checkout_payment_attempt_status: checkoutPaymentAttemptStatusEnum,
+  customer_association_status: customerAssociationStatusEnum,
 } as const;
 
 describe("qosStateFromDb", () => {

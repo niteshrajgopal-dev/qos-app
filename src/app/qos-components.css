@@ -212,6 +212,11 @@
 .qos-nav-item:hover{background:var(--action-ghost-hover);color:var(--text-primary)}
 .qos-nav-item[data-selected="true"]{background:var(--surface-selected);color:var(--text-brand);font-weight:var(--fw-semibold)}
 .qos-nav-item:focus-visible{outline:none;box-shadow:var(--ring-focus)}
+.qos-nav-item:disabled,.qos-nav-item[aria-disabled="true"]{color:var(--text-disabled);cursor:not-allowed}
+.qos-nav-item:disabled:hover,.qos-nav-item[aria-disabled="true"]:hover{background:transparent;color:var(--text-disabled)}
+a.qos-nav-item,a.qos-nav-item:hover{text-decoration:none}
+a.qos-nav-item[data-selected="true"]{color:var(--text-brand)}
+a.qos-card,a.qos-card:hover{text-decoration:none;color:inherit}
 .qos-nav-item-count{margin-left:auto;font-size:var(--text-meta-size);font-variant-numeric:tabular-nums;color:var(--text-tertiary)}
 .qos-nav-sub{display:flex;flex-direction:column;gap:1px;margin:2px 0 2px 22px;padding-left:10px;border-left:1px solid var(--border-subtle)}
 .qos-nav-sub .qos-nav-item{height:30px;font-weight:var(--fw-regular)}
@@ -301,3 +306,13 @@
 .qos-legend{display:flex;align-items:center;gap:var(--space-4);flex-wrap:wrap;font-size:var(--text-meta-size);color:var(--text-secondary)}
 .qos-legend-key{display:inline-flex;align-items:center;gap:6px}
 .qos-legend-swatch{width:8px;height:8px;border-radius:2px}
+
+/* ---------- Staff login / business picker ---------- */
+.qos-login{min-height:100vh;display:grid;grid-template-columns:1fr;background:var(--surface-canvas);color:var(--text-primary)}
+.qos-login-brand{display:none;position:relative;overflow:hidden;flex-direction:column;justify-content:space-between;padding:40px 48px;background:radial-gradient(120% 80% at 20% 10%,rgba(59,130,255,.35),transparent 55%),radial-gradient(90% 70% at 90% 90%,rgba(168,85,255,.28),transparent 50%),linear-gradient(180deg,rgba(5,7,14,.2),rgba(5,7,14,.72)),var(--navy-900)}
+.qos-login-brand-foot{position:relative;display:flex;gap:24px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-secondary)}
+.qos-login-panel{display:grid;place-items:center;padding:40px 24px;background:var(--surface-default)}
+@media (min-width:900px){
+  .qos-login{grid-template-columns:1.15fr 1fr}
+  .qos-login-brand{display:flex}
+}

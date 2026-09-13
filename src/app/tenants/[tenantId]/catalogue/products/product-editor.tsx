@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
@@ -443,12 +442,12 @@ export function ProductEditor({
               );
             })
           }
-          className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+          className="qos-btn" data-variant="secondary"
         >
           Load product
         </button>
         {error ? (
-          <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="qos-alert" data-tone="error">
             {error}
           </p>
         ) : null}
@@ -462,14 +461,6 @@ export function ProductEditor({
 
   return (
     <div className="space-y-6">
-      <p className="text-sm text-zinc-600">
-        Sign in at{" "}
-        <Link href="/staff/sign-in" className="font-medium text-zinc-900 underline">
-          staff sign-in
-        </Link>{" "}
-        before saving products or uploading media.
-      </p>
-
       {isEditMode ? (
         <button
           type="button"
@@ -482,13 +473,13 @@ export function ProductEditor({
               );
             })
           }
-          className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium"
+          className="qos-btn" data-variant="secondary"
         >
           Reload product
         </button>
       ) : null}
 
-      <section className="rounded-xl border border-zinc-200 p-5">
+      <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold">General information</h2>
         <div className="mt-4 grid gap-4">
           <label className="block space-y-2">
@@ -496,7 +487,7 @@ export function ProductEditor({
               Internal name
             </span>
             <input
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={form.internalName}
               onChange={(event) =>
                 setForm((current) => ({
@@ -510,7 +501,7 @@ export function ProductEditor({
             <label className="block space-y-2">
               <span className="text-sm font-medium text-zinc-700">SKU</span>
               <input
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+                className="qos-input"
                 value={form.sku}
                 onChange={(event) =>
                   setForm((current) => ({ ...current, sku: event.target.value }))
@@ -520,7 +511,7 @@ export function ProductEditor({
             <label className="block space-y-2">
               <span className="text-sm font-medium text-zinc-700">Barcode</span>
               <input
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+                className="qos-input"
                 value={form.barcode}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -534,7 +525,7 @@ export function ProductEditor({
         </div>
       </section>
 
-      <section className="rounded-xl border border-zinc-200 p-5">
+      <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold">English copy</h2>
         <div className="mt-4 grid gap-4">
           <label className="block space-y-2">
@@ -542,7 +533,7 @@ export function ProductEditor({
               Display name
             </span>
             <input
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={form.translations.en.displayName}
               onChange={(event) =>
                 setForm((current) => ({
@@ -563,7 +554,7 @@ export function ProductEditor({
               Description
             </span>
             <textarea
-              className="min-h-24 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-textarea"
               value={form.translations.en.description}
               onChange={(event) =>
                 setForm((current) => ({
@@ -585,7 +576,7 @@ export function ProductEditor({
         </div>
       </section>
 
-      <section className="rounded-xl border border-zinc-200 p-5">
+      <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold">Arabic copy</h2>
         <div className="mt-4 grid gap-4">
           <label className="block space-y-2">
@@ -594,7 +585,7 @@ export function ProductEditor({
             </span>
             <input
               dir="rtl"
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-input"
               value={form.translations.ar.displayName}
               onChange={(event) =>
                 setForm((current) => ({
@@ -616,7 +607,7 @@ export function ProductEditor({
             </span>
             <textarea
               dir="rtl"
-              className="min-h-24 w-full rounded-lg border border-zinc-300 px-3 py-2"
+              className="qos-textarea"
               value={form.translations.ar.description}
               onChange={(event) =>
                 setForm((current) => ({
@@ -638,7 +629,7 @@ export function ProductEditor({
         </div>
       </section>
 
-      <section className="rounded-xl border border-zinc-200 p-5">
+      <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold">Pricing</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           <label className="block space-y-2">
@@ -650,7 +641,7 @@ export function ProductEditor({
               min="0"
               step="0.01"
               disabled={!form.canEditPrice}
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2 disabled:bg-zinc-100"
+              className="qos-select"
               value={form.priceMajor}
               onChange={(event) =>
                 setForm((current) => ({
@@ -674,7 +665,7 @@ export function ProductEditor({
                 type="number"
                 min="0"
                 step="1"
-                className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+                className="qos-input"
                 value={form.nutritionCalories}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -689,7 +680,7 @@ export function ProductEditor({
       </section>
 
       {isEditMode && productPublicId ? (
-        <section className="rounded-xl border border-zinc-200 p-5">
+        <section className="qos-card" data-padding="md">
           <h2 className="text-lg font-semibold">Product image</h2>
           <p className="mt-2 text-sm text-zinc-600">
             Upload a JPEG or PNG image. It is quarantined, validated, and
@@ -730,7 +721,7 @@ export function ProductEditor({
       ) : null}
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
           {fieldError ? ` (${fieldError})` : ""}
         </p>
@@ -757,7 +748,7 @@ export function ProductEditor({
             type="button"
             onClick={resetForm}
             disabled={!isDirty || saving}
-            className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium disabled:opacity-60"
+            className="qos-btn" data-variant="secondary"
           >
             Cancel
           </button>
@@ -765,7 +756,7 @@ export function ProductEditor({
             type="button"
             disabled={saving}
             onClick={() => void saveProduct()}
-            className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
+            className="qos-btn" data-variant="primary"
           >
             {saving ? "Saving…" : "Save draft"}
           </button>

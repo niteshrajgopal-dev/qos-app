@@ -1,11 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
+import { staffUiCopy } from "@/lib/staff/locale";
+import { resolveStaffDestinationAfterSignIn } from "@/lib/staff/post-sign-in";
+import { fetchStaffSession } from "@/lib/staff/staff-session-client";
 
 type AuthMode = "sign-in" | "sign-up";
 
 export function StaffSignInForm() {
+  const router = useRouter();
+  const { locale, setLocale } = useStaffLocale();
   const [mode, setMode] = useState<AuthMode>("sign-in");
   const [form, setForm] = useState({
     name: "",
@@ -15,6 +23,22 @@ export function StaffSignInForm() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetchStaffSession().then((result) => {
+      if (result.ok) {
+        router.replace(resolveStaffDestinationAfterSignIn(result.data.memberships));
+      }
+    });
+  }, [router]);
+
+  async function redirectAfterSession() {
+    const session = await fetchStaffSession();
+    if (!session.ok) {
+      throw new Error(session.error);
+    }
+    router.replace(resolveStaffDestinationAfterSignIn(session.data.memberships));
+  }
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -48,17 +72,26 @@ export function StaffSignInForm() {
         body: JSON.stringify(body),
       });
 
-      const payload = (await response.json()) as { error?: string; message?: string };
+      const raw = await response.text();
+      const payload = (
+        raw
+          ? (JSON.parse(raw) as { error?: string; message?: string })
+          : {}
+      ) as { error?: string; message?: string };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? payload.message ?? "Staff authentication failed.");
+        throw new Error(
+          payload.error ?? payload.message ?? "Staff authentication failed.",
+        );
       }
 
-      setMessage(
-        mode === "sign-in"
-          ? "Signed in. Protected staff APIs now use your session cookie."
-          : "Account created. Verify email in local logs, then sign in.",
-      );
+      if (mode === "sign-up") {
+        setMessage("Account created. Verify email in local logs, then sign in.");
+        setMode("sign-in");
+        return;
+      }
+
+      await redirectAfterSession();
     } catch (submitError) {
       setError(
         submitError instanceof Error
@@ -71,38 +104,30 @@ export function StaffSignInForm() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={() => setMode("sign-in")}
-          className={`rounded-full px-4 py-2 text-sm font-medium ${
-            mode === "sign-in"
-              ? "bg-zinc-900 text-white"
-              : "border border-zinc-300 text-zinc-700"
-          }`}
+    <div style={{ width: "100%", maxWidth: 340, display: "grid", gap: 16 }}>
+      <div>
+        <h2
+          style={{
+            fontSize: 24,
+            lineHeight: "32px",
+            fontWeight: 600,
+            letterSpacing: "-.015em",
+          }}
         >
-          Sign in
-        </button>
-        <button
-          type="button"
-          onClick={() => setMode("sign-up")}
-          className={`rounded-full px-4 py-2 text-sm font-medium ${
-            mode === "sign-up"
-              ? "bg-zinc-900 text-white"
-              : "border border-zinc-300 text-zinc-700"
-          }`}
-        >
-          Sign up
-        </button>
+          {staffUiCopy(locale, "signInTitle")}
+        </h2>
+        <p style={{ fontSize: 14, color: "var(--text-secondary)", marginTop: 6 }}>
+          {staffUiCopy(locale, "signInSubtitle")}
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 16 }}>
         {mode === "sign-up" ? (
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-700">Name</span>
+          <label className="qos-field" htmlFor="staff-name">
+            <span className="qos-field-label">Name</span>
             <input
-              className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+              id="staff-name"
+              className="qos-input"
               value={form.name}
               onChange={(event) =>
                 setForm((current) => ({ ...current, name: event.target.value }))
@@ -112,11 +137,13 @@ export function StaffSignInForm() {
           </label>
         ) : null}
 
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">Email</span>
+        <label className="qos-field" htmlFor="staff-email">
+          <span className="qos-field-label">{staffUiCopy(locale, "workEmail")}</span>
           <input
+            id="staff-email"
             type="email"
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
+            autoComplete="username"
             value={form.email}
             onChange={(event) =>
               setForm((current) => ({ ...current, email: event.target.value }))
@@ -125,11 +152,13 @@ export function StaffSignInForm() {
           />
         </label>
 
-        <label className="block space-y-2">
-          <span className="text-sm font-medium text-zinc-700">Password</span>
+        <label className="qos-field" htmlFor="staff-password">
+          <span className="qos-field-label">{staffUiCopy(locale, "password")}</span>
           <input
+            id="staff-password"
             type="password"
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2"
+            className="qos-input"
+            autoComplete={mode === "sign-in" ? "current-password" : "new-password"}
             value={form.password}
             onChange={(event) =>
               setForm((current) => ({ ...current, password: event.target.value }))
@@ -141,30 +170,78 @@ export function StaffSignInForm() {
 
         <button
           type="submit"
+          className="qos-btn"
+          data-variant="primary"
+          data-size="lg"
+          data-full="true"
+          data-loading={busy || undefined}
           disabled={busy}
-          className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60"
         >
-          {busy ? "Working…" : mode === "sign-in" ? "Sign in" : "Create account"}
+          {mode === "sign-in" ? staffUiCopy(locale, "continue") : "Create account"}
         </button>
       </form>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
+        <div className="qos-alert" data-tone="error" role="alert">
+          <div className="qos-alert-body">{error}</div>
+        </div>
       ) : null}
 
       {message ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {message}
-        </p>
+        <div className="qos-alert" data-tone="success" role="status">
+          <div className="qos-alert-body">{message}</div>
+        </div>
       ) : null}
 
-      <p className="text-sm text-zinc-600">
-        Have an invitation token?{" "}
-        <Link href="/staff/invitations/accept" className="font-medium text-zinc-900 underline">
-          Accept invitation
-        </Link>
+      <p
+        style={{
+          fontSize: 12,
+          color: "var(--text-secondary)",
+          textAlign: "center",
+        }}
+      >
+        Trouble signing in?{" "}
+        <Link href="/staff/request-access">Request staff access</Link>
+        {" · "}
+        <Link href="/staff/invitations/accept">Accept invitation</Link>
+      </p>
+      <p
+        style={{
+          fontSize: 12,
+          color: "var(--text-tertiary)",
+          textAlign: "center",
+        }}
+      >
+        {mode === "sign-in" ? (
+          <button
+            type="button"
+            className="qos-btn"
+            data-variant="ghost"
+            data-size="sm"
+            onClick={() => setMode("sign-up")}
+          >
+            Create a local staff account
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="qos-btn"
+            data-variant="ghost"
+            data-size="sm"
+            onClick={() => setMode("sign-in")}
+          >
+            Back to sign in
+          </button>
+        )}
+        <button
+          type="button"
+          className="qos-btn"
+          data-variant="ghost"
+          data-size="sm"
+          onClick={() => setLocale(locale === "en" ? "ar" : "en")}
+        >
+          {locale === "en" ? "العربية" : "English"}
+        </button>
       </p>
     </div>
   );

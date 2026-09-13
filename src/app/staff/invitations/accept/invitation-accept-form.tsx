@@ -59,7 +59,7 @@ export function InvitationAcceptForm({ initialToken = "" }: InvitationAcceptForm
         <label className="block space-y-2">
           <span className="text-sm font-medium text-zinc-700">Invitation token</span>
           <textarea
-            className="min-h-28 w-full rounded-lg border border-zinc-300 px-3 py-2 font-mono text-sm"
+            className="qos-textarea"
             value={token}
             onChange={(event) => setToken(event.target.value)}
             required
@@ -69,14 +69,14 @@ export function InvitationAcceptForm({ initialToken = "" }: InvitationAcceptForm
         <button
           type="submit"
           disabled={busy}
-          className="rounded-full bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white disabled:opacity-60"
+          className="qos-btn" data-variant="primary"
         >
           {busy ? "Redeeming…" : "Accept invitation"}
         </button>
       </form>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <p className="qos-alert" data-tone="error">
           {error}
         </p>
       ) : null}

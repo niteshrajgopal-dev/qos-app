@@ -17,7 +17,11 @@ export async function GET(request: Request) {
     );
 
     return NextResponse.json(
-      { memberships },
+      {
+        subject: identity.subject,
+        email: identity.email,
+        memberships,
+      },
       { headers: staffPrivateCacheControl() },
     );
   } catch (error) {
