@@ -16,6 +16,7 @@ import {
   type MenuLiveSnapshotPayload,
   type PublicMenuProductSnapshot,
 } from "@/db/schema";
+import { recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import { resolveLocationVariantPrice } from "@/lib/catalogue/location-price-resolver";
 import {
   type DraftMenuEditorView,
@@ -757,6 +758,26 @@ export async function publishDraftMenuToLocations(
             updatedAt: new Date(),
           })
           .where(eq(catalogueMenus.id, menu.id));
+
+        await recordTenantAuditEventInTx(tx, {
+          tenantId,
+          actorSubject: adminSubject,
+          actorClass: "staff_administrator",
+          action: "catalogue.menu.publish",
+          entityType: "catalogue_menu",
+          entityPublicId: menuPublicId,
+          entityVersion: view.version,
+          correlationId: operationId,
+          changeSummary: {
+            operationId,
+            sourceVersion: view.version,
+            status,
+            targetLocationIds,
+            successfulLocations: results
+              .filter((result) => result.success)
+              .map((result) => result.locationPublicId),
+          },
+        });
       }
 
       return {

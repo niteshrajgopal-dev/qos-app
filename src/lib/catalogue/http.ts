@@ -8,6 +8,10 @@ import {
   CatalogueProductConflictError,
   CatalogueProductError,
 } from "@/lib/catalogue/products";
+import {
+  CatalogueVariantConflictError,
+  CatalogueVariantError,
+} from "@/lib/catalogue/variants";
 import { LocationPriceOverrideError } from "@/lib/catalogue/location-price-overrides";
 import {
   TranslationApprovalConflictError,
@@ -53,6 +57,20 @@ export function catalogueErrorResponse(error: unknown) {
   }
 
   if (error instanceof CatalogueProductError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof CatalogueVariantConflictError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof CatalogueVariantError) {
     return NextResponse.json(
       { error: error.message, field: error.field },
       { status: error.statusCode },

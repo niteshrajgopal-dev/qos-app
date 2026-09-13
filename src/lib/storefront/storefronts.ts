@@ -1,4 +1,4 @@
-import { and, eq, max } from "drizzle-orm";
+import { and, asc, eq, max } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type { DbClient } from "@/db/client";
@@ -15,7 +15,12 @@ import {
   storefrontReleases,
   storefronts,
 } from "@/db/schema";
+import {
+  recordTenantAuditEventInTx,
+  type AuditActorClass,
+} from "@/lib/audit/tenant-audit";
 import { buildPublicId } from "@/lib/onboarding/validation";
+import type { TenantDbExecutor } from "@/lib/tenant/context";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class StorefrontError extends Error {
@@ -51,10 +56,19 @@ export type CreateStorefrontInput = {
   locationPublicIds?: string[];
 };
 
+export type StorefrontDraftAuditContext = {
+  actorSubject: string;
+  actorClass: AuditActorClass;
+  action: string;
+  beforeSummary: Record<string, unknown> | null;
+  afterSummary: Record<string, unknown> | null;
+};
+
 export type UpdateStorefrontDraftInput = {
   expectedVersion: number;
   internalName?: string;
   draftConfig?: StorefrontDraftConfig;
+  audit?: StorefrontDraftAuditContext;
 };
 
 export type RegisterStorefrontDomainInput = {
@@ -216,52 +230,77 @@ export async function registerStorefrontDomain(
   });
 }
 
+export async function updateStorefrontDraftInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  storefrontPublicId: string,
+  input: UpdateStorefrontDraftInput,
+) {
+  const storefront = await requireStorefrontByPublicId(
+    tx,
+    tenantId,
+    storefrontPublicId,
+  );
+
+  if (storefront.version !== input.expectedVersion) {
+    throw new StorefrontConflictError(
+      "Storefront draft has changed since it was loaded.",
+      "expectedVersion",
+    );
+  }
+
+  const [updated] = await tx
+    .update(storefronts)
+    .set({
+      internalName: input.internalName ?? storefront.internalName,
+      draftConfig: input.draftConfig ?? storefront.draftConfig,
+      version: storefront.version + 1,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(storefronts.tenantId, tenantId),
+        eq(storefronts.id, storefront.id),
+        eq(storefronts.version, input.expectedVersion),
+      ),
+    )
+    .returning();
+
+  if (!updated) {
+    throw new StorefrontConflictError(
+      "Storefront draft has changed since it was loaded.",
+      "expectedVersion",
+    );
+  }
+
+  if (input.audit) {
+    await recordTenantAuditEventInTx(tx, {
+      tenantId,
+      actorSubject: input.audit.actorSubject,
+      actorClass: input.audit.actorClass,
+      action: input.audit.action,
+      entityType: "storefront",
+      entityPublicId: storefrontPublicId,
+      entityVersion: updated.version,
+      changeSummary: {
+        before: input.audit.beforeSummary,
+        after: input.audit.afterSummary,
+      },
+    });
+  }
+
+  return updated;
+}
+
 export async function updateStorefrontDraft(
   db: DbClient,
   tenantId: string,
   storefrontPublicId: string,
   input: UpdateStorefrontDraftInput,
 ) {
-  return withTenantContext(db, tenantId, async (tx) => {
-    const storefront = await requireStorefrontByPublicId(
-      tx,
-      tenantId,
-      storefrontPublicId,
-    );
-
-    if (storefront.version !== input.expectedVersion) {
-      throw new StorefrontConflictError(
-        "Storefront draft has changed since it was loaded.",
-        "expectedVersion",
-      );
-    }
-
-    const [updated] = await tx
-      .update(storefronts)
-      .set({
-        internalName: input.internalName ?? storefront.internalName,
-        draftConfig: input.draftConfig ?? storefront.draftConfig,
-        version: storefront.version + 1,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(storefronts.tenantId, tenantId),
-          eq(storefronts.id, storefront.id),
-          eq(storefronts.version, input.expectedVersion),
-        ),
-      )
-      .returning();
-
-    if (!updated) {
-      throw new StorefrontConflictError(
-        "Storefront draft has changed since it was loaded.",
-        "expectedVersion",
-      );
-    }
-
-    return updated;
-  });
+  return withTenantContext(db, tenantId, async (tx) =>
+    updateStorefrontDraftInTx(tx, tenantId, storefrontPublicId, input),
+  );
 }
 
 export async function assignPublishedCollection(
@@ -333,12 +372,257 @@ export async function assignPublishedCollection(
   });
 }
 
+function storefrontReleasePayloadsEqual(
+  left: StorefrontReleasePayload,
+  right: StorefrontReleasePayload,
+) {
+  const { releaseVersion: _leftVersion, ...leftComparable } = left;
+  const { releaseVersion: _rightVersion, ...rightComparable } = right;
+
+  return JSON.stringify(leftComparable) === JSON.stringify(rightComparable);
+}
+
+async function buildStorefrontReleasePayload(
+  tx: DbClient,
+  tenantId: string,
+  storefront: {
+    id: string;
+    publicId: string;
+    defaultLocale: string;
+    supportedLocales: string[];
+    draftConfig: {
+      theme?: Record<string, unknown>;
+      navigation?: StorefrontReleasePayload["navigation"];
+      contentBlocks?: StorefrontReleasePayload["contentBlocks"];
+      featureFlags?: StorefrontReleasePayload["featureFlags"];
+    };
+  },
+  releaseVersion: number,
+): Promise<StorefrontReleasePayload> {
+  const assignedLocations = await tx
+    .select({
+      locationPublicId: locations.publicId,
+    })
+    .from(storefrontLocations)
+    .innerJoin(
+      locations,
+      and(
+        eq(storefrontLocations.tenantId, locations.tenantId),
+        eq(storefrontLocations.locationId, locations.id),
+      ),
+    )
+    .where(
+      and(
+        eq(storefrontLocations.tenantId, tenantId),
+        eq(storefrontLocations.storefrontId, storefront.id),
+      ),
+    );
+
+  const collections = await tx
+    .select({
+      locationPublicId: locations.publicId,
+      menuPublicId: catalogueMenus.publicId,
+      menuId: catalogueMenus.id,
+      locationId: locations.id,
+    })
+    .from(storefrontPublishedCollections)
+    .innerJoin(
+      locations,
+      and(
+        eq(storefrontPublishedCollections.tenantId, locations.tenantId),
+        eq(storefrontPublishedCollections.locationId, locations.id),
+      ),
+    )
+    .innerJoin(
+      catalogueMenus,
+      and(
+        eq(storefrontPublishedCollections.tenantId, catalogueMenus.tenantId),
+        eq(storefrontPublishedCollections.menuId, catalogueMenus.id),
+      ),
+    )
+    .where(
+      and(
+        eq(storefrontPublishedCollections.tenantId, tenantId),
+        eq(storefrontPublishedCollections.storefrontId, storefront.id),
+      ),
+    );
+
+  const publishedCollections = await Promise.all(
+    collections.map(async (collection) => {
+      const [link] = await tx
+        .select({ publicKey: catalogueMenuPublicLinks.publicKey })
+        .from(catalogueMenuPublicLinks)
+        .where(
+          and(
+            eq(catalogueMenuPublicLinks.tenantId, tenantId),
+            eq(catalogueMenuPublicLinks.menuId, collection.menuId),
+            eq(catalogueMenuPublicLinks.locationId, collection.locationId),
+          ),
+        )
+        .limit(1);
+
+      return {
+        locationPublicId: collection.locationPublicId,
+        menuPublicId: collection.menuPublicId,
+        publicMenuKey: link?.publicKey,
+      };
+    }),
+  );
+
+  return {
+    storefrontPublicId: storefront.publicId,
+    releaseVersion,
+    defaultLocale: storefront.defaultLocale,
+    supportedLocales: storefront.supportedLocales,
+    theme: storefront.draftConfig.theme ?? {},
+    navigation: storefront.draftConfig.navigation ?? [],
+    contentBlocks: storefront.draftConfig.contentBlocks ?? [],
+    locations: assignedLocations.map((row) => ({
+      locationPublicId: row.locationPublicId,
+    })),
+    publishedCollections,
+    featureFlags: storefront.draftConfig.featureFlags,
+  };
+}
+
+export type PublishedStorefrontRelease = {
+  id: string;
+  publicId: string;
+  releaseVersion: number;
+  payload: StorefrontReleasePayload;
+  publishedBySubject: string;
+  createdAt: Date;
+  idempotentReplay: boolean;
+};
+
+export async function publishStorefrontReleaseInTx(
+  tx: DbClient,
+  tenantId: string,
+  storefrontPublicId: string,
+  publisherSubject: string,
+): Promise<PublishedStorefrontRelease> {
+  const storefront = await requireStorefrontByPublicId(
+    tx,
+    tenantId,
+    storefrontPublicId,
+  );
+
+  const [latestRelease] = await tx
+    .select({ maxVersion: max(storefrontReleases.releaseVersion) })
+    .from(storefrontReleases)
+    .where(
+      and(
+        eq(storefrontReleases.tenantId, tenantId),
+        eq(storefrontReleases.storefrontId, storefront.id),
+      ),
+    );
+
+  const nextReleaseVersion = (latestRelease?.maxVersion ?? 0) + 1;
+  const payload = await buildStorefrontReleasePayload(
+    tx,
+    tenantId,
+    storefront,
+    nextReleaseVersion,
+  );
+
+  if (storefront.activeReleaseId) {
+    const [activeRelease] = await tx
+      .select()
+      .from(storefrontReleases)
+      .where(
+        and(
+          eq(storefrontReleases.tenantId, tenantId),
+          eq(storefrontReleases.id, storefront.activeReleaseId),
+        ),
+      )
+      .limit(1);
+
+    if (
+      activeRelease &&
+      storefrontReleasePayloadsEqual(activeRelease.payload, payload)
+    ) {
+      return {
+        ...activeRelease,
+        idempotentReplay: true,
+      };
+    }
+  }
+
+  const [release] = await tx
+    .insert(storefrontReleases)
+    .values({
+      tenantId,
+      storefrontId: storefront.id,
+      publicId: `rel_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
+      releaseVersion: nextReleaseVersion,
+      payload,
+      publishedBySubject: publisherSubject,
+    })
+    .returning();
+
+  await tx
+    .update(storefronts)
+    .set({
+      activeReleaseId: release.id,
+      status: "active",
+      updatedAt: new Date(),
+    })
+    .where(
+      and(eq(storefronts.tenantId, tenantId), eq(storefronts.id, storefront.id)),
+    );
+
+  await recordTenantAuditEventInTx(tx, {
+    tenantId,
+    actorSubject: publisherSubject,
+    actorClass: "staff_administrator",
+    action: "storefront.publish",
+    entityType: "storefront_release",
+    entityPublicId: release.publicId,
+    entityVersion: release.releaseVersion,
+    changeSummary: {
+      storefrontPublicId,
+      releaseVersion: release.releaseVersion,
+      previousActiveReleaseId: storefront.activeReleaseId ?? null,
+    },
+  });
+
+  return {
+    ...release,
+    idempotentReplay: false,
+  };
+}
+
 export async function publishStorefrontRelease(
   db: DbClient,
   tenantId: string,
   storefrontPublicId: string,
   publisherSubject: string,
 ) {
+  return withTenantContext(db, tenantId, async (tx) =>
+    publishStorefrontReleaseInTx(
+      tx,
+      tenantId,
+      storefrontPublicId,
+      publisherSubject,
+    ),
+  );
+}
+
+export type StorefrontRollbackResult = {
+  storefrontPublicId: string;
+  releasePublicId: string;
+  releaseVersion: number;
+  idempotentReplay: boolean;
+  rolledBackBySubject?: string;
+};
+
+export async function rollbackStorefrontRelease(
+  db: DbClient,
+  tenantId: string,
+  storefrontPublicId: string,
+  releasePublicId: string,
+  actorSubject: string,
+): Promise<StorefrontRollbackResult> {
   return withTenantContext(db, tenantId, async (tx) => {
     const storefront = await requireStorefrontByPublicId(
       tx,
@@ -346,114 +630,32 @@ export async function publishStorefrontRelease(
       storefrontPublicId,
     );
 
-    const assignedLocations = await tx
-      .select({
-        locationPublicId: locations.publicId,
-      })
-      .from(storefrontLocations)
-      .innerJoin(
-        locations,
-        and(
-          eq(storefrontLocations.tenantId, locations.tenantId),
-          eq(storefrontLocations.locationId, locations.id),
-        ),
-      )
-      .where(
-        and(
-          eq(storefrontLocations.tenantId, tenantId),
-          eq(storefrontLocations.storefrontId, storefront.id),
-        ),
-      );
-
-    const collections = await tx
-      .select({
-        locationPublicId: locations.publicId,
-        menuPublicId: catalogueMenus.publicId,
-        menuId: catalogueMenus.id,
-        locationId: locations.id,
-      })
-      .from(storefrontPublishedCollections)
-      .innerJoin(
-        locations,
-        and(
-          eq(storefrontPublishedCollections.tenantId, locations.tenantId),
-          eq(storefrontPublishedCollections.locationId, locations.id),
-        ),
-      )
-      .innerJoin(
-        catalogueMenus,
-        and(
-          eq(storefrontPublishedCollections.tenantId, catalogueMenus.tenantId),
-          eq(storefrontPublishedCollections.menuId, catalogueMenus.id),
-        ),
-      )
-      .where(
-        and(
-          eq(storefrontPublishedCollections.tenantId, tenantId),
-          eq(storefrontPublishedCollections.storefrontId, storefront.id),
-        ),
-      );
-
-    const publishedCollections = await Promise.all(
-      collections.map(async (collection) => {
-        const [link] = await tx
-          .select({ publicKey: catalogueMenuPublicLinks.publicKey })
-          .from(catalogueMenuPublicLinks)
-          .where(
-            and(
-              eq(catalogueMenuPublicLinks.tenantId, tenantId),
-              eq(catalogueMenuPublicLinks.menuId, collection.menuId),
-              eq(catalogueMenuPublicLinks.locationId, collection.locationId),
-            ),
-          )
-          .limit(1);
-
-        return {
-          locationPublicId: collection.locationPublicId,
-          menuPublicId: collection.menuPublicId,
-          publicMenuKey: link?.publicKey,
-        };
-      }),
-    );
-
-    const [latestRelease] = await tx
-      .select({ maxVersion: max(storefrontReleases.releaseVersion) })
+    const [release] = await tx
+      .select()
       .from(storefrontReleases)
       .where(
         and(
           eq(storefrontReleases.tenantId, tenantId),
           eq(storefrontReleases.storefrontId, storefront.id),
+          eq(storefrontReleases.publicId, releasePublicId),
         ),
-      );
+      )
+      .limit(1);
 
-    const nextReleaseVersion = (latestRelease?.maxVersion ?? 0) + 1;
+    if (!release) {
+      throw new StorefrontError("Storefront release not found.", 404);
+    }
 
-    const payload: StorefrontReleasePayload = {
-      storefrontPublicId: storefront.publicId,
-      releaseVersion: nextReleaseVersion,
-      defaultLocale: storefront.defaultLocale,
-      supportedLocales: storefront.supportedLocales,
-      theme: storefront.draftConfig.theme ?? {},
-      navigation: storefront.draftConfig.navigation ?? [],
-      contentBlocks: storefront.draftConfig.contentBlocks ?? [],
-      locations: assignedLocations.map((row) => ({
-        locationPublicId: row.locationPublicId,
-      })),
-      publishedCollections,
-      featureFlags: storefront.draftConfig.featureFlags,
-    };
+    if (storefront.activeReleaseId === release.id) {
+      return {
+        storefrontPublicId,
+        releasePublicId: release.publicId,
+        releaseVersion: release.releaseVersion,
+        idempotentReplay: true,
+      };
+    }
 
-    const [release] = await tx
-      .insert(storefrontReleases)
-      .values({
-        tenantId,
-        storefrontId: storefront.id,
-        publicId: `rel_${randomUUID().replace(/-/g, "").slice(0, 16)}`,
-        releaseVersion: nextReleaseVersion,
-        payload,
-        publishedBySubject: publisherSubject,
-      })
-      .returning();
+    const previousActiveReleaseId = storefront.activeReleaseId;
 
     await tx
       .update(storefronts)
@@ -466,7 +668,75 @@ export async function publishStorefrontRelease(
         and(eq(storefronts.tenantId, tenantId), eq(storefronts.id, storefront.id)),
       );
 
-    return release;
+    await recordTenantAuditEventInTx(tx, {
+      tenantId,
+      actorSubject: actorSubject,
+      actorClass: "staff_administrator",
+      action: "storefront.rollback",
+      entityType: "storefront_release",
+      entityPublicId: release.publicId,
+      entityVersion: release.releaseVersion,
+      changeSummary: {
+        storefrontPublicId,
+        releaseVersion: release.releaseVersion,
+        previousActiveReleaseId,
+      },
+    });
+
+    return {
+      storefrontPublicId,
+      releasePublicId: release.publicId,
+      releaseVersion: release.releaseVersion,
+      idempotentReplay: false,
+      rolledBackBySubject: actorSubject,
+    };
+  });
+}
+
+export async function listStorefrontReleases(
+  db: DbClient,
+  tenantId: string,
+  storefrontPublicId: string,
+) {
+  return withTenantContext(db, tenantId, async (tx) => {
+    const storefront = await requireStorefrontByPublicId(
+      tx,
+      tenantId,
+      storefrontPublicId,
+    );
+
+    const rows = await tx
+      .select({
+        id: storefrontReleases.id,
+        publicId: storefrontReleases.publicId,
+        releaseVersion: storefrontReleases.releaseVersion,
+        publishedBySubject: storefrontReleases.publishedBySubject,
+        createdAt: storefrontReleases.createdAt,
+        activeReleaseId: storefronts.activeReleaseId,
+      })
+      .from(storefrontReleases)
+      .innerJoin(
+        storefronts,
+        and(
+          eq(storefronts.tenantId, storefrontReleases.tenantId),
+          eq(storefronts.id, storefrontReleases.storefrontId),
+        ),
+      )
+      .where(
+        and(
+          eq(storefrontReleases.tenantId, tenantId),
+          eq(storefrontReleases.storefrontId, storefront.id),
+        ),
+      )
+      .orderBy(asc(storefrontReleases.releaseVersion));
+
+    return rows.map((row) => ({
+      publicId: row.publicId,
+      releaseVersion: row.releaseVersion,
+      publishedBySubject: row.publishedBySubject,
+      createdAt: row.createdAt,
+      isActive: row.activeReleaseId === row.id,
+    }));
   });
 }
 

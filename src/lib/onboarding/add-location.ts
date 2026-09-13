@@ -2,11 +2,13 @@ import { and, eq } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
 import { brands, locations, tenants } from "@/db/schema";
+import { recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import {
   buildPublicId,
   slugify,
   OnboardingValidationError,
 } from "@/lib/onboarding/validation";
+import { withTenantContext } from "@/lib/tenant/context";
 
 export type AddLocationInput = {
   tenantId: string;
@@ -43,7 +45,11 @@ export function validateAddLocationInput(input: AddLocationInput) {
   };
 }
 
-export async function addTenantLocation(db: DbClient, input: AddLocationInput) {
+export async function addTenantLocation(
+  db: DbClient,
+  input: AddLocationInput,
+  operatorSubject: string,
+) {
   const normalized = validateAddLocationInput(input);
 
   const [tenant] = await db
@@ -73,17 +79,37 @@ export async function addTenantLocation(db: DbClient, input: AddLocationInput) {
     );
   }
 
-  const [location] = await db
-    .insert(locations)
-    .values({
+  const location = await withTenantContext(db, normalized.tenantId, async (tx) => {
+    const [created] = await tx
+      .insert(locations)
+      .values({
+        tenantId: normalized.tenantId,
+        brandId: normalized.brandId,
+        publicId: buildPublicId("loc", normalized.name),
+        name: normalized.name,
+        slug: normalized.slug,
+        timezone: normalized.timezone,
+      })
+      .returning();
+
+    await recordTenantAuditEventInTx(tx, {
       tenantId: normalized.tenantId,
-      brandId: normalized.brandId,
-      publicId: buildPublicId("loc", normalized.name),
-      name: normalized.name,
-      slug: normalized.slug,
-      timezone: normalized.timezone,
-    })
-    .returning();
+      locationId: created.id,
+      actorSubject: operatorSubject,
+      actorClass: "operator",
+      action: "platform.location.add",
+      entityType: "location",
+      entityPublicId: created.publicId,
+      changeSummary: {
+        name: created.name,
+        slug: created.slug,
+        timezone: created.timezone,
+        brandId: normalized.brandId,
+      },
+    });
+
+    return created;
+  });
 
   return location;
 }

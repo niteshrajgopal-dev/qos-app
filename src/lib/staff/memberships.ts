@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
 import { staffIdentities, staffMemberships, tenants } from "@/db/schema";
+import { recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
 
@@ -23,6 +24,7 @@ export async function revokeStaffMembership(
   db: DbClient,
   tenantId: string,
   membershipId: string,
+  actorSubject: string,
   actor: ActiveStaffMembership,
 ) {
   if (actor.membershipId === membershipId) {
@@ -38,6 +40,7 @@ export async function revokeStaffMembership(
       .select({
         id: staffMemberships.id,
         status: staffMemberships.status,
+        role: staffMemberships.role,
       })
       .from(staffMemberships)
       .where(
@@ -69,6 +72,19 @@ export async function revokeStaffMembership(
         ),
       );
 
+    await recordTenantAuditEventInTx(tx, {
+      tenantId,
+      actorSubject,
+      actorClass: "staff_administrator",
+      action: "staff.membership.revoke",
+      entityType: "staff_membership",
+      entityPublicId: membershipId,
+      changeSummary: {
+        before: { status: membership.status, role: membership.role },
+        after: { status: "revoked", role: membership.role },
+      },
+    });
+
     return { membershipId, status: "revoked" as const, idempotentReplay: false };
   });
 }
@@ -78,6 +94,7 @@ export async function changeStaffMembershipRole(
   tenantId: string,
   membershipId: string,
   role: "administrator" | "user",
+  actorSubject: string,
   actor: ActiveStaffMembership,
 ) {
   if (actor.membershipId === membershipId) {
@@ -128,6 +145,19 @@ export async function changeStaffMembershipRole(
           eq(staffMemberships.id, membershipId),
         ),
       );
+
+    await recordTenantAuditEventInTx(tx, {
+      tenantId,
+      actorSubject,
+      actorClass: "staff_administrator",
+      action: "staff.membership.role_change",
+      entityType: "staff_membership",
+      entityPublicId: membershipId,
+      changeSummary: {
+        before: { role: membership.role },
+        after: { role },
+      },
+    });
 
     return {
       membershipId,

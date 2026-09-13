@@ -69,6 +69,13 @@ export const dataProvenanceEnum = qos.enum("data_provenance", [
   "imported",
 ]);
 
+export const auditActorClassEnum = qos.enum("audit_actor_class", [
+  "staff_administrator",
+  "staff_user",
+  "operator",
+  "system",
+]);
+
 export const externalMenuProviderEnum = qos.enum("external_menu_provider", [
   "finedine",
 ]);
@@ -439,6 +446,9 @@ export const catalogueVariants = qos.table(
     publicId: text("public_id").notNull(),
     isDefault: boolean("is_default").notNull().default(false),
     sortOrder: integer("sort_order").notNull().default(0),
+    status: productStatusEnum("status").notNull().default("active"),
+    sku: text("sku"),
+    barcode: text("barcode"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -460,6 +470,35 @@ export const catalogueVariants = qos.table(
       table.id,
     ),
     index("catalogue_variants_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const catalogueVariantTranslations = qos.table(
+  "catalogue_variant_translations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    variantId: uuid("variant_id").notNull(),
+    locale: text("locale").notNull(),
+    displayName: text("display_name").notNull().default(""),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [catalogueVariants.tenantId, catalogueVariants.id],
+    }).onDelete("restrict"),
+    unique("catalogue_variant_translations_unique").on(
+      table.tenantId,
+      table.variantId,
+      table.locale,
+    ),
+    index("catalogue_variant_translations_tenant_id_idx").on(table.tenantId),
   ],
 );
 
@@ -1003,6 +1042,8 @@ export type StorefrontDraftConfig = {
   contentBlocks?: Array<{
     id: string;
     type: string;
+    schemaVersion?: number;
+    visible?: boolean;
     props: Record<string, unknown>;
   }>;
   featureFlags?: Record<string, boolean>;
@@ -2239,6 +2280,48 @@ export const staffAccessRequestLocations = qos.table(
   ],
 );
 
+export const tenantAuditEvents = qos.table(
+  "tenant_audit_events",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    locationId: uuid("location_id"),
+    actorSubject: text("actor_subject").notNull(),
+    actorClass: auditActorClassEnum("actor_class").notNull(),
+    action: text("action").notNull(),
+    entityType: text("entity_type").notNull(),
+    entityPublicId: text("entity_public_id").notNull(),
+    entityVersion: integer("entity_version"),
+    correlationId: uuid("correlation_id").notNull(),
+    changeSummary: jsonb("change_summary").notNull(),
+    occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.id],
+    }).onDelete("restrict"),
+    index("tenant_audit_events_tenant_id_idx").on(table.tenantId),
+    index("tenant_audit_events_tenant_occurred_at_idx").on(
+      table.tenantId,
+      table.occurredAt,
+    ),
+    index("tenant_audit_events_tenant_entity_idx").on(
+      table.tenantId,
+      table.entityType,
+      table.entityPublicId,
+    ),
+    index("tenant_audit_events_tenant_action_idx").on(
+      table.tenantId,
+      table.action,
+    ),
+  ],
+);
+
 export const businessProvisioningOperations = qos.table(
   "business_provisioning_operations",
   {
@@ -2394,6 +2477,7 @@ export const schema = {
   staffAccessRequests,
   staffAccessRequestLocations,
   businessProvisioningOperations,
+  tenantAuditEvents,
   staffLocationScopes,
 };
 

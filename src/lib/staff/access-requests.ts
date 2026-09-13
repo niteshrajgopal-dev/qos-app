@@ -6,6 +6,7 @@ import {
   staffAccessRequests,
   tenants,
 } from "@/db/schema";
+import { recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import type { StaffIdentity } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
 
@@ -283,13 +284,33 @@ export async function approveAccessRequest(
       throw new AccessRequestConflictError("Access request version conflict.");
     }
 
-    return {
+    const result = {
       id: row.id,
       status: row.status,
       version: row.version,
       membershipId: row.membership_id,
       decidedAt: row.decided_at,
     };
+
+    await withTenantContext(db, input.tenantId, async (tx) => {
+      await recordTenantAuditEventInTx(tx, {
+        tenantId: input.tenantId,
+        actorSubject: input.adminSubject,
+        actorClass: "staff_administrator",
+        action: "staff.access_request.approve",
+        entityType: "staff_access_request",
+        entityPublicId: input.requestId,
+        entityVersion: row.version,
+        correlationId: input.requestId,
+        changeSummary: {
+          role: input.role,
+          locationIds: input.locationIds,
+          membershipId: row.membership_id,
+        },
+      });
+    });
+
+    return result;
   } catch (error) {
     mapAccessRequestError(error);
   }
@@ -328,12 +349,30 @@ export async function rejectAccessRequest(
       throw new AccessRequestConflictError("Access request version conflict.");
     }
 
-    return {
+    const result = {
       id: row.id,
       status: row.status,
       version: row.version,
       decidedAt: row.decided_at,
     };
+
+    await withTenantContext(db, input.tenantId, async (tx) => {
+      await recordTenantAuditEventInTx(tx, {
+        tenantId: input.tenantId,
+        actorSubject: input.adminSubject,
+        actorClass: "staff_administrator",
+        action: "staff.access_request.reject",
+        entityType: "staff_access_request",
+        entityPublicId: input.requestId,
+        entityVersion: row.version,
+        correlationId: input.requestId,
+        changeSummary: {
+          decisionNote: input.decisionNote ?? null,
+        },
+      });
+    });
+
+    return result;
   } catch (error) {
     mapAccessRequestError(error);
   }

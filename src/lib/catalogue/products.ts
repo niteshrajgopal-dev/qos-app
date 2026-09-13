@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type { DbClient } from "@/db/client";
@@ -8,8 +8,10 @@ import {
   catalogueProducts,
   catalogueVariantPrices,
   catalogueVariants,
+  catalogueVariantTranslations,
   tenants,
 } from "@/db/schema";
+import type { DraftProductVariantView } from "@/lib/catalogue/variants";
 import {
   type CreateDraftProductInput,
   type ProductLocale,
@@ -21,6 +23,10 @@ import {
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { invalidateArabicApprovalAfterEnglishChange } from "@/lib/catalogue/translation-approval";
+import {
+  auditActorClassFromStaffRole,
+  recordTenantAuditEventInTx,
+} from "@/lib/audit/tenant-audit";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class CatalogueProductError extends Error {
@@ -67,6 +73,7 @@ export type DraftProductEditorView = {
     amountMinor: number;
     currency: string;
   };
+  variants: DraftProductVariantView[];
 };
 
 function slugifyInternalName(name: string) {
@@ -218,14 +225,21 @@ async function loadDraftProductEditorView(
     };
   }
 
-  const [defaultVariant] = await tx
+  const variantRows = await tx
     .select({
+      id: catalogueVariants.id,
       publicId: catalogueVariants.publicId,
-      amountMinor: catalogueVariantPrices.amountMinor,
+      isDefault: catalogueVariants.isDefault,
+      sortOrder: catalogueVariants.sortOrder,
+      status: catalogueVariants.status,
+      sku: catalogueVariants.sku,
+      barcode: catalogueVariants.barcode,
       currency: catalogueVariantPrices.currency,
+      amountMinor: catalogueVariantPrices.amountMinor,
+      priceVersion: catalogueVariantPrices.version,
     })
     .from(catalogueVariants)
-    .innerJoin(
+    .leftJoin(
       catalogueVariantPrices,
       and(
         eq(catalogueVariantPrices.tenantId, tenantId),
@@ -236,12 +250,71 @@ async function loadDraftProductEditorView(
       and(
         eq(catalogueVariants.tenantId, tenantId),
         eq(catalogueVariants.productId, product.id),
-        eq(catalogueVariants.isDefault, true),
       ),
     )
-    .limit(1);
+    .orderBy(asc(catalogueVariants.sortOrder), asc(catalogueVariants.publicId));
 
-  if (!defaultVariant) {
+  const variantTranslationRows =
+    variantRows.length === 0
+      ? []
+      : await tx
+          .select()
+          .from(catalogueVariantTranslations)
+          .where(
+            and(
+              eq(catalogueVariantTranslations.tenantId, tenantId),
+              inArray(
+                catalogueVariantTranslations.variantId,
+                variantRows.map((row) => row.id),
+              ),
+            ),
+          );
+
+  const translationsByVariantId = new Map<
+    string,
+    Record<ProductLocale, { displayName: string }>
+  >();
+
+  for (const row of variantRows) {
+    translationsByVariantId.set(row.id, {
+      en: { displayName: "" },
+      ar: { displayName: "" },
+    });
+  }
+
+  for (const row of variantTranslationRows) {
+    const locale = row.locale as ProductLocale;
+    if (locale !== "en" && locale !== "ar") {
+      continue;
+    }
+
+    const existing = translationsByVariantId.get(row.variantId);
+    if (!existing) {
+      continue;
+    }
+
+    existing[locale] = { displayName: row.displayName };
+  }
+
+  const variants: DraftProductVariantView[] = variantRows.map((row) => ({
+    publicId: row.publicId,
+    isDefault: row.isDefault,
+    sortOrder: row.sortOrder,
+    status: row.status === "archived" ? "archived" : "active",
+    sku: row.sku,
+    barcode: row.barcode,
+    currency: row.currency?.trim() ?? null,
+    amountMinor: row.amountMinor ?? null,
+    priceVersion: row.priceVersion ?? null,
+    translations: translationsByVariantId.get(row.id) ?? {
+      en: { displayName: "" },
+      ar: { displayName: "" },
+    },
+  }));
+
+  const defaultVariant = variants.find((variant) => variant.isDefault);
+
+  if (!defaultVariant || defaultVariant.amountMinor == null || !defaultVariant.currency) {
     throw new CatalogueProductError(
       "Default variant is missing for this product.",
       500,
@@ -264,8 +337,9 @@ async function loadDraftProductEditorView(
     defaultVariant: {
       publicId: defaultVariant.publicId,
       amountMinor: defaultVariant.amountMinor,
-      currency: defaultVariant.currency.trim(),
+      currency: defaultVariant.currency,
     },
+    variants,
   };
 }
 
@@ -333,6 +407,15 @@ export async function createDraftProduct(
         amountMinor: validated.defaultVariant.amountMinor,
       });
 
+      for (const locale of ["en", "ar"] as const) {
+        await tx.insert(catalogueVariantTranslations).values({
+          tenantId,
+          variantId: variant.id,
+          locale,
+          displayName: "",
+        });
+      }
+
       const view = await loadDraftProductEditorView(
         tx,
         tenantId,
@@ -387,6 +470,7 @@ export async function updateDraftProduct(
   membership: ActiveStaffMembership,
   productPublicId: string,
   input: UpdateDraftProductInput,
+  staffSubject: string,
 ): Promise<DraftProductEditorView> {
   try {
     const businessProfile = await getTenantBusinessProfile(db, tenantId);
@@ -567,7 +651,11 @@ export async function updateDraftProduct(
         }
 
         const [currentPrice] = await tx
-          .select({ version: catalogueVariantPrices.version })
+          .select({
+            version: catalogueVariantPrices.version,
+            amountMinor: catalogueVariantPrices.amountMinor,
+            currency: catalogueVariantPrices.currency,
+          })
           .from(catalogueVariantPrices)
           .where(
             and(
@@ -597,6 +685,21 @@ export async function updateDraftProduct(
               eq(catalogueVariantPrices.variantId, defaultVariant.id),
             ),
           );
+
+        await recordTenantAuditEventInTx(tx, {
+          tenantId,
+          actorSubject: staffSubject,
+          actorClass: auditActorClassFromStaffRole(membership.role),
+          action: "catalogue.central_price.update",
+          entityType: "catalogue_product",
+          entityPublicId: productPublicId,
+          entityVersion: currentPrice.version + 1,
+          changeSummary: {
+            currency: currentPrice.currency.trim(),
+            before: { amountMinor: currentPrice.amountMinor },
+            after: { amountMinor: validated.defaultVariant.amountMinor },
+          },
+        });
       }
 
       const view = await loadDraftProductEditorView(

@@ -10,6 +10,10 @@ import {
   locations,
 } from "@/db/schema";
 import {
+  auditActorClassFromStaffRole,
+  recordTenantAuditEventInTx,
+} from "@/lib/audit/tenant-audit";
+import {
   resolveLocationVariantPrice,
   type ResolvedLocationPrice,
 } from "@/lib/catalogue/location-price-resolver";
@@ -317,6 +321,8 @@ export async function setProductLocationPriceOverride(
 
       const now = new Date();
 
+      const previousAmountMinor = existingOverride?.amountMinor ?? null;
+
       if (existingOverride) {
         await tx
           .update(catalogueVariantLocationPriceOverrides)
@@ -339,6 +345,24 @@ export async function setProductLocationPriceOverride(
           updatedBySubject: staffSubject,
         });
       }
+
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        locationId: location.id,
+        actorSubject: staffSubject,
+        actorClass: auditActorClassFromStaffRole(membership.role),
+        action: "catalogue.location_price.set",
+        entityType: "location_price_override",
+        entityPublicId: `${productPublicId}@${locationPublicId}`,
+        entityVersion: context.centralPrice.version,
+        changeSummary: {
+          productPublicId,
+          locationPublicId,
+          currency: context.centralPrice.currency,
+          before: { amountMinor: previousAmountMinor },
+          after: { amountMinor: input.amountMinor },
+        },
+      });
 
       const bundle = await buildProductLocationPriceBundle(
         tx,
@@ -428,6 +452,24 @@ export async function resetProductLocationPriceOverride(
       await tx
         .delete(catalogueVariantLocationPriceOverrides)
         .where(eq(catalogueVariantLocationPriceOverrides.id, existingOverride.id));
+
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        locationId: location.id,
+        actorSubject: staffSubject,
+        actorClass: auditActorClassFromStaffRole(membership.role),
+        action: "catalogue.location_price.reset",
+        entityType: "location_price_override",
+        entityPublicId: `${productPublicId}@${locationPublicId}`,
+        entityVersion: context.centralPrice.version,
+        changeSummary: {
+          productPublicId,
+          locationPublicId,
+          currency: existingOverride.currency,
+          before: { amountMinor: existingOverride.amountMinor },
+          after: { amountMinor: context.centralPrice.amountMinor, inherited: true },
+        },
+      });
 
       const bundle = await buildProductLocationPriceBundle(
         tx,

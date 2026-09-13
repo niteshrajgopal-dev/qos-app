@@ -169,6 +169,27 @@
       "when": 1789227000000,
       "tag": "0023_anonymous_session_resolution_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1789308015259,
+      "tag": "0024_early_white_queen",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1789308100000,
+      "tag": "0025_tenant_audit_events_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1789309171594,
+      "tag": "0026_clean_gargoyle",
+      "breakpoints": true
     }
   ]
 }

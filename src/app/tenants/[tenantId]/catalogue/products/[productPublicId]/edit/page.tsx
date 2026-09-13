@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { ProductEditor } from "@/app/tenants/[tenantId]/catalogue/products/product-editor";
+import { ProductVariantsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel";
 
 type PageProps = {
   params: Promise<{ tenantId: string; productPublicId: string }>;
@@ -52,6 +53,10 @@ export default async function EditCatalogueProductPage({ params }: PageProps) {
           </div>
         </div>
         <ProductEditor tenantId={tenantId} productPublicId={productPublicId} />
+        <ProductVariantsPanel
+          tenantId={tenantId}
+          productPublicId={productPublicId}
+        />
       </main>
     </div>
   );

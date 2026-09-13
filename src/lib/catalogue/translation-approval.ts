@@ -6,6 +6,7 @@ import {
   catalogueProductTranslations,
 } from "@/db/schema";
 import type { ProductLocale } from "@/lib/catalogue/validation";
+import { recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import {
   requireAdministratorMembership,
   StaffAuthorizationError,
@@ -305,6 +306,22 @@ export async function approveProductTranslation(
         );
       }
 
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        actorSubject: adminSubject,
+        actorClass: "staff_administrator",
+        action: "catalogue.translation.approve",
+        entityType: "product_translation",
+        entityPublicId: `${productPublicId}:${locale}`,
+        entityVersion: translation.translationVersion,
+        changeSummary: {
+          locale,
+          productPublicId,
+          translationVersion: translation.translationVersion,
+          approvedSourceTranslationVersion,
+        },
+      });
+
       const review = await getProductTranslationReview(
         tx,
         tenantId,
@@ -397,6 +414,21 @@ export async function rejectProductTranslation(
           `translations.${locale}.expectedTranslationVersion`,
         );
       }
+
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        actorSubject: adminSubject,
+        actorClass: "staff_administrator",
+        action: "catalogue.translation.reject",
+        entityType: "product_translation",
+        entityPublicId: `${productPublicId}:${locale}`,
+        entityVersion: translation.translationVersion,
+        changeSummary: {
+          locale,
+          productPublicId,
+          translationVersion: translation.translationVersion,
+        },
+      });
 
       const review = await getProductTranslationReview(
         tx,

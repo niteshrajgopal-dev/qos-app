@@ -18,7 +18,9 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx scripts/seed-dev.ts",
-    "verify:stripe-sandbox": "tsx scripts/verify-stripe-sandbox.ts"
+    "verify:stripe-sandbox": "tsx scripts/verify-stripe-sandbox.ts",
+    "verify:qos-57": "tsx scripts/verify-qos-57-rollback.ts",
+    "verify:qos-47-48": "tsx scripts/verify-qos-47-48.ts"
   },
   "dependencies": {
     "better-auth": "^1.7.4",

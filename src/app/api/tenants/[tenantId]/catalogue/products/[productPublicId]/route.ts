@@ -58,6 +58,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       membership,
       productPublicId,
       body,
+      identity.subject,
     );
 
     return NextResponse.json({ product });

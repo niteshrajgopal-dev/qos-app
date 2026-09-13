@@ -15,6 +15,7 @@ import {
   buildStaffInvitationExpiry,
   generateStaffInvitationToken,
 } from "@/lib/staff/invitations";
+import { recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import type { OperatorIdentity } from "@/lib/platform/operator-auth";
 import {
   buildPublicId,
@@ -358,6 +359,24 @@ export async function provisionBusiness(
         updatedAt: new Date(),
       })
       .where(eq(businessProvisioningOperations.id, operation.id));
+
+    await recordTenantAuditEventInTx(tx, {
+      tenantId: tenant.id,
+      locationId: location.id,
+      actorSubject: operator.subject,
+      actorClass: "operator",
+      action: "platform.business.provision",
+      entityType: "tenant",
+      entityPublicId: tenant.publicId,
+      correlationId: operation.id,
+      changeSummary: {
+        businessName: tenant.name,
+        businessProfile: tenant.businessProfile,
+        locationPublicId: location.publicId,
+        administratorEmail: invitation.email,
+        storefrontPublicId: defaultStorefront.storefront.publicId,
+      },
+    });
 
     return result;
   });

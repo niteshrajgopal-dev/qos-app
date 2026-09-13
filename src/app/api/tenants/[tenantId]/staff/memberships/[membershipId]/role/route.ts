@@ -37,6 +37,7 @@ export async function POST(request: Request, context: RouteContext) {
       tenantId,
       membershipId,
       body.role,
+      identity.subject,
       actor,
     );
 

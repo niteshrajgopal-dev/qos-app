@@ -26,12 +26,20 @@ export default async function StaffAccessRequestsPage({ params }: PageProps) {
               .
             </p>
           </div>
-          <Link
-            href="/"
-            className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
-          >
-            Home
-          </Link>
+          <div className="flex flex-col items-end gap-2 text-sm">
+            <Link
+              href={`/tenants/${tenantId}/staff/audit`}
+              className="font-medium text-zinc-600 underline-offset-4 hover:underline"
+            >
+              Audit log
+            </Link>
+            <Link
+              href="/"
+              className="font-medium text-zinc-600 underline-offset-4 hover:underline"
+            >
+              Home
+            </Link>
+          </div>
         </div>
         <AccessRequestsReview tenantId={tenantId} />
       </main>

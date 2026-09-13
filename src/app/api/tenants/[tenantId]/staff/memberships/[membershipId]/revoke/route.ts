@@ -28,6 +28,7 @@ export async function POST(request: Request, context: RouteContext) {
       db,
       tenantId,
       membershipId,
+      identity.subject,
       actor,
     );
 

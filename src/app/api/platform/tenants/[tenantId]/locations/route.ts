@@ -15,7 +15,7 @@ type RouteContext = {
 
 export async function POST(request: Request, context: RouteContext) {
   try {
-    authorizeOperatorRequest(request.headers);
+    const operator = authorizeOperatorRequest(request.headers);
     const { tenantId } = await context.params;
     const body = (await request.json()) as {
       brandId?: string;
@@ -23,12 +23,16 @@ export async function POST(request: Request, context: RouteContext) {
       timezone?: string;
     };
 
-    const location = await addTenantLocation(db, {
-      tenantId,
-      brandId: body.brandId ?? "",
-      name: body.name ?? "",
-      timezone: body.timezone ?? "",
-    });
+    const location = await addTenantLocation(
+      db,
+      {
+        tenantId,
+        brandId: body.brandId ?? "",
+        name: body.name ?? "",
+        timezone: body.timezone ?? "",
+      },
+      operator.subject,
+    );
 
     return NextResponse.json({ location }, { status: 201 });
   } catch (error) {

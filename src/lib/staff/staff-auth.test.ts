@@ -211,11 +211,17 @@ integrationDescribe("staff authentication and membership enforcement", () => {
       identity: userIdentity,
     });
 
-    await revokeStaffMembership(db, quotes.tenant.id, userRedemption.membershipId, {
-      membershipId: adminRedemption.membershipId,
-      role: "administrator",
-      staffIdentityId: adminRedemption.staffIdentityId,
-    });
+    await revokeStaffMembership(
+      db,
+      quotes.tenant.id,
+      userRedemption.membershipId,
+      adminIdentity.subject,
+      {
+        membershipId: adminRedemption.membershipId,
+        role: "administrator",
+        staffIdentityId: adminRedemption.staffIdentityId,
+      },
+    );
 
     expect(STAFF_MEMBERSHIP_REVOCATION_INTERVAL_MS).toBe(0);
 
@@ -271,6 +277,7 @@ integrationDescribe("staff authentication and membership enforcement", () => {
       quotes.tenant.id,
       secondaryRedemption.membershipId,
       "user",
+      primaryIdentity.subject,
       {
         membershipId: primaryRedemption.membershipId,
         role: "administrator",

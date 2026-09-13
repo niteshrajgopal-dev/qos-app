@@ -184,6 +184,7 @@ integrationDescribe("catalogue translation approval", () => {
           },
         },
       },
+      "admin.quotes@test",
     );
 
     await expect(
@@ -236,6 +237,7 @@ integrationDescribe("catalogue translation approval", () => {
           },
         },
       },
+      "admin.quotes@test",
     );
 
     expect(updated.translations.en.approvalStatus).toBe("draft");

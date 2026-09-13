@@ -12,6 +12,7 @@ import {
   catalogueProductTranslations,
   catalogueVariantPrices,
   catalogueVariants,
+  catalogueVariantTranslations,
   locationExternalMenuSources,
   locations,
 } from "@/db/schema";
@@ -225,6 +226,31 @@ async function ensureFlowerCatalogue(db: DbClient, tenantId: string, brandId: st
           currency: "AED",
           amountMinor: variantFixture.amountMinor,
         });
+      }
+
+      for (const [locale, displayName] of Object.entries(
+        variantFixture.translations,
+      )) {
+        const [existingVariantTranslation] = await tx
+          .select()
+          .from(catalogueVariantTranslations)
+          .where(
+            and(
+              eq(catalogueVariantTranslations.tenantId, tenantId),
+              eq(catalogueVariantTranslations.variantId, variant.id),
+              eq(catalogueVariantTranslations.locale, locale),
+            ),
+          )
+          .limit(1);
+
+        if (!existingVariantTranslation) {
+          await tx.insert(catalogueVariantTranslations).values({
+            tenantId,
+            variantId: variant.id,
+            locale,
+            displayName,
+          });
+        }
       }
     }
 
@@ -463,6 +489,15 @@ export async function resetSyntheticCatalogueForTenant(
       const variantIds = variants.map((variant) => variant.id);
 
       if (variantIds.length > 0) {
+        await tx
+          .delete(catalogueVariantTranslations)
+          .where(
+            and(
+              eq(catalogueVariantTranslations.tenantId, tenantId),
+              inArray(catalogueVariantTranslations.variantId, variantIds),
+            ),
+          );
+
         await tx
           .delete(catalogueVariantPrices)
           .where(

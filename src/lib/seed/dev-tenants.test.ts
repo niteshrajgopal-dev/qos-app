@@ -44,7 +44,7 @@ integrationDescribe("dev tenant seed", () => {
   });
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.catalogue_modifier_option_translations, qos.catalogue_modifier_options, qos.catalogue_modifier_group_translations, qos.catalogue_product_modifier_groups, qos.catalogue_modifier_groups, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_access_request_locations, qos.staff_access_requests, qos.business_provisioning_operations, qos.staff_invitations, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.catalogue_modifier_option_translations, qos.catalogue_modifier_options, qos.catalogue_modifier_group_translations, qos.catalogue_product_modifier_groups, qos.catalogue_modifier_groups, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_access_request_locations, qos.staff_access_requests, qos.business_provisioning_operations, qos.staff_invitations, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
   });
 
   it("seeds exactly three Quotes locations with confirmed external menu mappings", async () => {
@@ -90,6 +90,7 @@ integrationDescribe("dev tenant seed", () => {
     expect(product).toBeTruthy();
     expect(product?.provenance).toBe("synthetic_fixture");
     expect(product?.variants).toHaveLength(3);
+    expect(product?.variants[0]?.displayName).toBe("Small");
     expect(product?.modifierGroups).toHaveLength(1);
     expect(product?.modifierGroups[0]?.options).toHaveLength(2);
     expect(product?.description).toContain("Synthetic");

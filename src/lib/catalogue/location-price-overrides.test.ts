@@ -127,7 +127,7 @@ integrationDescribe("catalogue location price overrides", () => {
     await updateDraftProduct(db, quotes.tenant.id, admin, product.publicId, {
       expectedVersion: product.version,
       defaultVariant: { amountMinor: 2200 },
-    });
+    }, "admin.quotes@test");
 
     const afterCentralChange = await getProductLocationPrices(
       db,
@@ -184,7 +184,7 @@ integrationDescribe("catalogue location price overrides", () => {
     await updateDraftProduct(db, quotes.tenant.id, admin, product.publicId, {
       expectedVersion: product.version,
       defaultVariant: { amountMinor: 2200 },
-    });
+    }, "admin.quotes@test");
 
     const reset = await resetProductLocationPriceOverride(
       db,

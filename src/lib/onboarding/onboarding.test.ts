@@ -145,20 +145,28 @@ describeIntegration("operator onboarding", () => {
     );
 
     await expect(
-      addTenantLocation(db, {
-        tenantId: quotes.tenant.id,
-        brandId: flowers.brand.id,
-        name: "Invalid Branch",
-        timezone: "Asia/Dubai",
-      }),
+      addTenantLocation(
+        db,
+        {
+          tenantId: quotes.tenant.id,
+          brandId: flowers.brand.id,
+          name: "Invalid Branch",
+          timezone: "Asia/Dubai",
+        },
+        operator.subject,
+      ),
     ).rejects.toThrow(/Brand not found/);
 
-    const location = await addTenantLocation(db, {
-      tenantId: quotes.tenant.id,
-      brandId: quotes.brand.id,
-      name: "HCT Academic City",
-      timezone: "Asia/Dubai",
-    });
+    const location = await addTenantLocation(
+      db,
+      {
+        tenantId: quotes.tenant.id,
+        brandId: quotes.brand.id,
+        name: "HCT Academic City",
+        timezone: "Asia/Dubai",
+      },
+      operator.subject,
+    );
 
     expect(location.slug).toBe("hct-academic-city");
 

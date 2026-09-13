@@ -11,6 +11,7 @@ import {
   catalogueProductTranslations,
   catalogueVariantPrices,
   catalogueVariants,
+  catalogueVariantTranslations,
 } from "@/db/schema";
 import { withTenantContext } from "@/lib/tenant/context";
 
@@ -18,8 +19,9 @@ export type CatalogueVariantView = {
   publicId: string;
   isDefault: boolean;
   sortOrder: number;
-  currency: string;
-  amountMinor: number;
+  displayName: string;
+  currency: string | null;
+  amountMinor: number | null;
 };
 
 export type CatalogueModifierOptionView = {
@@ -84,29 +86,49 @@ export async function getCatalogueProductView(
       )
       .limit(1);
 
-    const variants = await tx
+    const variantRows = await tx
       .select({
+        id: catalogueVariants.id,
         publicId: catalogueVariants.publicId,
         isDefault: catalogueVariants.isDefault,
         sortOrder: catalogueVariants.sortOrder,
         currency: catalogueVariantPrices.currency,
         amountMinor: catalogueVariantPrices.amountMinor,
+        displayName: catalogueVariantTranslations.displayName,
       })
       .from(catalogueVariants)
-      .innerJoin(
+      .leftJoin(
         catalogueVariantPrices,
         and(
           eq(catalogueVariantPrices.tenantId, tenantId),
           eq(catalogueVariantPrices.variantId, catalogueVariants.id),
         ),
       )
+      .leftJoin(
+        catalogueVariantTranslations,
+        and(
+          eq(catalogueVariantTranslations.tenantId, tenantId),
+          eq(catalogueVariantTranslations.variantId, catalogueVariants.id),
+          eq(catalogueVariantTranslations.locale, locale),
+        ),
+      )
       .where(
         and(
           eq(catalogueVariants.tenantId, tenantId),
           eq(catalogueVariants.productId, product.id),
+          eq(catalogueVariants.status, "active"),
         ),
       )
-      .orderBy(asc(catalogueVariants.sortOrder));
+      .orderBy(asc(catalogueVariants.sortOrder), asc(catalogueVariants.publicId));
+
+    const variants: CatalogueVariantView[] = variantRows.map((row) => ({
+      publicId: row.publicId,
+      isDefault: row.isDefault,
+      sortOrder: row.sortOrder,
+      displayName: row.displayName ?? "",
+      currency: row.currency?.trim() ?? null,
+      amountMinor: row.amountMinor ?? null,
+    }));
 
     const productModifierGroups = await tx
       .select({
