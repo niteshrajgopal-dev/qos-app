@@ -51,8 +51,9 @@ export function cycleOverlayIndex(
 }
 
 export function overlayDrawerInlineSide(
-  _direction: "ltr" | "rtl",
+  direction: "ltr" | "rtl",
 ): "end" {
+  void direction;
   return "end";
 }
 

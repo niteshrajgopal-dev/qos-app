@@ -66,7 +66,11 @@ export function CategoryEditor({
   }, [categoryPublicId, tenantId]);
 
   useEffect(() => {
-    void loadCategory();
+    const timer = window.setTimeout(() => {
+      void loadCategory();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
   }, [loadCategory]);
 
   async function saveCategory() {

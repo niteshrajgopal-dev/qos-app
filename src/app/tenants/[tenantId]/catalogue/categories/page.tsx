@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { StaffScreen } from "@/components/staff/StaffScreen";
@@ -24,6 +25,7 @@ type PageProps = {
 };
 
 export default function TenantCategoriesPage({ params }: PageProps) {
+  const router = useRouter();
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [categories, setCategories] = useState<CategorySummary[]>([]);
   const [busy, setBusy] = useState(false);
@@ -111,7 +113,9 @@ export default function TenantCategoriesPage({ params }: PageProps) {
         throw new Error(payload.error ?? "Unable to create category.");
       }
 
-      window.location.href = `/tenants/${tenantId}/catalogue/categories/${payload.category.publicId}/edit`;
+      router.push(
+        `/tenants/${tenantId}/catalogue/categories/${payload.category.publicId}/edit`,
+      );
     } catch (createError) {
       setError(
         createError instanceof Error
