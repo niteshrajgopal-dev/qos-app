@@ -132,12 +132,17 @@ integrationDescribe("catalogue categories", () => {
       "cat_bouquets",
     ]);
 
+    const bouquetsAfterReorder = reordered.find(
+      (row) => row.publicId === bouquets.publicId,
+    );
+    expect(bouquetsAfterReorder).toBeDefined();
+
     await updateCategory(
       db,
       quotes.tenant.id,
       bouquets.publicId,
       {
-        expectedVersion: assigned.version,
+        expectedVersion: bouquetsAfterReorder!.version,
         translations: { en: { displayName: "Seasonal bouquets" } },
       },
       "admin.quotes@test",
