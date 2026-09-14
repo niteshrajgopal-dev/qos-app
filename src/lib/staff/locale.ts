@@ -71,6 +71,9 @@ export const STAFF_UI_COPY = {
     welcomeBack: "Welcome back",
     loadingWorkspace: "Loading workspace…",
     chooseBusiness: "Choose a business",
+    workspace: "Workspace",
+    searchCommands: "Search pages and actions",
+    commandGo: "Go",
   },
   ar: {
     signInTitle: "تسجيل الدخول إلى QOS",
@@ -105,6 +108,9 @@ export const STAFF_UI_COPY = {
     welcomeBack: "مرحبًا بعودتك",
     loadingWorkspace: "جاري تحميل مساحة العمل…",
     chooseBusiness: "اختر نشاطًا",
+    workspace: "مساحة العمل",
+    searchCommands: "ابحث في الصفحات والإجراءات",
+    commandGo: "انتقال",
   },
 } as const;
 

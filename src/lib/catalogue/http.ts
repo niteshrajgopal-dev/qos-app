@@ -9,6 +9,10 @@ import {
   CatalogueProductError,
 } from "@/lib/catalogue/products";
 import {
+  CatalogueCategoryConflictError,
+  CatalogueCategoryError,
+} from "@/lib/catalogue/categories";
+import {
   CatalogueModifierConflictError,
   CatalogueModifierError,
 } from "@/lib/catalogue/modifiers";
@@ -64,6 +68,20 @@ export function catalogueErrorResponse(error: unknown) {
   }
 
   if (error instanceof CatalogueProductError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof CatalogueCategoryConflictError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof CatalogueCategoryError) {
     return NextResponse.json(
       { error: error.message, field: error.field },
       { status: error.statusCode },

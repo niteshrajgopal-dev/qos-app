@@ -93,7 +93,7 @@ export function TenantHome({ tenantId, membership }: TenantHomeProps) {
             {tenantName}
             {locations.length ? ` · ${locations.length} locations` : ""}.
             Catalogue, checkout, and storefront records are live; POS devices
-            and catalogue categories are not modeled yet.
+            are not modeled yet.
           </p>
         </div>
       </div>

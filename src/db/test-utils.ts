@@ -9,7 +9,8 @@ export const integrationDatabaseUrl =
   "postgresql://qos:qos@localhost:5432/qos";
 
 export function hasIntegrationDatabase() {
-  return Boolean(integrationDatabaseUrl);
+  const url = integrationDatabaseUrl;
+  return Boolean(url) && /localhost|127\.0\.0\.1|@db:/.test(url);
 }
 
 export async function createIntegrationDb() {

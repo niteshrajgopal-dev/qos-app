@@ -5,11 +5,20 @@ import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
+import { CommandPalette } from "@/components/CommandPalette";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { StaffSideNav } from "@/components/staff/StaffSideNav";
 import { staffUiCopy } from "@/lib/staff/locale";
-import { activeStaffNavIdFromPath } from "@/lib/staff/nav";
 import type { ActiveStaffMembershipSummary } from "@/lib/staff/memberships";
+import {
+  activeStaffNavIdFromPath,
+  STAFF_NAV_GROUPS,
+  staffNavHref,
+} from "@/lib/staff/nav";
+import {
+  buildStaffCommandGroups,
+  isCommandPaletteHotkey,
+} from "@/lib/staff/overlay";
 import {
   fetchStaffSession,
   signOutStaff,
@@ -30,6 +39,12 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
   );
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [paletteQuery, setPaletteQuery] = useState("");
+  const commandGroups = useMemo(
+    () => buildStaffCommandGroups(STAFF_NAV_GROUPS, locale),
+    [locale],
+  );
 
   const membership = memberships.find((entry) => entry.tenantId === tenantId);
   const activeId = useMemo(
@@ -64,6 +79,20 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
       cancelled = true;
     };
   }, [router]);
+
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (!isCommandPaletteHotkey(event)) {
+        return;
+      }
+
+      event.preventDefault();
+      setPaletteOpen((open) => !open);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   async function handleSignOut() {
     await signOutStaff();
@@ -110,6 +139,17 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
             <Button
               variant="ghost"
               size="sm"
+              onClick={() => {
+                setPaletteQuery("");
+                setPaletteOpen(true);
+              }}
+            >
+              {staffUiCopy(locale, "searchCommands")}
+              <kbd className="qos-kbd">⌘K</kbd>
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => setLocale(locale === "en" ? "ar" : "en")}
             >
               {locale === "en" ? "العربية" : "English"}
@@ -153,6 +193,25 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
           </div>
         </main>
       </div>
+      <CommandPalette
+        open={paletteOpen}
+        query={paletteQuery}
+        onQueryChange={setPaletteQuery}
+        groups={commandGroups}
+        placeholder={staffUiCopy(locale, "searchCommands")}
+        onClose={() => {
+          setPaletteOpen(false);
+          setPaletteQuery("");
+        }}
+        onSelect={(item) => {
+          const href = staffNavHref(tenantId, item.id);
+          setPaletteOpen(false);
+          setPaletteQuery("");
+          if (href) {
+            router.push(href);
+          }
+        }}
+      />
     </div>
   );
 }

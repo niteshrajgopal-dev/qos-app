@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { Alert } from "@/components/Alert";
+import { Drawer } from "@/components/Drawer";
 import { EmptyState } from "@/components/EmptyState";
 import { StatusBadge } from "@/components/StatusBadge";
 import { qosStateFromDb } from "@/components/map-db-status";
@@ -89,6 +90,7 @@ type OrderRow = {
 export function StaffOrdersPanel({ tenantId }: { tenantId: string }) {
   const { payload, error } = useStaffWorkspaceSection(tenantId, "orders");
   const data = (payload?.orders ?? null) as OrderRow[] | null;
+  const [selected, setSelected] = useState<OrderRow | null>(null);
 
   if (error) {
     return <Alert tone="error">{error}</Alert>;
@@ -109,39 +111,84 @@ export function StaffOrdersPanel({ tenantId }: { tenantId: string }) {
   }
 
   return (
-    <WorkspaceTable
-      columns={["Reference", "Customer", "Amount", "Provider", "When", "Status"]}
-    >
-      {data.map((order) => (
-        <tr
-          key={order.publicId}
-          data-exception={
-            order.status === "failed" || order.status === "unknown"
-              ? "true"
-              : undefined
-          }
-        >
-          <td>{order.publicId}</td>
-          <td>
-            {order.customerName}
-            <div className="qos-card-sub">{order.customerEmail}</div>
-          </td>
-          <td data-numeric="true">
-            {formatMinorCurrency(order.amountMinor, order.currency)}
-          </td>
-          <td>{order.provider}</td>
-          <td>{new Date(order.createdAt).toLocaleString()}</td>
-          <td>
-            <StatusBadge
-              state={qosStateFromDb(
-                "checkout_payment_attempt_status",
-                order.status,
-              )}
-            />
-          </td>
-        </tr>
-      ))}
-    </WorkspaceTable>
+    <>
+      <WorkspaceTable
+        columns={["Reference", "Customer", "Amount", "Provider", "When", "Status"]}
+      >
+        {data.map((order) => (
+          <tr
+            key={order.publicId}
+            data-exception={
+              order.status === "failed" || order.status === "unknown"
+                ? "true"
+                : undefined
+            }
+            style={{ cursor: "pointer" }}
+            onClick={() => setSelected(order)}
+          >
+            <td>{order.publicId}</td>
+            <td>
+              {order.customerName}
+              <div className="qos-card-sub">{order.customerEmail}</div>
+            </td>
+            <td data-numeric="true">
+              {formatMinorCurrency(order.amountMinor, order.currency)}
+            </td>
+            <td>{order.provider}</td>
+            <td>{new Date(order.createdAt).toLocaleString()}</td>
+            <td>
+              <StatusBadge
+                state={qosStateFromDb(
+                  "checkout_payment_attempt_status",
+                  order.status,
+                )}
+              />
+            </td>
+          </tr>
+        ))}
+      </WorkspaceTable>
+      <Drawer
+        open={Boolean(selected)}
+        title={selected?.publicId}
+        description={
+          selected
+            ? `${selected.provider} · ${selected.customerEmail}`
+            : undefined
+        }
+        onClose={() => setSelected(null)}
+      >
+        {selected ? (
+          <div style={{ display: "grid", gap: 16 }}>
+            <div>
+              <div className="qos-card-sub">Customer</div>
+              <div>
+                {selected.customerName}
+                <div className="qos-card-sub">{selected.customerEmail}</div>
+              </div>
+            </div>
+            <div>
+              <div className="qos-card-sub">Amount</div>
+              <div>
+                {formatMinorCurrency(selected.amountMinor, selected.currency)}
+              </div>
+            </div>
+            <div>
+              <div className="qos-card-sub">When</div>
+              <div>{new Date(selected.createdAt).toLocaleString()}</div>
+            </div>
+            <div>
+              <div className="qos-card-sub">Status</div>
+              <StatusBadge
+                state={qosStateFromDb(
+                  "checkout_payment_attempt_status",
+                  selected.status,
+                )}
+              />
+            </div>
+          </div>
+        ) : null}
+      </Drawer>
+    </>
   );
 }
 
