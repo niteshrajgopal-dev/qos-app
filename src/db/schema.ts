@@ -883,6 +883,96 @@ export const catalogueProductModifierGroups = qos.table(
   ],
 );
 
+export const catalogueCategories = qos.table(
+  "catalogue_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    publicId: text("public_id").notNull(),
+    internalName: text("internal_name").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    version: integer("version").notNull().default(1),
+    status: productStatusEnum("status").notNull().default("active"),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("catalogue_categories_tenant_public_id_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    unique("catalogue_categories_tenant_id_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    index("catalogue_categories_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const catalogueCategoryTranslations = qos.table(
+  "catalogue_category_translations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    categoryId: uuid("category_id").notNull(),
+    locale: text("locale").notNull(),
+    displayName: text("display_name").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.categoryId],
+      foreignColumns: [catalogueCategories.tenantId, catalogueCategories.id],
+    }).onDelete("restrict"),
+    unique("catalogue_category_translations_unique").on(
+      table.tenantId,
+      table.categoryId,
+      table.locale,
+    ),
+    index("catalogue_category_translations_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const catalogueProductCategories = qos.table(
+  "catalogue_product_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    productId: uuid("product_id").notNull(),
+    categoryId: uuid("category_id").notNull(),
+    sortOrder: integer("sort_order").notNull().default(0),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [catalogueProducts.tenantId, catalogueProducts.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.tenantId, table.categoryId],
+      foreignColumns: [catalogueCategories.tenantId, catalogueCategories.id],
+    }).onDelete("restrict"),
+    unique("catalogue_product_categories_unique").on(
+      table.tenantId,
+      table.productId,
+      table.categoryId,
+    ),
+    index("catalogue_product_categories_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
 export const catalogueMenus = qos.table(
   "catalogue_menus",
   {
@@ -2670,6 +2760,9 @@ export const schema = {
   catalogueModifierOptions,
   catalogueModifierOptionTranslations,
   catalogueProductModifierGroups,
+  catalogueCategories,
+  catalogueCategoryTranslations,
+  catalogueProductCategories,
   catalogueMenus,
   catalogueMenuTranslations,
   catalogueMenuLocations,

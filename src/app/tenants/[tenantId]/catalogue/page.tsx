@@ -21,6 +21,11 @@ const LINKS = [
     body: "Reusable options such as milk, size, or add-ons.",
   },
   {
+    href: "categories",
+    title: "Categories",
+    body: "Group products for staff merchandising. Published menus still use menu sections.",
+  },
+  {
     href: "import",
     title: "Import",
     body: "Preview and apply a catalogue file for this business.",
@@ -36,7 +41,7 @@ export default async function CatalogueHubPage({ params }: PageProps) {
         <div>
           <h1 className="qos-pagetitle">Catalogue</h1>
           <p className="qos-pagesub">
-            Products, menus, modifiers, and import. Categories are not built yet.
+            Products, menus, modifiers, categories, and import.
           </p>
         </div>
       </div>
