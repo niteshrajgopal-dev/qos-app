@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
 import { MenuPublishPanel } from "@/app/tenants/[tenantId]/catalogue/menus/menu-publish-panel";
+import { ConfirmDialog } from "@/components/Modal";
+import { Toast, ToastStack } from "@/components/Toast";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type TranslationState = {
@@ -107,6 +109,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(!isEditMode);
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
@@ -311,21 +314,19 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
     });
   }
 
-  function resetForm() {
+  function requestResetForm() {
     if (!isDirty) {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Discard unsaved changes to this draft menu?",
-    );
-    if (!confirmed) {
-      return;
-    }
+    setDiscardOpen(true);
+  }
 
+  function resetForm() {
     setForm(JSON.parse(baseline) as MenuEditorState);
     setError(null);
     setSavedMessage(null);
+    setDiscardOpen(false);
   }
 
   async function saveMenu() {
@@ -808,10 +809,25 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       ) : null}
 
       {savedMessage ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {savedMessage}
-        </p>
+        <ToastStack>
+          <Toast
+            tone="success"
+            title={savedMessage}
+            onDismiss={() => setSavedMessage(null)}
+          />
+        </ToastStack>
       ) : null}
+
+      <ConfirmDialog
+        open={discardOpen}
+        tone="danger"
+        title="Discard unsaved changes to this draft menu?"
+        description="The current draft will revert to the last saved version."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onClose={() => setDiscardOpen(false)}
+        onConfirm={resetForm}
+      />
 
       {isEditMode && form.publicId ? (
         <MenuPublishPanel
@@ -836,7 +852,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={resetForm}
+            onClick={requestResetForm}
             disabled={!isDirty || saving}
             className="qos-btn" data-variant="secondary"
           >

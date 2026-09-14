@@ -2,6 +2,8 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import { ConfirmDialog } from "@/components/Modal";
+import { Toast, ToastStack } from "@/components/Toast";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type TranslationFormState = {
@@ -94,6 +96,7 @@ export function ProductEditor({
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageStatus, setImageStatus] = useState<string | null>(null);
   const [thumbnailPublicId, setThumbnailPublicId] = useState<string | null>(
@@ -186,22 +189,20 @@ export function ProductEditor({
     }
   }, [applyProductPayload, productPublicId, tenantId]);
 
-  function resetForm() {
+  function requestResetForm() {
     if (!isDirty) {
       return;
     }
 
-    const confirmed = window.confirm(
-      "Discard unsaved changes to this draft product?",
-    );
-    if (!confirmed) {
-      return;
-    }
+    setDiscardOpen(true);
+  }
 
+  function resetForm() {
     setForm(JSON.parse(baseline) as ProductEditorState);
     setError(null);
     setFieldError(null);
     setSavedMessage(null);
+    setDiscardOpen(false);
   }
 
   async function uploadProductImage(file: File) {
@@ -728,10 +729,25 @@ export function ProductEditor({
       ) : null}
 
       {savedMessage ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {savedMessage}
-        </p>
+        <ToastStack>
+          <Toast
+            tone="success"
+            title={savedMessage}
+            onDismiss={() => setSavedMessage(null)}
+          />
+        </ToastStack>
       ) : null}
+
+      <ConfirmDialog
+        open={discardOpen}
+        tone="danger"
+        title="Discard unsaved changes to this draft product?"
+        description="The current draft will revert to the last saved version."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onClose={() => setDiscardOpen(false)}
+        onConfirm={resetForm}
+      />
 
       <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <p className="text-sm text-zinc-600">
@@ -746,7 +762,7 @@ export function ProductEditor({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={resetForm}
+            onClick={requestResetForm}
             disabled={!isDirty || saving}
             className="qos-btn" data-variant="secondary"
           >
