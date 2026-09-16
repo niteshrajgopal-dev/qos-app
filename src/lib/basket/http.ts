@@ -9,6 +9,7 @@ import { BasketMenuEligibilityError } from "@/lib/basket/menu-eligibility";
 import { CustomerBasketError } from "@/lib/basket/customer-basket";
 import { BasketMergeError } from "@/lib/basket/basket-merge";
 import { CustomerAuthError } from "@/lib/customer/session";
+import { StorefrontDeploymentBindingError } from "@/lib/storefront/storefront-deployment-binding";
 
 export function mapBasketRouteError(error: unknown) {
   if (error instanceof BasketContractError) {
@@ -55,6 +56,13 @@ export function mapBasketRouteError(error: unknown) {
   }
 
   if (error instanceof CustomerAuthError) {
+    return {
+      statusCode: error.statusCode,
+      body: { error: error.message, field: error.field },
+    };
+  }
+
+  if (error instanceof StorefrontDeploymentBindingError) {
     return {
       statusCode: error.statusCode,
       body: { error: error.message, field: error.field },

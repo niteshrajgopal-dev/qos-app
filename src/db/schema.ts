@@ -1238,6 +1238,11 @@ export const storefrontDomainLifecycleStatusEnum = qos.enum(
   ["provisioning", "active", "inactive"],
 );
 
+export const storefrontDeploymentLifecycleStatusEnum = qos.enum(
+  "storefront_deployment_lifecycle_status",
+  ["provisioning", "active", "inactive"],
+);
+
 export type StorefrontDraftConfig = {
   theme?: Record<string, unknown>;
   navigation?: Array<{ id: string; labelKey: string; href: string }>;
@@ -1488,6 +1493,57 @@ export const storefrontDomains = qos.table(
       table.id,
     ),
     index("storefront_domains_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const storefrontDeployments = qos.table(
+  "storefront_deployments",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    storefrontId: uuid("storefront_id").notNull(),
+    publicId: text("public_id").notNull(),
+    environment: text("environment").notNull(),
+    region: text("region").notNull(),
+    containerAppName: text("container_app_name").notNull(),
+    lifecycleStatus: storefrontDeploymentLifecycleStatusEnum("lifecycle_status")
+      .notNull()
+      .default("provisioning"),
+    applicationVersion: text("application_version").notNull(),
+    imageRepository: text("image_repository").notNull().default("qos-storefront"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.storefrontId],
+      foreignColumns: [storefronts.tenantId, storefronts.id],
+    }).onDelete("restrict"),
+    unique("storefront_deployments_tenant_public_id_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    unique("storefront_deployments_container_app_name_unique").on(
+      table.containerAppName,
+    ),
+    unique("storefront_deployments_storefront_environment_unique").on(
+      table.tenantId,
+      table.storefrontId,
+      table.environment,
+    ),
+    unique("storefront_deployments_tenant_id_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    index("storefront_deployments_tenant_id_idx").on(table.tenantId),
+    index("storefront_deployments_storefront_id_idx").on(
+      table.tenantId,
+      table.storefrontId,
+    ),
   ],
 );
 
@@ -2780,6 +2836,7 @@ export const schema = {
   storefronts,
   storefrontReleases,
   storefrontDomains,
+  storefrontDeployments,
   storefrontLocations,
   storefrontPublishedCollections,
   customerAuthUsers,

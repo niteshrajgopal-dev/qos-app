@@ -6,6 +6,7 @@ import { basketPrivateCacheControl } from "@/lib/basket/anonymous-basket";
 import { commitBasketMerge } from "@/lib/basket/basket-merge";
 import { parseBasketContractVersion } from "@/lib/basket/basket-contract";
 import { basketErrorResponse } from "@/lib/basket/http";
+import { enforceDeploymentBoundaryFromRequest } from "@/lib/storefront/storefront-deployment-binding";
 import {
   buildAnonymousSessionClearCookieHeaders,
   readAnonymousSessionCookies,
@@ -28,6 +29,14 @@ export async function POST(request: Request) {
     };
 
     const replayContext = readOptionalAccountBasketContextFromRequest(request);
+    if (replayContext) {
+      await enforceDeploymentBoundaryFromRequest(
+        db,
+        request,
+        replayContext.storefrontPublicId,
+      );
+    }
+
     const result = await commitBasketMerge(
       db,
       request,

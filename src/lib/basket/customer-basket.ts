@@ -24,6 +24,7 @@ import {
   resolvePublishedProductWithAvailability,
 } from "@/lib/basket/menu-eligibility";
 import { requireVerifiedCustomerSession } from "@/lib/customer/session";
+import { enforceDeploymentBoundaryFromRequest } from "@/lib/storefront/storefront-deployment-binding";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class CustomerBasketError extends Error {
@@ -358,6 +359,12 @@ export async function resolveCustomerAccountBasketContext(
 ): Promise<AccountBasketContext> {
   const session = await requireVerifiedCustomerSession(request);
   const context = parseBasketContextInput(input);
+
+  await enforceDeploymentBoundaryFromRequest(
+    db,
+    request,
+    context.storefrontPublicId,
+  );
 
   const [storefrontRow] = await db
     .select({ tenantId: storefronts.tenantId })
