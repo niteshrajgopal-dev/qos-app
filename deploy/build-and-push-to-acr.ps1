@@ -1,13 +1,16 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Build the qos-api Docker image in Azure Container Registry and push it.
+  Build a QOS Docker image in Azure Container Registry and push it.
 
 .EXAMPLE
   .\deploy\build-and-push-to-acr.cmd
 
 .EXAMPLE
-  .\deploy\build-and-push-to-acr.cmd -ImageTag "0.2"
+  .\deploy\build-and-push-to-acr.cmd -ImageName "qos-api" -ImageTag "0.2"
+
+.EXAMPLE
+  .\deploy\build-and-push-to-acr.cmd -ImageName "qos-storefront" -ImageTag "0.13.0"
 #>
 [CmdletBinding()]
 param(
@@ -43,6 +46,10 @@ function Assert-AzCli {
     }
 
     Write-Host "Subscription: $($account.name) ($($account.id))"
+}
+
+if ($ImageName -notin @("qos-api", "qos-storefront")) {
+    throw "Unsupported image name '$ImageName'. Expected qos-api or qos-storefront."
 }
 
 $fullImage = "${ImageName}:${ImageTag}"

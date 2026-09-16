@@ -19,6 +19,12 @@ import {
   isStorefrontDomainResolvable,
   normalizeIncomingHost,
 } from "@/lib/storefront/host-resolution";
+import {
+  assertCallerStorefrontMatchesDeploymentBinding,
+  resolveBoundStorefrontDeployment,
+  resolveStorefrontHostContextWithDeploymentAgreement,
+  StorefrontDeploymentBindingError,
+} from "@/lib/storefront/storefront-deployment-binding";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class StorefrontManifestResolverError extends Error {
@@ -156,6 +162,8 @@ export async function resolveStorefrontManifestByHostname(
 
   const hostname = normalizeIncomingHost(hostnameInput);
 
+  await resolveStorefrontHostContextWithDeploymentAgreement(db, hostname);
+
   const [domain] = await db
     .select()
     .from(storefrontDomains)
@@ -206,6 +214,14 @@ export async function resolveStorefrontManifestByPublicId(
   contractVersionInput: string | null,
 ): Promise<StorefrontManifestResponse> {
   parseStorefrontManifestContractVersion(contractVersionInput);
+
+  const deployment = await resolveBoundStorefrontDeployment(db);
+  if (deployment) {
+    assertCallerStorefrontMatchesDeploymentBinding(
+      storefrontPublicId,
+      deployment,
+    );
+  }
 
   const [storefront] = await db
     .select()
@@ -262,6 +278,13 @@ export function mapStorefrontManifestRouteError(error: unknown) {
         field: error.field,
         supportedContractVersions: error.supportedContractVersions,
       },
+    };
+  }
+
+  if (error instanceof StorefrontDeploymentBindingError) {
+    return {
+      statusCode: error.statusCode,
+      body: { error: error.message, field: error.field },
     };
   }
 

@@ -1,13 +1,16 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Deploy the qos-api image from ACR to Azure Container Apps.
+  Deploy a QOS container image from ACR to Azure Container Apps.
 
 .EXAMPLE
   .\deploy\deploy-to-acr.cmd
 
 .EXAMPLE
-  .\deploy\deploy-to-acr.cmd -ImageTag "0.2" -WaitForHealth
+  .\deploy\deploy-to-acr.cmd -ImageName "qos-api" -ImageTag "0.2" -WaitForHealth
+
+.EXAMPLE
+  .\deploy\deploy-to-acr.cmd -ImageName "qos-storefront" -ContainerAppName "ca-qos-dev-storefront-quotes" -ImageTag "0.13.0" -WaitForHealth
 #>
 [CmdletBinding()]
 param(
@@ -18,10 +21,13 @@ param(
     [string] $ImageTag = "0.2",
     [string] $HealthPath = "/api/health",
     [switch] $WaitForHealth,
-    [int] $HealthTimeoutSeconds = 120
+    [int] $HealthTimeoutSeconds = 120,
+    [string] $Environment = "dev"
 )
 
 $ErrorActionPreference = "Stop"
+
+. "$PSScriptRoot/storefront-deploy-validation.ps1"
 
 function Assert-AzCli {
     if (-not (Get-Command az -ErrorAction SilentlyContinue)) {
@@ -66,6 +72,8 @@ function Wait-ForHealthyRevision {
     throw "Timed out waiting for a healthy deployment at $HealthUrl"
 }
 
+Test-StorefrontDeployTarget -ImageName $ImageName -ContainerAppName $ContainerAppName
+
 $image = "$RegistryName.azurecr.io/${ImageName}:${ImageTag}"
 
 Write-Host "Deploying $image to container app '$ContainerAppName'"
@@ -88,6 +96,18 @@ $app = az containerapp show `
 
 $fqdn = $app.properties.configuration.ingress.fqdn
 $healthUrl = "https://$fqdn$HealthPath"
+
+$evidence = Get-DeploymentReleaseEvidence `
+    -RegistryName $RegistryName `
+    -ImageName $ImageName `
+    -ImageTag $ImageTag `
+    -ContainerAppName $ContainerAppName `
+    -ResourceGroup $ResourceGroup `
+    -Environment $Environment
+
+Write-Host ""
+Write-Host "Deployment release evidence:"
+$evidence | ConvertTo-Json -Depth 5 | Write-Host
 
 Write-Host ""
 Write-Host "Container App: $ContainerAppName"

@@ -28,6 +28,10 @@ import {
   AnonymousBasketAuthError,
   assertCsrfProtection,
 } from "@/lib/basket/session-cookies";
+import {
+  assertCallerStorefrontMatchesDeploymentBinding,
+  resolveBoundStorefrontDeployment,
+} from "@/lib/storefront/storefront-deployment-binding";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class AnonymousBasketError extends Error {
@@ -461,6 +465,14 @@ export async function createAnonymousBasket(
     locale?: string | null;
   },
 ) {
+  const deployment = await resolveBoundStorefrontDeployment(db);
+  if (deployment) {
+    assertCallerStorefrontMatchesDeploymentBinding(
+      input.storefrontPublicId,
+      deployment,
+    );
+  }
+
   const config = readAnonymousBasketConfig();
   const locale = parseBasketLocale(input.locale);
   const sessionToken = generateSessionToken();
