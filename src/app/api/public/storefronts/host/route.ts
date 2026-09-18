@@ -4,11 +4,11 @@ import { db } from "@/db";
 import {
   hostResolutionCacheControl,
   HostResolutionError,
-  mapHostResolutionRouteError,
-  readHostResolutionTrustFromHeaders,
-  resolveStorefrontHostContext,
-  resolveTrustedHost,
 } from "@/lib/storefront/host-resolution";
+import {
+  mapStorefrontDeploymentBindingRouteError,
+  resolveTrustedHostContextWithDeploymentAgreement,
+} from "@/lib/storefront/storefront-deployment-binding";
 
 export const dynamic = "force-dynamic";
 
@@ -28,13 +28,11 @@ export async function GET(request: Request) {
       );
     }
 
-    const trust = readHostResolutionTrustFromHeaders(request.headers);
-    const hostname = resolveTrustedHost(trust);
-    const requestId = request.headers.get("x-request-id") ?? undefined;
-
-    const context = await resolveStorefrontHostContext(db, hostname, {
-      requestId,
-    });
+    const { host: context } = await resolveTrustedHostContextWithDeploymentAgreement(
+      db,
+      request.headers,
+      { requestId: request.headers.get("x-request-id") ?? undefined },
+    );
 
     return NextResponse.json(
       { host: context },
@@ -43,7 +41,7 @@ export async function GET(request: Request) {
       },
     );
   } catch (error) {
-    const mapped = mapHostResolutionRouteError(error);
+    const mapped = mapStorefrontDeploymentBindingRouteError(error);
     return NextResponse.json(mapped.body, { status: mapped.statusCode });
   }
 }

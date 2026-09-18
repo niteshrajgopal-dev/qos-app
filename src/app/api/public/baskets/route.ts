@@ -8,6 +8,7 @@ import {
 import { parseBasketContractVersion } from "@/lib/basket/basket-contract";
 import { basketErrorResponse } from "@/lib/basket/http";
 import { buildAnonymousSessionCookieHeaders } from "@/lib/basket/session-cookies";
+import { enforceDeploymentBoundaryFromRequest } from "@/lib/storefront/storefront-deployment-binding";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,12 @@ export async function POST(request: Request) {
       locationPublicId: string;
       locale?: string | null;
     };
+
+    await enforceDeploymentBoundaryFromRequest(
+      db,
+      request,
+      body.storefrontPublicId,
+    );
 
     const created = await createAnonymousBasket(db, body);
     const headers = new Headers(basketPrivateCacheControl());
