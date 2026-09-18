@@ -22,7 +22,8 @@
     "verify:qos-57": "tsx scripts/verify-qos-57-rollback.ts",
     "verify:qos-47-48": "tsx scripts/verify-qos-47-48.ts",
     "export:quotes-hbz-finedine": "tsx scripts/export-quotes-hbz-finedine-fixture.ts",
-    "import:quotes-hbz-finedine": "tsx scripts/import-quotes-hbz-finedine-menu.ts"
+    "import:quotes-hbz-finedine": "tsx scripts/import-quotes-hbz-finedine-menu.ts",
+    "approve-publish:quotes-hbz-finedine": "tsx scripts/approve-publish-quotes-hbz-finedine-menu.ts"
   },
   "dependencies": {
     "better-auth": "^1.7.4",

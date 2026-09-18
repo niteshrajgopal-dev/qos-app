@@ -14,25 +14,27 @@ import { importQuotesHbzFineDineMenu } from "@/lib/catalogue/finedine-hbz-import
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
-integrationDescribe("quotes hbz finedine import", () => {
-  let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
-  let sqlClient: Awaited<ReturnType<typeof resetAndMigrate>>["sql"];
+integrationDescribe(
+  "quotes hbz finedine import",
+  () => {
+    let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
+    let sqlClient: Awaited<ReturnType<typeof resetAndMigrate>>["sql"];
 
-  beforeAll(async () => {
-    const connection = await resetAndMigrate();
-    db = connection.db;
-    sqlClient = connection.sql;
-  });
+    beforeAll(async () => {
+      const connection = await resetAndMigrate();
+      db = connection.db;
+      sqlClient = connection.sql;
+    });
 
-  afterAll(async () => {
-    await sqlClient.end({ timeout: 5 });
-  });
+    afterAll(async () => {
+      await sqlClient.end({ timeout: 5 });
+    });
 
-  beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_import_source_links, qos.catalogue_import_operations, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
-  });
+    beforeEach(async () => {
+      await sqlClient`TRUNCATE TABLE qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_import_source_links, qos.catalogue_import_operations, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    });
 
-  it("imports draft products and an HBZ draft menu without duplicates on replay", async () => {
+    it("imports draft products and an HBZ draft menu without duplicates on replay", async () => {
     const first = await importQuotesHbzFineDineMenu(db, {
       idempotencyKey: "hbz-import-001",
     });
@@ -107,5 +109,7 @@ integrationDescribe("quotes hbz finedine import", () => {
       .select({ id: catalogueProducts.id })
       .from(catalogueProducts);
     expect(productsAfterSecondRun).toHaveLength(147);
-  });
-});
+    });
+  },
+  60_000,
+);

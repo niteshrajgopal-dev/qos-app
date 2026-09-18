@@ -50,7 +50,7 @@ export type ImportQuotesHbzFineDineMenuResult = {
   createdMenu: boolean;
 };
 
-async function ensureImportStaffAdmin(
+export async function ensureImportStaffAdmin(
   db: DbClient,
   tenantId: string,
   staffSubject: string,
