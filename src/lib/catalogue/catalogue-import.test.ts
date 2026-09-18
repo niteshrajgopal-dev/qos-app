@@ -110,6 +110,22 @@ integrationDescribe("catalogue import", () => {
     expect(replay.replayed).toBe(true);
     expect(replay.report.createCount).toBe(3);
 
+    const replayPreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import@test",
+      {
+        fileName: "quotes-synthetic.csv",
+        bytes: Buffer.from(CATALOGUE_IMPORT_SAMPLE_CSV, "utf8"),
+        connectionKey: "quotes.synthetic",
+        idempotencyKey: "preview-001",
+      },
+    );
+
+    expect(replayPreview.replayed).toBe(true);
+    expect(replayPreview.operationPublicId).toBe(preview.operationPublicId);
+
     const secondPreview = await previewCatalogueImport(
       db,
       quotes.tenant.id,

@@ -20,7 +20,9 @@
     "db:seed": "tsx scripts/seed-dev.ts",
     "verify:stripe-sandbox": "tsx scripts/verify-stripe-sandbox.ts",
     "verify:qos-57": "tsx scripts/verify-qos-57-rollback.ts",
-    "verify:qos-47-48": "tsx scripts/verify-qos-47-48.ts"
+    "verify:qos-47-48": "tsx scripts/verify-qos-47-48.ts",
+    "export:quotes-hbz-finedine": "tsx scripts/export-quotes-hbz-finedine-fixture.ts",
+    "import:quotes-hbz-finedine": "tsx scripts/import-quotes-hbz-finedine-menu.ts"
   },
   "dependencies": {
     "better-auth": "^1.7.4",
