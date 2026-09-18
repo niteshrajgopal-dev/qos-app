@@ -358,7 +358,7 @@ export async function previewCatalogueImport(
       )
       .limit(1);
 
-    if (existingByIdempotency?.status === "preview_ready") {
+    if (existingByIdempotency) {
       return {
         operationPublicId: existingByIdempotency.operationPublicId,
         previewHash: existingByIdempotency.previewHash,
