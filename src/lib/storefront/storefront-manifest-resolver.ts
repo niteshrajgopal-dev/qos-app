@@ -16,6 +16,7 @@ import {
   StorefrontManifestContractError,
 } from "@/lib/storefront/storefront-manifest-contract";
 import {
+  HostResolutionError,
   isStorefrontDomainResolvable,
   normalizeIncomingHost,
 } from "@/lib/storefront/host-resolution";
@@ -162,7 +163,19 @@ export async function resolveStorefrontManifestByHostname(
 
   const hostname = normalizeIncomingHost(hostnameInput);
 
-  await resolveStorefrontHostContextWithDeploymentAgreement(db, hostname);
+  try {
+    await resolveStorefrontHostContextWithDeploymentAgreement(db, hostname);
+  } catch (error) {
+    if (error instanceof HostResolutionError) {
+      throw new StorefrontManifestResolverError(
+        error.message,
+        error.statusCode,
+        error.field,
+      );
+    }
+
+    throw error;
+  }
 
   const [domain] = await db
     .select()
