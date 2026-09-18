@@ -15,7 +15,7 @@ export const quotesLocationFixtures: QuotesLocationFixture[] = [
     timezone: "Asia/Dubai",
     externalMenuId: "67484e5e5df4f98ece1ab9ce",
     sourceUrl:
-      "https://qr.finedinemenu.com/MawZBMZR_/menu/67484e5e5df4f98ece1ab9ce",
+      "https://qr.finedinemenu.com/quotes-cafe/menu/67484e5e5df4f98ece1ab9ce",
   },
   {
     publicId: "loc_quotes_hct",
