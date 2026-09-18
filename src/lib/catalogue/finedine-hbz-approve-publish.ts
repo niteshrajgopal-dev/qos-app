@@ -9,6 +9,10 @@ import { publishDraftMenuToLocations } from "@/lib/catalogue/menu-publish";
 import { getDraftProduct } from "@/lib/catalogue/products";
 import { approveProductTranslation } from "@/lib/catalogue/translation-approval";
 import { seedQuotesDevTenant } from "@/lib/seed/dev-tenants";
+import {
+  assignPublishedCollection,
+  publishStorefrontRelease,
+} from "@/lib/storefront/storefronts";
 import type { ProductLocale } from "@/lib/catalogue/validation";
 
 export const QUOTES_HBZ_FINEDINE_OPS_DEFAULT_STAFF_SUBJECT =
@@ -33,6 +37,12 @@ export type ApprovePublishQuotesHbzFineDineMenuResult = {
     skipped: number;
   };
   publish: Awaited<ReturnType<typeof publishDraftMenuToLocations>>;
+  storefront: {
+    locationPublicId: string;
+    menuPublicId: string;
+    releasePublicId: string;
+    releaseVersion: number;
+  };
 };
 
 async function resolveHbzLocationId(db: DbClient, tenantId: string) {
@@ -230,10 +240,31 @@ export async function approveAndPublishQuotesHbzFineDineMenu(
     { locationIds: targetLocationIds },
   );
 
+  await assignPublishedCollection(
+    db,
+    tenantId,
+    QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId,
+    hbzLocation.publicId,
+    menuPublicId,
+  );
+
+  const release = await publishStorefrontRelease(
+    db,
+    tenantId,
+    QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId,
+    staffSubject,
+  );
+
   return {
     menuPublicId,
     productCount: productPublicIds.length,
     translationApprovals: { approved, skipped },
     publish,
+    storefront: {
+      locationPublicId: hbzLocation.publicId,
+      menuPublicId,
+      releasePublicId: release.publicId,
+      releaseVersion: release.releaseVersion,
+    },
   };
 }
