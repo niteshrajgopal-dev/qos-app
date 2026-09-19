@@ -112,19 +112,21 @@ function mapCatalogueError(error: unknown): never {
 }
 
 async function getTenantBusinessProfile(db: DbClient, tenantId: string) {
-  const [tenant] = await db
-    .select({
-      businessProfile: tenants.businessProfile,
-    })
-    .from(tenants)
-    .where(eq(tenants.id, tenantId))
-    .limit(1);
+  return withTenantContext(db, tenantId, async (tx) => {
+    const [tenant] = await tx
+      .select({
+        businessProfile: tenants.businessProfile,
+      })
+      .from(tenants)
+      .where(eq(tenants.id, tenantId))
+      .limit(1);
 
-  if (!tenant) {
-    throw new CatalogueProductError("Tenant not found.", 404);
-  }
+    if (!tenant) {
+      throw new CatalogueProductError("Tenant not found.", 404);
+    }
 
-  return tenant.businessProfile;
+    return tenant.businessProfile;
+  });
 }
 
 async function resolveBrandId(

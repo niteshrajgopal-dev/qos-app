@@ -1,7 +1,12 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { staffIdentities, staffMemberships } from "@/db/schema";
-import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
+import {
+  grantRoleMembership,
+  hasIntegrationDatabase,
+  resetAndMigrate,
+  runAsRole,
+} from "@/db/test-utils";
 import {
   applyCatalogueImport,
   previewCatalogueImport,
@@ -20,6 +25,7 @@ integrationDescribe("catalogue import", () => {
     const connection = await resetAndMigrate();
     db = connection.db;
     sqlClient = connection.sql;
+    await grantRoleMembership(sqlClient, "qos", "qos_app");
   });
 
   afterAll(async () => {
@@ -141,5 +147,45 @@ integrationDescribe("catalogue import", () => {
 
     expect(secondPreview.preview.createCount).toBe(0);
     expect(secondPreview.preview.unchangedCount).toBe(3);
+  });
+
+  it("applies import under qos_app RLS without a preset tenant context", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const admin = await seedStaffMember(
+      quotes.tenant.id,
+      "administrator",
+      "admin.import.rls@test",
+      "admin.import.rls@test",
+    );
+
+    const preview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import.rls@test",
+      {
+        fileName: "quotes-synthetic.csv",
+        bytes: Buffer.from(CATALOGUE_IMPORT_SAMPLE_CSV, "utf8"),
+        connectionKey: "quotes.synthetic",
+        idempotencyKey: "preview-rls-001",
+      },
+    );
+
+    await runAsRole(sqlClient, "qos_app", async () => {
+      const apply = await applyCatalogueImport(
+        db,
+        quotes.tenant.id,
+        admin,
+        "admin.import.rls@test",
+        {
+          operationPublicId: preview.operationPublicId,
+          previewHash: preview.previewHash,
+          idempotencyKey: "preview-rls-001",
+        },
+      );
+
+      expect(apply.report.createCount).toBe(3);
+      expect(apply.report.errorCount).toBe(0);
+    });
   });
 });
