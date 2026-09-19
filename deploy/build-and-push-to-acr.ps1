@@ -45,6 +45,86 @@ function Assert-AzCli {
     Write-Host "Subscription: $($account.name) ($($account.id))"
 }
 
+function Get-LatestAcrRun {
+    param([string] $RegistryName)
+
+    $runs = az acr task list-runs `
+        --registry $RegistryName `
+        --top 1 `
+        -o json `
+        2>$null | ConvertFrom-Json
+
+    if (-not $runs) {
+        return $null
+    }
+
+    # PS 5.1 leaves a one-item JSON array as Object[], so .status is empty.
+    @($runs)[0]
+}
+
+function Wait-AcrRun {
+    param(
+        [string] $RegistryName,
+        $Run,
+        [int] $TimeoutSeconds = 1800
+    )
+
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $current = $Run
+
+    while ((Get-Date) -lt $deadline) {
+        if (-not $current) {
+            $current = Get-LatestAcrRun -RegistryName $RegistryName
+            if (-not $current) {
+                Start-Sleep -Seconds 10
+                continue
+            }
+        }
+
+        if ($current.status -in @("Queued", "Started", "Running")) {
+            Start-Sleep -Seconds 10
+            $current = Get-LatestAcrRun -RegistryName $RegistryName
+            continue
+        }
+
+        return $current
+    }
+
+    return $current
+}
+
+function Write-AcrRunLogs {
+    param(
+        [string] $RegistryName,
+        [string] $RunId
+    )
+
+    if (-not $RunId) {
+        Write-Warning "No ACR run id available; skipping log download."
+        return
+    }
+
+    Write-Host ""
+    Write-Host "Fetching logs for ACR run $RunId..."
+
+    $logFile = Join-Path $env:TEMP "acr-build-$RunId.log"
+    $previousPythonUtf8 = $env:PYTHONUTF8
+    $previousPythonIoEncoding = $env:PYTHONIOENCODING
+
+    try {
+        # Redirect away from the console so Colorama never encodes ▲ as cp1252.
+        $env:PYTHONUTF8 = "1"
+        $env:PYTHONIOENCODING = "utf-8"
+        az acr task logs --registry $RegistryName --run-id $RunId > $logFile 2>&1
+        Get-Content -Path $logFile -Encoding UTF8
+    }
+    finally {
+        $env:PYTHONUTF8 = $previousPythonUtf8
+        $env:PYTHONIOENCODING = $previousPythonIoEncoding
+        Remove-Item -Path $logFile -ErrorAction SilentlyContinue
+    }
+}
+
 $fullImage = "${ImageName}:${ImageTag}"
 
 Write-Host "Building and pushing $RegistryName.azurecr.io/$fullImage"
@@ -59,24 +139,19 @@ try {
         "--registry", $RegistryName,
         "--image", $fullImage,
         "--resource-group", $ResourceGroup,
-        "--only-show-errors"
+        "--only-show-errors",
+        # Next.js prints Unicode (e.g. ▲). Streaming those logs through
+        # Azure CLI on Windows crashes with cp1252 UnicodeEncodeError even
+        # when the remote build succeeds. Never stream live; fetch later.
+        "--no-logs",
+        "."
     )
-
-    # Next.js build output includes Unicode (e.g. ▲). Streaming ACR logs on
-    # Windows PowerShell often crashes az with cp1252 UnicodeEncodeError even
-    # when the remote build succeeds. Default to --no-logs and verify the run.
-    if (-not $ShowLogs) {
-        $buildArgs += "--no-logs"
-    }
-
-    $buildArgs += "."
 
     $previousErrorActionPreference = $ErrorActionPreference
     $previousPythonUtf8 = $env:PYTHONUTF8
     $previousPythonIoEncoding = $env:PYTHONIOENCODING
 
     try {
-        # Best-effort UTF-8 for az log streaming when -ShowLogs is requested.
         $env:PYTHONUTF8 = "1"
         $env:PYTHONIOENCODING = "utf-8"
 
@@ -96,22 +171,25 @@ try {
         $env:PYTHONIOENCODING = $previousPythonIoEncoding
     }
 
+    $run = Get-LatestAcrRun -RegistryName $RegistryName
     if ($azExitCode -ne 0) {
-        $latestRun = az acr task list-runs `
-            --registry $RegistryName `
-            --top 1 `
-            -o json `
-            2>$null | ConvertFrom-Json
+        $run = Wait-AcrRun -RegistryName $RegistryName -Run $run
 
-        if ($latestRun -and $latestRun.status -eq "Succeeded") {
+        if ($run -and $run.status -eq "Succeeded") {
             Write-Warning @"
-Azure CLI exited with code $azExitCode while streaming build logs, but the latest ACR run succeeded.
+Azure CLI exited with code $azExitCode while talking to ACR, but run $($run.runId) succeeded.
 This is a known Windows log-encoding issue with Next.js Unicode output. The image was still published.
 "@
         }
         else {
-            throw "ACR build failed with exit code $azExitCode."
+            $runStatus = if ($run) { $run.status } else { "unknown" }
+            $runId = if ($run) { $run.runId } else { "none" }
+            throw "ACR build failed with exit code $azExitCode (run $runId status $runStatus)."
         }
+    }
+
+    if ($ShowLogs) {
+        Write-AcrRunLogs -RegistryName $RegistryName -RunId $run.runId
     }
 
     Write-Host ""
