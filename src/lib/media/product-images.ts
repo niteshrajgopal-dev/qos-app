@@ -103,6 +103,7 @@ export type CreateUploadGrantInput = {
   expectedContentType: "image/jpeg" | "image/png";
   altTextEn?: string | null;
   altTextAr?: string | null;
+  sourceProvenance?: "imported" | "operator_entered";
 };
 
 export async function createProductImageUploadGrant(
@@ -152,6 +153,7 @@ export async function createProductImageUploadGrant(
           publicId: assetPublicId,
           altTextEn: input.altTextEn ?? null,
           altTextAr: input.altTextAr ?? null,
+          sourceProvenance: input.sourceProvenance ?? "operator_entered",
         })
         .returning();
 
@@ -466,6 +468,78 @@ export async function resolvePublicMediaDerivative(
   });
 }
 
+async function findApprovedProductImage(
+  db: DbClient,
+  tenantId: string,
+  productPublicId: string,
+) {
+  return withTenantContext(db, tenantId, async (tx) => {
+    const product = await requireDraftProduct(tx, tenantId, productPublicId);
+
+    const [primaryAsset] = product.primaryMediaAssetId
+      ? await tx
+          .select()
+          .from(catalogueMediaAssets)
+          .where(
+            and(
+              eq(catalogueMediaAssets.tenantId, tenantId),
+              eq(catalogueMediaAssets.id, product.primaryMediaAssetId),
+              eq(catalogueMediaAssets.status, "approved"),
+            ),
+          )
+          .limit(1)
+      : [];
+
+    const [approvedAsset] =
+      primaryAsset != null
+        ? [primaryAsset]
+        : await tx
+            .select()
+            .from(catalogueMediaAssets)
+            .where(
+              and(
+                eq(catalogueMediaAssets.tenantId, tenantId),
+                eq(catalogueMediaAssets.productId, product.id),
+                eq(catalogueMediaAssets.status, "approved"),
+              ),
+            )
+            .limit(1);
+
+    if (!approvedAsset) {
+      return null;
+    }
+
+    if (product.primaryMediaAssetId !== approvedAsset.id) {
+      await tx
+        .update(catalogueProducts)
+        .set({
+          primaryMediaAssetId: approvedAsset.id,
+          updatedAt: new Date(),
+        })
+        .where(eq(catalogueProducts.id, product.id));
+    }
+
+    const derivatives = await tx
+      .select()
+      .from(catalogueMediaDerivatives)
+      .where(
+        and(
+          eq(catalogueMediaDerivatives.tenantId, tenantId),
+          eq(catalogueMediaDerivatives.assetId, approvedAsset.id),
+        ),
+      );
+
+    return {
+      assetPublicId: approvedAsset.publicId,
+      status: approvedAsset.status,
+      derivatives: derivatives.map((derivative) => ({
+        kind: derivative.derivativeKind,
+        publicDerivativeId: derivative.publicDerivativeId,
+      })),
+    };
+  });
+}
+
 export async function ingestProductImageFromRemoteUrl(
   db: DbClient,
   tenantId: string,
@@ -476,6 +550,15 @@ export async function ingestProductImageFromRemoteUrl(
   fetchDeps: RemoteImageFetchDeps = {},
 ) {
   try {
+    const existing = await findApprovedProductImage(
+      db,
+      tenantId,
+      productPublicId,
+    );
+    if (existing) {
+      return existing;
+    }
+
     const remoteImage = await fetchRemoteImageBytes(imageUrl, fetchDeps);
 
     const grant = await createProductImageUploadGrant(
@@ -486,6 +569,7 @@ export async function ingestProductImageFromRemoteUrl(
       {
         expectedByteSize: remoteImage.bytes.byteLength,
         expectedContentType: remoteImage.contentType,
+        sourceProvenance: "imported",
       },
     );
 

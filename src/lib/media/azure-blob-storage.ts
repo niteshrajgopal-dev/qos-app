@@ -1,3 +1,4 @@
+import { DefaultAzureCredential, type TokenCredential } from "@azure/identity";
 import { BlobServiceClient } from "@azure/storage-blob";
 
 import type { AzureBlobMediaConfig } from "@/lib/media/config";
@@ -56,6 +57,33 @@ export class AzureBlobMediaStorage implements MediaStorage {
   }
 }
 
+export function createAzureBlobServiceClient(
+  config: AzureBlobMediaConfig,
+  deps: {
+    createCredential?: () => TokenCredential;
+  } = {},
+) {
+  if (config.authMode === "entra") {
+    if (!config.accountUrl) {
+      throw new Error(
+        "MEDIA_AZURE_BLOB_ACCOUNT_URL is required when using Entra ID / Managed Identity.",
+      );
+    }
+
+    const createCredential =
+      deps.createCredential ?? (() => new DefaultAzureCredential());
+    return new BlobServiceClient(config.accountUrl, createCredential());
+  }
+
+  if (!config.connectionString) {
+    throw new Error(
+      "MEDIA_AZURE_BLOB_CONNECTION_STRING is required when using shared-key Azure Blob authentication.",
+    );
+  }
+
+  return BlobServiceClient.fromConnectionString(config.connectionString);
+}
+
 export function createAzureBlobMediaStorage(
   config: AzureBlobMediaConfig,
   containers?: {
@@ -71,9 +99,7 @@ export function createAzureBlobMediaStorage(
     );
   }
 
-  const serviceClient = BlobServiceClient.fromConnectionString(
-    config.connectionString,
-  );
+  const serviceClient = createAzureBlobServiceClient(config);
 
   return new AzureBlobMediaStorage(
     createAzureBlobContainerOps(

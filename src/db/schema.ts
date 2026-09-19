@@ -2637,6 +2637,17 @@ export type CatalogueImportApplyReport = {
   skippedCount: number;
   conflictCount: number;
   errorCount: number;
+  media?: {
+    uploaded: number;
+    alreadyPresent: number;
+    repaired: number;
+  };
+  errorCategories?: {
+    "finedine-http-413": number;
+    "azure-auth": number;
+    "pixel-limit": number;
+    other: number;
+  };
   rows: Array<{
     sourceRow: number;
     sourceId: string;

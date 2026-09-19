@@ -2,8 +2,12 @@ import type { EnvSource } from "@/lib/env";
 
 export type MediaStorageBackend = "local" | "azure-blob";
 
+export type AzureBlobAuthMode = "entra" | "connection-string";
+
 export type AzureBlobMediaConfig = {
-  connectionString: string;
+  authMode: AzureBlobAuthMode;
+  accountUrl?: string;
+  connectionString?: string;
   privateContainer: string;
   publicContainer: string;
   prefix?: string;
@@ -47,6 +51,25 @@ function parseStorageBackend(value: string | undefined): MediaStorageBackend {
   );
 }
 
+function parseAzureAccountUrl(value: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    throw new Error(
+      "MEDIA_AZURE_BLOB_ACCOUNT_URL must be a valid https blob endpoint such as https://<account>.blob.core.windows.net.",
+    );
+  }
+
+  if (parsed.protocol !== "https:") {
+    throw new Error(
+      "MEDIA_AZURE_BLOB_ACCOUNT_URL must use https.",
+    );
+  }
+
+  return parsed.origin;
+}
+
 export function readMediaConfig(source: EnvSource = process.env): MediaConfig {
   const storageBackend = parseStorageBackend(source.MEDIA_STORAGE);
   const base = {
@@ -61,24 +84,46 @@ export function readMediaConfig(source: EnvSource = process.env): MediaConfig {
     return base;
   }
 
+  const accountUrlValue = source.MEDIA_AZURE_BLOB_ACCOUNT_URL?.trim();
   const connectionString = source.MEDIA_AZURE_BLOB_CONNECTION_STRING?.trim();
-  if (!connectionString) {
-    throw new Error(
-      "MEDIA_AZURE_BLOB_CONNECTION_STRING is required when MEDIA_STORAGE=azure-blob.",
-    );
+  const sharedContainer = source.MEDIA_AZURE_BLOB_CONTAINER?.trim();
+  const prefix = source.MEDIA_AZURE_BLOB_PREFIX?.trim();
+  const privateContainer =
+    source.MEDIA_AZURE_BLOB_PRIVATE_CONTAINER?.trim() ||
+    sharedContainer ||
+    "media-private";
+  const publicContainer =
+    source.MEDIA_AZURE_BLOB_PUBLIC_CONTAINER?.trim() ||
+    sharedContainer ||
+    "media-public";
+
+  if (accountUrlValue) {
+    return {
+      ...base,
+      azureBlob: {
+        authMode: "entra",
+        accountUrl: parseAzureAccountUrl(accountUrlValue),
+        privateContainer,
+        publicContainer,
+        prefix: prefix || undefined,
+      },
+    };
   }
 
-  const prefix = source.MEDIA_AZURE_BLOB_PREFIX?.trim();
+  if (connectionString) {
+    return {
+      ...base,
+      azureBlob: {
+        authMode: "connection-string",
+        connectionString,
+        privateContainer,
+        publicContainer,
+        prefix: prefix || undefined,
+      },
+    };
+  }
 
-  return {
-    ...base,
-    azureBlob: {
-      connectionString,
-      privateContainer:
-        source.MEDIA_AZURE_BLOB_PRIVATE_CONTAINER?.trim() || "media-private",
-      publicContainer:
-        source.MEDIA_AZURE_BLOB_PUBLIC_CONTAINER?.trim() || "media-public",
-      prefix: prefix || undefined,
-    },
-  };
+  throw new Error(
+    "Azure Blob storage requires MEDIA_AZURE_BLOB_ACCOUNT_URL (Entra ID / Managed Identity) or MEDIA_AZURE_BLOB_CONNECTION_STRING (shared key, development only).",
+  );
 }

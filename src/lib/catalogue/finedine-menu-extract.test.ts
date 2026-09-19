@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { QUOTES_HBZ_FINEDINE_IMPORT } from "@/lib/catalogue/finedine-hbz-constants";
 import {
   buildFineDineCatalogueImportCsv,
+  buildFineDineImageFetchCandidates,
   buildFineDineImageUrl,
   fineDinePriceToMinor,
   localizedFineDineText,
@@ -75,6 +76,28 @@ describe("finedine menu extract", () => {
     expect(parsedWithGallery.items[0]?.imageUrl).toBe(
       buildFineDineImageUrl("gallery/example.jpg"),
     );
+  });
+
+  it("selects smaller FineDine media renditions instead of the original 413 URL", () => {
+    const sourceUrl = buildFineDineImageUrl(
+      "MawZBMZR_/e83f3fcf-98eb-47a3-9e05-80097b6127ae.jpeg",
+    );
+
+    const candidates = buildFineDineImageFetchCandidates(sourceUrl!);
+
+    expect(candidates[0]).toBe(
+      "https://media.finedinemenu.com/fit-in/1600x1600/MawZBMZR_/e83f3fcf-98eb-47a3-9e05-80097b6127ae.jpeg",
+    );
+    expect(candidates).toContain(
+      "https://media.finedinemenu.com/fit-in/1200x1200/MawZBMZR_/e83f3fcf-98eb-47a3-9e05-80097b6127ae.jpeg",
+    );
+    expect(candidates).not.toContain(sourceUrl);
+  });
+
+  it("leaves non-FineDine image URLs unchanged", () => {
+    expect(
+      buildFineDineImageFetchCandidates("https://cdn.example.com/menu/item.jpg"),
+    ).toEqual(["https://cdn.example.com/menu/item.jpg"]);
   });
 
   it("builds a catalogue-import CSV with stable FineDine source ids", () => {

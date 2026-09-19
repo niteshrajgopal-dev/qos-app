@@ -72,6 +72,13 @@ export type ParsedFineDineMenu = {
 const FINEDINE_API_ORIGIN = "https://api.finedinemenu.com";
 const FINEDINE_QR_ORIGIN = "https://qr.finedinemenu.com";
 const FINEDINE_MEDIA_ORIGIN = "https://media.finedinemenu.com";
+const FINEDINE_MEDIA_HOST = "media.finedinemenu.com";
+
+export const FINEDINE_INGEST_RENDITION_SIZES = [
+  { width: 1600, height: 1600 },
+  { width: 1200, height: 1200 },
+  { width: 800, height: 800 },
+] as const;
 
 export function slugifyFineDineInternalName(value: string) {
   return (
@@ -128,6 +135,51 @@ export function buildFineDineImageUrl(imagePath: string | null | undefined) {
   }
 
   return `${FINEDINE_MEDIA_ORIGIN}/${imagePath.replace(/^\//, "")}`;
+}
+
+function extractFineDineMediaObjectPath(sourceUrl: string) {
+  let parsed: URL;
+  try {
+    parsed = new URL(sourceUrl);
+  } catch {
+    return null;
+  }
+
+  if (parsed.hostname.toLowerCase() !== FINEDINE_MEDIA_HOST) {
+    return null;
+  }
+
+  const path = parsed.pathname.replace(/^\/+/, "");
+  const fitInMatch = path.match(/^fit-in\/\d+x\d+\/(.+)$/);
+  if (fitInMatch?.[1]) {
+    return fitInMatch[1];
+  }
+
+  const sizedMatch = path.match(/^\d+x\d+\/(.+)$/);
+  if (sizedMatch?.[1]) {
+    return sizedMatch[1];
+  }
+
+  return path || null;
+}
+
+export function buildFineDineResizedImageUrl(
+  objectPath: string,
+  width: number,
+  height: number,
+) {
+  return `${FINEDINE_MEDIA_ORIGIN}/fit-in/${width}x${height}/${objectPath.replace(/^\/+/, "")}`;
+}
+
+export function buildFineDineImageFetchCandidates(sourceUrl: string) {
+  const objectPath = extractFineDineMediaObjectPath(sourceUrl);
+  if (!objectPath) {
+    return [sourceUrl];
+  }
+
+  return FINEDINE_INGEST_RENDITION_SIZES.map((size) =>
+    buildFineDineResizedImageUrl(objectPath, size.width, size.height),
+  );
 }
 
 export function parseFineDineFlatList(

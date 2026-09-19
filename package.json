@@ -26,6 +26,7 @@
     "approve-publish:quotes-hbz-finedine": "tsx scripts/approve-publish-quotes-hbz-finedine-menu.ts"
   },
   "dependencies": {
+    "@azure/identity": "^4.13.3",
     "@azure/storage-blob": "^12.33.0",
     "better-auth": "^1.7.4",
     "drizzle-orm": "^0.45.2",

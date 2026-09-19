@@ -6,6 +6,8 @@ import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  catalogueImportSourceLinks,
+  catalogueMediaAssets,
   catalogueProducts,
   staffIdentities,
   staffLocationScopes,
@@ -343,5 +345,311 @@ integrationDescribe("catalogue import", () => {
     expect(live?.sections[0]?.products[0]?.translations.en.displayName).toBe(
       "Cream Espresso",
     );
+  });
+
+  it("repairs missing imported images on unchanged reruns without duplicating media", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const admin = await seedStaffMember(
+      quotes.tenant.id,
+      "administrator",
+      "admin.import-repair@test",
+      "admin.import-repair@test",
+    );
+    const pngBytes = await sharp({
+      create: {
+        width: 48,
+        height: 48,
+        channels: 3,
+        background: { r: 90, g: 10, b: 10 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const failingFetch = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            status: 413,
+            code: "TooLargeImageException",
+            message: "The converted image is too large to return.",
+          }),
+          {
+            status: 413,
+            headers: { "content-type": "application/json" },
+          },
+        ),
+    );
+
+    const firstPreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-repair@test",
+      {
+        fileName: "hbz-repair.csv",
+        bytes: Buffer.from(IMAGE_IMPORT_CSV, "utf8"),
+        connectionKey: "quotes.hbz.repair",
+        idempotencyKey: "preview-repair-001",
+      },
+    );
+    const firstApply = await applyCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-repair@test",
+      {
+        operationPublicId: firstPreview.operationPublicId,
+        previewHash: firstPreview.previewHash,
+        idempotencyKey: "preview-repair-001",
+      },
+    );
+
+    expect(firstApply.report.createCount).toBe(1);
+    expect(firstApply.report.errorCount).toBe(1);
+    expect(firstApply.report.errorCategories?.["finedine-http-413"]).toBe(1);
+
+    const productsAfterFailure = await db.select().from(catalogueProducts);
+    expect(productsAfterFailure).toHaveLength(2);
+    expect(
+      productsAfterFailure.filter((product) => product.primaryMediaAssetId)
+        .length,
+    ).toBe(0);
+
+    failingFetch.mockRestore();
+    const successFetch = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(pngBytes, {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": String(pngBytes.byteLength),
+          },
+        }),
+    );
+
+    const repairPreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-repair@test",
+      {
+        fileName: "hbz-repair.csv",
+        bytes: Buffer.from(IMAGE_IMPORT_CSV, "utf8"),
+        connectionKey: "quotes.hbz.repair",
+        idempotencyKey: "preview-repair-002",
+      },
+    );
+
+    const creamPreview = repairPreview.preview.rows.find(
+      (row) => row.sourceId === "674cb5ee372f00d7a436e1e8",
+    );
+    expect(creamPreview?.status).toBe("unchanged");
+    expect(creamPreview?.ingestImage).toBe(true);
+
+    const repairApply = await applyCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-repair@test",
+      {
+        operationPublicId: repairPreview.operationPublicId,
+        previewHash: repairPreview.previewHash,
+        idempotencyKey: "preview-repair-002",
+      },
+    );
+
+    expect(repairApply.report.createCount).toBe(0);
+    expect(repairApply.report.updateCount).toBe(0);
+    expect(repairApply.report.unchangedCount).toBe(2);
+    expect(repairApply.report.errorCount).toBe(0);
+    expect(repairApply.report.media?.repaired).toBe(1);
+    expect(repairApply.report.media?.uploaded).toBe(0);
+
+    const productsAfterRepair = await db.select().from(catalogueProducts);
+    const assetsAfterRepair = await db.select().from(catalogueMediaAssets);
+    const linksAfterRepair = await db.select().from(catalogueImportSourceLinks);
+
+    expect(productsAfterRepair).toHaveLength(2);
+    expect(linksAfterRepair).toHaveLength(2);
+    expect(assetsAfterRepair).toHaveLength(1);
+    expect(
+      productsAfterRepair.find((product) => product.internalName === "cream-espresso")
+        ?.primaryMediaAssetId,
+    ).toBeTruthy();
+
+    const fetchCountAfterRepair = successFetch.mock.calls.length;
+
+    const rerunPreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-repair@test",
+      {
+        fileName: "hbz-repair.csv",
+        bytes: Buffer.from(IMAGE_IMPORT_CSV, "utf8"),
+        connectionKey: "quotes.hbz.repair",
+        idempotencyKey: "preview-repair-003",
+      },
+    );
+    const creamRerun = rerunPreview.preview.rows.find(
+      (row) => row.sourceId === "674cb5ee372f00d7a436e1e8",
+    );
+    expect(creamRerun?.status).toBe("unchanged");
+    expect(creamRerun?.ingestImage).toBe(false);
+
+    const rerunApply = await applyCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-repair@test",
+      {
+        operationPublicId: rerunPreview.operationPublicId,
+        previewHash: rerunPreview.previewHash,
+        idempotencyKey: "preview-repair-003",
+      },
+    );
+
+    expect(rerunApply.report.media?.alreadyPresent).toBe(1);
+    expect(rerunApply.report.media?.repaired).toBe(0);
+    expect(successFetch.mock.calls.length).toBe(fetchCountAfterRepair);
+    expect(await db.select().from(catalogueProducts)).toHaveLength(2);
+    expect(await db.select().from(catalogueImportSourceLinks)).toHaveLength(2);
+    expect(await db.select().from(catalogueMediaAssets)).toHaveLength(1);
+  });
+
+  it("keeps a successful product update when image ingest fails and repairs it next run", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const admin = await seedStaffMember(
+      quotes.tenant.id,
+      "administrator",
+      "admin.import-update-repair@test",
+      "admin.import-update-repair@test",
+    );
+    const pngBytes = await sharp({
+      create: {
+        width: 32,
+        height: 32,
+        channels: 3,
+        background: { r: 1, g: 2, b: 3 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const seedCsv = `source_id,internal_name,display_name_en,display_name_ar,amount_minor,currency,image_url
+update-later,flatwhite,Flatwhite,فلات وايت,1800,AED,
+`;
+    const updatedCsv = `source_id,internal_name,display_name_en,display_name_ar,amount_minor,currency,image_url
+update-later,flatwhite-updated,Flatwhite Updated,فلات وايت,1900,AED,https://media.finedinemenu.com/MawZBMZR_/ae2ec51a-5128-4109-a4d9-418421621d47.jpeg
+`;
+
+    const seedPreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-update-repair@test",
+      {
+        fileName: "seed.csv",
+        bytes: Buffer.from(seedCsv, "utf8"),
+        connectionKey: "quotes.hbz.update-repair",
+        idempotencyKey: "preview-update-repair-001",
+      },
+    );
+    await applyCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-update-repair@test",
+      {
+        operationPublicId: seedPreview.operationPublicId,
+        previewHash: seedPreview.previewHash,
+        idempotencyKey: "preview-update-repair-001",
+      },
+    );
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response("Key based authentication is not permitted on this storage account.", {
+          status: 500,
+        }),
+    );
+
+    const updatePreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-update-repair@test",
+      {
+        fileName: "updated.csv",
+        bytes: Buffer.from(updatedCsv, "utf8"),
+        connectionKey: "quotes.hbz.update-repair",
+        idempotencyKey: "preview-update-repair-002",
+      },
+    );
+    expect(updatePreview.preview.updateCount).toBe(1);
+
+    const failedUpdate = await applyCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-update-repair@test",
+      {
+        operationPublicId: updatePreview.operationPublicId,
+        previewHash: updatePreview.previewHash,
+        idempotencyKey: "preview-update-repair-002",
+      },
+    );
+
+    expect(failedUpdate.report.errorCount).toBe(1);
+    const [updatedProduct] = await db.select().from(catalogueProducts);
+    expect(updatedProduct.internalName).toBe("flatwhite-updated");
+    expect(updatedProduct.primaryMediaAssetId).toBeNull();
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(pngBytes, {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": String(pngBytes.byteLength),
+          },
+        }),
+    );
+
+    const repairPreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-update-repair@test",
+      {
+        fileName: "updated.csv",
+        bytes: Buffer.from(updatedCsv, "utf8"),
+        connectionKey: "quotes.hbz.update-repair",
+        idempotencyKey: "preview-update-repair-003",
+      },
+    );
+    expect(repairPreview.preview.unchangedCount).toBe(1);
+    expect(repairPreview.preview.rows[0]?.ingestImage).toBe(true);
+
+    const repaired = await applyCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-update-repair@test",
+      {
+        operationPublicId: repairPreview.operationPublicId,
+        previewHash: repairPreview.previewHash,
+        idempotencyKey: "preview-update-repair-003",
+      },
+    );
+
+    expect(repaired.report.errorCount).toBe(0);
+    expect(repaired.report.media?.repaired).toBe(1);
+    expect(await db.select().from(catalogueProducts)).toHaveLength(1);
+    expect(await db.select().from(catalogueImportSourceLinks)).toHaveLength(1);
+    expect(await db.select().from(catalogueMediaAssets)).toHaveLength(1);
+    const [repairedProduct] = await db.select().from(catalogueProducts);
+    expect(repairedProduct.primaryMediaAssetId).toBeTruthy();
   });
 });

@@ -1,4 +1,5 @@
-import { createDbClient } from "@/db/client";
+import { createAdminDbClient } from "@/db/client";
+import { formatCatalogueImportCliReport } from "@/lib/catalogue/import-report";
 import { importQuotesHbzFineDineMenu } from "@/lib/catalogue/finedine-hbz-import";
 import { QUOTES_HBZ_FINEDINE_IMPORT } from "@/lib/catalogue/finedine-hbz-constants";
 
@@ -9,13 +10,25 @@ async function main() {
     ?.split("=")
     .slice(1)
     .join("=");
+  const tenantId = process.argv
+    .find((arg) => arg.startsWith("--tenant-id="))
+    ?.split("=")
+    .slice(1)
+    .join("=");
+  const staffSubject = process.argv
+    .find((arg) => arg.startsWith("--staff-subject="))
+    ?.split("=")
+    .slice(1)
+    .join("=");
 
-  const { db, sql } = createDbClient();
+  const { db, sql } = createAdminDbClient();
 
   try {
     const result = await importQuotesHbzFineDineMenu(db, {
       useLiveSource,
       idempotencyKey,
+      tenantId,
+      staffSubject,
     });
 
     console.log("Quotes HBZ FineDine import complete:");
@@ -26,7 +39,14 @@ async function main() {
     console.log(`  Draft menu: ${result.menuPublicId} (v${result.menuVersion})`);
     console.log(`  Import operation: ${result.importOperationPublicId}`);
     console.log(
-      `  Import summary: created=${result.importReport.createCount}, updated=${result.importReport.updateCount}, unchanged=${result.importReport.unchangedCount}, errors=${result.importReport.errorCount}`,
+      formatCatalogueImportCliReport({
+        createCount: result.importReport.createCount,
+        updateCount: result.importReport.updateCount,
+        unchangedCount: result.importReport.unchangedCount,
+        errorCount: result.importReport.errorCount,
+        media: result.importReport.media,
+        errorCategories: result.importReport.errorCategories,
+      }),
     );
     console.log(`  Replayed import: ${result.replayedImport}`);
     console.log(`  Created menu: ${result.createdMenu}`);

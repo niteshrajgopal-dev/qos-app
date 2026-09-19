@@ -1,6 +1,7 @@
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 
+import { readAdminDatabaseUrl } from "@/lib/database-admin-url";
 import { buildDatabaseUrl } from "@/lib/database-url";
 import { readAppEnv, type AppEnv, type EnvSource } from "@/lib/env";
 
@@ -37,4 +38,12 @@ export function createDbClient(source: EnvSource | AppEnv = process.env) {
   const sql = createSqlClient(source);
   const db = drizzle(sql, { schema });
   return { db, sql };
+}
+
+export function createAdminDbClient(source: EnvSource = process.env) {
+  const adminUrl = readAdminDatabaseUrl(source);
+  return createDbClient({
+    ...source,
+    DATABASE_URL: adminUrl,
+  });
 }

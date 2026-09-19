@@ -6,6 +6,7 @@ import type { DbClient } from "@/db/client";
 import {
   catalogueImportOperations,
   catalogueImportSourceLinks,
+  catalogueMediaAssets,
   catalogueProductTranslations,
   catalogueProducts,
   catalogueVariantPrices,
@@ -15,6 +16,10 @@ import {
   type CatalogueImportPreviewPayload,
   type CatalogueImportPreviewRow,
 } from "@/db/schema";
+import {
+  emptyCatalogueImportMediaSummary,
+  summarizeCatalogueImportErrors,
+} from "@/lib/catalogue/import-report";
 import {
   parseSpreadsheetUpload,
   suggestColumnMapping,
@@ -81,7 +86,6 @@ function rowsEquivalent(
     currency: string;
     sku: string | null;
     barcode: string | null;
-    primaryMediaAssetId: string | null;
   },
   incoming: {
     internalName: string;
@@ -91,23 +95,17 @@ function rowsEquivalent(
     currency: string;
     sku: string | null;
     barcode: string | null;
-    imageUrl: string | null;
   },
 ) {
-  const catalogueFieldsMatch =
+  return (
     existing.internalName === incoming.internalName &&
     existing.displayNameEn === incoming.displayNameEn &&
     existing.displayNameAr === incoming.displayNameAr &&
     existing.amountMinor === incoming.amountMinor &&
     existing.currency === incoming.currency &&
     existing.sku === incoming.sku &&
-    existing.barcode === incoming.barcode;
-
-  if (!catalogueFieldsMatch) {
-    return false;
-  }
-
-  return !needsImageIngest(existing, incoming);
+    existing.barcode === incoming.barcode
+  );
 }
 
 function needsImageIngest(
@@ -174,6 +172,25 @@ async function loadExistingProductsBySourceIds(
     );
 
   const productById = new Map(products.map((product) => [product.id, product]));
+  const primaryMediaIds = products
+    .map((product) => product.primaryMediaAssetId)
+    .filter((id): id is string => Boolean(id));
+  const approvedPrimaryIds = new Set(
+    primaryMediaIds.length === 0
+      ? []
+      : (
+          await tx
+            .select({ id: catalogueMediaAssets.id })
+            .from(catalogueMediaAssets)
+            .where(
+              and(
+                eq(catalogueMediaAssets.tenantId, tenantId),
+                eq(catalogueMediaAssets.status, "approved"),
+                inArray(catalogueMediaAssets.id, primaryMediaIds),
+              ),
+            )
+        ).map((asset) => asset.id),
+  );
   const translations = await tx
     .select()
     .from(catalogueProductTranslations)
@@ -284,11 +301,62 @@ async function loadExistingProductsBySourceIds(
       displayNameAr: translation?.ar ?? "",
       amountMinor: price?.amountMinor ?? 0,
       currency: price?.currency ?? "AED",
-      primaryMediaAssetId: product.primaryMediaAssetId,
+      primaryMediaAssetId:
+        product.primaryMediaAssetId &&
+        approvedPrimaryIds.has(product.primaryMediaAssetId)
+          ? product.primaryMediaAssetId
+          : null,
     });
   }
 
   return result;
+}
+
+async function productHasApprovedPrimaryMedia(
+  db: DbClient,
+  tenantId: string,
+  productPublicId: string,
+) {
+  return withTenantContext(db, tenantId, async (tx) => {
+    const [product] = await tx
+      .select({
+        primaryMediaAssetId: catalogueProducts.primaryMediaAssetId,
+      })
+      .from(catalogueProducts)
+      .where(
+        and(
+          eq(catalogueProducts.tenantId, tenantId),
+          eq(catalogueProducts.publicId, productPublicId),
+        ),
+      )
+      .limit(1);
+
+    if (!product?.primaryMediaAssetId) {
+      return false;
+    }
+
+    const [asset] = await tx
+      .select({ status: catalogueMediaAssets.status })
+      .from(catalogueMediaAssets)
+      .where(
+        and(
+          eq(catalogueMediaAssets.tenantId, tenantId),
+          eq(catalogueMediaAssets.id, product.primaryMediaAssetId),
+        ),
+      )
+      .limit(1);
+
+    return asset?.status === "approved";
+  });
+}
+
+function formatApplyError(error: unknown, sourceId: string) {
+  const message = error instanceof Error ? error.message : "Apply failed.";
+  if (/TooLargeImageException|HTTP 413|too large to return/i.test(message)) {
+    return `${message} sourceId=${sourceId}`;
+  }
+
+  return message;
 }
 
 async function ingestImportRowImage(
@@ -659,12 +727,38 @@ export async function applyCatalogueImport(
 
   const loadedOperation = operation.operation;
   const reportRows: CatalogueImportApplyReport["rows"] = [];
+  const media = emptyCatalogueImportMediaSummary();
   let createCount = 0;
   let updateCount = 0;
   let unchangedCount = 0;
   let skippedCount = 0;
   let conflictCount = 0;
   let errorCount = 0;
+
+  async function attachImportedImageIfNeeded(
+    productPublicId: string,
+    imageUrl: string | null,
+    mode: "uploaded" | "repaired",
+  ) {
+    if (!imageUrl) {
+      return;
+    }
+
+    if (await productHasApprovedPrimaryMedia(db, tenantId, productPublicId)) {
+      media.alreadyPresent += 1;
+      return;
+    }
+
+    await ingestImportRowImage(
+      db,
+      tenantId,
+      membership,
+      productPublicId,
+      imageUrl,
+      staffSubject,
+    );
+    media[mode] += 1;
+  }
 
   for (const row of loadedOperation.previewPayload.rows) {
     if (row.status === "error" || row.status === "duplicate") {
@@ -680,14 +774,42 @@ export async function applyCatalogueImport(
     }
 
     if (row.status === "unchanged") {
-      unchangedCount += 1;
-      reportRows.push({
-        sourceRow: row.sourceRow,
-        sourceId: row.sourceId,
-        status: "unchanged",
-        productPublicId: row.productPublicId,
-        reason: row.reason,
-      });
+      if (!row.productPublicId) {
+        unchangedCount += 1;
+        reportRows.push({
+          sourceRow: row.sourceRow,
+          sourceId: row.sourceId,
+          status: "unchanged",
+          productPublicId: row.productPublicId,
+          reason: row.reason,
+        });
+        continue;
+      }
+
+      try {
+        await attachImportedImageIfNeeded(
+          row.productPublicId,
+          row.imageUrl,
+          "repaired",
+        );
+        unchangedCount += 1;
+        reportRows.push({
+          sourceRow: row.sourceRow,
+          sourceId: row.sourceId,
+          status: "unchanged",
+          productPublicId: row.productPublicId,
+          reason: row.reason,
+        });
+      } catch (error) {
+        errorCount += 1;
+        reportRows.push({
+          sourceRow: row.sourceRow,
+          sourceId: row.sourceId,
+          status: "error",
+          productPublicId: row.productPublicId,
+          reason: formatApplyError(error, row.sourceId),
+        });
+      }
       continue;
     }
 
@@ -734,16 +856,11 @@ export async function applyCatalogueImport(
           created.publicId,
         );
 
-        if (row.ingestImage && row.imageUrl) {
-          await ingestImportRowImage(
-            db,
-            tenantId,
-            membership,
-            created.publicId,
-            row.imageUrl,
-            staffSubject,
-          );
-        }
+        await attachImportedImageIfNeeded(
+          created.publicId,
+          row.imageUrl,
+          "uploaded",
+        );
 
         createCount += 1;
         reportRows.push({
@@ -782,16 +899,11 @@ export async function applyCatalogueImport(
         staffSubject,
       );
 
-      if (row.ingestImage && row.imageUrl) {
-        await ingestImportRowImage(
-          db,
-          tenantId,
-          membership,
-          updated.publicId,
-          row.imageUrl,
-          staffSubject,
-        );
-      }
+      await attachImportedImageIfNeeded(
+        updated.publicId,
+        row.imageUrl,
+        "uploaded",
+      );
 
       updateCount += 1;
       reportRows.push({
@@ -825,11 +937,14 @@ export async function applyCatalogueImport(
         sourceId: row.sourceId,
         status: "error",
         productPublicId: row.productPublicId,
-        reason: error instanceof Error ? error.message : "Apply failed.",
+        reason: formatApplyError(error, row.sourceId),
       });
     }
   }
 
+  const errorCategories = summarizeCatalogueImportErrors(
+    reportRows.filter((row) => row.status === "error"),
+  );
   const report: CatalogueImportApplyReport = {
     appliedAt: new Date().toISOString(),
     createCount,
@@ -838,6 +953,8 @@ export async function applyCatalogueImport(
     skippedCount,
     conflictCount,
     errorCount,
+    media,
+    errorCategories,
     rows: reportRows,
   };
 

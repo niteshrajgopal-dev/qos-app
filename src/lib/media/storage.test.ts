@@ -2,9 +2,12 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { AzureBlobMediaStorage } from "@/lib/media/azure-blob-storage";
+import {
+  AzureBlobMediaStorage,
+  createAzureBlobServiceClient,
+} from "@/lib/media/azure-blob-storage";
 import { InMemoryBlobContainer } from "@/lib/media/blob-container";
 import { readMediaConfig } from "@/lib/media/config";
 import {
@@ -107,5 +110,42 @@ describe("createMediaStorage", () => {
     );
 
     expect(storage).toBeInstanceOf(AzureBlobMediaStorage);
+  });
+
+  it("configures the Azure Blob client with DefaultAzureCredential", () => {
+    const credential = {
+      getToken: async () => ({
+        token: "test-token",
+        expiresOnTimestamp: Date.now() + 60_000,
+      }),
+    };
+    const createCredential = vi.fn(() => credential);
+    const client = createAzureBlobServiceClient(
+      {
+        authMode: "entra",
+        accountUrl: "https://qosmedia.blob.core.windows.net",
+        privateContainer: "media-private",
+        publicContainer: "media-public",
+      },
+      { createCredential },
+    );
+
+    expect(createCredential).toHaveBeenCalledTimes(1);
+    expect(client.url.replace(/\/$/, "")).toBe(
+      "https://qosmedia.blob.core.windows.net",
+    );
+    expect(client.accountName).toBe("qosmedia");
+  });
+
+  it("configures the Azure Blob client from a connection string", () => {
+    const client = createAzureBlobServiceClient({
+      authMode: "connection-string",
+      connectionString:
+        "DefaultEndpointsProtocol=https;AccountName=dev;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net",
+      privateContainer: "media-private",
+      publicContainer: "media-public",
+    });
+
+    expect(client.accountName).toBe("dev");
   });
 });
