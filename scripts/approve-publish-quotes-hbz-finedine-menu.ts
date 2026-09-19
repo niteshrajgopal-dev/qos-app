@@ -36,6 +36,12 @@ async function main() {
     console.log(
       `  Publish locations succeeded: ${result.publish.results.filter((entry) => entry.success).length}/${result.publish.results.length}`,
     );
+    console.log(
+      `  Storefront assignment: ${result.storefront.locationPublicId} -> ${result.storefront.menuPublicId}`,
+    );
+    console.log(
+      `  Storefront release: ${result.storefront.releasePublicId} (v${result.storefront.releaseVersion})`,
+    );
   } finally {
     await sql.end({ timeout: 5 });
   }

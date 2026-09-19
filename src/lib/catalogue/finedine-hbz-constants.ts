@@ -7,6 +7,7 @@ export const QUOTES_HBZ_FINEDINE_IMPORT = {
   locationSlug: "hbz-stadium",
   tenantPublicId: "ten_quotes_dev",
   brandPublicId: "brd_quotes",
+  storefrontPublicId: "stf_quotes_e748d7fc",
   connectionKey: "finedine.hbz-stadium",
   menuInternalName: "hbz-stadium-finedine",
   flatListFixturePath: "fixtures/finedine/quotes-hbz-stadium-flat-list.json",
