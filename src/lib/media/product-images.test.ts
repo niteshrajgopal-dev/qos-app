@@ -6,7 +6,12 @@ import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { staffIdentities, staffMemberships } from "@/db/schema";
-import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
+import {
+  grantRoleMembership,
+  hasIntegrationDatabase,
+  resetAndMigrate,
+  runAsRole,
+} from "@/db/test-utils";
 import { createDraftProduct } from "@/lib/catalogue/products";
 import {
   createProductImageUploadGrant,
@@ -56,6 +61,7 @@ integrationDescribe("product image media", () => {
     const connection = await resetAndMigrate();
     db = connection.db;
     sqlClient = connection.sql;
+    await grantRoleMembership(sqlClient, "qos", "qos_app");
   });
 
   afterAll(async () => {
@@ -115,6 +121,58 @@ integrationDescribe("product image media", () => {
       staffIdentityId: identity.id,
     };
   }
+
+  it("resolves public derivatives under qos_app with empty tenant context", async () => {
+    const quotes = await createQuotesTwoLocationTenant(db);
+    const admin = await seedAdministrator(quotes.tenant.id);
+    const product = await createDraftProduct(
+      db,
+      quotes.tenant.id,
+      admin,
+      productInput,
+    );
+    const pngBytes = await createTestPng();
+
+    const grant = await createProductImageUploadGrant(
+      db,
+      quotes.tenant.id,
+      admin,
+      product.publicId,
+      {
+        expectedByteSize: pngBytes.byteLength,
+        expectedContentType: "image/png",
+      },
+    );
+
+    await ingestProductImageUpload(
+      db,
+      quotes.tenant.id,
+      product.publicId,
+      grant.grantToken,
+      pngBytes,
+    );
+
+    const processed = await processProductImage(
+      db,
+      quotes.tenant.id,
+      admin,
+      product.publicId,
+      grant.assetPublicId,
+      "admin.quotes@test",
+    );
+
+    const thumbnail = processed.derivatives.find(
+      (derivative) => derivative.kind === "thumbnail",
+    );
+    expect(thumbnail?.publicDerivativeId).toMatch(/^mda_/);
+
+    const served = await runAsRole(sqlClient, "qos_app", () =>
+      resolvePublicMediaDerivative(db, thumbnail!.publicDerivativeId),
+    );
+
+    expect(served.contentType).toBe("image/jpeg");
+    expect(served.bytes.byteLength).toBeGreaterThan(0);
+  });
 
   it("uploads, processes, and serves an approved thumbnail derivative", async () => {
     const quotes = await createQuotesTwoLocationTenant(db);
