@@ -232,6 +232,13 @@
       "when": 1789314600000,
       "tag": "0032_storefront_deployments",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1789315600000,
+      "tag": "0033_public_media_resolution_rls",
+      "breakpoints": true
     }
   ]
 }
