@@ -1,7 +1,8 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { readMediaConfig } from "@/lib/media/config";
+import { createAzureBlobMediaStorage } from "@/lib/media/azure-blob-storage";
+import { readMediaConfig, type MediaConfig } from "@/lib/media/config";
 
 export type MediaStorage = {
   writePrivate(relativePath: string, bytes: Buffer): Promise<void>;
@@ -46,13 +47,28 @@ export class LocalMediaStorage implements MediaStorage {
   }
 }
 
+export function createMediaStorage(
+  config: MediaConfig,
+  options?: { localRoot?: string },
+): MediaStorage {
+  if (config.storageBackend === "azure-blob") {
+    if (!config.azureBlob) {
+      throw new Error("Azure blob media config is missing.");
+    }
+
+    return createAzureBlobMediaStorage(config.azureBlob);
+  }
+
+  return new LocalMediaStorage(options?.localRoot ?? config.localRoot);
+}
+
 let storageInstance: MediaStorage | null = null;
 
 export function getMediaStorage(rootDirectory?: string): MediaStorage {
   if (!storageInstance) {
-    storageInstance = new LocalMediaStorage(
-      rootDirectory ?? readMediaConfig().localRoot,
-    );
+    storageInstance = createMediaStorage(readMediaConfig(), {
+      localRoot: rootDirectory,
+    });
   }
 
   return storageInstance;
