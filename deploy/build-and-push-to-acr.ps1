@@ -7,14 +7,14 @@
   .\deploy\build-and-push-to-acr.cmd
 
 .EXAMPLE
-  .\deploy\build-and-push-to-acr.cmd -ImageTag "0.2"
+  .\deploy\build-and-push-to-acr.cmd -ImageTag "0.13"
 #>
 [CmdletBinding()]
 param(
     [string] $RegistryName = "qosdevacr",
     [string] $ResourceGroup = "rg-qos-dev-core",
     [string] $ImageName = "qos-api",
-    [string] $ImageTag = "0.2",
+    [string] $ImageTag = "0.13",
     [string] $ProjectRoot = "",
     [switch] $ShowLogs
 )

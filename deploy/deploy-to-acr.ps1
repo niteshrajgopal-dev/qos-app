@@ -7,7 +7,7 @@
   .\deploy\deploy-to-acr.cmd
 
 .EXAMPLE
-  .\deploy\deploy-to-acr.cmd -ImageTag "0.2" -WaitForHealth
+  .\deploy\deploy-to-acr.cmd -ImageTag "0.13" -WaitForHealth
 #>
 [CmdletBinding()]
 param(
@@ -15,7 +15,7 @@ param(
     [string] $ResourceGroup = "rg-qos-dev-core",
     [string] $ContainerAppName = "ca-qos-dev-api",
     [string] $ImageName = "qos-api",
-    [string] $ImageTag = "0.2",
+    [string] $ImageTag = "0.13",
     [string] $HealthPath = "/api/health",
     [switch] $WaitForHealth,
     [int] $HealthTimeoutSeconds = 120

@@ -40,7 +40,7 @@ docker compose up --build
 
 ## Azure deployment
 
-Image: `qosdevacr.azurecr.io/qos-api:0.1`  
+Image: `qosdevacr.azurecr.io/qos-api:0.13`  
 Container App: `ca-qos-dev-api` in `rg-qos-dev-core`
 
 Probes: liveness → `/api/health/live`, readiness and startup → `/api/health/ready`.
