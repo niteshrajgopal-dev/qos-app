@@ -27,7 +27,10 @@ import {
   auditActorClassFromStaffRole,
   recordTenantAuditEventInTx,
 } from "@/lib/audit/tenant-audit";
-import { withTenantContext } from "@/lib/tenant/context";
+import {
+  type TenantDbExecutor,
+  withTenantContext,
+} from "@/lib/tenant/context";
 
 export class CatalogueProductError extends Error {
   readonly statusCode: number;
@@ -111,8 +114,11 @@ function mapCatalogueError(error: unknown): never {
   throw error;
 }
 
-async function getTenantBusinessProfile(db: DbClient, tenantId: string) {
-  const [tenant] = await db
+async function getTenantBusinessProfile(
+  executor: TenantDbExecutor,
+  tenantId: string,
+) {
+  const [tenant] = await executor
     .select({
       businessProfile: tenants.businessProfile,
     })
@@ -350,10 +356,9 @@ export async function createDraftProduct(
   input: CreateDraftProductInput,
 ): Promise<DraftProductEditorView> {
   try {
-    const businessProfile = await getTenantBusinessProfile(db, tenantId);
-    const validated = validateCreateDraftProductInput(input, businessProfile);
-
     return await withTenantContext(db, tenantId, async (tx) => {
+      const businessProfile = await getTenantBusinessProfile(tx, tenantId);
+      const validated = validateCreateDraftProductInput(input, businessProfile);
       const brandId = await resolveBrandId(
         tx,
         tenantId,
@@ -442,9 +447,8 @@ export async function getDraftProduct(
   productPublicId: string,
 ): Promise<DraftProductEditorView> {
   try {
-    const businessProfile = await getTenantBusinessProfile(db, tenantId);
-
     return await withTenantContext(db, tenantId, async (tx) => {
+      const businessProfile = await getTenantBusinessProfile(tx, tenantId);
       const view = await loadDraftProductEditorView(
         tx,
         tenantId,
@@ -473,11 +477,8 @@ export async function updateDraftProduct(
   staffSubject: string,
 ): Promise<DraftProductEditorView> {
   try {
-    const businessProfile = await getTenantBusinessProfile(db, tenantId);
-    const validated = validateUpdateDraftProductInput(input, businessProfile);
-
     if (
-      validated.defaultVariant != null &&
+      input.defaultVariant != null &&
       membership.role !== "administrator"
     ) {
       throw new StaffAuthorizationError(
@@ -486,6 +487,8 @@ export async function updateDraftProduct(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
+      const businessProfile = await getTenantBusinessProfile(tx, tenantId);
+      const validated = validateUpdateDraftProductInput(input, businessProfile);
       const [product] = await tx
         .select()
         .from(catalogueProducts)

@@ -2,8 +2,10 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { staffIdentities, staffMemberships } from "@/db/schema";
 import {
+  grantRoleMembership,
   hasIntegrationDatabase,
   resetAndMigrate,
+  runAsRole,
 } from "@/db/test-utils";
 import {
   CatalogueProductConflictError,
@@ -28,6 +30,7 @@ integrationDescribe("catalogue draft products", () => {
     const connection = await resetAndMigrate();
     db = connection.db;
     sqlClient = connection.sql;
+    await grantRoleMembership(sqlClient, "qos", "qos_app");
   });
 
   afterAll(async () => {
@@ -256,6 +259,35 @@ integrationDescribe("catalogue draft products", () => {
     expect(updated.translations.ar.translationVersion).toBe(2);
     expect(updated.defaultVariant.amountMinor).toBe(1800);
     expect(updated.translations.en.translationVersion).toBe(1);
+  });
+
+  it("loads draft product detail under qos_app RLS when tenant context is set", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const admin = await seedStaffMember(
+      quotes.tenant.id,
+      "administrator",
+      "admin.quotes@test",
+      "admin.quotes@test",
+    );
+
+    const created = await createDraftProduct(
+      db,
+      quotes.tenant.id,
+      admin,
+      baseProductInput,
+    );
+
+    await runAsRole(sqlClient, "qos_app", async () => {
+      const product = await getDraftProduct(
+        db,
+        quotes.tenant.id,
+        admin,
+        created.publicId,
+      );
+
+      expect(product.publicId).toBe(created.publicId);
+      expect(product.translations.en.displayName).toBe("Flat White");
+    });
   });
 
   it("rejects nutrition fields for generic retail tenants", async () => {
