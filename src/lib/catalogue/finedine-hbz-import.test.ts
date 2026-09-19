@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { eq } from "drizzle-orm";
 
 import {
@@ -12,29 +12,71 @@ import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { QUOTES_HBZ_FINEDINE_IMPORT } from "@/lib/catalogue/finedine-hbz-constants";
 import { importQuotesHbzFineDineMenu } from "@/lib/catalogue/finedine-hbz-import";
 
+const MOCK_PRIMARY_MEDIA_ASSET_ID = "00000000-0000-4000-8000-000000000001";
+
+vi.mock("@/lib/media/product-images", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/lib/media/product-images")>();
+  const { catalogueProducts } = await import("@/db/schema");
+  const { and: andOp, eq: eqOp } = await import("drizzle-orm");
+
+  return {
+    ...actual,
+    ingestProductImageFromRemoteUrl: vi.fn(
+      async (
+        db: Parameters<typeof actual.ingestProductImageFromRemoteUrl>[0],
+        tenantId: string,
+        _membership: Parameters<
+          typeof actual.ingestProductImageFromRemoteUrl
+        >[2],
+        productPublicId: string,
+      ) => {
+        await db
+          .update(catalogueProducts)
+          .set({ primaryMediaAssetId: MOCK_PRIMARY_MEDIA_ASSET_ID })
+          .where(
+            andOp(
+              eqOp(catalogueProducts.tenantId, tenantId),
+              eqOp(catalogueProducts.publicId, productPublicId),
+            ),
+          );
+
+        return {
+          assetPublicId: "mas_mock00000001",
+          status: "approved" as const,
+          derivatives: [
+            {
+              kind: "thumbnail" as const,
+              publicDerivativeId: "mda_mock00000001",
+            },
+          ],
+        };
+      },
+    ),
+  };
+});
+
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
-integrationDescribe(
-  "quotes hbz finedine import",
-  () => {
-    let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
-    let sqlClient: Awaited<ReturnType<typeof resetAndMigrate>>["sql"];
+integrationDescribe("quotes hbz finedine import", () => {
+  let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
+  let sqlClient: Awaited<ReturnType<typeof resetAndMigrate>>["sql"];
 
-    beforeAll(async () => {
-      const connection = await resetAndMigrate();
-      db = connection.db;
-      sqlClient = connection.sql;
-    });
+  beforeAll(async () => {
+    const connection = await resetAndMigrate();
+    db = connection.db;
+    sqlClient = connection.sql;
+  });
 
-    afterAll(async () => {
-      await sqlClient.end({ timeout: 5 });
-    });
+  afterAll(async () => {
+    await sqlClient.end({ timeout: 5 });
+  });
 
-    beforeEach(async () => {
-      await sqlClient`TRUNCATE TABLE qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_import_source_links, qos.catalogue_import_operations, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
-    });
+  beforeEach(async () => {
+    await sqlClient`TRUNCATE TABLE qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_import_source_links, qos.catalogue_import_operations, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+  });
 
-    it("imports draft products and an HBZ draft menu without duplicates on replay", async () => {
+  it("imports draft products and an HBZ draft menu without duplicates on replay", async () => {
     const first = await importQuotesHbzFineDineMenu(db, {
       idempotencyKey: "hbz-import-001",
     });
@@ -109,7 +151,5 @@ integrationDescribe(
       .select({ id: catalogueProducts.id })
       .from(catalogueProducts);
     expect(productsAfterSecondRun).toHaveLength(147);
-    });
-  },
-  60_000,
-);
+  });
+});

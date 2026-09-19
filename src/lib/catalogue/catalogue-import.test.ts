@@ -73,14 +73,17 @@ integrationDescribe("catalogue import", () => {
       .values({ providerSubject: subject, email })
       .returning();
 
-    await db.insert(staffMemberships).values({
-      tenantId,
-      staffIdentityId: identity.id,
-      role,
-    });
+    const [membership] = await db
+      .insert(staffMemberships)
+      .values({
+        tenantId,
+        staffIdentityId: identity.id,
+        role,
+      })
+      .returning();
 
     return {
-      membershipId: identity.id,
+      membershipId: membership.id,
       role,
       staffIdentityId: identity.id,
     };
