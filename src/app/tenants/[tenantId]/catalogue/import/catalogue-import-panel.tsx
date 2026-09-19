@@ -55,6 +55,7 @@ const EMPTY_MAPPING: CatalogueImportColumnMapping = {
   currency: "",
   sku: "",
   barcode: "",
+  imageUrl: "",
 };
 
 export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {

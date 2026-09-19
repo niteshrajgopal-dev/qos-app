@@ -29,6 +29,7 @@ import {
   createDraftProduct,
   updateDraftProduct,
 } from "@/lib/catalogue/products";
+import { ingestProductImageFromRemoteUrl } from "@/lib/media/product-images";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
 import {
   auditActorClassFromStaffRole,
@@ -80,6 +81,7 @@ function rowsEquivalent(
     currency: string;
     sku: string | null;
     barcode: string | null;
+    primaryMediaAssetId: string | null;
   },
   incoming: {
     internalName: string;
@@ -89,17 +91,30 @@ function rowsEquivalent(
     currency: string;
     sku: string | null;
     barcode: string | null;
+    imageUrl: string | null;
   },
 ) {
-  return (
+  const catalogueFieldsMatch =
     existing.internalName === incoming.internalName &&
     existing.displayNameEn === incoming.displayNameEn &&
     existing.displayNameAr === incoming.displayNameAr &&
     existing.amountMinor === incoming.amountMinor &&
     existing.currency === incoming.currency &&
     existing.sku === incoming.sku &&
-    existing.barcode === incoming.barcode
-  );
+    existing.barcode === incoming.barcode;
+
+  if (!catalogueFieldsMatch) {
+    return false;
+  }
+
+  return !needsImageIngest(existing, incoming);
+}
+
+function needsImageIngest(
+  existing: { primaryMediaAssetId: string | null },
+  incoming: { imageUrl: string | null },
+) {
+  return Boolean(incoming.imageUrl) && !existing.primaryMediaAssetId;
 }
 
 async function loadExistingProductsBySourceIds(
@@ -122,6 +137,7 @@ async function loadExistingProductsBySourceIds(
         displayNameAr: string;
         amountMinor: number;
         currency: string;
+        primaryMediaAssetId: string | null;
       }
     >();
   }
@@ -243,6 +259,7 @@ async function loadExistingProductsBySourceIds(
       displayNameAr: string;
       amountMinor: number;
       currency: string;
+      primaryMediaAssetId: string | null;
     }
   >();
 
@@ -267,10 +284,29 @@ async function loadExistingProductsBySourceIds(
       displayNameAr: translation?.ar ?? "",
       amountMinor: price?.amountMinor ?? 0,
       currency: price?.currency ?? "AED",
+      primaryMediaAssetId: product.primaryMediaAssetId,
     });
   }
 
   return result;
+}
+
+async function ingestImportRowImage(
+  db: DbClient,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  productPublicId: string,
+  imageUrl: string,
+  staffSubject: string,
+) {
+  await ingestProductImageFromRemoteUrl(
+    db,
+    tenantId,
+    membership,
+    productPublicId,
+    imageUrl,
+    staffSubject,
+  );
 }
 
 async function linkImportSourceToProduct(
@@ -392,6 +428,8 @@ export async function previewCatalogueImport(
             displayNameAr: normalized.displayNameAr,
             amountMinor: normalized.amountMinor,
             currency: normalized.currency,
+            imageUrl: normalized.imageUrl,
+            ingestImage: false,
           });
           continue;
         }
@@ -414,6 +452,8 @@ export async function previewCatalogueImport(
           displayNameAr: null,
           amountMinor: null,
           currency: null,
+          imageUrl: null,
+          ingestImage: false,
         });
       }
     }
@@ -440,11 +480,14 @@ export async function previewCatalogueImport(
           displayNameAr: normalized.displayNameAr,
           amountMinor: normalized.amountMinor,
           currency: normalized.currency,
+          imageUrl: normalized.imageUrl,
+          ingestImage: Boolean(normalized.imageUrl),
         });
         continue;
       }
 
       const unchanged = rowsEquivalent(existing, normalized);
+      const ingestImage = needsImageIngest(existing, normalized);
       previewRows.push({
         sourceRow: normalized.sourceRow,
         sourceId: normalized.sourceId,
@@ -457,6 +500,8 @@ export async function previewCatalogueImport(
         displayNameAr: normalized.displayNameAr,
         amountMinor: normalized.amountMinor,
         currency: normalized.currency,
+        imageUrl: normalized.imageUrl,
+        ingestImage,
       });
     }
 
@@ -689,6 +734,17 @@ export async function applyCatalogueImport(
           created.publicId,
         );
 
+        if (row.ingestImage && row.imageUrl) {
+          await ingestImportRowImage(
+            db,
+            tenantId,
+            membership,
+            created.publicId,
+            row.imageUrl,
+            staffSubject,
+          );
+        }
+
         createCount += 1;
         reportRows.push({
           sourceRow: row.sourceRow,
@@ -725,6 +781,17 @@ export async function applyCatalogueImport(
         },
         staffSubject,
       );
+
+      if (row.ingestImage && row.imageUrl) {
+        await ingestImportRowImage(
+          db,
+          tenantId,
+          membership,
+          updated.publicId,
+          row.imageUrl,
+          staffSubject,
+        );
+      }
 
       updateCount += 1;
       reportRows.push({

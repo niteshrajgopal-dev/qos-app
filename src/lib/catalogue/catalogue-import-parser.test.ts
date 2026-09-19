@@ -74,6 +74,21 @@ describe("catalogue import parser", () => {
     expect(mapping.sourceId).toBe("source_id");
     expect(mapping.displayNameAr).toBe("display_name_ar");
     expect(mapping.amountMinor).toBe("amount_minor");
+    expect(mapping.imageUrl).toBe("");
+  });
+
+  it("suggests image_url column mapping", () => {
+    const mapping = suggestColumnMapping([
+      "source_id",
+      "internal_name",
+      "display_name_en",
+      "display_name_ar",
+      "amount_minor",
+      "currency",
+      "image_url",
+    ]);
+
+    expect(mapping.imageUrl).toBe("image_url");
   });
 
   it("rejects oversize files", async () => {

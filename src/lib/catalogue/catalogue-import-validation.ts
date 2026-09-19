@@ -15,7 +15,61 @@ export type NormalizedImportRow = {
   currency: string;
   sku: string | null;
   barcode: string | null;
+  imageUrl: string | null;
 };
+
+const IMPORT_IMAGE_URL_MAX_LENGTH = 2048;
+const PRIVATE_IPV4_PATTERN =
+  /^(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.|0\.)/;
+
+export function normalizeImportImageUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  if (trimmed.length > IMPORT_IMAGE_URL_MAX_LENGTH) {
+    throw new CatalogueValidationError(
+      `imageUrl must be at most ${IMPORT_IMAGE_URL_MAX_LENGTH} characters.`,
+      "imageUrl",
+    );
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    throw new CatalogueValidationError("imageUrl must be a valid URL.", "imageUrl");
+  }
+
+  if (parsed.protocol !== "https:") {
+    throw new CatalogueValidationError(
+      "imageUrl must use https.",
+      "imageUrl",
+    );
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (
+    hostname === "localhost" ||
+    hostname.endsWith(".localhost") ||
+    hostname.endsWith(".local")
+  ) {
+    throw new CatalogueValidationError(
+      "imageUrl host is not allowed.",
+      "imageUrl",
+    );
+  }
+
+  if (PRIVATE_IPV4_PATTERN.test(hostname)) {
+    throw new CatalogueValidationError(
+      "imageUrl host is not allowed.",
+      "imageUrl",
+    );
+  }
+
+  return parsed.toString();
+}
 
 const CONNECTION_KEY_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 
@@ -141,6 +195,10 @@ export function normalizeImportRow(
     );
   }
 
+  const imageUrl = mapping.imageUrl
+    ? normalizeImportImageUrl(readMappedValue(row, mapping, "imageUrl"))
+    : null;
+
   return {
     sourceRow,
     sourceId,
@@ -155,5 +213,6 @@ export function normalizeImportRow(
     currency,
     sku: readMappedValue(row, mapping, "sku") || null,
     barcode: readMappedValue(row, mapping, "barcode") || null,
+    imageUrl,
   };
 }

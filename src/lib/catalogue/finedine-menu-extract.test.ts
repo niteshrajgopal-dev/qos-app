@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { QUOTES_HBZ_FINEDINE_IMPORT } from "@/lib/catalogue/finedine-hbz-constants";
 import {
   buildFineDineCatalogueImportCsv,
+  buildFineDineImageUrl,
   fineDinePriceToMinor,
   localizedFineDineText,
   parseFineDineFlatList,
@@ -38,6 +39,42 @@ describe("finedine menu extract", () => {
     expect(
       localizedFineDineText({ en: "Flatwhite", ar: "" }, "ar"),
     ).toBe("Flatwhite");
+  });
+
+  it("falls back to the first images[] entry when entity.image is missing", () => {
+    const parsedWithGallery = parseFineDineFlatList(
+      {
+        menu: {
+          _id: "menu-1",
+          menuId: "menu-1",
+          parentId: "",
+          type: "section",
+          name: { en: "Menu" },
+        },
+        section: {
+          _id: "section-1",
+          menuId: "menu-1",
+          parentId: "menu-1",
+          type: "section",
+          name: { en: "Mains" },
+          order: 0,
+        },
+        item: {
+          _id: "item-1",
+          menuId: "menu-1",
+          parentId: "section-1",
+          type: "item",
+          name: { en: "Gallery Item", ar: "Gallery Item" },
+          prices: [{ value: 12 }],
+          images: [{ image: "gallery/example.jpg", order: 0 }],
+        },
+      },
+      "menu-1",
+    );
+
+    expect(parsedWithGallery.items[0]?.imageUrl).toBe(
+      buildFineDineImageUrl("gallery/example.jpg"),
+    );
   });
 
   it("builds a catalogue-import CSV with stable FineDine source ids", () => {
