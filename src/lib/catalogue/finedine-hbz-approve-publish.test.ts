@@ -15,6 +15,7 @@ import { resolveStorefrontManifestByPublicId } from "@/lib/storefront/storefront
 import {
   createStorefront,
   publishStorefrontRelease,
+  registerStorefrontDomain,
 } from "@/lib/storefront/storefronts";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
@@ -77,6 +78,18 @@ integrationDescribe(
         .update(storefronts)
         .set({ publicId: QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId })
         .where(eq(storefronts.id, storefront.id));
+
+      await registerStorefrontDomain(
+        db,
+        tenantId,
+        QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId,
+        {
+          hostname: "quotes.dev.qosapp.com",
+          domainType: "platform_subdomain",
+          lifecycleStatus: "active",
+          isPrimary: true,
+        },
+      );
 
       await publishStorefrontRelease(
         db,
