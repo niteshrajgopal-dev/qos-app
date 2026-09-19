@@ -6,15 +6,23 @@ import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { approveAndPublishQuotesHbzFineDineMenu } from "@/lib/catalogue/finedine-hbz-approve-publish";
 import { QUOTES_HBZ_FINEDINE_IMPORT } from "@/lib/catalogue/finedine-hbz-constants";
 import { ensureImportStaffAdmin } from "@/lib/catalogue/finedine-hbz-import";
+import { approveProductTranslation } from "@/lib/catalogue/translation-approval";
 import { createDraftMenu, MenuError } from "@/lib/catalogue/menus";
 import { publishDraftMenuToLocations } from "@/lib/catalogue/menu-publish";
 import { createDraftProduct } from "@/lib/catalogue/products";
+import { quotesLocationFixtures } from "@/lib/seed/fixtures/quotes-locations";
 import { seedQuotesDevTenant } from "@/lib/seed/dev-tenants";
 import { defaultStorefrontDraftConfig } from "@/lib/storefront/default-theme";
+import {
+  assertStorefrontPublishedCollectionsCoverLocations,
+  findStorefrontPublishedCollection,
+} from "@/lib/storefront/storefront-manifest-contract";
 import { resolveStorefrontManifestByPublicId } from "@/lib/storefront/storefront-manifest-resolver";
 import {
+  assignPublishedCollection,
   createStorefront,
   publishStorefrontRelease,
+  registerStorefrontDomain,
 } from "@/lib/storefront/storefronts";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
@@ -78,6 +86,18 @@ integrationDescribe(
         .set({ publicId: QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId })
         .where(eq(storefronts.id, storefront.id));
 
+      await registerStorefrontDomain(
+        db,
+        tenantId,
+        QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId,
+        {
+          hostname: "quotes.dev.qosapp.com",
+          domainType: "platform_subdomain",
+          lifecycleStatus: "active",
+          isPrimary: true,
+        },
+      );
+
       await publishStorefrontRelease(
         db,
         tenantId,
@@ -91,7 +111,95 @@ integrationDescribe(
       };
     }
 
-    async function seedMinimalHbzFineDineDraftMenu() {
+    async function seedPublishedDemoMenusForAllLocations(
+      tenantId: string,
+      membership: Awaited<ReturnType<typeof ensureImportStaffAdmin>>,
+      staffSubject: string,
+      tenantLocations: Array<{ id: string; publicId: string; name: string }>,
+    ) {
+      const demoProduct = await createDraftProduct(db, tenantId, membership, {
+        internalName: "quotes-demo-latte",
+        translations: {
+          en: {
+            displayName: "Demo Latte",
+            description: "Sandbox checkout item for the Phase 1 demo",
+          },
+          ar: {
+            displayName: "لاتيه تجريبي",
+            description: "عنصر دفع تجريبي",
+          },
+        },
+        defaultVariant: { amountMinor: 1800, currency: "AED" },
+      });
+
+      for (const locale of ["en", "ar"] as const) {
+        await approveProductTranslation(
+          db,
+          tenantId,
+          staffSubject,
+          demoProduct.publicId,
+          locale,
+          {
+            expectedTranslationVersion:
+              demoProduct.translations[locale].translationVersion,
+          },
+        );
+      }
+
+      const demoMenu = await createDraftMenu(db, tenantId, membership, {
+        internalName: "quotes-demo-menu",
+        locationIds: tenantLocations.map((location) => location.id),
+        translations: {
+          en: { displayName: "Demo Menu" },
+          ar: { displayName: "قائمة تجريبية" },
+        },
+        sections: [
+          {
+            internalName: "drinks",
+            sortOrder: 0,
+            translations: {
+              en: { displayName: "Drinks" },
+              ar: { displayName: "مشروبات" },
+            },
+            products: [{ productPublicId: demoProduct.publicId, sortOrder: 0 }],
+          },
+        ],
+      });
+
+      await publishDraftMenuToLocations(
+        db,
+        tenantId,
+        staffSubject,
+        demoMenu.publicId,
+        { locationIds: tenantLocations.map((location) => location.id) },
+      );
+
+      for (const location of tenantLocations) {
+        await assignPublishedCollection(
+          db,
+          tenantId,
+          QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId,
+          location.publicId,
+          demoMenu.publicId,
+        );
+      }
+
+      await publishStorefrontRelease(
+        db,
+        tenantId,
+        QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId,
+        staffSubject,
+      );
+
+      return {
+        demoMenuPublicId: demoMenu.publicId,
+        demoProductPublicId: demoProduct.publicId,
+      };
+    }
+
+    async function seedMinimalHbzFineDineDraftMenu(options?: {
+      seedBranchDemoMenus?: boolean;
+    }) {
       const { tenantId } = await seedQuotesDevTenant(db);
       const staffSubject = "ops.quotes-hbz-finedine@test";
       const membership = await ensureImportStaffAdmin(db, tenantId, staffSubject);
@@ -149,6 +257,22 @@ integrationDescribe(
         staffSubject,
       );
 
+      const demoSeed = options?.seedBranchDemoMenus
+        ? await seedPublishedDemoMenusForAllLocations(
+            tenantId,
+            membership,
+            staffSubject,
+            tenantLocations.map((location) => ({
+              id: location.id,
+              publicId: location.publicId,
+              name:
+                quotesLocationFixtures.find(
+                  (fixture) => fixture.publicId === location.publicId,
+                )?.name ?? location.publicId,
+            })),
+          )
+        : null;
+
       return {
         tenantId,
         staffSubject,
@@ -156,11 +280,14 @@ integrationDescribe(
         products,
         hbzLocation: hbzLocation!,
         allLocationPublicIds,
+        demoSeed,
       };
     }
 
     it("blocks publish until translations are approved, then publishes to HBZ only", async () => {
-      const fixture = await seedMinimalHbzFineDineDraftMenu();
+      const fixture = await seedMinimalHbzFineDineDraftMenu({
+        seedBranchDemoMenus: true,
+      });
 
       await expect(
         publishDraftMenuToLocations(
@@ -198,13 +325,33 @@ integrationDescribe(
         QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId,
         "1",
       );
-      const hbzCollection = manifest.publishedCollections.find(
-        (collection) =>
-          collection.locationPublicId ===
-          QUOTES_HBZ_FINEDINE_IMPORT.locationPublicId,
+      const hbzCollection = findStorefrontPublishedCollection(
+        manifest,
+        QUOTES_HBZ_FINEDINE_IMPORT.locationPublicId,
       );
 
       expect(hbzCollection?.menuPublicId).toBe(fixture.menu.publicId);
+      expect(() =>
+        assertStorefrontPublishedCollectionsCoverLocations(manifest),
+      ).not.toThrow();
+
+      for (const locationPublicId of [
+        "loc_quotes_al_ain_zoo",
+        "loc_quotes_hct",
+      ]) {
+        const branchCollection = findStorefrontPublishedCollection(
+          manifest,
+          locationPublicId,
+        );
+
+        expect(branchCollection?.menuPublicId).toBe(
+          fixture.demoSeed?.demoMenuPublicId,
+        );
+        expect(branchCollection?.menuPublicId).not.toBe(fixture.menu.publicId);
+        expect(branchCollection?.publicMenuKey).not.toBe(
+          hbzCollection?.publicMenuKey,
+        );
+      }
 
       const replay = await approveAndPublishQuotesHbzFineDineMenu(db, {
         tenantId: fixture.tenantId,
@@ -218,7 +365,9 @@ integrationDescribe(
     });
 
     it("refuses to publish to non-HBZ locations", async () => {
-      const fixture = await seedMinimalHbzFineDineDraftMenu();
+      const fixture = await seedMinimalHbzFineDineDraftMenu({
+        seedBranchDemoMenus: true,
+      });
 
       const otherLocations = await db
         .select({ id: locations.id, publicId: locations.publicId })
@@ -240,6 +389,18 @@ integrationDescribe(
           locationIds: [foreignLocationId!],
         }),
       ).rejects.toThrow(/only loc_quotes_hbz/i);
+    });
+
+    it("refuses storefront release when non-HBZ locations lack published menu assignments", async () => {
+      const fixture = await seedMinimalHbzFineDineDraftMenu();
+
+      await expect(
+        approveAndPublishQuotesHbzFineDineMenu(db, {
+          tenantId: fixture.tenantId,
+          staffSubject: fixture.staffSubject,
+          menuPublicId: fixture.menu.publicId,
+        }),
+      ).rejects.toThrow(/has no published menu assignment/i);
     });
   },
   60_000,

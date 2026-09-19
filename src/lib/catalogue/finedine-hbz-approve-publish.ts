@@ -10,6 +10,7 @@ import { getDraftProduct } from "@/lib/catalogue/products";
 import { approveProductTranslation } from "@/lib/catalogue/translation-approval";
 import { seedQuotesDevTenant } from "@/lib/seed/dev-tenants";
 import {
+  assertStorefrontPublishedCollectionsComplete,
   assignPublishedCollection,
   publishStorefrontRelease,
 } from "@/lib/storefront/storefronts";
@@ -246,6 +247,12 @@ export async function approveAndPublishQuotesHbzFineDineMenu(
     QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId,
     hbzLocation.publicId,
     menuPublicId,
+  );
+
+  await assertStorefrontPublishedCollectionsComplete(
+    db,
+    tenantId,
+    QUOTES_HBZ_FINEDINE_IMPORT.storefrontPublicId,
   );
 
   const release = await publishStorefrontRelease(

@@ -97,6 +97,38 @@ export function parseStorefrontManifestContractVersion(
   return parsed as typeof STOREFRONT_MANIFEST_CONTRACT_VERSION;
 }
 
+export function findStorefrontPublishedCollection(
+  manifest: Pick<StorefrontManifestResponse, "publishedCollections">,
+  locationPublicId: string,
+): StorefrontManifestPublishedCollection | undefined {
+  return manifest.publishedCollections.find(
+    (collection) => collection.locationPublicId === locationPublicId,
+  );
+}
+
+export function assertStorefrontPublishedCollectionsCoverLocations(
+  manifest: Pick<StorefrontManifestResponse, "locations" | "publishedCollections">,
+) {
+  for (const location of manifest.locations) {
+    const collection = findStorefrontPublishedCollection(
+      manifest,
+      location.locationPublicId,
+    );
+
+    if (!collection) {
+      throw new Error(
+        `Storefront manifest is missing publishedCollections entry for ${location.locationPublicId}.`,
+      );
+    }
+
+    if (!collection.publicMenuKey) {
+      throw new Error(
+        `Storefront manifest publishedCollections entry for ${location.locationPublicId} is missing publicMenuKey.`,
+      );
+    }
+  }
+}
+
 export function toStorefrontManifestResponse(input: {
   releasePublicId: string;
   tenantPublicId: string;

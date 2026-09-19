@@ -303,6 +303,72 @@ export async function updateStorefrontDraft(
   );
 }
 
+export async function assertStorefrontPublishedCollectionsComplete(
+  db: DbClient,
+  tenantId: string,
+  storefrontPublicId: string,
+) {
+  return withTenantContext(db, tenantId, async (tx) => {
+    const storefront = await requireStorefrontByPublicId(
+      tx,
+      tenantId,
+      storefrontPublicId,
+    );
+
+    const assignedLocations = await tx
+      .select({
+        locationPublicId: locations.publicId,
+      })
+      .from(storefrontLocations)
+      .innerJoin(
+        locations,
+        and(
+          eq(storefrontLocations.tenantId, locations.tenantId),
+          eq(storefrontLocations.locationId, locations.id),
+        ),
+      )
+      .where(
+        and(
+          eq(storefrontLocations.tenantId, tenantId),
+          eq(storefrontLocations.storefrontId, storefront.id),
+        ),
+      );
+
+    const collections = await tx
+      .select({
+        locationPublicId: locations.publicId,
+      })
+      .from(storefrontPublishedCollections)
+      .innerJoin(
+        locations,
+        and(
+          eq(storefrontPublishedCollections.tenantId, locations.tenantId),
+          eq(storefrontPublishedCollections.locationId, locations.id),
+        ),
+      )
+      .where(
+        and(
+          eq(storefrontPublishedCollections.tenantId, tenantId),
+          eq(storefrontPublishedCollections.storefrontId, storefront.id),
+        ),
+      );
+
+    const collectionByLocationPublicId = new Map(
+      collections.map((collection) => [collection.locationPublicId, collection]),
+    );
+
+    for (const location of assignedLocations) {
+      if (!collectionByLocationPublicId.has(location.locationPublicId)) {
+        throw new StorefrontError(
+          `Location ${location.locationPublicId} has no published menu assignment.`,
+          400,
+          "publishedCollections",
+        );
+      }
+    }
+  });
+}
+
 export async function assignPublishedCollection(
   db: DbClient,
   tenantId: string,
