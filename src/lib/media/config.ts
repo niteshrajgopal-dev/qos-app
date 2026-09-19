@@ -35,10 +35,51 @@ function parsePositiveInt(value: string | undefined, fallback: number) {
   return parsed;
 }
 
-function parseStorageBackend(value: string | undefined): MediaStorageBackend {
+const CLOUD_MEDIA_STORAGE_REQUIRED_MESSAGE = [
+  "MEDIA_STORAGE is required in Azure Container Apps / production.",
+  "Set MEDIA_STORAGE=azure-blob plus MEDIA_AZURE_BLOB_ACCOUNT_URL (Entra ID / Managed Identity) or MEDIA_AZURE_BLOB_CONNECTION_STRING.",
+  "Containers default to media-private / media-public.",
+  "For local development and tests only, set MEDIA_STORAGE=local.",
+].join(" ");
+
+function isNextJsBuildPhase(source: EnvSource) {
+  const phase = source.NEXT_PHASE?.trim();
+  return (
+    phase === "phase-production-build" ||
+    phase === "phase-production-compile" ||
+    phase === "phase-export"
+  );
+}
+
+export function requiresExplicitMediaStorage(
+  source: EnvSource = process.env,
+): boolean {
+  if (isNextJsBuildPhase(source)) {
+    return false;
+  }
+
+  if (source.CONTAINER_APP_NAME?.trim()) {
+    return true;
+  }
+
+  return source.NODE_ENV?.trim().toLowerCase() === "production";
+}
+
+function parseStorageBackend(
+  value: string | undefined,
+  source: EnvSource,
+): MediaStorageBackend {
   const normalized = value?.trim().toLowerCase();
 
-  if (!normalized || normalized === "local") {
+  if (!normalized) {
+    if (requiresExplicitMediaStorage(source)) {
+      throw new Error(CLOUD_MEDIA_STORAGE_REQUIRED_MESSAGE);
+    }
+
+    return "local";
+  }
+
+  if (normalized === "local") {
     return "local";
   }
 
@@ -71,7 +112,7 @@ function parseAzureAccountUrl(value: string) {
 }
 
 export function readMediaConfig(source: EnvSource = process.env): MediaConfig {
-  const storageBackend = parseStorageBackend(source.MEDIA_STORAGE);
+  const storageBackend = parseStorageBackend(source.MEDIA_STORAGE, source);
   const base = {
     maxUploadBytes: parsePositiveInt(source.MEDIA_MAX_UPLOAD_BYTES, 5_000_000),
     maxPixelDimension: parsePositiveInt(source.MEDIA_MAX_PIXEL_DIMENSION, 4096),

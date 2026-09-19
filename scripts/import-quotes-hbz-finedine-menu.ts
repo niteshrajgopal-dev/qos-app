@@ -1,34 +1,29 @@
 import { createAdminDbClient } from "@/db/client";
 import { formatCatalogueImportCliReport } from "@/lib/catalogue/import-report";
-import { importQuotesHbzFineDineMenu } from "@/lib/catalogue/finedine-hbz-import";
+import {
+  formatQuotesHbzImportCliHelp,
+  importQuotesHbzFineDineMenu,
+  parseQuotesHbzImportCliArgs,
+} from "@/lib/catalogue/finedine-hbz-import";
 import { QUOTES_HBZ_FINEDINE_IMPORT } from "@/lib/catalogue/finedine-hbz-constants";
 
 async function main() {
-  const useLiveSource = process.argv.includes("--live");
-  const idempotencyKey = process.argv
-    .find((arg) => arg.startsWith("--idempotency-key="))
-    ?.split("=")
-    .slice(1)
-    .join("=");
-  const tenantId = process.argv
-    .find((arg) => arg.startsWith("--tenant-id="))
-    ?.split("=")
-    .slice(1)
-    .join("=");
-  const staffSubject = process.argv
-    .find((arg) => arg.startsWith("--staff-subject="))
-    ?.split("=")
-    .slice(1)
-    .join("=");
+  const args = parseQuotesHbzImportCliArgs(process.argv.slice(2));
+
+  if (args.help) {
+    console.log(formatQuotesHbzImportCliHelp());
+    return;
+  }
 
   const { db, sql } = createAdminDbClient();
 
   try {
     const result = await importQuotesHbzFineDineMenu(db, {
-      useLiveSource,
-      idempotencyKey,
-      tenantId,
-      staffSubject,
+      useLiveSource: args.useLiveSource,
+      forceImageReingest: args.forceImageReingest,
+      idempotencyKey: args.idempotencyKey,
+      tenantId: args.tenantId,
+      staffSubject: args.staffSubject,
     });
 
     console.log("Quotes HBZ FineDine import complete:");

@@ -1,3 +1,5 @@
+import type { MediaStorageBackend } from "@/lib/media/config";
+
 export type HealthStatus = "healthy" | "unhealthy" | "alive";
 
 export type HealthPayload = {
@@ -5,6 +7,7 @@ export type HealthPayload = {
   service: "qos-api";
   version: string;
   database?: "connected" | "disconnected";
+  mediaStorage?: MediaStorageBackend;
   uptimeSeconds: number;
   responseTimeMs: number;
   timestamp: string;
@@ -13,6 +16,7 @@ export type HealthPayload = {
 type HealthBase = {
   version: string;
   startedAt?: number;
+  mediaStorage?: MediaStorageBackend;
 };
 
 function basePayload({ version, startedAt = Date.now() }: HealthBase) {
@@ -32,10 +36,13 @@ export function livePayload(input: HealthBase): HealthPayload {
   };
 }
 
-export function healthyPayload(input: HealthBase): HealthPayload {
+export function healthyPayload(
+  input: HealthBase & { mediaStorage: MediaStorageBackend },
+): HealthPayload {
   return {
     status: "healthy",
     database: "connected",
+    mediaStorage: input.mediaStorage,
     ...basePayload(input),
   };
 }

@@ -11,7 +11,12 @@ import {
 } from "@/db/schema";
 import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { QUOTES_HBZ_FINEDINE_IMPORT } from "@/lib/catalogue/finedine-hbz-constants";
-import { importQuotesHbzFineDineMenu } from "@/lib/catalogue/finedine-hbz-import";
+import {
+  formatQuotesHbzImportCliHelp,
+  importQuotesHbzFineDineMenu,
+  parseQuotesHbzImportCliArgs,
+} from "@/lib/catalogue/finedine-hbz-import";
+import { ingestProductImageFromRemoteUrl } from "@/lib/media/product-images";
 
 vi.mock("@/lib/media/product-images", async (importOriginal) => {
   const actual =
@@ -31,6 +36,9 @@ vi.mock("@/lib/media/product-images", async (importOriginal) => {
           typeof actual.ingestProductImageFromRemoteUrl
         >[2],
         productPublicId: string,
+        _imageUrl: string,
+        _publisherSubject: string,
+        fetchDeps: { force?: boolean } = {},
       ) => {
         const [product] = await db
           .select({
@@ -46,7 +54,7 @@ vi.mock("@/lib/media/product-images", async (importOriginal) => {
           )
           .limit(1);
 
-        if (product?.primaryMediaAssetId) {
+        if (product?.primaryMediaAssetId && !fetchDeps.force) {
           return {
             assetPublicId: `mas_${productPublicId.slice(-12)}`,
             status: "approved" as const,
@@ -64,7 +72,7 @@ vi.mock("@/lib/media/product-images", async (importOriginal) => {
           .values({
             tenantId,
             productId: product!.id,
-            publicId: `mas_${productPublicId.replace(/[^a-z0-9]/gi, "").slice(-16)}`,
+            publicId: `mas_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`,
             status: "approved",
             sourceProvenance: "imported",
           })
@@ -207,5 +215,45 @@ integrationDescribe("quotes hbz finedine import", () => {
           ),
         ),
     ).toHaveLength(147);
-  }, 30_000);
+
+    const ingestMock = vi.mocked(ingestProductImageFromRemoteUrl);
+    const ingestCallsAfterSecond = ingestMock.mock.calls.length;
+
+    const forced = await importQuotesHbzFineDineMenu(db, {
+      idempotencyKey: "hbz-import-force-001",
+      forceImageReingest: true,
+    });
+
+    expect(forced.importReport.createCount).toBe(0);
+    expect(forced.importReport.unchangedCount).toBe(147);
+    expect(forced.importReport.media?.alreadyPresent).toBe(0);
+    expect(forced.importReport.media?.uploaded).toBeGreaterThan(0);
+    expect(ingestMock.mock.calls.length).toBeGreaterThan(ingestCallsAfterSecond);
+    expect(
+      ingestMock.mock.calls.some((call) => call[6]?.force === true),
+    ).toBe(true);
+    expect(await db.select().from(catalogueMediaAssets).then((rows) => rows.length)).toBeGreaterThan(
+      mediaAfterFirstRun.length,
+    );
+  }, 45_000);
+});
+
+describe("quotes hbz finedine import cli", () => {
+  it("parses --force-image-reingest and documents the flag next to blob env vars", () => {
+    const args = parseQuotesHbzImportCliArgs([
+      "--live",
+      "--force-image-reingest",
+      "--idempotency-key=hbz-blob-1",
+    ]);
+
+    expect(args.useLiveSource).toBe(true);
+    expect(args.forceImageReingest).toBe(true);
+    expect(args.idempotencyKey).toBe("hbz-blob-1");
+    expect(parseQuotesHbzImportCliArgs([]).forceImageReingest).toBe(false);
+
+    const help = formatQuotesHbzImportCliHelp();
+    expect(help).toContain("--force-image-reingest");
+    expect(help).toContain("MEDIA_STORAGE=azure-blob");
+    expect(help).toContain("MEDIA_AZURE_BLOB_CONNECTION_STRING");
+  });
 });

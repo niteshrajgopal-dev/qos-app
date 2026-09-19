@@ -111,8 +111,13 @@ function rowsEquivalent(
 function needsImageIngest(
   existing: { primaryMediaAssetId: string | null },
   incoming: { imageUrl: string | null },
+  forceImageReingest = false,
 ) {
-  return Boolean(incoming.imageUrl) && !existing.primaryMediaAssetId;
+  if (!incoming.imageUrl) {
+    return false;
+  }
+
+  return forceImageReingest || !existing.primaryMediaAssetId;
 }
 
 async function loadExistingProductsBySourceIds(
@@ -366,6 +371,7 @@ async function ingestImportRowImage(
   productPublicId: string,
   imageUrl: string,
   staffSubject: string,
+  forceImageReingest = false,
 ) {
   await ingestProductImageFromRemoteUrl(
     db,
@@ -374,6 +380,7 @@ async function ingestImportRowImage(
     productPublicId,
     imageUrl,
     staffSubject,
+    { force: forceImageReingest },
   );
 }
 
@@ -438,6 +445,7 @@ export async function previewCatalogueImport(
     connectionKey: string;
     columnMapping?: CatalogueImportColumnMapping;
     idempotencyKey: string;
+    forceImageReingest?: boolean;
   },
 ) {
   const connectionKey = validateConnectionKey(input.connectionKey);
@@ -555,7 +563,11 @@ export async function previewCatalogueImport(
       }
 
       const unchanged = rowsEquivalent(existing, normalized);
-      const ingestImage = needsImageIngest(existing, normalized);
+      const ingestImage = needsImageIngest(
+        existing,
+        normalized,
+        Boolean(input.forceImageReingest),
+      );
       previewRows.push({
         sourceRow: normalized.sourceRow,
         sourceId: normalized.sourceId,
@@ -643,6 +655,7 @@ export async function applyCatalogueImport(
     operationPublicId: string;
     previewHash: string;
     idempotencyKey: string;
+    forceImageReingest?: boolean;
   },
 ) {
   const operation = await withTenantContext(db, tenantId, async (tx) => {
@@ -744,7 +757,13 @@ export async function applyCatalogueImport(
       return;
     }
 
-    if (await productHasApprovedPrimaryMedia(db, tenantId, productPublicId)) {
+    const alreadyApproved = await productHasApprovedPrimaryMedia(
+      db,
+      tenantId,
+      productPublicId,
+    );
+
+    if (alreadyApproved && !input.forceImageReingest) {
       media.alreadyPresent += 1;
       return;
     }
@@ -756,8 +775,9 @@ export async function applyCatalogueImport(
       productPublicId,
       imageUrl,
       staffSubject,
+      Boolean(input.forceImageReingest),
     );
-    media[mode] += 1;
+    media[alreadyApproved ? "uploaded" : mode] += 1;
   }
 
   for (const row of loadedOperation.previewPayload.rows) {

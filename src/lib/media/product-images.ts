@@ -540,6 +540,10 @@ async function findApprovedProductImage(
   });
 }
 
+export type IngestProductImageFromRemoteUrlDeps = RemoteImageFetchDeps & {
+  force?: boolean;
+};
+
 export async function ingestProductImageFromRemoteUrl(
   db: DbClient,
   tenantId: string,
@@ -547,16 +551,18 @@ export async function ingestProductImageFromRemoteUrl(
   productPublicId: string,
   imageUrl: string,
   publisherSubject: string,
-  fetchDeps: RemoteImageFetchDeps = {},
+  fetchDeps: IngestProductImageFromRemoteUrlDeps = {},
 ) {
   try {
-    const existing = await findApprovedProductImage(
-      db,
-      tenantId,
-      productPublicId,
-    );
-    if (existing) {
-      return existing;
+    if (!fetchDeps.force) {
+      const existing = await findApprovedProductImage(
+        db,
+        tenantId,
+        productPublicId,
+      );
+      if (existing) {
+        return existing;
+      }
     }
 
     const remoteImage = await fetchRemoteImageBytes(imageUrl, fetchDeps);

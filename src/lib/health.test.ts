@@ -21,9 +21,25 @@ describe("health payloads", () => {
   });
 
   it("marks a ready check as healthy when the database is connected", () => {
-    const payload = healthyPayload({ version: "0.1.0", startedAt: Date.now() });
+    const payload = healthyPayload({
+      version: "0.1.0",
+      startedAt: Date.now(),
+      mediaStorage: "local",
+    });
 
     expect(payload.status).toBe("healthy");
     expect(payload.database).toBe("connected");
+    expect(payload.mediaStorage).toBe("local");
+  });
+
+  it("exposes the active media storage backend without secrets", () => {
+    const payload = healthyPayload({
+      version: "0.1.0",
+      startedAt: Date.now(),
+      mediaStorage: "azure-blob",
+    });
+
+    expect(payload.mediaStorage).toBe("azure-blob");
+    expect(JSON.stringify(payload)).not.toMatch(/connection|secret|key/i);
   });
 });
