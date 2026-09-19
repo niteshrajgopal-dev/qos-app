@@ -222,5 +222,6 @@ export function suggestColumnMapping(headers: string[]) {
     currency: pick("currency", "price_currency"),
     sku: pick("sku", "product_sku"),
     barcode: pick("barcode", "ean"),
+    imageUrl: pick("image_url", "imageurl", "image"),
   };
 }

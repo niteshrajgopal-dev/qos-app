@@ -2598,6 +2598,7 @@ export type CatalogueImportColumnMapping = {
   currency: string;
   sku?: string;
   barcode?: string;
+  imageUrl?: string;
 };
 
 export type CatalogueImportPreviewRow = {
@@ -2612,6 +2613,8 @@ export type CatalogueImportPreviewRow = {
   displayNameAr: string | null;
   amountMinor: number | null;
   currency: string | null;
+  imageUrl: string | null;
+  ingestImage: boolean;
 };
 
 export type CatalogueImportPreviewPayload = {

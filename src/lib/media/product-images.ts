@@ -9,6 +9,11 @@ import {
   catalogueProducts,
 } from "@/db/schema";
 import { readMediaConfig } from "@/lib/media/config";
+import {
+  fetchRemoteImageBytes,
+  RemoteImageFetchError,
+  type RemoteImageFetchDeps,
+} from "@/lib/media/remote-image-fetch";
 import { getMediaStorage } from "@/lib/media/storage";
 import {
   generateImageDerivatives,
@@ -32,6 +37,10 @@ export class ProductMediaError extends Error {
 }
 
 function mapMediaError(error: unknown): never {
+  if (error instanceof RemoteImageFetchError) {
+    throw new ProductMediaError(error.message, 400, error.field);
+  }
+
   if (error instanceof MediaValidationError) {
     throw new ProductMediaError(error.message, 400, error.field);
   }
@@ -455,6 +464,50 @@ export async function resolvePublicMediaDerivative(
       height: derivative.height,
     };
   });
+}
+
+export async function ingestProductImageFromRemoteUrl(
+  db: DbClient,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  productPublicId: string,
+  imageUrl: string,
+  publisherSubject: string,
+  fetchDeps: RemoteImageFetchDeps = {},
+) {
+  try {
+    const remoteImage = await fetchRemoteImageBytes(imageUrl, fetchDeps);
+
+    const grant = await createProductImageUploadGrant(
+      db,
+      tenantId,
+      membership,
+      productPublicId,
+      {
+        expectedByteSize: remoteImage.bytes.byteLength,
+        expectedContentType: remoteImage.contentType,
+      },
+    );
+
+    await ingestProductImageUpload(
+      db,
+      tenantId,
+      productPublicId,
+      grant.grantToken,
+      remoteImage.bytes,
+    );
+
+    return processProductImage(
+      db,
+      tenantId,
+      membership,
+      productPublicId,
+      grant.assetPublicId,
+      publisherSubject,
+    );
+  } catch (error) {
+    mapMediaError(error);
+  }
 }
 
 export async function getApprovedThumbnailPublicIdForProduct(

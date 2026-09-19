@@ -207,7 +207,9 @@ export function parseFineDineFlatList(
         currency: "AED",
         categoryPath: section?.categoryPath ?? "",
         categorySectionId: section?.sourceId ?? "",
-        imageUrl: buildFineDineImageUrl(entity.image),
+        imageUrl: buildFineDineImageUrl(
+          entity.image ?? entity.images?.[0]?.image ?? null,
+        ),
         published: entity.published ?? true,
         isAvailable: entity.is_available !== false && entity.soldout !== true,
         soldOut: entity.soldout === true,
