@@ -45,6 +45,23 @@ Container App: `ca-qos-dev-api` in `rg-qos-dev-core`
 
 Probes: liveness → `/api/health/live`, readiness and startup → `/api/health/ready`.
 
+### Product media storage
+
+Local development and tests use the default `MEDIA_STORAGE=local` backend, writing under `MEDIA_LOCAL_ROOT` (default `.local-media`).
+
+Azure Container Apps replicas share no local disk. Set durable blob storage so every replica reads the same bytes:
+
+```bash
+MEDIA_STORAGE=azure-blob
+MEDIA_AZURE_BLOB_CONNECTION_STRING="<storage-account-connection-string>"
+MEDIA_AZURE_BLOB_PRIVATE_CONTAINER=media-private
+MEDIA_AZURE_BLOB_PUBLIC_CONTAINER=media-public
+# optional path prefix inside both containers
+# MEDIA_AZURE_BLOB_PREFIX=dev
+```
+
+Private uploads and public derivatives mirror the local layout as `private/...` and `public/...` blob names (with optional prefix). After switching from ephemeral local storage, re-import HBZ menu images or clear `primaryMediaAssetId` and re-import with a fresh idempotency key so derivative bytes exist in blob.
+
 ```powershell
 # Build image in ACR and push
 .\deploy\build-and-push-to-acr.cmd
