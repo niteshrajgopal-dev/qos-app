@@ -35,8 +35,47 @@ export type ImportQuotesHbzFineDineMenuInput = {
   tenantId?: string;
   staffSubject?: string;
   useLiveSource?: boolean;
+  forceImageReingest?: boolean;
   idempotencyKey?: string;
 };
+
+export function parseQuotesHbzImportCliArgs(argv: string[]) {
+  const readFlag = (name: string) =>
+    argv
+      .find((arg) => arg.startsWith(`${name}=`))
+      ?.split("=")
+      .slice(1)
+      .join("=");
+
+  return {
+    help: argv.includes("--help") || argv.includes("-h"),
+    useLiveSource: argv.includes("--live"),
+    forceImageReingest: argv.includes("--force-image-reingest"),
+    idempotencyKey: readFlag("--idempotency-key"),
+    tenantId: readFlag("--tenant-id"),
+    staffSubject: readFlag("--staff-subject"),
+  };
+}
+
+export function formatQuotesHbzImportCliHelp() {
+  return [
+    "Usage: npm run import:quotes-hbz-finedine -- [options]",
+    "",
+    "  --live                     Fetch the live FineDine menu instead of the fixture",
+    "  --force-image-reingest     Re-ingest FineDine image_url even when primaryMediaAssetId is set.",
+    "                             Skips items with an empty image_url. Use a fresh --idempotency-key",
+    "                             so apply is not replayed.",
+    "  --idempotency-key=KEY      Fresh apply key (required to re-apply after a completed import)",
+    "  --tenant-id=UUID           Target tenant",
+    "  --staff-subject=SUBJECT    Staff identity subject",
+    "  --help                     Show this help",
+    "",
+    "Azure Blob (Container Apps):",
+    "  MEDIA_STORAGE=azure-blob",
+    "  MEDIA_AZURE_BLOB_CONNECTION_STRING=...   # or MEDIA_AZURE_BLOB_ACCOUNT_URL for Entra",
+    "  # containers default media-private / media-public",
+  ].join("\n");
+}
 
 export type ImportQuotesHbzFineDineMenuResult = {
   parsed: ParsedFineDineMenu;
@@ -309,6 +348,7 @@ export async function importQuotesHbzFineDineMenu(
       bytes: Buffer.from(csv, "utf8"),
       connectionKey: QUOTES_HBZ_FINEDINE_IMPORT.connectionKey,
       idempotencyKey,
+      forceImageReingest: Boolean(input.forceImageReingest),
     },
   );
 
@@ -321,6 +361,7 @@ export async function importQuotesHbzFineDineMenu(
       operationPublicId: preview.operationPublicId,
       previewHash: preview.previewHash,
       idempotencyKey,
+      forceImageReingest: Boolean(input.forceImageReingest),
     },
   );
 

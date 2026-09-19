@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { readMediaConfig } from "@/lib/media/config";
+import {
+  readMediaConfig,
+  requiresExplicitMediaStorage,
+} from "@/lib/media/config";
 
 describe("readMediaConfig storage backend", () => {
   it("defaults to local storage when MEDIA_STORAGE is unset", () => {
@@ -9,6 +12,57 @@ describe("readMediaConfig storage backend", () => {
     expect(config.storageBackend).toBe("local");
     expect(config.localRoot).toBe(".local-media");
     expect(config.azureBlob).toBeUndefined();
+  });
+
+  it("defaults to local storage in test and development when MEDIA_STORAGE is unset", () => {
+    expect(requiresExplicitMediaStorage({ NODE_ENV: "test" })).toBe(false);
+    expect(requiresExplicitMediaStorage({ NODE_ENV: "development" })).toBe(
+      false,
+    );
+    expect(readMediaConfig({ NODE_ENV: "test" }).storageBackend).toBe("local");
+    expect(readMediaConfig({ NODE_ENV: "development" }).storageBackend).toBe(
+      "local",
+    );
+  });
+
+  it("fails boot when MEDIA_STORAGE is unset in Azure Container Apps", () => {
+    expect(
+      requiresExplicitMediaStorage({
+        CONTAINER_APP_NAME: "ca-qos-dev-api",
+      }),
+    ).toBe(true);
+    expect(() =>
+      readMediaConfig({
+        CONTAINER_APP_NAME: "ca-qos-dev-api",
+      }),
+    ).toThrow(/MEDIA_STORAGE is required/);
+  });
+
+  it("fails boot when MEDIA_STORAGE is unset in production", () => {
+    expect(requiresExplicitMediaStorage({ NODE_ENV: "production" })).toBe(true);
+    expect(() =>
+      readMediaConfig({
+        NODE_ENV: "production",
+      }),
+    ).toThrow(/MEDIA_STORAGE is required/);
+  });
+
+  it("keeps the local default during Next.js production builds", () => {
+    const config = readMediaConfig({
+      NODE_ENV: "production",
+      NEXT_PHASE: "phase-production-build",
+    });
+
+    expect(config.storageBackend).toBe("local");
+  });
+
+  it("allows an explicit local backend on Container Apps", () => {
+    const config = readMediaConfig({
+      CONTAINER_APP_NAME: "ca-qos-dev-api",
+      MEDIA_STORAGE: "local",
+    });
+
+    expect(config.storageBackend).toBe("local");
   });
 
   it("accepts explicit local storage", () => {

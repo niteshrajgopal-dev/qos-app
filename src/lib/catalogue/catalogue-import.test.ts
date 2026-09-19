@@ -347,6 +347,169 @@ integrationDescribe("catalogue import", () => {
     );
   });
 
+  it("force-image-reingest uploads again when primaryMediaAssetId is already set", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const admin = await seedStaffMember(
+      quotes.tenant.id,
+      "administrator",
+      "admin.import-force@test",
+      "admin.import-force@test",
+    );
+    const pngBytes = await sharp({
+      create: {
+        width: 32,
+        height: 32,
+        channels: 3,
+        background: { r: 4, g: 5, b: 6 },
+      },
+    })
+      .png()
+      .toBuffer();
+
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(pngBytes, {
+          status: 200,
+          headers: {
+            "content-type": "image/png",
+            "content-length": String(pngBytes.byteLength),
+          },
+        }),
+    );
+
+    const firstPreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-force@test",
+      {
+        fileName: "hbz-force.csv",
+        bytes: Buffer.from(IMAGE_IMPORT_CSV, "utf8"),
+        connectionKey: "quotes.hbz.force",
+        idempotencyKey: "preview-force-001",
+      },
+    );
+    const firstApply = await applyCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-force@test",
+      {
+        operationPublicId: firstPreview.operationPublicId,
+        previewHash: firstPreview.previewHash,
+        idempotencyKey: "preview-force-001",
+      },
+    );
+
+    expect(firstApply.report.createCount).toBe(2);
+    expect(firstApply.report.errorCount).toBe(0);
+    expect(firstApply.report.media?.uploaded).toBe(1);
+
+    const productsAfterFirst = await db.select().from(catalogueProducts);
+    const creamAfterFirst = productsAfterFirst.find(
+      (product) => product.internalName === "cream-espresso",
+    );
+    const firstPrimary = creamAfterFirst?.primaryMediaAssetId;
+    expect(firstPrimary).toBeTruthy();
+    expect(
+      productsAfterFirst.find((product) => product.internalName === "flatwhite")
+        ?.primaryMediaAssetId,
+    ).toBeNull();
+
+    const fetchCountAfterFirst = fetchMock.mock.calls.length;
+    expect(fetchCountAfterFirst).toBeGreaterThan(0);
+
+    const skipPreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-force@test",
+      {
+        fileName: "hbz-force.csv",
+        bytes: Buffer.from(IMAGE_IMPORT_CSV, "utf8"),
+        connectionKey: "quotes.hbz.force",
+        idempotencyKey: "preview-force-002",
+      },
+    );
+    const creamSkip = skipPreview.preview.rows.find(
+      (row) => row.sourceId === "674cb5ee372f00d7a436e1e8",
+    );
+    const flatwhiteSkip = skipPreview.preview.rows.find(
+      (row) => row.sourceId === "flatwhite-no-image",
+    );
+    expect(creamSkip?.ingestImage).toBe(false);
+    expect(flatwhiteSkip?.ingestImage).toBe(false);
+
+    const skipApply = await applyCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-force@test",
+      {
+        operationPublicId: skipPreview.operationPublicId,
+        previewHash: skipPreview.previewHash,
+        idempotencyKey: "preview-force-002",
+      },
+    );
+
+    expect(skipApply.report.media?.alreadyPresent).toBe(1);
+    expect(skipApply.report.media?.uploaded).toBe(0);
+    expect(fetchMock.mock.calls.length).toBe(fetchCountAfterFirst);
+
+    const forcePreview = await previewCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-force@test",
+      {
+        fileName: "hbz-force.csv",
+        bytes: Buffer.from(IMAGE_IMPORT_CSV, "utf8"),
+        connectionKey: "quotes.hbz.force",
+        idempotencyKey: "preview-force-003",
+        forceImageReingest: true,
+      },
+    );
+    const creamForce = forcePreview.preview.rows.find(
+      (row) => row.sourceId === "674cb5ee372f00d7a436e1e8",
+    );
+    const flatwhiteForce = forcePreview.preview.rows.find(
+      (row) => row.sourceId === "flatwhite-no-image",
+    );
+    expect(creamForce?.ingestImage).toBe(true);
+    expect(flatwhiteForce?.ingestImage).toBe(false);
+
+    const forceApply = await applyCatalogueImport(
+      db,
+      quotes.tenant.id,
+      admin,
+      "admin.import-force@test",
+      {
+        operationPublicId: forcePreview.operationPublicId,
+        previewHash: forcePreview.previewHash,
+        idempotencyKey: "preview-force-003",
+        forceImageReingest: true,
+      },
+    );
+
+    expect(forceApply.report.errorCount).toBe(0);
+    expect(forceApply.report.media?.alreadyPresent).toBe(0);
+    expect(forceApply.report.media?.uploaded).toBe(1);
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(fetchCountAfterFirst);
+
+    const productsAfterForce = await db.select().from(catalogueProducts);
+    const creamAfterForce = productsAfterForce.find(
+      (product) => product.internalName === "cream-espresso",
+    );
+    expect(creamAfterForce?.primaryMediaAssetId).toBeTruthy();
+    expect(creamAfterForce?.primaryMediaAssetId).not.toBe(firstPrimary);
+    expect(
+      productsAfterForce.find((product) => product.internalName === "flatwhite")
+        ?.primaryMediaAssetId,
+    ).toBeNull();
+    expect(await db.select().from(catalogueMediaAssets)).toHaveLength(2);
+    expect(await db.select().from(catalogueImportSourceLinks)).toHaveLength(2);
+  });
+
   it("repairs missing imported images on unchanged reruns without duplicating media", async () => {
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
     const admin = await seedStaffMember(

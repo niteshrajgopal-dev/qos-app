@@ -23,7 +23,8 @@
     "verify:qos-47-48": "tsx scripts/verify-qos-47-48.ts",
     "export:quotes-hbz-finedine": "tsx scripts/export-quotes-hbz-finedine-fixture.ts",
     "import:quotes-hbz-finedine": "tsx scripts/import-quotes-hbz-finedine-menu.ts",
-    "approve-publish:quotes-hbz-finedine": "tsx scripts/approve-publish-quotes-hbz-finedine-menu.ts"
+    "approve-publish:quotes-hbz-finedine": "tsx scripts/approve-publish-quotes-hbz-finedine-menu.ts",
+    "audit:ci": "tsx scripts/ci-npm-audit.ts"
   },
   "dependencies": {
     "@azure/identity": "^4.13.3",

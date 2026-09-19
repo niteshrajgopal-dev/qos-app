@@ -50,4 +50,4 @@ jobs:
           NEXT_TELEMETRY_DISABLED: "1"
 
       - name: Audit dependencies
-        run: npm audit --audit-level=high
+        run: npm run audit:ci
