@@ -2373,6 +2373,17 @@ export const mediaUploadGrantStatusEnum = qos.enum("media_upload_grant_status", 
 export const mediaDerivativeKindEnum = qos.enum("media_derivative_kind", [
   "thumbnail",
   "display",
+  "video_playback",
+  "video_poster",
+]);
+
+export const videoProcessingJobStatusEnum = qos.enum("video_processing_job_status", [
+  "queued",
+  "processing",
+  "ready",
+  "failed",
+  "rejected",
+  "quarantined",
 ]);
 
 export const catalogueMediaAssets = qos.table(
@@ -2474,6 +2485,46 @@ export const catalogueMediaDerivatives = qos.table(
       table.derivativeKind,
     ),
     index("catalogue_media_derivatives_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const videoProcessingJobs = qos.table(
+  "video_processing_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    assetId: uuid("asset_id").notNull(),
+    productId: uuid("product_id").notNull(),
+    correlationId: text("correlation_id").notNull(),
+    sourceStoragePath: text("source_storage_path").notNull(),
+    status: videoProcessingJobStatusEnum("status").notNull().default("queued"),
+    retryCount: integer("retry_count").notNull().default(0),
+    lastErrorMessage: text("last_error_message"),
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    completedAt: timestamp("completed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.assetId],
+      foreignColumns: [catalogueMediaAssets.tenantId, catalogueMediaAssets.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      columns: [table.tenantId, table.productId],
+      foreignColumns: [catalogueProducts.tenantId, catalogueProducts.id],
+    }).onDelete("restrict"),
+    unique("video_processing_jobs_correlation_id_unique").on(
+      table.correlationId,
+    ),
+    index("video_processing_jobs_tenant_id_idx").on(table.tenantId),
+    index("video_processing_jobs_status_idx").on(table.status),
+    index("video_processing_jobs_asset_id_idx").on(table.assetId),
   ],
 );
 
