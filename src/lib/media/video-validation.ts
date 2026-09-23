@@ -71,9 +71,9 @@ export async function validateVideoBytes(
   }
 
   if (bytes.byteLength > config.maxUploadBytes) {
-    const maxMiB = (config.maxUploadBytes / (1024 * 1024)).toFixed(1);
+    const maxMiB = (config.maxUploadBytes / (1024 * 1024)).toFixed(0);
     throw new VideoValidationError(
-      `Uploaded video exceeds the configured byte limit (${maxMiB} MiB).`,
+      `Uploaded video exceeds the owner-locked byte limit (${maxMiB} MiB).`,
       "body",
     );
   }
@@ -174,7 +174,7 @@ export async function validateVideoBytes(
 
   if (durationSeconds > config.maxDurationSeconds) {
     throw new VideoValidationError(
-      `Video duration (${durationSeconds.toFixed(1)}s) exceeds the configured limit (${config.maxDurationSeconds}s).`,
+      `Video duration (${durationSeconds.toFixed(1)}s) exceeds the owner-locked limit (${config.maxDurationSeconds}s).`,
       "body",
     );
   }
@@ -213,7 +213,7 @@ export async function validateVideoBytes(
     height > config.maxHeight
   ) {
     throw new VideoValidationError(
-      `Video resolution (${width}x${height}) exceeds the configured limits (${config.maxWidth}x${config.maxHeight}).`,
+      `Video resolution (${width}x${height}) exceeds the owner-locked limits (${config.maxWidth}x${config.maxHeight}).`,
       "body",
     );
   }

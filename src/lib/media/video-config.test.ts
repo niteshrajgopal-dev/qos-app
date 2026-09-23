@@ -3,11 +3,11 @@ import { describe, expect, it } from "vitest";
 import { readVideoProcessingConfig } from "@/lib/media/video-config";
 
 describe("readVideoProcessingConfig", () => {
-  it("uses working defaults when env vars are unset", () => {
+  it("uses owner-locked defaults when env vars are unset", () => {
     const config = readVideoProcessingConfig({});
 
-    expect(config.maxUploadBytes).toBe(25 * 1024 * 1024);
-    expect(config.maxDurationSeconds).toBe(30);
+    expect(config.maxUploadBytes).toBe(20 * 1024 * 1024);
+    expect(config.maxDurationSeconds).toBe(25);
     expect(config.maxWidth).toBe(1920);
     expect(config.maxHeight).toBe(1080);
     expect(config.allowedCodecs).toEqual(["h264", "h265"]);
@@ -76,8 +76,8 @@ describe("readVideoProcessingConfig", () => {
       VIDEO_MAX_WIDTH: "0",
     });
 
-    expect(config.maxUploadBytes).toBe(25 * 1024 * 1024);
-    expect(config.maxDurationSeconds).toBe(30);
+    expect(config.maxUploadBytes).toBe(20 * 1024 * 1024);
+    expect(config.maxDurationSeconds).toBe(25);
     expect(config.maxWidth).toBe(1920);
   });
 
@@ -95,5 +95,16 @@ describe("readVideoProcessingConfig", () => {
     });
 
     expect(config.allowedCodecs).toEqual(["h264", "h265"]);
+  });
+
+  it("enforces owner-locked limits of 20 MiB and 25 seconds by default", () => {
+    const config = readVideoProcessingConfig({});
+
+    expect(config.maxUploadBytes).toBe(20_971_520); // 20 * 1024 * 1024
+    expect(config.maxDurationSeconds).toBe(25);
+    expect(config.maxWidth).toBe(1920);
+    expect(config.maxHeight).toBe(1080);
+    expect(config.allowedCodecs).toEqual(["h264", "h265"]);
+    expect(config.allowedContainers).toEqual(["mp4", "mov"]);
   });
 });

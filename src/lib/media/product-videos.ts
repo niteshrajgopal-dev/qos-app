@@ -100,9 +100,9 @@ export async function createProductVideoUploadGrant(
 
   try {
     if (input.byteSize <= 0 || input.byteSize > videoConfig.maxUploadBytes) {
-      const maxMiB = (videoConfig.maxUploadBytes / (1024 * 1024)).toFixed(1);
+      const maxMiB = (videoConfig.maxUploadBytes / (1024 * 1024)).toFixed(0);
       throw new ProductVideoError(
-        `Video size must be between 1 byte and ${maxMiB} MiB.`,
+        `Video size must be between 1 byte and ${maxMiB} MiB (owner-locked limit).`,
         400,
         "byteSize",
       );

@@ -56,27 +56,28 @@ function parseStringList(value: string | undefined, fallback: string[]): string[
 /**
  * Video processing configuration with bounded resource limits.
  * 
- * Working defaults (owner acceptance required before release):
- * - Max file size: 25 MiB (26,214,400 bytes)
- * - Max duration: 30 seconds
+ * OWNER-LOCKED LIMITS (approved for production):
+ * - Max file size: 20 MiB (20 * 1024 * 1024 = 20,971,520 bytes)
+ * - Max duration: 25 seconds
  * - Max resolution: 1920x1080 (Full HD)
  * - Allowed codecs: h264, h265 (HEVC)
  * - Allowed containers: mp4, mov
  * 
  * These limits enforce bounded decode/transcode to prevent resource exhaustion.
+ * Do not change these defaults without owner approval.
  */
 export function readVideoProcessingConfig(source: EnvSource = process.env): VideoProcessingConfig {
   return {
-    // 25 MiB default limit
+    // 20 MiB owner-locked limit
     maxUploadBytes: parsePositiveInt(
       source.VIDEO_MAX_UPLOAD_BYTES,
-      25 * 1024 * 1024,
+      20 * 1024 * 1024,
     ),
     
-    // 30 seconds default limit
+    // 25 seconds owner-locked limit
     maxDurationSeconds: parsePositiveInt(
       source.VIDEO_MAX_DURATION_SECONDS,
-      30,
+      25,
     ),
     
     // Full HD resolution limits
