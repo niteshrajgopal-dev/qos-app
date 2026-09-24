@@ -184,7 +184,7 @@ integrationDescribe("product video upload and processing", () => {
         byteSize: 50 * 1024 * 1024,
         contentType: "video/mp4",
       }),
-    ).rejects.toThrow(/byte limit/);
+    ).rejects.toThrow(/owner-locked limit/);
   });
 
   it("rejects non-mp4 content type", async () => {
