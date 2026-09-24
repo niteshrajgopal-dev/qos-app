@@ -40,12 +40,26 @@ const CORRUPT_VIDEO_PATH = path.join(
   "../../../fixtures/media/corrupt.mp4",
 );
 
+// Check if ffmpeg/ffprobe are available before running video tests
+async function checkFfmpegAvailable(): Promise<boolean> {
+  try {
+    const { exec } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const execAsync = promisify(exec);
+    await execAsync("ffprobe -version");
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 integrationDescribe("product video upload and processing", () => {
   let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
   let sqlClient: Awaited<ReturnType<typeof resetAndMigrate>>["sql"];
   let tempMediaRoot: string;
   let admin: ActiveStaffMembership;
   let tenantId: string;
+  let ffmpegAvailable = false;
   
   const productInput = {
     internalName: "test-video-product",
@@ -57,6 +71,8 @@ integrationDescribe("product video upload and processing", () => {
   } as const;
 
   beforeAll(async () => {
+    ffmpegAvailable = await checkFfmpegAvailable();
+    
     tempMediaRoot = await mkdtemp(path.join(tmpdir(), "qos-video-"));
     setMediaStorage(new LocalMediaStorage(tempMediaRoot));
 
@@ -294,7 +310,7 @@ integrationDescribe("product video upload and processing", () => {
     expect(queueResult.jobId).toBeTruthy();
   });
 
-  it("processes queued video job to generate playback and poster", async () => {
+  it.skipIf(!ffmpegAvailable)("processes queued video job to generate playback and poster", async () => {
     const product = await createDraftProduct(
       db,
       tenantId,
@@ -357,7 +373,7 @@ integrationDescribe("product video upload and processing", () => {
     expect(urls?.posterUrl).toMatch(/^\/api\/media\/public\/mpo_/);
   });
 
-  it("rejects over-duration video during processing", async () => {
+  it.skipIf(!ffmpegAvailable)("rejects over-duration video during processing", async () => {
     const product = await createDraftProduct(
       db,
       tenantId,
@@ -411,7 +427,7 @@ integrationDescribe("product video upload and processing", () => {
     expect(status.lastErrorMessage).toContain("duration");
   });
 
-  it("quarantines video after exhausted retries", async () => {
+  it.skipIf(!ffmpegAvailable)("quarantines video after exhausted retries", async () => {
     const product = await createDraftProduct(
       db,
       tenantId,
@@ -471,7 +487,7 @@ integrationDescribe("product video upload and processing", () => {
     expect(status.lastErrorMessage).toBeTruthy();
   });
 
-  it("ensures idempotent processing: replay does not leak files", async () => {
+  it.skipIf(!ffmpegAvailable)("ensures idempotent processing: replay does not leak files", async () => {
     const product = await createDraftProduct(
       db,
       tenantId,
