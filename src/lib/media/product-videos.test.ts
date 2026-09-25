@@ -679,7 +679,10 @@ integrationDescribe("product video upload and processing", () => {
         byteSize: 1000,
         contentType: "video/mp4",
       }),
-    ).rejects.toThrow(/not found/i);
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/not found/i),
+      statusCode: 404,
+    });
 
     // Create a valid upload for tenant 2
     const videoBytes = await readFile(VALID_VIDEO_PATH);
@@ -708,7 +711,10 @@ integrationDescribe("product video upload and processing", () => {
     // Tenant 1 admin trying to check tenant 2 job status
     await expect(
       getProductVideoJobStatus(db, tenantId, admin, queued.correlationId),
-    ).rejects.toThrow(/not found/i);
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/not found/i),
+      statusCode: 404,
+    });
 
     // Tenant 1 admin trying to get tenant 2 approved URLs
     const urls = await getApprovedProductVideoUrls(db, tenantId, product2.publicId);
@@ -738,7 +744,10 @@ integrationDescribe("product video upload and processing", () => {
         byteSize: 1000,
         contentType: "video/mp4",
       }),
-    ).rejects.toThrow(/not authorized/i);
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/administrator.*required/i),
+      statusCode: 403,
+    });
   });
 });
 
