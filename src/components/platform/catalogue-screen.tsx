@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -10,13 +9,14 @@ import { PageHeader, Card, Button, DataTable, TableToolbar, TableBulkBar, Pagina
 /* Flow 2 — catalogue → product → edit → modifiers/availability → save → success. */
 export function CatalogueScreen() {
   const platform = usePlatformData();
-  const [product, setProduct] = React.useState(null);
-  const [sel, setSel] = React.useState([]);
-  const [toast, setToast] = React.useState(null);
-  if (product) return <ProductEditor product={product} onBack={() => setProduct(null)} onSaved={(m) => { setProduct(null); setToast(m); }} toast={toast} setToast={setToast} />;
+  type Product = typeof platform.PRODUCTS[number];
+  const [product, setProduct] = React.useState<Product | null>(null);
+  const [sel, setSel] = React.useState<Array<string | number>>([]);
+  const [toast, setToast] = React.useState<string | null>(null);
+  if (product) return <ProductEditor product={product} onBack={() => setProduct(null)} onSaved={(m: string) => { setProduct(null); setToast(m); }} />;
 
   const columns = [
-    { key: "name", header: "Product", sortable: true, render: (r) => (
+    { key: "name", header: "Product", sortable: true, render: (r: Product) => (
       <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ width: 28, height: 28, borderRadius: "var(--radius-sm)", background: "var(--surface-sunken)", display: "grid", placeItems: "center", color: "var(--text-tertiary)" }}><Icon name="image" size={13} /></span>
         <span style={{ fontWeight: 500 }}>{r.name}</span>
@@ -25,9 +25,9 @@ export function CatalogueScreen() {
     { key: "category", header: "Category" },
     { key: "variants", header: "Variants", numeric: true },
     { key: "price", header: "Price (AED)", numeric: true },
-    { key: "channels", header: "Channel visibility", render: (r) => r.channels === "—" ? <span style={{ color: "var(--text-tertiary)" }}>—</span> : <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.channels}</span> },
-    { key: "availability", header: "Locations", render: (r) => r.exception ? <Badge tone="warning" icon="alert-triangle">{r.availability}</Badge> : <span>{r.availability}</span> },
-    { key: "state", header: "Status", render: (r) => <StatusBadge state={r.state} /> },
+    { key: "channels", header: "Channel visibility", render: (r: Product) => r.channels === "—" ? <span style={{ color: "var(--text-tertiary)" }}>—</span> : <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.channels}</span> },
+    { key: "availability", header: "Locations", render: (r: Product) => r.exception ? <Badge tone="warning" icon="alert-triangle">{r.availability}</Badge> : <span>{r.availability}</span> },
+    { key: "state", header: "Status", render: (r: Product) => <StatusBadge state={r.state} /> },
     { key: "act", header: "", width: 40, render: () => <IconButton icon="more-horizontal" label="Actions" size="sm" /> },
   ];
 
@@ -79,7 +79,7 @@ export function CatalogueScreen() {
   );
 }
 
-export function ProductEditor({ product, onBack, onSaved }) {
+export function ProductEditor({ product, onBack, onSaved }: { product: { id: string; name: string; category: string; variants: number; price: string; state: string; channels: string; availability: string; exception?: boolean }; onBack: () => void; onSaved: (message: string) => void }) {
   const platform = usePlatformData();
   const [tab, setTab] = React.useState("details");
   const [dirty, setDirty] = React.useState(false);

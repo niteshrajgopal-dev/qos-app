@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -36,15 +35,16 @@ const ROLE_MATRIX = [
 
 export function TeamScreen() {
   const platform = usePlatformData();
+  type Member = typeof MEMBERS[number];
   const [tab, setTab] = React.useState("members");
   const [invite, setInvite] = React.useState(false);
-  const [open, setOpen] = React.useState(null);
-  const [toast, setToast] = React.useState(null);
-  const [remove, setRemove] = React.useState(null);
-  const [members, setMembers] = React.useState(MEMBERS);
+  const [open, setOpen] = React.useState<Member | null>(null);
+  const [toast, setToast] = React.useState<string | null>(null);
+  const [remove, setRemove] = React.useState<Member | null>(null);
+  const [members, setMembers] = React.useState<typeof MEMBERS>(MEMBERS);
 
   const columns = [
-    { key: "name", header: "Member", render: (r) => (
+    { key: "name", header: "Member", render: (r: Member) => (
       <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <Avatar name={r.name} size="sm" />
         <span style={{ minWidth: 0 }}>
@@ -55,7 +55,7 @@ export function TeamScreen() {
     ) },
     { key: "role", header: "Role" },
     { key: "scope", header: "Scope" },
-    { key: "state", header: "Status", render: (r) => <StatusBadge state={r.state} /> },
+    { key: "state", header: "Status", render: (r: Member) => <StatusBadge state={r.state} /> },
     { key: "last", header: "Last active", numeric: true },
   ];
 
@@ -106,7 +106,7 @@ export function TeamScreen() {
               </thead>
               <tbody>
                 {ROLE_MATRIX.map(([label, ...cells]) => (
-                  <tr key={label}>
+                  <tr key={label as string}>
                     <td style={{ padding: "10px 20px", borderBottom: "1px solid var(--border-subtle)" }}>{label}</td>
                     {cells.map((v, i) => (
                       <td key={i} style={{ textAlign: "center", padding: "10px 16px", borderBottom: "1px solid var(--border-subtle)", color: v ? "var(--status-success-fg)" : "var(--text-disabled)" }}>
@@ -128,7 +128,7 @@ export function TeamScreen() {
             { title: "Tom Ekwueme invited as Location manager", meta: "3d ago · Jamie Doyle · Downtown", tone: "neutral", icon: "user-plus" },
             { title: "Sara Lindqvist paused", meta: "12d ago · Jamie Doyle · No activity for 30 days", tone: "neutral", icon: "pause" },
             { title: "QOS Support granted read-only access", meta: "6d ago · Priya Nair · Support ticket #4181, expires in 24d", tone: "neutral", icon: "shield-check" },
-            { title: "Failed sign-in for priya.nair@quotes.ae", meta: "8d ago · 3 attempts from a new device · Resolved", tone: "warning", icon: "alert-triangle" },
+            { title: "Failed sign-in for priya.nair@quotes.ae", meta: "8d ago · 3 attempts from a new device · Resolved", tone: "error", icon: "alert-triangle" },
           ]} />
         </Card>
       ) : null}
@@ -195,11 +195,11 @@ export function TeamScreen() {
 
 export function SettingsScreen() {
   const [tab, setTab] = React.useState("general");
-  const [toast, setToast] = React.useState(null);
+  const [toast, setToast] = React.useState<string | null>(null);
   const [dirty, setDirty] = React.useState(false);
   const [notif, setNotif] = React.useState({ exceptions: true, publish: true, ai: true, digest: false });
   const [revealed, setRevealed] = React.useState(false);
-  const [rotate, setRotate] = React.useState(false);
+  const [rotate, setRotate] = React.useState<string | false>(false);
   const mark = () => setDirty(true);
   const save = () => { setDirty(false); setToast("Settings saved"); };
   const col = { display: "grid", gap: 16, maxWidth: 720 };
@@ -372,14 +372,15 @@ const CUSTOMERS = [
 
 export function CustomersScreen() {
   const platform = usePlatformData();
-  const [open, setOpen] = React.useState(null);
+  type Customer = typeof CUSTOMERS[number];
+  const [open, setOpen] = React.useState<Customer | null>(null);
   const columns = [
-    { key: "name", header: "Customer", render: (r) => <span style={{ display: "flex", alignItems: "center", gap: 10 }}><Avatar name={r.name} size="sm" /><span><span style={{ display: "block", fontWeight: 500 }}>{r.name}</span><span style={{ display: "block", fontSize: 12, color: "var(--text-secondary)" }}>{r.phone}</span></span></span> },
+    { key: "name", header: "Customer", render: (r: Customer) => <span style={{ display: "flex", alignItems: "center", gap: 10 }}><Avatar name={r.name} size="sm" /><span><span style={{ display: "block", fontWeight: 500 }}>{r.name}</span><span style={{ display: "block", fontSize: 12, color: "var(--text-secondary)" }}>{r.phone}</span></span></span> },
     { key: "channel", header: "Usual channel" },
     { key: "orders", header: "Orders", numeric: true },
     { key: "spend", header: "Lifetime spend (AED)", numeric: true },
     { key: "last", header: "Last order", numeric: true },
-    { key: "tags", header: "", render: (r) => <span style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>{r.tags.map((t) => <Badge key={t} tone={t === "New" ? "info" : "neutral"}>{t}</Badge>)}</span> },
+    { key: "tags", header: "", render: (r: Customer) => <span style={{ display: "flex", gap: 6, justifyContent: "flex-end" }}>{r.tags.map((t) => <Badge key={t} tone={t === "New" ? "info" : "neutral"}>{t}</Badge>)}</span> },
   ];
   return (
     <>

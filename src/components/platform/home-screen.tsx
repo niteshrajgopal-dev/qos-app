@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -10,11 +9,11 @@ import { PageHeader, KpiCard, Card, Button, StatusBadge, Badge, TrendChart, Segm
 
 /* Flow 1 — situational awareness. Flow 8 — dashboard anomaly to approved action.
    Exceptions and next actions come before metrics. */
-export function HomeScreen({ onNavigate }) {
+export function HomeScreen({ onNavigate }: { onNavigate: (screen: string) => void }) {
   const platform = usePlatformData();
   const [range, setRange] = React.useState("Today");
   const [confirm, setConfirm] = React.useState(false);
-  const [toast, setToast] = React.useState(null);
+  const [toast, setToast] = React.useState<string | null>(null);
   const [resolved, setResolved] = React.useState(false);
   return (
     <>

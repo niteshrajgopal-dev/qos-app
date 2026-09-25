@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -11,7 +10,8 @@ import { PageHeader, Card, Button, StatusBadge, Badge, Tabs, Breadcrumbs, Icon, 
 /* Flow 3 — configure the Online Store. Flow 7 — publishing history and rollback. */
 export function ChannelsScreen() {
   const platform = usePlatformData();
-  const [channel, setChannel] = React.useState(null);
+  type Channel = typeof platform.CHANNELS[number];
+  const [channel, setChannel] = React.useState<Channel["id"] | null>(null);
   if (channel === "store") return <OnlineStore onBack={() => setChannel(null)} />;
   return (
     <>
@@ -51,7 +51,7 @@ export function ChannelsScreen() {
   );
 }
 
-export function Row({ label, value }) {
+export function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <span style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
       <span style={{ color: "var(--text-secondary)" }}>{label}</span>
@@ -60,15 +60,16 @@ export function Row({ label, value }) {
   );
 }
 
-export function OnlineStore({ onBack }) {
+export function OnlineStore({ onBack }: { onBack: () => void }) {
   const platform = usePlatformData();
+  type Release = typeof platform.RELEASES[number];
   const [tab, setTab] = React.useState("overview");
   const [device, setDevice] = React.useState("Desktop");
   const [dirty, setDirty] = React.useState(false);
   const [publishing, setPublishing] = React.useState(false);
-  const [confirm, setConfirm] = React.useState(null);
-  const [toast, setToast] = React.useState(null);
-  const [release, setRelease] = React.useState(null);
+  const [confirm, setConfirm] = React.useState<string | Release | null>(null);
+  const [toast, setToast] = React.useState<string | null>(null);
+  const [release, setRelease] = React.useState<Release | null>(null);
   const [activeRelease, setActiveRelease] = React.useState(42);
 
   return (
@@ -280,7 +281,7 @@ export function OnlineStore({ onBack }) {
         </ConfirmDialog>
       ) : null}
 
-      {confirm && confirm !== "publish" ? (
+      {confirm && typeof confirm !== "string" ? (
         <ConfirmDialog
           tone="danger"
           title={`Roll back to ${confirm.version}?`}
@@ -315,7 +316,7 @@ export function OnlineStore({ onBack }) {
 
 /* A deliberately schematic representation of the customer-facing storefront.
    The real storefront runtime is a separate application and was not supplied. */
-export function StorePreview({ device, draft }) {
+export function StorePreview({ device, draft }: { device: string; draft: boolean }) {
   const w = device === "Mobile" ? 260 : "100%";
   return (
     <div style={{ background: "var(--surface-sunken)", borderRadius: "var(--radius-card)", padding: 16, display: "grid", placeItems: "center" }}>

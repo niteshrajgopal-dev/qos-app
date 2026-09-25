@@ -1,12 +1,14 @@
 "use client";
 
+export type CommandPaletteItem = { id: string; label: string; meta?: string; kind?: string; icon?: string; intelligence?: boolean; screen?: string };
+
 export type CommandPaletteProps = {
 
   open?: boolean;
   query?: string;
   onQueryChange?: (q: string) => void;
-  groups?: Array<{ label: string; items: Array<{ id: string; label: string; meta?: string; kind?: string; icon?: string; intelligence?: boolean; screen?: string }> }>;
-  onSelect?: (item: any) => void;
+  groups?: Array<{ label: string; items: Array<CommandPaletteItem> }>;
+  onSelect?: (item: CommandPaletteItem) => void;
   onClose?: () => void;
   placeholder?: string;
   style?: React.CSSProperties;

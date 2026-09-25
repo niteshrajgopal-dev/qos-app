@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -11,10 +10,11 @@ import { PageHeader, Card, Button, StatusBadge, Badge, Tabs, Breadcrumbs, Icon, 
 /* Flow 5 — integrations → provider → connect → configure → map locations → connected. */
 export function IntegrationsScreen() {
   const platform = usePlatformData();
-  const [detail, setDetail] = React.useState(null);
-  const [wizard, setWizard] = React.useState(null);
-  const [toast, setToast] = React.useState(null);
-  const [connected, setConnected] = React.useState([]);
+  type Integration = typeof platform.INTEGRATIONS[number];
+  const [detail, setDetail] = React.useState<Integration | null>(null);
+  const [wizard, setWizard] = React.useState<Integration | null>(null);
+  const [toast, setToast] = React.useState<string | null>(null);
+  const [connected, setConnected] = React.useState<string[]>([]);
 
   if (detail) return <IntegrationDetail integration={detail} onBack={() => setDetail(null)} onToast={setToast} toast={toast} />;
 
@@ -61,7 +61,7 @@ export function IntegrationsScreen() {
   );
 }
 
-export function ConnectWizard({ integration, onClose, onDone }) {
+export function ConnectWizard({ integration, onClose, onDone }: { integration: { id: string; name: string; kind: string; state: string; health: string; locations: string; icon: string }; onClose: () => void; onDone: () => void }) {
   const platform = usePlatformData();
   const [step, setStep] = React.useState(0);
   const steps = ["Connect", "Configure", "Map locations", "Verify"];
@@ -128,7 +128,7 @@ export function ConnectWizard({ integration, onClose, onDone }) {
   );
 }
 
-export function IntegrationDetail({ integration, onBack, onToast, toast }) {
+export function IntegrationDetail({ integration, onBack, onToast, toast }: { integration: { id: string; name: string; kind: string; state: string; health: string; locations: string; icon: string }; onBack: () => void; onToast: (message: string | null) => void; toast: string | null }) {
   const platform = usePlatformData();
   const [tab, setTab] = React.useState(integration.state === "error" ? "health" : "connection");
   return (
@@ -160,7 +160,7 @@ export function IntegrationDetail({ integration, onBack, onToast, toast }) {
               </Grid>
               <Timeline items={[
                 { title: "Connector degraded", meta: "14:02 · 502 Bad Gateway", tone: "error", icon: "alert-circle" },
-                { title: "9 orders held for replay", meta: "14:02 – 14:07 · Marina Walk, Downtown", tone: "warning", icon: "pause" },
+                { title: "9 orders held for replay", meta: "14:02 – 14:07 · Marina Walk, Downtown", tone: "error", icon: "pause" },
                 { title: "Catalogue sync completed", meta: "13:45 · 84 items", tone: "success", icon: "refresh-cw" },
               ]} />
             </Card>

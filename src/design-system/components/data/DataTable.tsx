@@ -1,15 +1,15 @@
 "use client";
 
-export type DataTableProps = {
+export type DataTableProps<TRow = Record<string, unknown>> = {
 
-  columns?: Array<{ key: string; header: React.ReactNode; numeric?: boolean; width?: number | string; sortable?: boolean; render?: (row: any) => React.ReactNode }>;
-  rows?: any[];
+  columns?: Array<{ key: string; header: React.ReactNode; numeric?: boolean; width?: number | string; sortable?: boolean; render?: (row: TRow) => React.ReactNode }>;
+  rows?: TRow[];
   density?: "default" | "dense";
   selectable?: boolean;
   selectedIds?: Array<string | number>;
   onToggleRow?: (id: string | number) => void;
   onToggleAll?: (next: boolean) => void;
-  onRowClick?: (row: any) => void;
+  onRowClick?: (row: TRow) => void;
   sortKey?: string;
   sortDirection?: "asc" | "desc";
   onSort?: (key: string) => void;
@@ -39,7 +39,7 @@ import { Checkbox } from "../primitives/Checkbox";
 
 /* Operational data grid. Columns: {key, header, numeric, width, render(row), sortable}.
    Exceptional rows are tinted via row.exception so problems outrank healthy rows. */
-export function DataTable({
+export function DataTable<TRow = Record<string, unknown>>({
   columns = [],
   rows = [],
   density = "default",
@@ -53,7 +53,7 @@ export function DataTable({
   onSort,
   rowKey = "id",
   ...rest
-}: DataTableProps) {
+}: DataTableProps<TRow>) {
   const allSelected = selectable && rows.length > 0 && selectedIds.length === rows.length;
   return (
     <div className="qos-table-wrap" {...rest}>
@@ -83,24 +83,24 @@ export function DataTable({
         </thead>
         <tbody>
           {rows.map((row) => {
-            const id = row[rowKey];
-            const selected = selectedIds.includes(id);
+            const id = (row as Record<string, unknown>)[rowKey];
+            const selected = selectedIds.includes(id as string | number);
             return (
               <tr
-                key={id}
+                key={id as string | number}
                 data-selected={selected || undefined}
-                data-exception={row.exception || undefined}
+                data-exception={(row as Record<string, unknown>).exception || undefined}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 style={onRowClick ? { cursor: "pointer" } : undefined}
               >
                 {selectable ? (
                   <td onClick={(e) => e.stopPropagation()}>
-                    <Checkbox checked={selected} onChange={() => onToggleRow && onToggleRow(id)} aria-label={`Select ${id}`} />
+                    <Checkbox checked={selected} onChange={() => onToggleRow && onToggleRow(id as string | number)} aria-label={`Select ${id}`} />
                   </td>
                 ) : null}
                 {columns.map((c) => (
                   <td key={c.key} data-numeric={c.numeric || undefined}>
-                    {c.render ? c.render(row) : row[c.key]}
+                    {c.render ? c.render(row) : (row as Record<string, unknown>)[c.key] as React.ReactNode}
                   </td>
                 ))}
               </tr>

@@ -10,6 +10,7 @@ export type SelectProps = {
   options?: Array<string | { value: string; label: string }>;
   placeholder?: string;
   value?: string;
+  defaultValue?: string;
   disabled?: boolean;
   onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
   style?: React.CSSProperties;
