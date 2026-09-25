@@ -17,8 +17,21 @@ describe("readVideoProcessingConfig", () => {
     expect(config.transcodeTargetMaxBitrate).toBe("2M");
     expect(config.posterTimestampRatio).toBe(0.5);
     expect(config.maxConcurrentJobs).toBe(2);
+    expect(config.maxActiveJobsPerTenant).toBe(1);
     expect(config.maxRetries).toBe(3);
+    expect(config.retryBackoffMs).toBe(30_000);
     expect(config.jobTimeoutMs).toBe(5 * 60 * 1000);
+    expect(config.jobLeaseMs).toBe(7 * 60 * 1000);
+    expect(config.workerPollIntervalMs).toBe(5_000);
+  });
+
+  it("derives the job lease from the job timeout so a healthy job is never reclaimed", () => {
+    const config = readVideoProcessingConfig({ VIDEO_JOB_TIMEOUT_MS: "60000" });
+
+    expect(config.jobLeaseMs).toBe(60_000 + 2 * 60 * 1000);
+    expect(
+      readVideoProcessingConfig({ VIDEO_JOB_LEASE_MS: "900000" }).jobLeaseMs,
+    ).toBe(900_000);
   });
 
   it("parses custom byte limits", () => {

@@ -12,8 +12,12 @@ export type VideoProcessingConfig = {
   transcodeTargetMaxBitrate: string;
   posterTimestampRatio: number;
   maxConcurrentJobs: number;
+  maxActiveJobsPerTenant: number;
   maxRetries: number;
+  retryBackoffMs: number;
   jobTimeoutMs: number;
+  jobLeaseMs: number;
+  workerPollIntervalMs: number;
 };
 
 function parsePositiveInt(value: string | undefined, fallback: number): number {
@@ -67,6 +71,11 @@ function parseStringList(value: string | undefined, fallback: string[]): string[
  * Do not change these defaults without owner approval.
  */
 export function readVideoProcessingConfig(source: EnvSource = process.env): VideoProcessingConfig {
+  const jobTimeoutMs = parsePositiveInt(
+    source.VIDEO_JOB_TIMEOUT_MS,
+    5 * 60 * 1000,
+  );
+
   return {
     // 20 MiB owner-locked limit
     maxUploadBytes: parsePositiveInt(
@@ -109,12 +118,25 @@ export function readVideoProcessingConfig(source: EnvSource = process.env): Vide
     
     // Worker concurrency and retry settings
     maxConcurrentJobs: parsePositiveInt(source.VIDEO_MAX_CONCURRENT_JOBS, 2),
+    // One tenant cannot occupy more than this many worker slots at once.
+    maxActiveJobsPerTenant: parsePositiveInt(
+      source.VIDEO_MAX_ACTIVE_JOBS_PER_TENANT,
+      1,
+    ),
     maxRetries: parsePositiveInt(source.VIDEO_MAX_RETRIES, 3),
+    // Delay before retry N is retryBackoffMs * 2^(N-1).
+    retryBackoffMs: parsePositiveInt(source.VIDEO_RETRY_BACKOFF_MS, 30_000),
     
     // Job timeout: 5 minutes default (generous for 30s video @ 25MB)
-    jobTimeoutMs: parsePositiveInt(
-      source.VIDEO_JOB_TIMEOUT_MS,
-      5 * 60 * 1000,
+    jobTimeoutMs,
+    // Must outlive probe + transcode + poster + uploads, or a healthy job is reclaimed.
+    jobLeaseMs: parsePositiveInt(
+      source.VIDEO_JOB_LEASE_MS,
+      jobTimeoutMs + 2 * 60 * 1000,
+    ),
+    workerPollIntervalMs: parsePositiveInt(
+      source.VIDEO_WORKER_POLL_INTERVAL_MS,
+      5_000,
     ),
   };
 }

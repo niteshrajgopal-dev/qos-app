@@ -1,4 +1,4 @@
-import { and, eq, inArray, or } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
 
 import type { DbClient } from "@/db/client";
@@ -7,14 +7,17 @@ import {
   catalogueMediaDerivatives,
   videoProcessingJobs,
 } from "@/db/schema";
-import type { TenantDbExecutor } from "@/lib/tenant/context";
 import { withTenantContext } from "@/lib/tenant/context";
-import { readVideoProcessingConfig } from "@/lib/media/video-config";
+import {
+  readVideoProcessingConfig,
+  type VideoProcessingConfig,
+} from "@/lib/media/video-config";
 import { getMediaStorage } from "@/lib/media/storage";
 import {
   extractPosterFrame,
   transcodeVideo,
   validateVideoBytes,
+  VideoValidationError,
 } from "@/lib/media/video-validation";
 
 export class VideoJobError extends Error {
@@ -26,6 +29,30 @@ export class VideoJobError extends Error {
     this.retryable = retryable;
   }
 }
+
+/** The job was reclaimed (lease expired) while this worker was still running it. */
+export class VideoJobLeaseLostError extends VideoJobError {
+  constructor(jobId: string) {
+    super(`Lease lost for video job ${jobId}; another worker owns it now.`, false);
+    this.name = "VideoJobLeaseLostError";
+  }
+}
+
+export type ClaimedVideoJob = {
+  jobId: string;
+  tenantId: string;
+  productId: string;
+  assetId: string;
+  correlationId: string;
+  sourceStoragePath: string;
+  retryCount: number;
+  workerId: string;
+};
+
+export type VideoJobFailureDecision =
+  | { status: "rejected"; retryCount: number }
+  | { status: "quarantined"; retryCount: number }
+  | { status: "queued"; retryCount: number; nextAttemptAt: Date };
 
 function generateCorrelationId(
   tenantId: string,
@@ -42,6 +69,47 @@ function generateCorrelationId(
 function generateDerivativePublicId(kind: "video_playback" | "video_poster"): string {
   const prefix = kind === "video_playback" ? "mvp" : "mpo";
   return `${prefix}_${randomUUID().replace(/-/g, "").slice(0, 16)}`;
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
+}
+
+/** Invalid or undecodable input is final; tool timeouts/crashes are retried. */
+function asVideoJobError(error: unknown): VideoJobError {
+  const retryable = error instanceof VideoValidationError ? error.transient : true;
+  return new VideoJobError(errorMessage(error), retryable);
+}
+
+/**
+ * Decide what happens to a job after a failed attempt.
+ *
+ * - Non-retryable (the upload itself is invalid): rejected immediately.
+ * - Retryable with attempts left: re-queued with exponential backoff.
+ * - Retryable with attempts exhausted: quarantined for inspection.
+ */
+export function decideVideoJobFailure(
+  previousRetryCount: number,
+  retryable: boolean,
+  config: Pick<VideoProcessingConfig, "maxRetries" | "retryBackoffMs">,
+  now: Date = new Date(),
+): VideoJobFailureDecision {
+  const retryCount = previousRetryCount + 1;
+
+  if (!retryable) {
+    return { status: "rejected", retryCount };
+  }
+
+  if (retryCount >= config.maxRetries) {
+    return { status: "quarantined", retryCount };
+  }
+
+  const delayMs = config.retryBackoffMs * 2 ** (retryCount - 1);
+  return {
+    status: "queued",
+    retryCount,
+    nextAttemptAt: new Date(now.getTime() + delayMs),
+  };
 }
 
 /**
@@ -112,136 +180,211 @@ export async function queueVideoProcessingJob(
   });
 }
 
+type ClaimRow = {
+  job_id: string;
+  tenant_id: string;
+  product_id: string;
+  asset_id: string;
+  correlation_id: string;
+  source_storage_path: string;
+  retry_count: number;
+};
+
 /**
- * Get the next queued job for processing with optimistic locking.
- * 
- * Returns null if no jobs are available.
+ * Claim the next runnable job across all tenants.
+ *
+ * Runs `qos.claim_next_video_processing_job`, a SECURITY DEFINER function, so
+ * the worker can use the ordinary `qos_app` role despite tenant RLS. In one
+ * serialized step it:
+ * - re-queues (or quarantines) jobs whose worker lease expired,
+ * - skips tenants already at `maxActiveJobsPerTenant`,
+ * - picks the tenant served least recently (fair round-robin), then its
+ *   oldest due job, and leases it to `workerId` for `jobLeaseMs`.
  */
 export async function claimNextQueuedJob(
   db: DbClient,
-): Promise<{
-  jobId: string;
-  tenantId: string;
-  productId: string;
-  assetId: string;
-  correlationId: string;
-  sourceStoragePath: string;
-  retryCount: number;
-} | null> {
-  const [job] = await db
-    .select({
-      id: videoProcessingJobs.id,
-      tenantId: videoProcessingJobs.tenantId,
-      productId: videoProcessingJobs.productId,
-      assetId: videoProcessingJobs.assetId,
-      correlationId: videoProcessingJobs.correlationId,
-      sourceStoragePath: videoProcessingJobs.sourceStoragePath,
-      retryCount: videoProcessingJobs.retryCount,
-    })
-    .from(videoProcessingJobs)
-    .where(eq(videoProcessingJobs.status, "queued"))
-    .orderBy(videoProcessingJobs.createdAt)
-    .limit(1);
+  options: { workerId?: string; config?: VideoProcessingConfig } = {},
+): Promise<ClaimedVideoJob | null> {
+  const config = options.config ?? readVideoProcessingConfig();
+  const workerId = options.workerId ?? `worker_${randomUUID().slice(0, 8)}`;
+  const leaseSeconds = Math.max(1, Math.ceil(config.jobLeaseMs / 1000));
 
-  if (!job) {
-    return null;
-  }
+  const rows = (await db.execute<ClaimRow>(
+    sql`select * from qos.claim_next_video_processing_job(${workerId}, ${leaseSeconds}, ${config.maxActiveJobsPerTenant}, ${config.maxRetries})`,
+  )) as unknown as ClaimRow[];
 
-  const [updated] = await db
-    .update(videoProcessingJobs)
-    .set({
-      status: "processing",
-      startedAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(videoProcessingJobs.id, job.id),
-        eq(videoProcessingJobs.status, "queued"),
-      ),
-    )
-    .returning({ id: videoProcessingJobs.id });
-
-  if (!updated) {
+  const row = rows[0];
+  if (!row) {
     return null;
   }
 
   return {
-    jobId: job.id,
-    tenantId: job.tenantId,
-    productId: job.productId,
-    assetId: job.assetId,
-    correlationId: job.correlationId,
-    sourceStoragePath: job.sourceStoragePath,
-    retryCount: job.retryCount,
+    jobId: row.job_id,
+    tenantId: row.tenant_id,
+    productId: row.product_id,
+    assetId: row.asset_id,
+    correlationId: row.correlation_id,
+    sourceStoragePath: row.source_storage_path,
+    retryCount: row.retry_count,
+    workerId,
+  };
+}
+
+function ownedJob(job: ClaimedVideoJob) {
+  return and(
+    eq(videoProcessingJobs.tenantId, job.tenantId),
+    eq(videoProcessingJobs.id, job.jobId),
+    eq(videoProcessingJobs.status, "processing"),
+    eq(videoProcessingJobs.claimedBy, job.workerId),
+  );
+}
+
+type ProducedDerivatives = {
+  width: number;
+  height: number;
+  playback: { publicId: string; storagePath: string; byteSize: number };
+  poster: { publicId: string; storagePath: string; byteSize: number };
+};
+
+/**
+ * CPU/IO-heavy stage. Runs outside any database transaction so a multi-minute
+ * transcode never holds a connection or row locks.
+ */
+async function produceDerivatives(job: ClaimedVideoJob): Promise<ProducedDerivatives> {
+  const storage = getMediaStorage();
+
+  let sourceBytes: Buffer;
+  try {
+    sourceBytes = await storage.readPrivate(job.sourceStoragePath);
+  } catch (error) {
+    throw new VideoJobError(`Failed to read source video: ${errorMessage(error)}`, true);
+  }
+
+  let metadata: Awaited<ReturnType<typeof validateVideoBytes>>;
+  let transcodedBytes: Buffer;
+  let posterBytes: Buffer;
+  try {
+    metadata = await validateVideoBytes(sourceBytes, "video/mp4");
+    [transcodedBytes, posterBytes] = await Promise.all([
+      transcodeVideo(sourceBytes),
+      extractPosterFrame(sourceBytes, metadata.durationSeconds),
+    ]);
+  } catch (error) {
+    throw asVideoJobError(error);
+  }
+
+  const playbackPublicId = generateDerivativePublicId("video_playback");
+  const posterPublicId = generateDerivativePublicId("video_poster");
+  const playbackStoragePath = `products/${job.productId}/${job.assetId}/${playbackPublicId}.mp4`;
+  const posterStoragePath = `products/${job.productId}/${job.assetId}/${posterPublicId}.jpg`;
+
+  try {
+    await Promise.all([
+      storage.writePublic(playbackStoragePath, transcodedBytes),
+      storage.writePublic(posterStoragePath, posterBytes),
+    ]);
+  } catch (error) {
+    throw new VideoJobError(`Failed to store video derivatives: ${errorMessage(error)}`, true);
+  }
+
+  return {
+    width: metadata.width,
+    height: metadata.height,
+    playback: {
+      publicId: playbackPublicId,
+      storagePath: playbackStoragePath,
+      byteSize: transcodedBytes.length,
+    },
+    poster: {
+      publicId: posterPublicId,
+      storagePath: posterStoragePath,
+      byteSize: posterBytes.length,
+    },
   };
 }
 
 /**
- * Process a video job: validate, transcode, generate poster, store derivatives.
- * 
- * This is idempotent: if derivatives already exist for this asset, they will be
- * replaced, ensuring exactly one approved derivative/poster set per logical job.
- * 
- * On failure, increments retry count. On exhausted retries, quarantines the job.
+ * Process a claimed job: validate, transcode, generate poster, store derivatives.
+ *
+ * Replay-safe: prior derivative rows for the asset are replaced in the same
+ * transaction that marks the job ready, so exactly one approved playback/poster
+ * pair exists per asset. Every state change is conditional on this worker
+ * still holding the lease; if the lease was reclaimed, nothing is committed.
+ *
+ * On failure the job is rejected, re-queued with backoff, or quarantined (see
+ * `decideVideoJobFailure`), and the error is rethrown for the caller to log.
  */
 export async function processVideoJob(
   db: DbClient,
-  jobId: string,
+  job: ClaimedVideoJob,
+  options: { config?: VideoProcessingConfig } = {},
 ): Promise<void> {
-  const [job] = await db
-    .select({
-      id: videoProcessingJobs.id,
-      tenantId: videoProcessingJobs.tenantId,
-      productId: videoProcessingJobs.productId,
-      assetId: videoProcessingJobs.assetId,
-      correlationId: videoProcessingJobs.correlationId,
-      sourceStoragePath: videoProcessingJobs.sourceStoragePath,
-      retryCount: videoProcessingJobs.retryCount,
-      status: videoProcessingJobs.status,
-    })
-    .from(videoProcessingJobs)
-    .where(eq(videoProcessingJobs.id, jobId))
-    .limit(1);
-
-  if (!job) {
-    throw new VideoJobError("Job not found.", false);
-  }
-
-  if (job.status !== "processing") {
-    throw new VideoJobError(
-      `Job is in ${job.status} state, expected processing.`,
-      false,
-    );
-  }
-
-  const config = readVideoProcessingConfig();
+  const config = options.config ?? readVideoProcessingConfig();
 
   try {
-    await withTenantContext(db, job.tenantId, async (tx) => {
-      await processJobWithRetry(
-        tx,
-        job.tenantId,
-        job.productId,
-        job.assetId,
-        job.sourceStoragePath,
-        job.correlationId,
-      );
+    const produced = await produceDerivatives(job);
 
-      await tx
+    await withTenantContext(db, job.tenantId, async (tx) => {
+      const now = new Date();
+
+      const [completed] = await tx
         .update(videoProcessingJobs)
         .set({
           status: "ready",
-          completedAt: new Date(),
-          updatedAt: new Date(),
+          completedAt: now,
+          leaseExpiresAt: null,
+          lastErrorMessage: null,
+          updatedAt: now,
         })
-        .where(eq(videoProcessingJobs.id, jobId));
+        .where(ownedJob(job))
+        .returning({ id: videoProcessingJobs.id });
+
+      if (!completed) {
+        throw new VideoJobLeaseLostError(job.jobId);
+      }
+
+      await tx
+        .delete(catalogueMediaDerivatives)
+        .where(
+          and(
+            eq(catalogueMediaDerivatives.tenantId, job.tenantId),
+            eq(catalogueMediaDerivatives.assetId, job.assetId),
+          ),
+        );
+
+      await tx.insert(catalogueMediaDerivatives).values([
+        {
+          tenantId: job.tenantId,
+          assetId: job.assetId,
+          derivativeKind: "video_playback",
+          publicDerivativeId: produced.playback.publicId,
+          storagePath: produced.playback.storagePath,
+          contentType: "video/mp4",
+          width: produced.width,
+          height: produced.height,
+          byteSize: produced.playback.byteSize,
+        },
+        {
+          tenantId: job.tenantId,
+          assetId: job.assetId,
+          derivativeKind: "video_poster",
+          publicDerivativeId: produced.poster.publicId,
+          storagePath: produced.poster.storagePath,
+          contentType: "image/jpeg",
+          width: produced.width,
+          height: produced.height,
+          byteSize: produced.poster.byteSize,
+        },
+      ]);
 
       await tx
         .update(catalogueMediaAssets)
         .set({
           status: "approved",
-          updatedAt: new Date(),
+          contentType: "video/mp4",
+          failureReason: null,
+          approvedAt: now,
+          updatedAt: now,
         })
         .where(
           and(
@@ -251,150 +394,73 @@ export async function processVideoJob(
         );
     });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error";
-    const retryable =
-      error instanceof VideoJobError ? error.retryable : true;
-
-    const newRetryCount = job.retryCount + 1;
-    const shouldQuarantine = newRetryCount >= config.maxRetries;
-
-    await db
-      .update(videoProcessingJobs)
-      .set({
-        status: shouldQuarantine ? "quarantined" : retryable ? "queued" : "failed",
-        retryCount: newRetryCount,
-        lastErrorMessage: errorMessage,
-        lastErrorAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(videoProcessingJobs.id, jobId));
-
-    if (shouldQuarantine) {
-      await withTenantContext(db, job.tenantId, async (tx) => {
-        await tx
-          .update(catalogueMediaAssets)
-          .set({
-            status: "rejected",
-            failureReason: `Quarantined after ${config.maxRetries} retries: ${errorMessage}`,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(catalogueMediaAssets.tenantId, job.tenantId),
-              eq(catalogueMediaAssets.id, job.assetId),
-            ),
-          );
-      });
+    if (error instanceof VideoJobLeaseLostError) {
+      throw error;
     }
 
+    await recordVideoJobFailure(db, job, error, config);
     throw error;
   }
 }
 
-/**
- * Process the video job with idempotent derivative creation.
- * 
- * This function ensures exactly one derivative set exists:
- * - If derivatives exist, they are deleted first
- * - New derivatives are created atomically
- * - No file leaks on replay
- */
-async function processJobWithRetry(
-  tx: TenantDbExecutor,
-  tenantId: string,
-  productId: string,
-  assetId: string,
-  sourceStoragePath: string,
-  correlationId: string,
-): Promise<void> {
-  const storage = getMediaStorage();
+async function recordVideoJobFailure(
+  db: DbClient,
+  job: ClaimedVideoJob,
+  error: unknown,
+  config: VideoProcessingConfig,
+): Promise<VideoJobFailureDecision> {
+  const message = errorMessage(error);
+  const retryable = error instanceof VideoJobError ? error.retryable : true;
+  const decision = decideVideoJobFailure(job.retryCount, retryable, config);
+  const now = new Date();
 
-  const sourceBytes = await storage.readPrivate(sourceStoragePath);
+  await withTenantContext(db, job.tenantId, async (tx) => {
+    const [updated] = await tx
+      .update(videoProcessingJobs)
+      .set({
+        status: decision.status,
+        retryCount: decision.retryCount,
+        lastErrorMessage: message,
+        lastErrorAt: now,
+        nextAttemptAt: decision.status === "queued" ? decision.nextAttemptAt : now,
+        leaseExpiresAt: null,
+        claimedBy: null,
+        updatedAt: now,
+      })
+      .where(ownedJob(job))
+      .returning({ id: videoProcessingJobs.id });
 
-  const metadata = await validateVideoBytes(sourceBytes, "video/mp4");
+    if (!updated || decision.status === "queued") {
+      return;
+    }
 
-  const [transcodedBytes, posterBytes] = await Promise.all([
-    transcodeVideo(sourceBytes),
-    extractPosterFrame(sourceBytes, metadata.durationSeconds),
-  ]);
-
-  const existingDerivatives = await tx
-    .select({ id: catalogueMediaDerivatives.id })
-    .from(catalogueMediaDerivatives)
-    .where(
-      and(
-        eq(catalogueMediaDerivatives.tenantId, tenantId),
-        eq(catalogueMediaDerivatives.assetId, assetId),
-      ),
-    );
-
-  if (existingDerivatives.length > 0) {
     await tx
-      .delete(catalogueMediaDerivatives)
+      .update(catalogueMediaAssets)
+      .set({
+        status: "rejected",
+        failureReason:
+          decision.status === "quarantined"
+            ? `Quarantined after ${decision.retryCount} attempts: ${message}`
+            : message,
+        updatedAt: now,
+      })
       .where(
         and(
-          eq(catalogueMediaDerivatives.tenantId, tenantId),
-          eq(catalogueMediaDerivatives.assetId, assetId),
+          eq(catalogueMediaAssets.tenantId, job.tenantId),
+          eq(catalogueMediaAssets.id, job.assetId),
         ),
       );
-  }
+  });
 
-  const playbackPublicId = generateDerivativePublicId("video_playback");
-  const posterPublicId = generateDerivativePublicId("video_poster");
-
-  const playbackStoragePath = `products/${productId}/${assetId}/${playbackPublicId}.mp4`;
-  const posterStoragePath = `products/${productId}/${assetId}/${posterPublicId}.jpg`;
-
-  await Promise.all([
-    storage.writePublic(playbackStoragePath, transcodedBytes),
-    storage.writePublic(posterStoragePath, posterBytes),
-  ]);
-
-  await tx.insert(catalogueMediaDerivatives).values([
-    {
-      tenantId,
-      assetId,
-      derivativeKind: "video_playback",
-      publicDerivativeId: playbackPublicId,
-      storagePath: playbackStoragePath,
-      contentType: "video/mp4",
-      width: metadata.width,
-      height: metadata.height,
-      byteSize: transcodedBytes.length,
-    },
-    {
-      tenantId,
-      assetId,
-      derivativeKind: "video_poster",
-      publicDerivativeId: posterPublicId,
-      storagePath: posterStoragePath,
-      contentType: "image/jpeg",
-      width: metadata.width,
-      height: metadata.height,
-      byteSize: posterBytes.length,
-    },
-  ]);
-
-  await tx
-    .update(catalogueMediaAssets)
-    .set({
-      contentType: "video/mp4",
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        eq(catalogueMediaAssets.tenantId, tenantId),
-        eq(catalogueMediaAssets.id, assetId),
-      ),
-    );
+  return decision;
 }
 
 /**
- * Get job status and diagnostic information.
+ * Get job status and diagnostic information, scoped to the tenant.
  */
 export async function getJobStatus(
   db: DbClient,
+  tenantId: string,
   correlationId: string,
 ): Promise<{
   jobId: string;
@@ -402,34 +468,44 @@ export async function getJobStatus(
   retryCount: number;
   lastErrorMessage: string | null;
   lastErrorAt: Date | null;
+  nextAttemptAt: Date;
   createdAt: Date;
   completedAt: Date | null;
 } | null> {
-  const [job] = await db
-    .select({
-      id: videoProcessingJobs.id,
-      status: videoProcessingJobs.status,
-      retryCount: videoProcessingJobs.retryCount,
-      lastErrorMessage: videoProcessingJobs.lastErrorMessage,
-      lastErrorAt: videoProcessingJobs.lastErrorAt,
-      createdAt: videoProcessingJobs.createdAt,
-      completedAt: videoProcessingJobs.completedAt,
-    })
-    .from(videoProcessingJobs)
-    .where(eq(videoProcessingJobs.correlationId, correlationId))
-    .limit(1);
+  return withTenantContext(db, tenantId, async (tx) => {
+    const [job] = await tx
+      .select({
+        id: videoProcessingJobs.id,
+        status: videoProcessingJobs.status,
+        retryCount: videoProcessingJobs.retryCount,
+        lastErrorMessage: videoProcessingJobs.lastErrorMessage,
+        lastErrorAt: videoProcessingJobs.lastErrorAt,
+        nextAttemptAt: videoProcessingJobs.nextAttemptAt,
+        createdAt: videoProcessingJobs.createdAt,
+        completedAt: videoProcessingJobs.completedAt,
+      })
+      .from(videoProcessingJobs)
+      .where(
+        and(
+          eq(videoProcessingJobs.tenantId, tenantId),
+          eq(videoProcessingJobs.correlationId, correlationId),
+        ),
+      )
+      .limit(1);
 
-  if (!job) {
-    return null;
-  }
+    if (!job) {
+      return null;
+    }
 
-  return {
-    jobId: job.id,
-    status: job.status,
-    retryCount: job.retryCount,
-    lastErrorMessage: job.lastErrorMessage,
-    lastErrorAt: job.lastErrorAt,
-    createdAt: job.createdAt,
-    completedAt: job.completedAt,
-  };
+    return {
+      jobId: job.id,
+      status: job.status,
+      retryCount: job.retryCount,
+      lastErrorMessage: job.lastErrorMessage,
+      lastErrorAt: job.lastErrorAt,
+      nextAttemptAt: job.nextAttemptAt,
+      createdAt: job.createdAt,
+      completedAt: job.completedAt,
+    };
+  });
 }

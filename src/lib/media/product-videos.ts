@@ -358,7 +358,7 @@ export async function getProductVideoJobStatus(
 ) {
 
   try {
-    const status = await getJobStatus(db, correlationId);
+    const status = await getJobStatus(db, tenantId, correlationId);
 
     if (!status) {
       throw new ProductVideoError("Job not found.", 404);
@@ -370,6 +370,7 @@ export async function getProductVideoJobStatus(
       retryCount: status.retryCount,
       lastErrorMessage: status.lastErrorMessage,
       lastErrorAt: status.lastErrorAt,
+      nextAttemptAt: status.nextAttemptAt,
       createdAt: status.createdAt,
       completedAt: status.completedAt,
     };
