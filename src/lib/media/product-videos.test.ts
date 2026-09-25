@@ -717,8 +717,12 @@ integrationDescribe("product video upload and processing", () => {
     });
 
     // Tenant 1 admin trying to get tenant 2 approved URLs
-    const urls = await getApprovedProductVideoUrls(db, tenantId, product2.publicId);
-    expect(urls).toBeNull();
+    await expect(
+      getApprovedProductVideoUrls(db, tenantId, product2.publicId),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/not found/i),
+      statusCode: 404,
+    });
   });
 
   it("rejects unauthorized role (user cannot upload)", async () => {
