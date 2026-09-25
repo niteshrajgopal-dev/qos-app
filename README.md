@@ -94,10 +94,12 @@ Deploying to Azure (one-time create, then the same command for updates):
 # 1. Apply migration 0035 to the target database first.
 # 2. Build the worker image (Dockerfile target `worker` = Node 22 + ffmpeg)
 .\deploy\build-and-push-to-acr.cmd -ImageName qos-video-worker -ImageTag 0.1.0 -Target worker
-# 3. Create/update ca-qos-dev-video-worker (no ingress, 1 replica). Copies DB/blob
+# 3. Create/update ca-qos-dev-video-worker (no ingress). Copies DB/blob
 #    Key Vault references and MEDIA_* settings from ca-qos-dev-api.
 .\deploy\deploy-video-worker.cmd -ImageTag 0.1.0
 ```
+
+By default the worker **scales to zero** (0.5 vCPU / 1 GiB, max 1 replica): a KEDA `postgresql` scale rule polls `qos.count_active_video_processing_jobs()` about every 30 s and starts a replica when a job is due, keeping it up while jobs are in flight. Idle cost is ~0; the first job after a quiet period waits ~30–60 s for a cold start. `-AlwaysOn` keeps one replica running instead (roughly $12/month idle at 0.5 vCPU / 1 GiB).
 
 The API image is unchanged: `build-and-push-to-acr.cmd` without `-Target` still builds the last Dockerfile stage (the API).
 

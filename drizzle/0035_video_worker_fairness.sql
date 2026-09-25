@@ -105,4 +105,22 @@ BEGIN
 END;
 $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION qos.claim_next_video_processing_job(text, integer, integer, integer) FROM PUBLIC;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION qos.claim_next_video_processing_job(text, integer, integer, integer) TO qos_app;
+GRANT EXECUTE ON FUNCTION qos.claim_next_video_processing_job(text, integer, integer, integer) TO qos_app;--> statement-breakpoint
+-- Scale signal for the worker's KEDA postgresql rule (scale-to-zero). RLS hides
+-- every row from qos_app without tenant context, so the autoscaler needs this
+-- definer function; it exposes a single count and no tenant data.
+-- Includes in-flight jobs so the worker is not scaled in mid-transcode.
+CREATE OR REPLACE FUNCTION qos.count_active_video_processing_jobs()
+RETURNS bigint
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = qos
+AS $$
+  SELECT count(*)
+  FROM qos.video_processing_jobs j
+  WHERE j.status = 'processing'
+     OR (j.status = 'queued' AND j.next_attempt_at <= now());
+$$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION qos.count_active_video_processing_jobs() FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION qos.count_active_video_processing_jobs() TO qos_app;

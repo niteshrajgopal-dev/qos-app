@@ -519,6 +519,30 @@ integrationDescribe("product video upload and processing", () => {
       expect(status.lastErrorMessage).toMatch(/lease expired.*dead-worker/);
     });
 
+    it("exposes a scale-to-zero signal that counts due and in-flight jobs as qos_app", async () => {
+      const tenantB = await createSecondTenant();
+      const countAsApp = () =>
+        runAsRole(sqlClient, "qos_app", async () => {
+          const rows = await sqlClient`SELECT qos.count_active_video_processing_jobs() AS n`;
+          return Number((rows[0] as { n: string }).n);
+        });
+
+      expect(await countAsApp()).toBe(0);
+
+      const a1 = await queueUploadedVideo(tenantId, admin);
+      await queueUploadedVideo(tenantB.tenantId, tenantB.membership);
+      expect(await countAsApp()).toBe(2);
+
+      // In-flight jobs keep the worker up; backed-off and finished jobs do not.
+      const claimed = await claimNextQueuedJob(db, { workerId: "w1", config: testConfig });
+      expect(claimed?.correlationId).toBe(a1.correlationId);
+      expect(await countAsApp()).toBe(2);
+
+      await sqlClient`UPDATE qos.video_processing_jobs SET status = 'ready' WHERE id = ${claimed!.jobId}`;
+      await sqlClient`UPDATE qos.video_processing_jobs SET next_attempt_at = now() + interval '10 minutes' WHERE status = 'queued'`;
+      expect(await countAsApp()).toBe(0);
+    });
+
     it("claims and records failures as qos_app under tenant RLS", async () => {
       setMediaStorage(new UnreadableSourceStorage(localStorage));
       const queued = await queueUploadedVideo(tenantId, admin);

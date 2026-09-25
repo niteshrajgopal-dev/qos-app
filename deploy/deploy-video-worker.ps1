@@ -11,6 +11,12 @@
   Database and blob Key Vault references plus media settings are copied from
   the API Container App at deploy time so the two never drift.
 
+  Scales to zero by default: a KEDA postgresql rule polls
+  qos.count_active_video_processing_jobs() (~every 30s) and starts a replica
+  when a job is due, so an idle dev environment costs ~nothing. The first job
+  after a quiet period waits for a cold start. Use -AlwaysOn to keep one
+  replica running (no cold start, billed continuously).
+
   Prerequisites:
     1. Migration 0035 (claim function) applied to the target database.
     2. Image built:  .\deploy\build-and-push-to-acr.cmd -ImageName qos-video-worker -ImageTag <tag> -Target worker
@@ -30,8 +36,10 @@ param(
     [string] $ImageName = "qos-video-worker",
     [Parameter(Mandatory = $true)]
     [string] $ImageTag,
-    [string] $Cpu = "1.0",
-    [string] $Memory = "2Gi",
+    [string] $Cpu = "0.5",
+    [string] $Memory = "1Gi",
+    [int] $MaxReplicas = 1,
+    [switch] $AlwaysOn,
     [int] $MaxConcurrentJobs = 1,
     [int] $MaxActiveJobsPerTenant = 1,
     # Job timeout (5 min) plus uploads, so a rolling update lets the current job finish.
@@ -243,7 +251,29 @@ while ($true) {
     }
 }
 
-Write-Host "Rolling out $image with env..."
+$minReplicas = if ($AlwaysOn) { "1" } else { "0" }
+
+# KEDA postgresql scaler: replicas = ceil(count / targetQueryValue), capped at
+# MaxReplicas; activates from zero when count > 0. Connection parts come from
+# the same Key Vault-backed secrets the worker uses, never from plain metadata.
+$scaleArgs = @(
+    "--scale-rule-name", "video-queue",
+    "--scale-rule-type", "postgresql",
+    "--scale-rule-metadata",
+    "query=SELECT qos.count_active_video_processing_jobs()",
+    "targetQueryValue=$MaxConcurrentJobs",
+    "activationTargetQueryValue=0",
+    "sslmode=require",
+    "--scale-rule-auth",
+    "host=runtime-db-host",
+    "port=runtime-db-port",
+    "dbName=runtime-db-name",
+    "userName=runtime-db-user",
+    "password=runtime-db-password"
+)
+
+$mode = if ($AlwaysOn) { "always-on" } else { "scale-to-zero" }
+Write-Host "Rolling out $image ($mode, $Cpu vCPU / $Memory, max $MaxReplicas replicas)..."
 Invoke-Az (@(
         "containerapp", "update",
         "--name", $ContainerAppName,
@@ -251,25 +281,32 @@ Invoke-Az (@(
         "--image", $image,
         "--cpu", $Cpu,
         "--memory", $Memory,
-        "--min-replicas", "1",
-        "--max-replicas", "1",
-        "--set-env-vars"
-    ) + $envArgs + @("--only-show-errors", "-o", "none")) | Out-Null
+        "--min-replicas", $minReplicas,
+        "--max-replicas", "$MaxReplicas"
+    ) + $scaleArgs + @("--set-env-vars") + $envArgs + @("--only-show-errors", "-o", "none")) | Out-Null
 
+# A scaled-to-zero revision never runs a replica, so wait on provisioning
+# rather than readiness.
 $deadline = (Get-Date).AddMinutes(5)
 do {
     Start-Sleep -Seconds 10
     $worker = Get-ContainerApp -Name $ContainerAppName
-    $latest = $worker.properties.latestRevisionName
-    $ready = $worker.properties.latestReadyRevisionName
-    Write-Host "  latest=$latest ready=$ready"
-} while ($latest -ne $ready -and (Get-Date) -lt $deadline)
+    $ready = $worker.properties.latestRevisionName
+    $state = az containerapp revision show --name $ContainerAppName --resource-group $ResourceGroup --revision $ready --query "properties.provisioningState" -o tsv 2>$null
+    Write-Host "  revision=$ready provisioning=$state"
+} while ($state -notin @("Provisioned", "Failed") -and (Get-Date) -lt $deadline)
 
-if ($latest -ne $ready) {
-    throw "Revision $latest did not become ready. Check: az containerapp logs show -n $ContainerAppName -g $ResourceGroup --tail 100"
+if ($state -ne "Provisioned") {
+    throw "Revision $ready did not provision (state: $state). Check: az containerapp revision show -n $ContainerAppName -g $ResourceGroup --revision $ready"
 }
 
 Write-Host ""
-Write-Host "Worker revision $ready is running $image."
-Write-Host "Look for a 'video_worker.boot' line (and no 'video_worker.fatal'):"
+Write-Host "Worker revision $ready is configured with $image ($mode)."
+if ($AlwaysOn) {
+    Write-Host "Look for a 'video_worker.boot' line (and no 'video_worker.fatal'):"
+}
+else {
+    Write-Host "No replica runs until a job is queued. After queueing one, within ~30-60s look for"
+    Write-Host "'video_worker.boot' then 'video_worker.job_started' (and no 'video_worker.fatal'):"
+}
 Write-Host "  az containerapp logs show -n $ContainerAppName -g $ResourceGroup --tail 50"
