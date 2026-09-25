@@ -20,6 +20,7 @@
     "db:push": "drizzle-kit push",
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "tsx scripts/seed-dev.ts",
+    "db:seed:quotes-checkout-tester": "tsx scripts/seed-quotes-checkout-tester.ts",
     "verify:stripe-sandbox": "tsx scripts/verify-stripe-sandbox.ts",
     "verify:qos-57": "tsx scripts/verify-qos-57-rollback.ts",
     "verify:qos-47-48": "tsx scripts/verify-qos-47-48.ts",
