@@ -1,0 +1,13 @@
+/* Paths are written so they resolve both from this file and after Tailwind
+   hoists @import rules into src/app/globals.css. */
+@import url("../design-system/tokens/fonts.css");
+@import url("../design-system/tokens/colors.css");
+@import url("../design-system/tokens/typography.css");
+@import url("../design-system/tokens/spacing.css");
+@import url("../design-system/tokens/radius.css");
+@import url("../design-system/tokens/elevation.css");
+@import url("../design-system/tokens/motion.css");
+@import url("../design-system/tokens/semantic-light.css");
+@import url("../design-system/tokens/semantic-dark.css");
+@import url("../design-system/tokens/base.css");
+@import url("../design-system/components/components.css");

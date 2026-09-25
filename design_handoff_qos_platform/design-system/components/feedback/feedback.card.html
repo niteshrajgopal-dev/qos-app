@@ -1,0 +1,28 @@
+<!-- @dsCard group="Components" viewport="700x340" name="Feedback" subtitle="Alerts, banners, toasts, modals, drawers" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css"><script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script><script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script><script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script><script src="../../_ds_bundle.js"></script><style>body{margin:0;padding:0;background:var(--surface-canvas)}.pad{padding:16px 20px;display:grid;gap:12px}.two{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}</style></head><body><div id="root"></div><script type="text/babel">
+const { Alert, Banner, Toast, Button, Modal, ConfirmDialog, Timeline, ProgressBar } = window.QOSDesignSystem_913581;
+ReactDOM.createRoot(document.getElementById("root")).render(<>
+  <Banner tone="warning" icon="circle-dot" actions={<><Button size="sm" variant="ghost">Discard</Button><Button size="sm">Save changes</Button></>}>You have unpublished changes to the Online Store draft.</Banner>
+  <div className="pad">
+    <div className="two">
+      <div style={{ display: "grid", gap: 12 }}>
+        <Alert tone="error" title="Lightspeed connector failing" actions={<><Button size="sm" variant="secondary">View logs</Button><Button size="sm">Reconnect</Button></>}>9 orders have not reached the POS since 14:02.</Alert>
+        <Alert tone="success" title="Release 42 published">Live on quotes.qosapp.com · 12 Sep, 09:14</Alert>
+        <Alert tone="warning" title="2 products unavailable">Delivery is disabled for Marina Walk.</Alert>
+        <Alert tone="info" onDismiss={() => {}}>Catalogue sync runs every 15 minutes.</Alert>
+      </div>
+      <div style={{ display: "grid", gap: 12 }}>
+        <Toast tone="success" title="Location saved" onDismiss={() => {}}>Marina Walk hours updated.</Toast>
+        <div className="qos-card" data-padding="sm"><ProgressBar label="Publishing release 42" value={64} /></div>
+        <div className="qos-card" data-padding="sm">
+          <Timeline items={[
+            { title: "Release 42 published", meta: "09:14 · Jamie Doyle", tone: "success", icon: "upload-cloud" },
+            { title: "Draft validated", meta: "09:11 · System", tone: "neutral", icon: "check" },
+            { title: "Publish failed — domain unverified", meta: "08:52", tone: "error", icon: "x-circle" },
+          ]} />
+        </div>
+      </div>
+    </div>
+  </div>
+</>);
+</script></body></html>

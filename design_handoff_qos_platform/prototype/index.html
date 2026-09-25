@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QOS Prototype — design reference</title>
+<link rel="stylesheet" href="../design-system/styles.css">
+<style>
+html,body{margin:0;height:100%;background:var(--surface-canvas)}
+#root{min-height:100%}
+.qos-chip,.qos-badge,.qos-segmented-item,.qos-tag,.qos-btn,.qos-nav-item-count{white-space:nowrap;flex-shrink:0}
+.qos-segmented{flex-shrink:0}
+.qos-table-toolbar>*{min-width:0}
+a{color:var(--text-link)} a:hover{color:var(--text-link-hover)}
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+<script src="../design-system/_ds_bundle.js"></script>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" src="QOSApp.jsx"></script>
+<script type="text/babel">
+// URL params: ?device=desktop|mobile&surface=platform|storefront&skipLogin=1&start=orders
+const p = new URLSearchParams(location.search);
+const mount = () => ReactDOM.createRoot(document.getElementById("root")).render(
+  <window.QOSPrototype
+    device={p.get("device") || "desktop"}
+    surface={p.get("surface") || "platform"}
+    skipLogin={p.get("skipLogin") === "1"}
+    startScreen={p.get("start") || "home"} />
+);
+(function wait(){ window.QOSPrototype ? mount() : setTimeout(wait, 30); })();
+</script>
+</body>
+</html>

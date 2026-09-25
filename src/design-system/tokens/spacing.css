@@ -1,0 +1,45 @@
+/* QOS spacing & layout tokens. 4px base scale. */
+:root {
+  --space-0: 0px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 32px;
+  --space-8: 40px;
+  --space-9: 48px;
+  --space-10: 64px;
+  --space-11: 80px;
+  --space-12: 96px;
+
+  /* Application layout */
+  --layout-nav-width: 248px;
+  --layout-nav-width-collapsed: 64px;
+  --layout-topbar-height: 56px;
+  --layout-subnav-height: 44px;
+  --layout-canvas-max: 1440px;
+  --layout-content-max: 1120px;
+  --layout-form-max: 720px;
+  --layout-gutter: 24px;
+  --layout-gutter-tablet: 20px;
+  --layout-gutter-mobile: 16px;
+  --layout-drawer-width: 480px;
+  --layout-panel-width: 360px;
+
+  /* Component spacing */
+  --card-padding: 20px;
+  --card-padding-compact: 16px;
+  --card-gap: 16px;
+  --section-gap: 32px;
+  --field-gap: 16px;
+  --field-label-gap: 6px;
+  --table-cell-x: 16px;
+  --table-cell-y: 12px;
+  --table-cell-y-dense: 8px;
+  --control-height-sm: 28px;
+  --control-height: 36px;
+  --control-height-lg: 44px;
+  --touch-target-min: 44px;
+}

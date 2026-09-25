@@ -1,0 +1,18 @@
+/* QOS radius tokens. Rounded geometric language from the wordmark; pills reserved for
+   tags, filters, compact status and toggles (brand guide 01 letterform construction). */
+:root {
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 20px;
+  --radius-pill: 999px;
+
+  --radius-control: 8px;
+  --radius-card: 12px;
+  --radius-surface: 16px;
+  --radius-modal: 16px;
+  --radius-badge: 999px;
+  --radius-avatar: 999px;
+}

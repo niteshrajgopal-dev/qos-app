@@ -1,0 +1,26 @@
+<!-- @dsCard group="Components" viewport="700x300" name="Intelligence" subtitle="AI insight, anomaly and recommendation surface" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css"><script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script><script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script><script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script><script src="../../_ds_bundle.js"></script><style>body{margin:0;padding:20px;background:var(--surface-canvas)}.two{display:grid;grid-template-columns:1.4fr 1fr;gap:16px;align-items:start}</style></head><body><div id="root"></div><script type="text/babel">
+const { IntelligenceCard, AiBadge, Button, Card, Badge, ProgressBar } = window.QOSDesignSystem_913581;
+ReactDOM.createRoot(document.getElementById("root")).render(<div className="two">
+  <IntelligenceCard
+    kind="Anomaly"
+    title="Delivery orders down 34% at Marina Walk"
+    confidence="High"
+    claims={[
+      { kind: "System fact", text: "18 delivery orders in the last two hours against 27 expected for this window." },
+      { kind: "AI interpretation", text: "The Lightspeed POS connector has returned 502 responses since 14:02, so new orders are not being accepted." },
+      { kind: "AI recommendation", text: "Reconnect the integration and replay the 9 failed orders." },
+    ]}
+    actions={<><Button variant="intelligence" icon="check">Approve and reconnect</Button><Button variant="ghost">View logs</Button><span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-secondary)" }}>Nothing changes until you approve</span></>}
+  />
+  <div style={{ display: "grid", gap: 16 }}>
+    <Card tone="intelligence" padding="sm">
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}><AiBadge>AI summary</AiBadge><Badge tone="neutral">Yesterday</Badge></div>
+      <p style={{ fontSize: 14, lineHeight: "20px", color: "var(--text-secondary)", margin: 0 }}>Sales were steady across 12 locations. Two products ran out of stock at Marina Walk and the Deliveroo channel was paused for 40 minutes.</p>
+    </Card>
+    <Card padding="sm">
+      <ProgressBar tone="intelligence" indeterminate label="Mapping 84 products to Lightspeed items" />
+    </Card>
+  </div>
+</div>);
+</script></body></html>

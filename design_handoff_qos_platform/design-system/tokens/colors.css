@@ -1,0 +1,79 @@
+/* QOS primitive colour tokens. Source: QOS brand guide section 02 (authoritative hex values).
+   Scales are tonal ramps derived from the six brand anchors; the anchor step is marked. */
+:root {
+  /* Brand anchors */
+  --qos-deep-navy: #0B0F1A;   /* Trust & Depth */
+  --qos-electric-blue: #3B82FF; /* Innovation */
+  --qos-cyan: #00E5FF;         /* Acceleration */
+  --qos-violet: #A855FF;       /* Intelligence */
+  --qos-soft-slate: #94A3B8;   /* Balance */
+  --qos-cloud: #F8FAFC;        /* Clean Spaces */
+
+  /* Navy / neutral ramp — surfaces, borders, ink */
+  --navy-950: #05070E;
+  --navy-900: #0B0F1A; /* anchor: Deep Navy */
+  --navy-850: #111725;
+  --navy-800: #172033;
+  --navy-700: #1F2A42;
+  --navy-600: #2C3A56;
+  --navy-500: #475569;
+  --navy-400: #64748B;
+  --navy-300: #94A3B8; /* anchor: Soft Slate */
+  --navy-200: #CBD5E1;
+  --navy-150: #E2E8F0;
+  --navy-100: #EDF1F7;
+  --navy-50: #F8FAFC;  /* anchor: Cloud */
+  --white: #FFFFFF;
+
+  /* Electric blue ramp — primary interactive */
+  --blue-900: #10245C;
+  --blue-800: #17347F;
+  --blue-700: #2154B8;
+  --blue-600: #2E6BE0;
+  --blue-500: #3B82FF; /* anchor: Electric Blue */
+  --blue-400: #6BA1FF;
+  --blue-300: #9CC0FF;
+  --blue-200: #C6DAFF;
+  --blue-100: #E4EDFF;
+  --blue-50: #F2F7FF;
+
+  /* Cyan ramp — acceleration / active */
+  --cyan-800: #005E6B;
+  --cyan-700: #0089A0;
+  --cyan-600: #00B4CE;
+  --cyan-500: #00E5FF; /* anchor: Cyan */
+  --cyan-400: #4DEDFF;
+  --cyan-300: #8CF4FF;
+  --cyan-200: #C2F9FF;
+  --cyan-100: #E4FCFF;
+
+  /* Violet ramp — intelligence / AI */
+  --violet-900: #3B1268;
+  --violet-800: #551A96;
+  --violet-700: #7B2BD1;
+  --violet-600: #9440EE;
+  --violet-500: #A855FF; /* anchor: Violet */
+  --violet-400: #BE81FF;
+  --violet-300: #D3AAFF;
+  --violet-200: #E7D1FF;
+  --violet-100: #F4EBFF;
+
+  /* Status primitives */
+  --green-700: #0F7A50;
+  --green-600: #12925F;
+  --green-500: #16A971;
+  --green-100: #DCF6EA;
+  --amber-700: #8A5200;
+  --amber-600: #B36A00;
+  --amber-500: #E08700;
+  --amber-100: #FDF0D8;
+  --red-700: #B01C2E;
+  --red-600: #CE2138;
+  --red-500: #E63E52;
+  --red-100: #FDE5E8;
+
+  /* Signature gradient — Violet -> Electric Blue -> Cyan (brand guide 02) */
+  --qos-gradient: linear-gradient(90deg, #A855FF 0%, #3B82FF 52%, #00E5FF 100%); /* @kind other */
+  --qos-gradient-diagonal: linear-gradient(135deg, #A855FF 0%, #3B82FF 52%, #00E5FF 100%); /* @kind other */
+  --qos-gradient-soft: linear-gradient(135deg, rgba(168,85,255,.14) 0%, rgba(59,130,255,.14) 52%, rgba(0,229,255,.14) 100%); /* @kind other */
+}

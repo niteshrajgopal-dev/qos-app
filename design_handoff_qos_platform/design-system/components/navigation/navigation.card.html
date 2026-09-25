@@ -1,0 +1,44 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Navigation" subtitle="Side nav, top bar, tenant switcher, tabs, breadcrumbs, stepper" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css"><script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script><script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script><script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script><script src="../../_ds_bundle.js"></script><style>html,body{margin:0;height:100%;background:var(--surface-canvas)}.shell{display:flex;height:400px}.main{flex:1;min-width:0;display:flex;flex-direction:column}.body{padding:18px 20px;display:grid;gap:16px}</style></head><body><div id="root"></div><script type="text/babel">
+const { SideNav, TopBar, TenantSwitcher, Tabs, Breadcrumbs, PageHeader, Stepper, Menu, SearchInput, IconButton, Avatar, Button, StatusBadge, Logo } = window.QOSDesignSystem_913581;
+const NAV = [
+  { items: [ { id: "home", label: "Home", icon: "layout-dashboard" }, { id: "orders", label: "Orders", icon: "receipt", count: 9 } ] },
+  { label: "Commerce", items: [
+    { id: "catalogue", label: "Catalogue", icon: "package", children: [ { id: "products", label: "Products", count: 1583 }, { id: "menus", label: "Menus" }, { id: "modifiers", label: "Modifiers" } ] },
+    { id: "channels", label: "Sales Channels", icon: "store" },
+    { id: "locations", label: "Locations", icon: "map-pin", count: 12 },
+  ] },
+  { label: "Platform", items: [ { id: "integrations", label: "Integrations", icon: "plug" }, { id: "analytics", label: "Analytics", icon: "bar-chart-3" }, { id: "settings", label: "Settings", icon: "settings" } ] },
+];
+function App() {
+  const [active, setActive] = React.useState("products");
+  const [tab, setTab] = React.useState("overview");
+  return <div className="shell">
+    <div data-qos-theme="dark" style={{ display: "flex" }}>
+      <SideNav brand={<Logo variant="navy" height={18} assetBase="../../assets/" />} groups={NAV} activeId={active} onNavigate={setActive} footer={<div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--text-secondary)" }}><Avatar name="Jamie Doyle" size="sm" />Jamie Doyle</div>} />
+    </div>
+    <div className="main">
+      <TopBar>
+        <TenantSwitcher tenants={[{ id: "quotes", name: "Quotes", meta: "12 locations · AED" }, { id: "petal", name: "Petal & Stem", meta: "3 locations · AED" }]} value="quotes" />
+        <SearchInput placeholder="Search   ⌘K" style={{ flex: 1, maxWidth: 320 }} />
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4 }}>
+          <IconButton icon="circle-help" label="Help" />
+          <IconButton icon="bell" label="Notifications" />
+          <Avatar name="Jamie Doyle" size="sm" />
+        </div>
+      </TopBar>
+      <div className="body">
+        <PageHeader
+          breadcrumbs={<Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }, { label: "Flat white" }]} />}
+          title="Flat white"
+          badge={<StatusBadge state="published" />}
+          actions={<><Button variant="secondary" icon="eye">Preview</Button><Button icon="check">Save</Button></>}
+          tabs={<Tabs tabs={[{ id: "overview", label: "Overview" }, { id: "variants", label: "Variants", count: 3 }, { id: "modifiers", label: "Modifiers", count: 2 }, { id: "availability", label: "Availability", tone: "warning" }]} value={tab} onChange={setTab} />}
+        />
+        <Stepper steps={["Connect", "Configure", "Map locations", "Verify"]} current={1} />
+      </div>
+    </div>
+  </div>;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script></body></html>

@@ -1,5 +1,5 @@
-@import "./qos-tokens.css";
-@import "./qos-components.css";
+@import "../design-system/styles.css";
+@import "./qos-app-extras.css";
 @import "tailwindcss";
 
 :root {

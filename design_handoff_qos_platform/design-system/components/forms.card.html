@@ -1,0 +1,37 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Forms" subtitle="Inputs, select, choices, segmented control" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../styles.css"><script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script><script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script><script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script><script src="../_ds_bundle.js"></script><style>body{margin:0;padding:20px;background:var(--surface-canvas)}.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px}.stack{display:flex;flex-direction:column;gap:12px}.lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary);font-weight:600;margin-bottom:8px}</style></head><body><div id="root"></div><script type="text/babel">
+const { Input, SearchInput, Select, Textarea, Checkbox, Radio, Switch, SegmentedControl } = window.QOSDesignSystem_913581;
+function App() {
+  const [view, setView] = React.useState("Desktop");
+  return <>
+    <div className="grid" style={{ marginBottom: 18 }}>
+      <Input id="a" label="Product name" placeholder="Flat white" defaultValue="Flat white" />
+      <Input id="b" label="SKU" leadingIcon="hash" hint="Unique within the tenant" placeholder="QTS-0142" />
+      <Input id="c" label="Price" error="Price must be greater than 0" defaultValue="0.00" trailing={<span style={{fontSize:12,color:"var(--text-tertiary)",paddingRight:4}}>AED</span>} />
+      <Select id="d" label="Fulfilment" options={["Delivery","Collection","Dine-in"]} />
+      <Input id="e" label="Domain" placeholder="quotes.qosapp.com" disabled defaultValue="quotes.qosapp.com" />
+      <div><div className="lbl">Search</div><SearchInput placeholder="Search products…" /></div>
+    </div>
+    <div className="grid">
+      <div className="stack">
+        <div className="lbl">Choices</div>
+        <Checkbox label="Available for delivery" checked />
+        <Checkbox label="Available for collection" indeterminate />
+        <Checkbox label="Archived" disabled />
+      </div>
+      <div className="stack">
+        <div className="lbl">Radio</div>
+        <Radio name="p" label="Publish now" description="Creates a new release immediately" checked />
+        <Radio name="p" label="Schedule publish" description="Choose a date and time" />
+      </div>
+      <div className="stack">
+        <div className="lbl">Toggle / segmented</div>
+        <Switch label="Accept online orders" checked />
+        <Switch label="Pause new orders" />
+        <SegmentedControl options={[{value:"Desktop",label:"Desktop",icon:"monitor"},{value:"Mobile",label:"Mobile",icon:"smartphone"}]} value={view} onChange={setView} />
+      </div>
+    </div>
+  </>;
+}
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script></body></html>

@@ -1,0 +1,48 @@
+<!-- @dsCard group="Components" viewport="700x400" name="Primitives" subtitle="Buttons, icon buttons, chips, tags, badges, avatars" -->
+<!doctype html><html><head><meta charset="utf-8"><link rel="stylesheet" href="../../styles.css"><script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script><script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script><script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script><script src="../../_ds_bundle.js"></script><style>body{margin:0;padding:20px;background:var(--surface-canvas)}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.grp{margin-bottom:16px}.lbl{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-tertiary);font-weight:600;margin-bottom:7px}</style></head><body><div id="root"></div><script type="text/babel">
+const { Button, IconButton, Chip, Tag, Badge, Avatar, StatusBadge, Tooltip } = window.QOSDesignSystem_913581;
+function G({ label, children }) { return <div className="grp"><div className="lbl">{label}</div><div className="row">{children}</div></div>; }
+ReactDOM.createRoot(document.getElementById("root")).render(<>
+  <G label="Button variants">
+    <Button variant="primary" icon="upload-cloud">Publish</Button>
+    <Button variant="secondary">Save draft</Button>
+    <Button variant="ghost" icon="filter">Filters</Button>
+    <Button variant="danger" icon="trash-2">Delete</Button>
+    <Button variant="intelligence" icon="sparkles">Explain</Button>
+  </G>
+  <G label="Sizes and states">
+    <Button size="sm">Small</Button>
+    <Button size="md">Medium</Button>
+    <Button size="lg">Large</Button>
+    <Button loading>Publishing</Button>
+    <Button disabled>Disabled</Button>
+    <Button variant="secondary" iconTrailing="arrow-right">Continue</Button>
+  </G>
+  <G label="Icon buttons">
+    <IconButton icon="search" label="Search" />
+    <IconButton icon="bell" label="Notifications" />
+    <IconButton icon="more-horizontal" label="Actions" variant="outline" />
+    <IconButton icon="columns-3" label="Columns" selected />
+    <IconButton icon="trash-2" label="Delete" disabled />
+    <Tooltip content="Last synced 4 min ago"><IconButton icon="refresh-cw" label="Sync" variant="outline" /></Tooltip>
+  </G>
+  <G label="Chips and tags">
+    <Chip icon="filter" count={12}>Exceptions</Chip>
+    <Chip selected>Delivery</Chip>
+    <Chip>Collection</Chip>
+    <Tag onRemove={() => {}}>Marina Walk</Tag>
+    <Tag>en-AE</Tag>
+  </G>
+  <G label="Badges and status">
+    <StatusBadge state="live" />
+    <StatusBadge state="draft" />
+    <StatusBadge state="out_of_sync" />
+    <StatusBadge state="error" />
+    <StatusBadge state="syncing" />
+    <Badge tone="intelligence" icon="sparkles">AI</Badge>
+    <Badge tone="info" dot pulse>Processing</Badge>
+    <Avatar name="Jamie Doyle" />
+    <Avatar name="Quotes" tone="brand" size="sm" />
+  </G>
+</>);
+</script></body></html>

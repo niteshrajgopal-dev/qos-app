@@ -1,0 +1,33 @@
+/* App-specific rules that sit on top of the design-system stylesheet:
+   logical properties for RTL, toast placement, and the staff login layout. */
+
+.qos-toast-stack{position:fixed;inset-inline-end:var(--space-6);bottom:var(--space-6);z-index:70;display:flex;flex-direction:column;gap:var(--space-2);align-items:stretch;pointer-events:none}
+.qos-toast-stack > *{pointer-events:auto}
+.qos-toast-title{font-weight:var(--fw-semibold);margin-bottom:2px}
+.qos-toast[data-tone="success"]{border-color:var(--status-success-border)}
+.qos-toast[data-tone="warning"]{border-color:var(--status-warning-border)}
+.qos-toast[data-tone="error"]{border-color:var(--status-error-border)}
+.qos-toast[data-tone="info"]{border-color:var(--status-info-border)}
+.qos-toast[data-tone="processing"]{border-color:var(--status-processing-border)}
+.qos-drawer{border-left:none;border-inline-start:1px solid var(--border-subtle)}
+[dir="rtl"] .qos-drawer-scrim{justify-content:flex-start}
+[dir="rtl"] .qos-drawer{animation-name:qos-drawer-in-rtl}
+@keyframes qos-drawer-in-rtl{from{transform:translateX(-24px);opacity:.6}to{transform:none;opacity:1}}
+.qos-nav-item:disabled,.qos-nav-item[aria-disabled="true"]{color:var(--text-disabled);cursor:not-allowed}
+.qos-nav-item:disabled:hover,.qos-nav-item[aria-disabled="true"]:hover{background:transparent;color:var(--text-disabled)}
+a.qos-nav-item,a.qos-nav-item:hover{text-decoration:none}
+a.qos-nav-item[data-selected="true"]{color:var(--text-brand)}
+a.qos-card,a.qos-card:hover{text-decoration:none;color:inherit}
+.qos-cmd-group{padding:8px 10px 4px;font-size:var(--text-overline-size);letter-spacing:var(--text-overline-ls);text-transform:uppercase;color:var(--text-tertiary);font-weight:var(--fw-semibold)}
+.qos-cmd-item{display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border:none;background:transparent;border-radius:var(--radius-md);font-size:var(--text-body-sm-size);cursor:pointer;color:var(--text-primary);text-align:start}
+.qos-cmd-item[data-active="true"],.qos-cmd-item:hover{background:var(--surface-selected)}
+.qos-cmd-kind{margin-inline-start:auto;font-size:var(--text-meta-size);color:var(--text-tertiary)}
+
+.qos-login{min-height:100vh;display:grid;grid-template-columns:1fr;background:var(--surface-canvas);color:var(--text-primary)}
+.qos-login-brand{display:none;position:relative;overflow:hidden;flex-direction:column;justify-content:space-between;padding:40px 48px;background:var(--navy-900)}
+.qos-login-brand-foot{position:relative;display:flex;gap:24px;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-secondary)}
+.qos-login-panel{display:grid;place-items:center;padding:40px 24px;background:var(--surface-default)}
+@media (min-width:900px){
+  .qos-login{grid-template-columns:1.15fr 1fr}
+  .qos-login-brand{display:flex}
+}

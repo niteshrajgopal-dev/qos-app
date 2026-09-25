@@ -29,7 +29,11 @@ describe("staffNavHref", () => {
     expect(staffNavHref(tenantId, "locations")).toBe(
       `/tenants/${tenantId}/locations`,
     );
-    expect(staffNavHref(tenantId, "team")).toBe(
+    expect(staffNavHref(tenantId, "channels")).toBe(
+      `/tenants/${tenantId}/channels`,
+    );
+    expect(staffNavHref(tenantId, "team")).toBe(`/tenants/${tenantId}/team`);
+    expect(staffNavHref(tenantId, "access")).toBe(
       `/tenants/${tenantId}/staff/access-requests`,
     );
     expect(staffNavHref(tenantId, "audit")).toBe(
@@ -98,6 +102,13 @@ describe("activeStaffNavIdFromPath", () => {
     expect(
       activeStaffNavIdFromPath(`/tenants/${tenantId}/staff/audit`),
     ).toBe("audit");
+    expect(
+      activeStaffNavIdFromPath(`/tenants/${tenantId}/staff/access-requests`),
+    ).toBe("access");
+    expect(activeStaffNavIdFromPath(`/tenants/${tenantId}/team`)).toBe("team");
+    expect(activeStaffNavIdFromPath(`/tenants/${tenantId}/channels`)).toBe(
+      "channels",
+    );
     expect(activeStaffNavIdFromPath(`/tenants/${tenantId}/orders`)).toBe(
       "orders",
     );

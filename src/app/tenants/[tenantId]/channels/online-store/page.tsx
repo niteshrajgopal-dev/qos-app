@@ -1,19 +1,16 @@
-import { OnlineStoreManagement } from "@/app/tenants/[tenantId]/channels/online-store/online-store-management";
-import { StaffScreen } from "@/components/staff/StaffScreen";
+"use client";
 
-type PageProps = {
-  params: Promise<{ tenantId: string }>;
-};
+import { useParams, useRouter } from "next/navigation";
 
-export default async function OnlineStorePage({ params }: PageProps) {
-  const { tenantId } = await params;
+import { OnlineStore } from "@/components/platform/channels-screen";
+
+export default function OnlineStorePage() {
+  const params = useParams<{ tenantId: string }>();
+  const router = useRouter();
 
   return (
-    <StaffScreen
-      title="Online Store"
-      subtitle="Theme, content blocks, and immutable storefront releases. Publishing never mutates the live release in place."
-    >
-      <OnlineStoreManagement tenantId={tenantId} />
-    </StaffScreen>
+    <OnlineStore
+      onBack={() => router.push(`/tenants/${params.tenantId}/channels`)}
+    />
   );
 }
