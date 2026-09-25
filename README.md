@@ -72,6 +72,37 @@ npm run approve-publish:quotes-hbz-finedine
 
 `--force-image-reingest` treats FineDine HBZ products as needing image ingest even when `primaryMediaAssetId` is already set. Empty FineDine `image_url` rows (Flatwhite and similar) are still skipped. Use `--help` on the import script for the full flag list.
 
+### Product video worker
+
+Uploaded product MP4s are processed off the request path by a separate worker (`scripts/video-worker.ts`) that runs `ffprobe`/`ffmpeg`. Locally it needs both on `PATH` (Windows: `winget install Gyan.FFmpeg`):
+
+```powershell
+npm run worker:video
+```
+
+How jobs move:
+
+- The worker claims through `qos.claim_next_video_processing_job` (migration 0035), a `SECURITY DEFINER` function, so it runs as `qos_app` like the API. All other reads/writes use tenant context.
+- **Fairness:** the tenant served least recently goes first, and no tenant holds more than `VIDEO_MAX_ACTIVE_JOBS_PER_TENANT` (default 1) worker slots, so one tenant's backlog cannot starve others.
+- **Invalid uploads** (limits, codec, undecodable) are `rejected` on the first attempt. **Transient failures** (storage errors, ffmpeg timeouts/kills) are re-queued with exponential backoff (`VIDEO_RETRY_BACKOFF_MS × 2^(n-1)`) and `quarantined` after `VIDEO_MAX_RETRIES`.
+- **Crash recovery:** each claim holds a lease (`VIDEO_JOB_LEASE_MS`, default job timeout + 2 min). An expired lease is re-queued on the next claim and counts as an attempt; a stale worker finishing late cannot overwrite the new owner's result.
+- Logs are one JSON object per line: `video_worker.boot`, `job_started`, `job_succeeded`, `job_failed` (with `correlationId`, `retryable`, `message`).
+
+Deploying to Azure (one-time create, then the same command for updates):
+
+```powershell
+# 1. Apply migration 0035 to the target database first.
+# 2. Build the worker image (Dockerfile target `worker` = Node 22 + ffmpeg)
+.\deploy\build-and-push-to-acr.cmd -ImageName qos-video-worker -ImageTag 0.1.0 -Target worker
+# 3. Create/update ca-qos-dev-video-worker (no ingress). Copies DB/blob
+#    Key Vault references and MEDIA_* settings from ca-qos-dev-api.
+.\deploy\deploy-video-worker.cmd -ImageTag 0.1.0
+```
+
+By default the worker **scales to zero** (0.5 vCPU / 1 GiB, max 1 replica): a KEDA `postgresql` scale rule polls `qos.count_active_video_processing_jobs()` about every 30 s and starts a replica when a job is due, keeping it up while jobs are in flight. Idle cost is ~0; the first job after a quiet period waits ~30–60 s for a cold start. `-AlwaysOn` keeps one replica running instead (roughly $12/month idle at 0.5 vCPU / 1 GiB).
+
+The API image is unchanged: `build-and-push-to-acr.cmd` without `-Target` still builds the last Dockerfile stage (the API).
+
 ```powershell
 # Build image in ACR and push
 .\deploy\build-and-push-to-acr.cmd

@@ -239,6 +239,20 @@
       "when": 1789315600000,
       "tag": "0033_public_media_resolution_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790189853354,
+      "tag": "0034_eager_monster_badoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790347548303,
+      "tag": "0035_video_worker_fairness",
+      "breakpoints": true
     }
   ]
 }

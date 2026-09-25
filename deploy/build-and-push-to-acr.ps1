@@ -8,6 +8,9 @@
 
 .EXAMPLE
   .\deploy\build-and-push-to-acr.cmd -ImageTag "0.2"
+
+.EXAMPLE
+  .\deploy\build-and-push-to-acr.cmd -ImageName qos-video-worker -ImageTag "0.1.0" -Target worker
 #>
 [CmdletBinding()]
 param(
@@ -16,6 +19,8 @@ param(
     [string] $ImageName = "qos-api",
     [string] $ImageTag = "0.2",
     [string] $ProjectRoot = "",
+    # Dockerfile stage to build; empty builds the last stage (the API image).
+    [string] $Target = "",
     [switch] $ShowLogs
 )
 
@@ -143,9 +148,14 @@ try {
         # Next.js prints Unicode (e.g. ▲). Streaming those logs through
         # Azure CLI on Windows crashes with cp1252 UnicodeEncodeError even
         # when the remote build succeeds. Never stream live; fetch later.
-        "--no-logs",
-        "."
+        "--no-logs"
     )
+
+    if ($Target) {
+        $buildArgs += @("--target", $Target)
+    }
+
+    $buildArgs += "."
 
     $previousErrorActionPreference = $ErrorActionPreference
     $previousPythonUtf8 = $env:PYTHONUTF8
