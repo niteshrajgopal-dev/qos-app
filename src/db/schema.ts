@@ -2501,6 +2501,11 @@ export const videoProcessingJobs = qos.table(
     retryCount: integer("retry_count").notNull().default(0),
     lastErrorMessage: text("last_error_message"),
     lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    claimedBy: text("claimed_by"),
     startedAt: timestamp("started_at", { withTimezone: true }),
     completedAt: timestamp("completed_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
@@ -2525,6 +2530,14 @@ export const videoProcessingJobs = qos.table(
     index("video_processing_jobs_tenant_id_idx").on(table.tenantId),
     index("video_processing_jobs_status_idx").on(table.status),
     index("video_processing_jobs_asset_id_idx").on(table.assetId),
+    index("video_processing_jobs_status_next_attempt_idx").on(
+      table.status,
+      table.nextAttemptAt,
+    ),
+    index("video_processing_jobs_tenant_started_idx").on(
+      table.tenantId,
+      table.startedAt,
+    ),
   ],
 );
 

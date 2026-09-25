@@ -8,7 +8,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:worker": "esbuild scripts/video-worker.ts --bundle --platform=node --target=node22 --format=cjs --outfile=dist/video-worker.cjs --log-level=warning",
     "start": "next start",
+    "worker:video": "tsx scripts/video-worker.ts",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -46,6 +48,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "drizzle-kit": "^0.31.4",
+    "esbuild": "0.25.12",
     "eslint": "^9",
     "eslint-config-next": "16.3.4",
     "tailwindcss": "^4",

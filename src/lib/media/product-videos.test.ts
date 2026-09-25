@@ -1,13 +1,15 @@
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { staffIdentities, staffMemberships } from "@/db/schema";
 import {
   grantRoleMembership,
   hasIntegrationDatabase,
   resetAndMigrate,
+  runAsRole,
 } from "@/db/test-utils";
 import { createDraftProduct } from "@/lib/catalogue/products";
 import {
@@ -17,10 +19,16 @@ import {
   ingestProductVideoUpload,
   queueProductVideoProcessing,
 } from "@/lib/media/product-videos";
-import { LocalMediaStorage, setMediaStorage } from "@/lib/media/storage";
+import {
+  LocalMediaStorage,
+  setMediaStorage,
+  type MediaStorage,
+} from "@/lib/media/storage";
+import { readVideoProcessingConfig } from "@/lib/media/video-config";
 import {
   claimNextQueuedJob,
   processVideoJob,
+  VideoJobError,
 } from "@/lib/media/video-job-queue";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
@@ -40,16 +48,32 @@ const CORRUPT_VIDEO_PATH = path.join(
   "../../../fixtures/media/corrupt.mp4",
 );
 
-// Check if ffmpeg/ffprobe are available before running video tests
-async function checkFfmpegAvailable(): Promise<boolean> {
-  try {
-    const { exec } = await import("node:child_process");
-    const { promisify } = await import("node:util");
-    const execAsync = promisify(exec);
-    await execAsync("ffprobe -version");
-    return true;
-  } catch {
-    return false;
+// Must be known at collection time: it.skipIf() reads it before beforeAll runs.
+const ffmpegAvailable =
+  spawnSync("ffprobe", ["-version"]).status === 0 &&
+  spawnSync("ffmpeg", ["-version"]).status === 0;
+
+const testConfig = {
+  ...readVideoProcessingConfig({}),
+  maxActiveJobsPerTenant: 1,
+  maxRetries: 3,
+  retryBackoffMs: 60_000,
+};
+
+/** Delegates to local storage but fails every source read, like a blob outage. */
+class UnreadableSourceStorage implements MediaStorage {
+  constructor(private readonly inner: MediaStorage) {}
+  writePrivate(p: string, b: Buffer) {
+    return this.inner.writePrivate(p, b);
+  }
+  readPrivate(): Promise<Buffer> {
+    return Promise.reject(new Error("simulated blob outage"));
+  }
+  writePublic(p: string, b: Buffer) {
+    return this.inner.writePublic(p, b);
+  }
+  readPublic(p: string) {
+    return this.inner.readPublic(p);
   }
 }
 
@@ -57,9 +81,9 @@ integrationDescribe("product video upload and processing", () => {
   let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
   let sqlClient: Awaited<ReturnType<typeof resetAndMigrate>>["sql"];
   let tempMediaRoot: string;
+  let localStorage: LocalMediaStorage;
   let admin: ActiveStaffMembership;
   let tenantId: string;
-  let ffmpegAvailable = false;
   
   const productInput = {
     internalName: "test-video-product",
@@ -71,10 +95,9 @@ integrationDescribe("product video upload and processing", () => {
   } as const;
 
   beforeAll(async () => {
-    ffmpegAvailable = await checkFfmpegAvailable();
-    
     tempMediaRoot = await mkdtemp(path.join(tmpdir(), "qos-video-"));
-    setMediaStorage(new LocalMediaStorage(tempMediaRoot));
+    localStorage = new LocalMediaStorage(tempMediaRoot);
+    setMediaStorage(localStorage);
 
     const connection = await resetAndMigrate();
     db = connection.db;
@@ -310,229 +333,300 @@ integrationDescribe("product video upload and processing", () => {
     expect(queueResult.jobId).toBeTruthy();
   });
 
-  it.skipIf(!ffmpegAvailable)("processes queued video job to generate playback and poster", async () => {
-    const product = await createDraftProduct(
-      db,
-      tenantId,
-      admin,
-      productInput,
-    );
+  let productSeq = 0;
 
-    const videoBytes = await readFile(VALID_VIDEO_PATH);
-
+  async function queueUploadedVideo(
+    forTenantId: string,
+    membership: ActiveStaffMembership,
+    fixture: string | Buffer = VALID_VIDEO_PATH,
+  ) {
+    productSeq += 1;
+    const product = await createDraftProduct(db, forTenantId, membership, {
+      ...productInput,
+      internalName: `test-video-product-${productSeq}`,
+    });
+    const videoBytes =
+      typeof fixture === "string" ? await readFile(fixture) : fixture;
     const grant = await createProductVideoUploadGrant(
       db,
-      tenantId,
-      admin,
+      forTenantId,
+      membership,
       product.publicId,
-      {
-        byteSize: videoBytes.length,
-        contentType: "video/mp4",
-      },
+      { byteSize: videoBytes.length, contentType: "video/mp4" },
     );
-
     await ingestProductVideoUpload(
       db,
-      tenantId,
+      forTenantId,
       product.publicId,
       grant.grantToken,
       videoBytes,
     );
-
-    const queueResult = await queueProductVideoProcessing(
+    const queued = await queueProductVideoProcessing(
       db,
-      tenantId,
-      admin,
+      forTenantId,
+      membership,
       product.publicId,
       grant.assetPublicId,
     );
+    return { ...queued, productPublicId: product.publicId };
+  }
 
-    const job = await claimNextQueuedJob(db);
-    expect(job).toBeTruthy();
-    expect(job?.correlationId).toBe(queueResult.correlationId);
-
-    await processVideoJob(db, job!.jobId);
-
-    const status = await getProductVideoJobStatus(
-      db,
-      tenantId,
-      admin,
-      queueResult.correlationId,
+  async function createSecondTenant() {
+    const hierarchy = await createTenantHierarchy(db, {
+      tenant: {
+        publicId: "ten-florea-video-test",
+        name: "Florea Video Test",
+        businessProfile: "generic_retail",
+        baseCurrency: "AED",
+        defaultLocale: "en",
+        defaultTimezone: "Asia/Dubai",
+        supportedLocales: ["en", "ar"],
+      },
+      organization: { publicId: "org-florea-video", name: "Florea Video Org" },
+      brand: { publicId: "br-florea-video-test", name: "Florea Video" },
+      location: {
+        publicId: "loc-florea-video-marina",
+        name: "Marina",
+        slug: "marina",
+        timezone: "Asia/Dubai",
+      },
+    });
+    const membership = await seedAdministrator(
+      hierarchy.tenant.id,
+      "admin-florea@test",
+      "admin-florea@test",
     );
+    return { tenantId: hierarchy.tenant.id, membership };
+  }
+
+  async function makeAllJobsDue() {
+    await sqlClient`UPDATE qos.video_processing_jobs SET next_attempt_at = now() - interval '1 second'`;
+  }
+
+  async function assetState(assetPublicId: string) {
+    const rows = await sqlClient`
+      SELECT status, failure_reason FROM qos.catalogue_media_assets WHERE public_id = ${assetPublicId}
+    `;
+    return rows[0] as { status: string; failure_reason: string | null };
+  }
+
+  describe("claiming, fairness and recovery", () => {
+    afterEach(() => {
+      setMediaStorage(localStorage);
+    });
+
+    it("serves the least recently served tenant first instead of FIFO", async () => {
+      const tenantB = await createSecondTenant();
+      const a1 = await queueUploadedVideo(tenantId, admin);
+      const a2 = await queueUploadedVideo(tenantId, admin);
+      const a3 = await queueUploadedVideo(tenantId, admin);
+      const b1 = await queueUploadedVideo(tenantB.tenantId, tenantB.membership);
+      const config = { ...testConfig, maxActiveJobsPerTenant: 2 };
+
+      const first = await claimNextQueuedJob(db, { workerId: "w1", config });
+      const second = await claimNextQueuedJob(db, { workerId: "w2", config });
+      const third = await claimNextQueuedJob(db, { workerId: "w3", config });
+
+      expect(first?.correlationId).toBe(a1.correlationId);
+      // B jumps ahead of A's older backlog because A was just served.
+      expect(second?.correlationId).toBe(b1.correlationId);
+      expect(third?.correlationId).toBe(a2.correlationId);
+      expect(a3.correlationId).toBeTruthy();
+    });
+
+    it("never gives one tenant more than its active-job cap", async () => {
+      const tenantB = await createSecondTenant();
+      const a1 = await queueUploadedVideo(tenantId, admin);
+      const a2 = await queueUploadedVideo(tenantId, admin);
+      const b1 = await queueUploadedVideo(tenantB.tenantId, tenantB.membership);
+
+      const first = await claimNextQueuedJob(db, { workerId: "w1", config: testConfig });
+      const second = await claimNextQueuedJob(db, { workerId: "w2", config: testConfig });
+      const third = await claimNextQueuedJob(db, { workerId: "w3", config: testConfig });
+
+      expect(first?.correlationId).toBe(a1.correlationId);
+      expect(second?.correlationId).toBe(b1.correlationId);
+      expect(third).toBeNull();
+
+      await sqlClient`UPDATE qos.video_processing_jobs SET status = 'ready' WHERE id = ${first!.jobId}`;
+      const fourth = await claimNextQueuedJob(db, { workerId: "w4", config: testConfig });
+      expect(fourth?.correlationId).toBe(a2.correlationId);
+    });
+
+    it("re-queues a transient failure with backoff instead of retrying immediately", async () => {
+      setMediaStorage(new UnreadableSourceStorage(localStorage));
+      const queued = await queueUploadedVideo(tenantId, admin);
+
+      const job = await claimNextQueuedJob(db, { workerId: "w1", config: testConfig });
+      await expect(processVideoJob(db, job!, { config: testConfig })).rejects.toThrow(
+        /simulated blob outage/,
+      );
+
+      const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
+      expect(status.status).toBe("queued");
+      expect(status.retryCount).toBe(1);
+      expect(status.nextAttemptAt.getTime()).toBeGreaterThan(Date.now() + 30_000);
+      expect(await claimNextQueuedJob(db, { workerId: "w2", config: testConfig })).toBeNull();
+    });
+
+    it("quarantines after exhausted retries and rejects the asset", async () => {
+      setMediaStorage(new UnreadableSourceStorage(localStorage));
+      const queued = await queueUploadedVideo(tenantId, admin);
+
+      for (let attempt = 0; attempt < testConfig.maxRetries; attempt++) {
+        await makeAllJobsDue();
+        const job = await claimNextQueuedJob(db, { workerId: `w${attempt}`, config: testConfig });
+        expect(job).not.toBeNull();
+        await expect(processVideoJob(db, job!, { config: testConfig })).rejects.toThrow();
+      }
+
+      await makeAllJobsDue();
+      expect(await claimNextQueuedJob(db, { workerId: "wx", config: testConfig })).toBeNull();
+
+      const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
+      expect(status.status).toBe("quarantined");
+      expect(status.retryCount).toBe(testConfig.maxRetries);
+      expect(status.lastErrorMessage).toMatch(/simulated blob outage/);
+      const asset = await assetState(queued.assetPublicId);
+      expect(asset.status).toBe("rejected");
+      expect(asset.failure_reason).toMatch(/^Quarantined after 3 attempts/);
+    });
+
+    it("reclaims a job whose worker lease expired and fences out the stale worker", async () => {
+      setMediaStorage(new UnreadableSourceStorage(localStorage));
+      const queued = await queueUploadedVideo(tenantId, admin);
+
+      const stale = await claimNextQueuedJob(db, { workerId: "dead-worker", config: testConfig });
+      expect(stale).not.toBeNull();
+      await sqlClient`UPDATE qos.video_processing_jobs SET lease_expires_at = now() - interval '1 second'`;
+
+      const reclaimed = await claimNextQueuedJob(db, { workerId: "live-worker", config: testConfig });
+      expect(reclaimed?.jobId).toBe(stale!.jobId);
+      expect(reclaimed?.retryCount).toBe(1);
+
+      // The stale worker finishing late must not overwrite the live worker's state.
+      await expect(processVideoJob(db, stale!, { config: testConfig })).rejects.toThrow();
+      const rows = await sqlClient`
+        SELECT status, claimed_by, retry_count FROM qos.video_processing_jobs WHERE id = ${stale!.jobId}
+      `;
+      expect(rows[0]).toMatchObject({
+        status: "processing",
+        claimed_by: "live-worker",
+        retry_count: 1,
+      });
+
+      const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
+      expect(status.lastErrorMessage).toMatch(/lease expired.*dead-worker/);
+    });
+
+    it("exposes a scale-to-zero signal that counts due and in-flight jobs as qos_app", async () => {
+      const tenantB = await createSecondTenant();
+      const countAsApp = () =>
+        runAsRole(sqlClient, "qos_app", async () => {
+          const rows = await sqlClient`SELECT qos.count_active_video_processing_jobs() AS n`;
+          return Number((rows[0] as { n: string }).n);
+        });
+
+      expect(await countAsApp()).toBe(0);
+
+      const a1 = await queueUploadedVideo(tenantId, admin);
+      await queueUploadedVideo(tenantB.tenantId, tenantB.membership);
+      expect(await countAsApp()).toBe(2);
+
+      // In-flight jobs keep the worker up; backed-off and finished jobs do not.
+      const claimed = await claimNextQueuedJob(db, { workerId: "w1", config: testConfig });
+      expect(claimed?.correlationId).toBe(a1.correlationId);
+      expect(await countAsApp()).toBe(2);
+
+      await sqlClient`UPDATE qos.video_processing_jobs SET status = 'ready' WHERE id = ${claimed!.jobId}`;
+      await sqlClient`UPDATE qos.video_processing_jobs SET next_attempt_at = now() + interval '10 minutes' WHERE status = 'queued'`;
+      expect(await countAsApp()).toBe(0);
+    });
+
+    it("claims and records failures as qos_app under tenant RLS", async () => {
+      setMediaStorage(new UnreadableSourceStorage(localStorage));
+      const queued = await queueUploadedVideo(tenantId, admin);
+
+      await runAsRole(sqlClient, "qos_app", async () => {
+        const job = await claimNextQueuedJob(db, { workerId: "app-worker", config: testConfig });
+        expect(job?.correlationId).toBe(queued.correlationId);
+        await expect(processVideoJob(db, job!, { config: testConfig })).rejects.toBeInstanceOf(
+          VideoJobError,
+        );
+        const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
+        expect(status.status).toBe("queued");
+        expect(status.retryCount).toBe(1);
+      });
+    });
+  });
+
+  it.skipIf(!ffmpegAvailable)("processes queued video job to generate playback and poster", async () => {
+    const queued = await queueUploadedVideo(tenantId, admin);
+
+    const job = await claimNextQueuedJob(db, { config: testConfig });
+    expect(job?.correlationId).toBe(queued.correlationId);
+    await processVideoJob(db, job!, { config: testConfig });
+
+    const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
     expect(status.status).toBe("ready");
     expect(status.completedAt).toBeTruthy();
 
-    const urls = await getApprovedProductVideoUrls(
-      db,
-      tenantId,
-      product.publicId,
-    );
-
-    expect(urls).toBeTruthy();
+    const urls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
     expect(urls?.playbackUrl).toMatch(/^\/api\/media\/public\/mvp_/);
     expect(urls?.posterUrl).toMatch(/^\/api\/media\/public\/mpo_/);
   });
 
-  it.skipIf(!ffmpegAvailable)("rejects over-duration video during processing", async () => {
-    const product = await createDraftProduct(
-      db,
-      tenantId,
-      admin,
-      productInput,
-    );
+  it.skipIf(!ffmpegAvailable)("rejects an over-duration video on the first attempt", async () => {
+    const queued = await queueUploadedVideo(tenantId, admin, OVERLIMIT_VIDEO_PATH);
 
-    const videoBytes = await readFile(OVERLIMIT_VIDEO_PATH);
+    const job = await claimNextQueuedJob(db, { config: testConfig });
+    await expect(processVideoJob(db, job!, { config: testConfig })).rejects.toThrow(/duration/);
 
-    const grant = await createProductVideoUploadGrant(
-      db,
-      tenantId,
-      admin,
-      product.publicId,
-      {
-        byteSize: videoBytes.length,
-        contentType: "video/mp4",
-      },
-    );
-
-    await ingestProductVideoUpload(
-      db,
-      tenantId,
-      product.publicId,
-      grant.grantToken,
-      videoBytes,
-    );
-
-    const queueResult = await queueProductVideoProcessing(
-      db,
-      tenantId,
-      admin,
-      product.publicId,
-      grant.assetPublicId,
-    );
-
-    const job = await claimNextQueuedJob(db);
-    expect(job).toBeTruthy();
-
-    await expect(processVideoJob(db, job!.jobId)).rejects.toThrow();
-
-    const status = await getProductVideoJobStatus(
-      db,
-      tenantId,
-      admin,
-      queueResult.correlationId,
-    );
-
-    expect(status.status).toContain(/queued|failed/);
-    expect(status.retryCount).toBeGreaterThan(0);
+    const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
+    expect(status.status).toBe("rejected");
+    expect(status.retryCount).toBe(1);
     expect(status.lastErrorMessage).toContain("duration");
+    expect((await assetState(queued.assetPublicId)).status).toBe("rejected");
   });
 
-  it.skipIf(!ffmpegAvailable)("quarantines video after exhausted retries", async () => {
-    const product = await createDraftProduct(
-      db,
-      tenantId,
-      admin,
-      productInput,
+  it("keeps non-MP4 bytes out of the queue at upload time", async () => {
+    await expect(queueUploadedVideo(tenantId, admin, CORRUPT_VIDEO_PATH)).rejects.toThrow(
+      /do not match the declared video content type/,
     );
-
-    const corruptBytes = await readFile(CORRUPT_VIDEO_PATH);
-
-    const grant = await createProductVideoUploadGrant(
-      db,
-      tenantId,
-      admin,
-      product.publicId,
-      {
-        byteSize: corruptBytes.length,
-        contentType: "video/mp4",
-      },
-    );
-
-    await ingestProductVideoUpload(
-      db,
-      tenantId,
-      product.publicId,
-      grant.grantToken,
-      corruptBytes,
-    );
-
-    const queueResult = await queueProductVideoProcessing(
-      db,
-      tenantId,
-      admin,
-      product.publicId,
-      grant.assetPublicId,
-    );
-
-    for (let i = 0; i < 4; i++) {
-      const job = await claimNextQueuedJob(db);
-      if (!job) break;
-
-      try {
-        await processVideoJob(db, job.jobId);
-      } catch {
-        // Expected to fail
-      }
-    }
-
-    const status = await getProductVideoJobStatus(
-      db,
-      tenantId,
-      admin,
-      queueResult.correlationId,
-    );
-
-    expect(status.status).toBe("quarantined");
-    expect(status.retryCount).toBeGreaterThanOrEqual(3);
-    expect(status.lastErrorMessage).toBeTruthy();
   });
 
-  it.skipIf(!ffmpegAvailable)("ensures idempotent processing: replay does not leak files", async () => {
-    const product = await createDraftProduct(
-      db,
-      tenantId,
-      admin,
-      productInput,
-    );
+  it.skipIf(!ffmpegAvailable)("rejects a truncated MP4 without retrying", async () => {
+    // Valid ftyp header passes upload sniffing, but the moov atom is gone.
+    const truncated = (await readFile(VALID_VIDEO_PATH)).subarray(0, 2048);
+    const queued = await queueUploadedVideo(tenantId, admin, truncated);
 
-    const videoBytes = await readFile(VALID_VIDEO_PATH);
+    const job = await claimNextQueuedJob(db, { config: testConfig });
+    await expect(processVideoJob(db, job!, { config: testConfig })).rejects.toThrow();
 
-    const grant = await createProductVideoUploadGrant(
-      db,
-      tenantId,
-      admin,
-      product.publicId,
-      {
-        byteSize: videoBytes.length,
-        contentType: "video/mp4",
-      },
-    );
+    const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
+    expect(status.status).toBe("rejected");
+    expect(status.retryCount).toBe(1);
+  });
 
-    await ingestProductVideoUpload(
-      db,
-      tenantId,
-      product.publicId,
-      grant.grantToken,
-      videoBytes,
-    );
+  it.skipIf(!ffmpegAvailable)("replaces derivatives on replay instead of duplicating them", async () => {
+    const queued = await queueUploadedVideo(tenantId, admin);
 
-    const queueResult = await queueProductVideoProcessing(
-      db,
-      tenantId,
-      admin,
-      product.publicId,
-      grant.assetPublicId,
-    );
+    const first = await claimNextQueuedJob(db, { config: testConfig });
+    await processVideoJob(db, first!, { config: testConfig });
+    const firstUrls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
 
-    const job = await claimNextQueuedJob(db);
-    await processVideoJob(db, job!.jobId);
+    await sqlClient`UPDATE qos.video_processing_jobs SET status = 'queued' WHERE id = ${first!.jobId}`;
+    const replay = await claimNextQueuedJob(db, { config: testConfig });
+    await processVideoJob(db, replay!, { config: testConfig });
+    const replayUrls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
 
-    const firstUrls = await getApprovedProductVideoUrls(
-      db,
-      tenantId,
-      product.publicId,
-    );
-
-    expect(firstUrls).toBeTruthy();
+    const derivativeRows = await sqlClient`
+      SELECT derivative_kind FROM qos.catalogue_media_derivatives d
+      JOIN qos.catalogue_media_assets a ON a.id = d.asset_id
+      WHERE a.public_id = ${queued.assetPublicId}
+    `;
+    expect(derivativeRows).toHaveLength(2);
+    expect(replayUrls?.playbackUrl).not.toBe(firstUrls?.playbackUrl);
   });
 });
+

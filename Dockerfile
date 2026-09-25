@@ -15,6 +15,24 @@ COPY . .
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN npm run build
 
+FROM base AS worker-builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
+COPY . .
+RUN npm run build:worker
+
+# Video worker: build with `--target worker`. Kept before `runner` so the
+# default (last-stage) build remains the API image.
+FROM base AS worker
+RUN apk add --no-cache ffmpeg
+WORKDIR /app
+ENV NODE_ENV=production
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 worker
+COPY --from=worker-builder --chown=worker:nodejs /app/dist/video-worker.cjs ./video-worker.cjs
+USER worker
+CMD ["node", "video-worker.cjs"]
+
 FROM base AS runner
 WORKDIR /app
 ENV NODE_ENV=production

@@ -1,15 +1,156 @@
 import { spawn } from "node:child_process";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 
 import { readVideoProcessingConfig } from "@/lib/media/video-config";
 
 export class VideoValidationError extends Error {
   readonly field?: string;
+  /** True when retrying the same bytes could succeed (timeout, crash, missing binary). */
+  readonly transient: boolean;
 
-  constructor(message: string, field?: string) {
+  constructor(message: string, field?: string, options: { transient?: boolean } = {}) {
     super(message);
     this.name = "VideoValidationError";
     this.field = field;
+    this.transient = options.transient ?? false;
   }
+}
+
+/**
+ * A non-zero exit on the same input is deterministic; a timeout, a kill by
+ * signal (e.g. OOM) or a spawn failure is not.
+ */
+class VideoToolError extends Error {
+  constructor(
+    message: string,
+    readonly transient: boolean,
+  ) {
+    super(message);
+    this.name = "VideoToolError";
+  }
+}
+
+function isTransientToolFailure(error: unknown): boolean {
+  return error instanceof VideoToolError ? error.transient : true;
+}
+
+const PROBE_TIMEOUT_MS = 30_000;
+const POSTER_TIMEOUT_MS = 30_000;
+
+/**
+ * Pipe `input` into a child process and collect stdout, killing it after
+ * `timeoutMs`. Never leaves a timer or listener behind, and turns spawn
+ * failures (e.g. ENOENT when ffmpeg is not installed) into rejections
+ * instead of an unhandled 'error' event that would crash the worker.
+ */
+function runBoundedProcess(
+  command: string,
+  args: string[],
+  input: Buffer | null,
+  timeoutMs: number,
+): Promise<Buffer> {
+  return new Promise<Buffer>((resolve, reject) => {
+    const child = spawn(command, args, { stdio: ["pipe", "pipe", "pipe"] });
+    const chunks: Buffer[] = [];
+    let stderr = "";
+    let settled = false;
+
+    const finish = (error: Error | null) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timer);
+      if (error) {
+        reject(error);
+      } else {
+        resolve(Buffer.concat(chunks));
+      }
+    };
+
+    const timer = setTimeout(() => {
+      child.kill("SIGKILL");
+      finish(new VideoToolError(`${command} timed out after ${timeoutMs}ms`, true));
+    }, timeoutMs);
+
+    child.stdout.on("data", (data: Buffer) => {
+      chunks.push(data);
+    });
+    child.stderr.on("data", (data: Buffer) => {
+      // Keep only the tail; ffmpeg can be very chatty.
+      stderr = (stderr + data.toString()).slice(-4_000);
+    });
+    // EPIPE when the process exits before reading all input.
+    child.stdin.on("error", () => {});
+    child.on("error", (error) => finish(new VideoToolError(error.message, true)));
+    child.on("close", (code, signal) => {
+      if (code === 0) {
+        finish(null);
+      } else if (code === null) {
+        finish(new VideoToolError(`${command} was killed by ${signal ?? "a signal"}`, true));
+      } else {
+        finish(
+          new VideoToolError(`${command} exited with code ${code}: ${stderr.trim()}`, false),
+        );
+      }
+    });
+
+    if (input) {
+      child.stdin.end(input);
+    } else {
+      child.stdin.end();
+    }
+  });
+}
+
+/**
+ * ffmpeg/ffprobe must read MP4 from a seekable file: uploads whose moov atom
+ * is at the end (common for phone recordings) cannot be probed from a pipe,
+ * and the mp4 muxer cannot write +faststart output to a pipe.
+ */
+async function withVideoFile<T>(
+  bytes: Buffer,
+  fn: (inputPath: string, workDir: string) => Promise<T>,
+): Promise<T> {
+  const workDir = await mkdtemp(path.join(tmpdir(), "qos-video-"));
+  try {
+    const inputPath = path.join(workDir, "input.mp4");
+    await writeFile(inputPath, bytes);
+    return await fn(inputPath, workDir);
+  } finally {
+    await rm(workDir, { recursive: true, force: true });
+  }
+}
+
+/**
+ * Fail fast at worker boot when ffmpeg/ffprobe are missing from the image,
+ * rather than failing (and retrying) every job.
+ */
+export async function assertVideoToolchainAvailable(): Promise<{
+  ffmpeg: string;
+  ffprobe: string;
+}> {
+  const versions: Record<"ffmpeg" | "ffprobe", string> = {
+    ffmpeg: "",
+    ffprobe: "",
+  };
+
+  for (const tool of ["ffmpeg", "ffprobe"] as const) {
+    try {
+      const output = await runBoundedProcess(tool, ["-version"], null, 10_000);
+      versions[tool] = output.toString().split("\n")[0]?.trim() ?? tool;
+    } catch (error) {
+      throw new Error(
+        `${tool} is required for video processing but is not runnable: ${
+          error instanceof Error ? error.message : "unknown error"
+        }`,
+      );
+    }
+  }
+
+  return versions;
 }
 
 const MP4_MAGIC = Buffer.from([0x00, 0x00, 0x00]);
@@ -95,51 +236,31 @@ export async function validateVideoBytes(
 
   let probeResult: string;
   try {
-    probeResult = await new Promise((resolve, reject) => {
-      const ffprobe = spawn("ffprobe", [
-        "-v",
-        "error",
-        "-show_entries",
-        "format=duration,format_name,bit_rate",
-        "-show_entries",
-        "stream=codec_name,codec_type,width,height",
-        "-of",
-        "json",
-        "-i",
-        "-",
-      ]);
-
-      let stdout = "";
-      let stderr = "";
-
-      ffprobe.stdout.on("data", (data) => {
-        stdout += data.toString();
-      });
-
-      ffprobe.stderr.on("data", (data) => {
-        stderr += data.toString();
-      });
-
-      ffprobe.on("close", (code) => {
-        if (code !== 0) {
-          reject(new Error(`ffprobe exited with code ${code}: ${stderr}`));
-        } else {
-          resolve(stdout);
-        }
-      });
-
-      ffprobe.stdin.write(bytes);
-      ffprobe.stdin.end();
-
-      setTimeout(() => {
-        ffprobe.kill();
-        reject(new Error("ffprobe timeout"));
-      }, 30000);
-    });
+    const output = await withVideoFile(bytes, (inputPath) =>
+      runBoundedProcess(
+        "ffprobe",
+        [
+          "-v",
+          "error",
+          "-show_entries",
+          "format=duration,format_name,bit_rate",
+          "-show_entries",
+          "stream=codec_name,codec_type,width,height",
+          "-of",
+          "json",
+          "-i",
+          inputPath,
+        ],
+        null,
+        PROBE_TIMEOUT_MS,
+      ),
+    );
+    probeResult = output.toString();
   } catch (error) {
     throw new VideoValidationError(
       `Failed to probe video metadata: ${error instanceof Error ? error.message : "unknown error"}`,
       "body",
+      { transient: isTransientToolFailure(error) },
     );
   }
 
@@ -247,51 +368,30 @@ export async function extractPosterFrame(
   const timestamp = durationSeconds * config.posterTimestampRatio;
 
   try {
-    const result = await new Promise<Buffer>((resolve, reject) => {
-      const ffmpeg = spawn("ffmpeg", [
-        "-ss",
-        timestamp.toString(),
-        "-i",
-        "-",
-        "-vframes",
-        "1",
-        "-f",
-        "image2pipe",
-        "-vcodec",
-        "mjpeg",
-        "-",
-      ]);
-
-      const chunks: Buffer[] = [];
-      let stderr = "";
-
-      ffmpeg.stdout.on("data", (data) => {
-        chunks.push(data);
-      });
-
-      ffmpeg.stderr.on("data", (data) => {
-        stderr += data.toString();
-      });
-
-      ffmpeg.on("close", (code) => {
-        if (code !== 0) {
-          reject(new Error(`ffmpeg exited with code ${code}: ${stderr}`));
-        } else {
-          resolve(Buffer.concat(chunks));
-        }
-      });
-
-      ffmpeg.stdin.write(videoBytes);
-      ffmpeg.stdin.end();
-
-      setTimeout(() => {
-        ffmpeg.kill();
-        reject(new Error("ffmpeg timeout"));
-      }, 30000);
-    });
+    const result = await withVideoFile(videoBytes, (inputPath) =>
+      runBoundedProcess(
+        "ffmpeg",
+        [
+          "-nostdin",
+          "-ss",
+          timestamp.toString(),
+          "-i",
+          inputPath,
+          "-frames:v",
+          "1",
+          "-f",
+          "image2pipe",
+          "-vcodec",
+          "mjpeg",
+          "-",
+        ],
+        null,
+        POSTER_TIMEOUT_MS,
+      ),
+    );
 
     if (!result || result.length === 0) {
-      throw new Error("ffmpeg returned empty output");
+      throw new VideoToolError("ffmpeg returned empty output", false);
     }
 
     return result;
@@ -299,6 +399,7 @@ export async function extractPosterFrame(
     throw new VideoValidationError(
       `Failed to extract poster frame: ${error instanceof Error ? error.message : "unknown error"}`,
       "body",
+      { transient: isTransientToolFailure(error) },
     );
   }
 }
@@ -312,57 +413,39 @@ export async function transcodeVideo(videoBytes: Buffer): Promise<Buffer> {
   const config = readVideoProcessingConfig();
 
   try {
-    const result = await new Promise<Buffer>((resolve, reject) => {
-      const ffmpeg = spawn("ffmpeg", [
-        "-i",
-        "-",
-        "-c:v",
-        config.transcodeTargetCodec,
-        "-b:v",
-        config.transcodeTargetMaxBitrate,
-        "-preset",
-        "fast",
-        "-movflags",
-        "+faststart",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        "-f",
-        config.transcodeTargetContainer,
-        "-",
-      ]);
-
-      const chunks: Buffer[] = [];
-      let stderr = "";
-
-      ffmpeg.stdout.on("data", (data) => {
-        chunks.push(data);
-      });
-
-      ffmpeg.stderr.on("data", (data) => {
-        stderr += data.toString();
-      });
-
-      ffmpeg.on("close", (code) => {
-        if (code !== 0) {
-          reject(new Error(`ffmpeg exited with code ${code}: ${stderr}`));
-        } else {
-          resolve(Buffer.concat(chunks));
-        }
-      });
-
-      ffmpeg.stdin.write(videoBytes);
-      ffmpeg.stdin.end();
-
-      setTimeout(() => {
-        ffmpeg.kill();
-        reject(new Error("ffmpeg timeout"));
-      }, config.jobTimeoutMs);
+    const result = await withVideoFile(videoBytes, async (inputPath, workDir) => {
+      const outputPath = path.join(workDir, `output.${config.transcodeTargetContainer}`);
+      await runBoundedProcess(
+        "ffmpeg",
+        [
+          "-nostdin",
+          "-y",
+          "-i",
+          inputPath,
+          "-c:v",
+          config.transcodeTargetCodec,
+          "-b:v",
+          config.transcodeTargetMaxBitrate,
+          "-preset",
+          "fast",
+          "-movflags",
+          "+faststart",
+          "-c:a",
+          "aac",
+          "-b:a",
+          "128k",
+          "-f",
+          config.transcodeTargetContainer,
+          outputPath,
+        ],
+        null,
+        config.jobTimeoutMs,
+      );
+      return readFile(outputPath);
     });
 
     if (!result || result.length === 0) {
-      throw new Error("ffmpeg returned empty output");
+      throw new VideoToolError("ffmpeg returned empty output", false);
     }
 
     return result;
@@ -370,6 +453,7 @@ export async function transcodeVideo(videoBytes: Buffer): Promise<Buffer> {
     throw new VideoValidationError(
       `Failed to transcode video: ${error instanceof Error ? error.message : "unknown error"}`,
       "body",
+      { transient: isTransientToolFailure(error) },
     );
   }
 }
