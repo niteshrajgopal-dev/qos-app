@@ -628,5 +628,130 @@ integrationDescribe("product video upload and processing", () => {
     expect(derivativeRows).toHaveLength(2);
     expect(replayUrls?.playbackUrl).not.toBe(firstUrls?.playbackUrl);
   });
+
+  it("rejects foreign-tenant product ID", async () => {
+    const hierarchy2 = await createTenantHierarchy(db, {
+      tenant: {
+        publicId: "ten-foreign",
+        name: "Foreign Tenant",
+        businessProfile: "hospitality",
+        baseCurrency: "AED",
+        defaultLocale: "en",
+        defaultTimezone: "Asia/Dubai",
+        supportedLocales: ["en", "ar"],
+      },
+      organization: {
+        publicId: "org-foreign",
+        name: "Foreign Org",
+      },
+      brand: {
+        publicId: "br-foreign",
+        name: "Foreign Brand",
+      },
+      location: {
+        publicId: "loc-foreign",
+        name: "Foreign Location",
+        slug: "foreign",
+        timezone: "Asia/Dubai",
+      },
+    });
+    const tenant2Id = hierarchy2.tenant.id;
+    const [identityRow2] = await db.insert(staffIdentities).values({
+      providerSubject: "auth0|foreign",
+      email: "foreign@test.local",
+    }).returning();
+    const [membership2] = await db.insert(staffMemberships).values({
+      tenantId: tenant2Id,
+      staffIdentityId: identityRow2.id,
+      role: "administrator",
+    }).returning();
+    const admin2: ActiveStaffMembership = {
+      membershipId: membership2.id,
+      role: "administrator",
+      staffIdentityId: identityRow2.id,
+    };
+
+    const product2 = await createDraftProduct(db, tenant2Id, admin2, productInput);
+
+    // Tenant 1 admin trying to upload to tenant 2 product
+    await expect(
+      createProductVideoUploadGrant(db, tenantId, admin, product2.publicId, {
+        byteSize: 1000,
+        contentType: "video/mp4",
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/not found/i),
+      statusCode: 404,
+    });
+
+    // Create a valid upload for tenant 2
+    const videoBytes = await readFile(VALID_VIDEO_PATH);
+    const grant = await createProductVideoUploadGrant(
+      db,
+      tenant2Id,
+      admin2,
+      product2.publicId,
+      { byteSize: videoBytes.byteLength, contentType: "video/mp4" },
+    );
+    await ingestProductVideoUpload(
+      db,
+      tenant2Id,
+      product2.publicId,
+      grant.grantToken,
+      videoBytes,
+    );
+    const queued = await queueProductVideoProcessing(
+      db,
+      tenant2Id,
+      admin2,
+      product2.publicId,
+      grant.assetPublicId,
+    );
+
+    // Tenant 1 admin trying to check tenant 2 job status
+    await expect(
+      getProductVideoJobStatus(db, tenantId, admin, queued.correlationId),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/not found/i),
+      statusCode: 404,
+    });
+
+    // Tenant 1 admin trying to get tenant 2 approved URLs
+    await expect(
+      getApprovedProductVideoUrls(db, tenantId, product2.publicId),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/not found/i),
+      statusCode: 404,
+    });
+  });
+
+  it("rejects unauthorized role (user cannot upload)", async () => {
+    const [userIdentity] = await db.insert(staffIdentities).values({
+      providerSubject: "auth0|user",
+      email: "user@test.local",
+    }).returning();
+    const [userMembership] = await db.insert(staffMemberships).values({
+      tenantId,
+      staffIdentityId: userIdentity.id,
+      role: "user",
+    }).returning();
+    const user: ActiveStaffMembership = {
+      membershipId: userMembership.id,
+      role: "user",
+      staffIdentityId: userIdentity.id,
+    };
+
+    const product = await createDraftProduct(db, tenantId, admin, productInput);
+
+    await expect(
+      createProductVideoUploadGrant(db, tenantId, user, product.publicId, {
+        byteSize: 1000,
+        contentType: "video/mp4",
+      }),
+    ).rejects.toMatchObject({
+      message: expect.stringMatching(/administrator.*required/i),
+      statusCode: 403,
+    });
+  });
 });
 

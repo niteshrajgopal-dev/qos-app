@@ -17,6 +17,14 @@ import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
 
+function requireAdministratorRole(membership: ActiveStaffMembership) {
+  if (membership.role !== "administrator") {
+    throw new StaffAuthorizationError(
+      "Administrator membership is required for this action.",
+    );
+  }
+}
+
 export class ProductVideoError extends Error {
   readonly statusCode: number;
   readonly field?: string;
@@ -95,6 +103,8 @@ export async function createProductVideoUploadGrant(
     contentType: string;
   },
 ) {
+  requireAdministratorRole(membership);
+
   const videoConfig = readVideoProcessingConfig();
   const mediaConfig = readMediaConfig();
 
@@ -274,6 +284,7 @@ export async function queueProductVideoProcessing(
   productPublicId: string,
   assetPublicId: string,
 ) {
+  requireAdministratorRole(membership);
 
   try {
     return withTenantContext(db, tenantId, async (tx) => {
@@ -356,6 +367,7 @@ export async function getProductVideoJobStatus(
   membership: ActiveStaffMembership,
   correlationId: string,
 ) {
+  requireAdministratorRole(membership);
 
   try {
     const status = await getJobStatus(db, tenantId, correlationId);
