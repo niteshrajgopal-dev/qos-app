@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { ProductMediaError } from "@/lib/media/product-images";
+import { ProductVideoError } from "@/lib/media/product-videos";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { StaffAuthError } from "@/lib/staff/session";
 
@@ -20,6 +21,13 @@ export function productMediaErrorResponse(error: unknown) {
   }
 
   if (error instanceof ProductMediaError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof ProductVideoError) {
     return NextResponse.json(
       { error: error.message, field: error.field },
       { status: error.statusCode },

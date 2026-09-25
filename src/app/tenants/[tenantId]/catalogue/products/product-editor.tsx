@@ -102,9 +102,39 @@ export function ProductEditor({
   const [thumbnailPublicId, setThumbnailPublicId] = useState<string | null>(
     null,
   );
+  const [videoUploading, setVideoUploading] = useState(false);
+  const [videoStatus, setVideoStatus] = useState<string | null>(null);
+  const [videoJobState, setVideoJobState] = useState<"queued" | "processing" | "ready" | "rejected" | "failed" | null>(null);
+  const [videoRejectionReason, setVideoRejectionReason] = useState<string | null>(null);
+  const [approvedVideoUrls, setApprovedVideoUrls] = useState<{ playbackUrl: string; posterUrl: string } | null>(null);
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
+
+  const loadApprovedVideoUrls = useCallback(async () => {
+    if (!productPublicId) {
+      return;
+    }
+
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/videos/approved`,
+      );
+
+      const payload = (await response.json()) as {
+        video?: { playbackUrl: string; posterUrl: string } | null;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        return;
+      }
+
+      setApprovedVideoUrls(payload.video ?? null);
+    } catch {
+      // Silently fail - video URLs are optional
+    }
+  }, [productPublicId, tenantId]);
 
   const applyProductPayload = useCallback(
     (product: {
@@ -152,8 +182,9 @@ export function ProductEditor({
       setForm(nextState);
       setBaseline(JSON.stringify(nextState));
       setHasLoadedProduct(true);
+      void loadApprovedVideoUrls();
     },
-    [],
+    [loadApprovedVideoUrls],
   );
 
   const loadProduct = useCallback(async () => {
@@ -296,6 +327,162 @@ export function ProductEditor({
     } finally {
       setImageUploading(false);
     }
+  }
+
+  async function uploadProductVideo(file: File) {
+    if (!productPublicId) {
+      return;
+    }
+
+    setVideoUploading(true);
+    setVideoStatus("Uploading video...");
+    setVideoRejectionReason(null);
+    setError(null);
+
+    try {
+      const grantResponse = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/videos/upload-grants`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            byteSize: file.size,
+            contentType: file.type,
+          }),
+        },
+      );
+
+      const grantPayload = (await grantResponse.json()) as {
+        grant?: {
+          assetPublicId: string;
+          grantToken: string;
+        };
+        error?: string;
+      };
+
+      if (!grantResponse.ok || !grantPayload.grant) {
+        throw new Error(grantPayload.error ?? "Unable to create upload grant.");
+      }
+
+      const uploadResponse = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/videos/upload`,
+        {
+          method: "PUT",
+          headers: {
+            "X-QOS-Upload-Grant": grantPayload.grant.grantToken,
+            "Content-Type": file.type,
+          },
+          body: file,
+        },
+      );
+
+      const uploadPayload = (await uploadResponse.json()) as {
+        error?: string;
+      };
+
+      if (!uploadResponse.ok) {
+        throw new Error(uploadPayload.error ?? "Unable to upload video.");
+      }
+
+      setVideoStatus("Queueing video for processing...");
+
+      const queueResponse = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/videos/queue`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            assetPublicId: grantPayload.grant.assetPublicId,
+          }),
+        },
+      );
+
+      const queuePayload = (await queueResponse.json()) as {
+        job?: {
+          correlationId: string;
+          status: string;
+        };
+        error?: string;
+      };
+
+      if (!queueResponse.ok || !queuePayload.job) {
+        throw new Error(queuePayload.error ?? "Unable to queue video processing.");
+      }
+
+      setVideoJobState(queuePayload.job.status as typeof videoJobState);
+      setVideoStatus("Video queued for processing.");
+      void pollVideoJobStatus(queuePayload.job.correlationId);
+    } catch (uploadError) {
+      setError(
+        uploadError instanceof Error
+          ? uploadError.message
+          : "Unable to upload product video.",
+      );
+      setVideoStatus(null);
+    } finally {
+      setVideoUploading(false);
+    }
+  }
+
+  async function pollVideoJobStatus(correlationId: string) {
+    if (!productPublicId) {
+      return;
+    }
+
+    let attempts = 0;
+    const maxAttempts = 60;
+    const pollInterval = 3000;
+
+    const poll = async () => {
+      if (attempts >= maxAttempts) {
+        setVideoStatus("Processing took too long. Check back later.");
+        return;
+      }
+
+      attempts++;
+
+      try {
+        const statusResponse = await staffApiFetch(
+          `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/videos/jobs/${correlationId}`,
+        );
+
+        const statusPayload = (await statusResponse.json()) as {
+          job?: {
+            status: string;
+            lastErrorMessage?: string | null;
+          };
+          error?: string;
+        };
+
+        if (!statusResponse.ok || !statusPayload.job) {
+          setVideoStatus("Unable to check processing status.");
+          return;
+        }
+
+        const jobStatus = statusPayload.job.status;
+        setVideoJobState(jobStatus as typeof videoJobState);
+
+        if (jobStatus === "queued") {
+          setVideoStatus("Video queued for processing...");
+          setTimeout(poll, pollInterval);
+        } else if (jobStatus === "processing") {
+          setVideoStatus("Video is being processed...");
+          setTimeout(poll, pollInterval);
+        } else if (jobStatus === "ready") {
+          setVideoStatus("Video processed successfully.");
+          void loadApprovedVideoUrls();
+        } else if (jobStatus === "rejected") {
+          setVideoRejectionReason(
+            statusPayload.job.lastErrorMessage ?? "Video was rejected during validation.",
+          );
+          setVideoStatus(null);
+        } else if (jobStatus === "failed" || jobStatus === "quarantined") {
+          setVideoStatus("Video processing failed. Please try again or contact support.");
+        }
+      } catch {
+        setVideoStatus("Unable to check processing status.");
+      }
+    };
+
+    setTimeout(poll, pollInterval);
   }
 
   async function saveProduct() {
@@ -716,6 +903,52 @@ export function ProductEditor({
                   {thumbnailPublicId}
                 </code>
               </p>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
+
+      {isEditMode && productPublicId ? (
+        <section className="qos-card" data-padding="md">
+          <h2 className="text-lg font-semibold">Product video</h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            Upload an MP4 video (max 20 MiB, 25 seconds, 1080p, H.264 or H.265).
+            The video is validated and transcoded asynchronously.
+          </p>
+          <div className="mt-4 space-y-3">
+            <input
+              type="file"
+              accept="video/mp4"
+              disabled={videoUploading || videoJobState === "queued" || videoJobState === "processing"}
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) {
+                  void uploadProductVideo(file);
+                }
+                event.target.value = "";
+              }}
+              className="block w-full text-sm text-zinc-700 file:mr-4 file:rounded-full file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium"
+            />
+            {videoUploading ? (
+              <p className="text-sm text-zinc-600">Uploading video…</p>
+            ) : null}
+            {videoStatus ? (
+              <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                {videoStatus}
+              </p>
+            ) : null}
+            {videoRejectionReason ? (
+              <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                Video rejected: {videoRejectionReason}
+              </p>
+            ) : null}
+            {approvedVideoUrls ? (
+              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <p className="text-sm font-medium text-emerald-800">Video ready</p>
+                <p className="mt-1 text-xs text-emerald-700">
+                  Playback and poster derivatives are approved for menu publish.
+                </p>
+              </div>
             ) : null}
           </div>
         </section>
