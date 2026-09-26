@@ -14,6 +14,7 @@ export type InputProps = {
   trailing?: React.ReactNode;
   placeholder?: string;
   value?: string;
+  defaultValue?: string;
   disabled?: boolean;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
   type?: React.HTMLInputTypeAttribute;

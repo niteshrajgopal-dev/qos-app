@@ -81,9 +81,20 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
   const [ready, setReady] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [theme, setTheme] = useState<ThemeName>("light");
-  const [collapsed, setCollapsed] = useState(false);
-  const [viewport, setViewport] = useState(1440);
+  const [theme, setTheme] = useState<ThemeName>(() => {
+    if (typeof window === "undefined") return "light";
+    const storedTheme = localStorage.getItem("qos-theme");
+    if (storedTheme === "dark" || storedTheme === "light") {
+      return storedTheme;
+    }
+    return "light";
+  });
+  const [collapsed, setCollapsed] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const storedNav = localStorage.getItem("qos-nav-collapsed");
+    return storedNav != null ? storedNav === "1" : window.innerWidth < 1180;
+  });
+  const [viewport, setViewport] = useState(() => (typeof window === "undefined" ? 1440 : window.innerWidth));
 
   const narrow = viewport < 1180;
   const phone = viewport < 768;
@@ -98,14 +109,7 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
     membership?.role === "administrator" ? "Administrator" : "User";
 
   useEffect(() => {
-    const storedTheme = localStorage.getItem("qos-theme");
-    if (storedTheme === "dark" || storedTheme === "light") {
-      setTheme(storedTheme);
-    }
-    const storedNav = localStorage.getItem("qos-nav-collapsed");
-    setCollapsed(storedNav != null ? storedNav === "1" : window.innerWidth < 1180);
     const onResize = () => setViewport(window.innerWidth);
-    onResize();
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);

@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -11,23 +10,24 @@ import { PageHeader, Card, Button, DataTable, TableToolbar, TableBulkBar, Pagina
 /* Flow 6 — order exception: list → problem order → failure detail → integration event → resolve. */
 export function OrdersScreen() {
   const platform = usePlatformData();
+  type Order = typeof platform.ORDERS[number];
   const [view, setView] = React.useState("exceptions");
-  const [sel, setSel] = React.useState([]);
-  const [open, setOpen] = React.useState(null);
+  const [sel, setSel] = React.useState<Array<string | number>>([]);
+  const [open, setOpen] = React.useState<Order | null>(null);
   const [tab, setTab] = React.useState("lifecycle");
-  const [toast, setToast] = React.useState(null);
+  const [toast, setToast] = React.useState<string | null>(null);
 
   const rows = view === "exceptions" ? platform.ORDERS.filter((o) => o.exception) : platform.ORDERS;
   const columns = [
-    { key: "id", header: "Order", sortable: true, render: (r) => <span style={{ fontFamily: "var(--font-mono)", fontWeight: 500 }}>{r.id}</span> },
+    { key: "id", header: "Order", sortable: true, render: (r: Order) => <span style={{ fontFamily: "var(--font-mono)", fontWeight: 500 }}>{r.id}</span> },
     { key: "customer", header: "Customer" },
     { key: "channel", header: "Channel" },
     { key: "location", header: "Location" },
     { key: "fulfilment", header: "Fulfilment" },
-    { key: "state", header: "Status", render: (r) => <StatusBadge state={r.state} /> },
-    { key: "payment", header: "Payment", render: (r) => <span style={{ color: r.payment === "Paid" ? "var(--text-primary)" : "var(--status-warning-fg)" }}>{r.payment}</span> },
-    { key: "issue", header: "Exception", render: (r) => r.issue ? <Badge tone="error" icon="alert-circle">{r.issue}</Badge> : <span style={{ color: "var(--text-tertiary)" }}>—</span> },
-    { key: "amount", header: "Amount", numeric: true, render: (r) => <span>{r.amount}</span> },
+    { key: "state", header: "Status", render: (r: Order) => <StatusBadge state={r.state} /> },
+    { key: "payment", header: "Payment", render: (r: Order) => <span style={{ color: r.payment === "Paid" ? "var(--text-primary)" : "var(--status-warning-fg)" }}>{r.payment}</span> },
+    { key: "issue", header: "Exception", render: (r: Order) => r.issue ? <Badge tone="error" icon="alert-circle">{r.issue}</Badge> : <span style={{ color: "var(--text-tertiary)" }}>—</span> },
+    { key: "amount", header: "Amount", numeric: true, render: (r: Order) => <span>{r.amount}</span> },
     { key: "time", header: "Time", numeric: true },
   ];
 

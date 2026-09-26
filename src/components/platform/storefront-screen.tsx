@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -23,7 +22,7 @@ const STORE_PRODUCTS = [
   { id: "beans", name: "House blend, 250g", cat: "Retail", price: 65, desc: "Brazil and Ethiopia. Whole bean.", mods: false },
 ];
 
-export function Placeholder({ label, ratio = "4 / 3", radius = 12, style }) {
+export function Placeholder({ label, ratio = "4 / 3", radius = 12, style }: { label: string; ratio?: string; radius?: number; style?: React.CSSProperties }) {
   return (
     <div style={{ aspectRatio: ratio, borderRadius: radius, background: "var(--surface-sunken)", border: "1px dashed var(--border-default)", display: "grid", placeItems: "center", color: "var(--text-tertiary)", fontSize: 11, letterSpacing: ".08em", textTransform: "uppercase", ...style }}>
       <span style={{ display: "flex", alignItems: "center", gap: 6 }}><Icon name="image" size={14} />{label}</span>
@@ -31,10 +30,12 @@ export function Placeholder({ label, ratio = "4 / 3", radius = 12, style }) {
   );
 }
 
-export function StorefrontApp({ mobile = false, onExit }) {
+export function StorefrontApp({ mobile = false, onExit }: { mobile?: boolean; onExit: () => void }) {
   const [cat, setCat] = React.useState("Coffee");
-  const [cart, setCart] = React.useState([{ id: "flat-white", qty: 2, note: "Oat milk, extra shot", price: 24 }]);
-  const [sheet, setSheet] = React.useState(null);
+  type CartItem = { id: string; qty: number; note: string; price: number };
+  type Product = typeof STORE_PRODUCTS[number];
+  const [cart, setCart] = React.useState<CartItem[]>([{ id: "flat-white", qty: 2, note: "Oat milk, extra shot", price: 24 }]);
+  const [sheet, setSheet] = React.useState<Product | null>(null);
   const [cartOpen, setCartOpen] = React.useState(false);
   const [stage, setStage] = React.useState("browse"); // browse | checkout | confirmed
   const [fulfil, setFulfil] = React.useState("Collection");
@@ -43,7 +44,7 @@ export function StorefrontApp({ mobile = false, onExit }) {
 
   const count = cart.reduce((n, c) => n + c.qty, 0);
   const total = cart.reduce((n, c) => n + c.qty * c.price, 0);
-  const add = (p) => {
+  const add = (p: Product) => {
     const price = p.price + (shot ? 4 : 0) + (milk === "Oat" ? 2 : 0);
     const note = p.mods ? [milk !== "Whole" ? `${milk} milk` : null, shot ? "Extra shot" : null].filter(Boolean).join(", ") : "";
     setCart((c) => [...c, { id: p.id, qty: 1, note, price }]);
@@ -131,7 +132,7 @@ export function StorefrontApp({ mobile = false, onExit }) {
           </div>
           <aside style={{ background: "var(--surface-default)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 20, display: "grid", gap: 14, position: mobile ? "static" : "sticky", top: 84 }}>
             <h2 style={{ fontSize: 15, fontWeight: 600 }}>Order summary</h2>
-            {cart.map((c, i) => { const p = STORE_PRODUCTS.find((x) => x.id === c.id); return (
+            {cart.map((c, i) => { const p = STORE_PRODUCTS.find((x) => x.id === c.id); if (!p) return null; return (
               <div key={i} style={{ display: "flex", justifyContent: "space-between", gap: 12, fontSize: 14 }}>
                 <span>{c.qty} × {p.name}{c.note ? <span style={{ display: "block", fontSize: 12, color: "var(--text-secondary)" }}>{c.note}</span> : null}</span>
                 <span style={{ fontVariantNumeric: "tabular-nums" }}>{(c.qty * c.price).toFixed(2)}</span>
@@ -249,7 +250,7 @@ export function StorefrontApp({ mobile = false, onExit }) {
             </div>
             <div style={{ padding: 20, overflowY: "auto", display: "grid", gap: 14, alignContent: "start" }}>
               {!cart.length ? <p style={{ fontSize: 14, color: "var(--text-secondary)" }}>Your order is empty. Add something from the menu.</p> : null}
-              {cart.map((c, i) => { const p = STORE_PRODUCTS.find((x) => x.id === c.id); return (
+              {cart.map((c, i) => { const p = STORE_PRODUCTS.find((x) => x.id === c.id); if (!p) return null; return (
                 <div key={i} style={{ display: "flex", gap: 12, alignItems: "center", fontSize: 14 }}>
                   <span style={{ flex: 1, minWidth: 0 }}><span style={{ fontWeight: 500 }}>{p.name}</span>{c.note ? <span style={{ display: "block", fontSize: 12, color: "var(--text-secondary)" }}>{c.note}</span> : null}</span>
                   <span style={{ display: "inline-flex", alignItems: "center", border: "1px solid var(--border-default)", borderRadius: 8, height: 32 }}>

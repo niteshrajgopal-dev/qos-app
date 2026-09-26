@@ -6,6 +6,7 @@ export type CardProps = {
   padding?: "none" | "sm" | "md";
   tone?: "default" | "intelligence";
   interactive?: boolean;
+  onClick?: () => void;
   header?: React.ReactNode;
   subtitle?: React.ReactNode;
   actions?: React.ReactNode;

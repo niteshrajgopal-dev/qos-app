@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -95,7 +94,7 @@ export function AnalyticsScreen() {
         </Card>
         <Card header="Operational reliability" subtitle="Integration and publishing health affect revenue, so they are reported here too.">
           <div style={{ display: "grid", gap: 12, fontSize: 13 }}>
-            {[["Order push success rate", "99.81%", "success"], ["Catalogue syncs completed", "1,344 of 1,346", "success"], ["Failed publishes", "1", "warning"], ["Orders held for replay", "9", "error"]].map(([l, v, tone]) => (
+            {([["Order push success rate", "99.81%", "success"], ["Catalogue syncs completed", "1,344 of 1,346", "success"], ["Failed publishes", "1", "warning"], ["Orders held for replay", "9", "error"]] as const).map(([l, v, tone]) => (
               <div key={l} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, paddingBottom: 10, borderBottom: "1px solid var(--border-subtle)" }}>
                 <span style={{ color: "var(--text-secondary)" }}>{l}</span>
                 <Badge tone={tone}>{v}</Badge>

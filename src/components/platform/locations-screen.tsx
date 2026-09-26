@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -10,9 +9,10 @@ import { PageHeader, Card, Button, DataTable, StatusBadge, Badge, Tabs, Breadcru
 /* Flow 4 — locations → location → hours / fulfilment → catalogue availability → save. */
 export function LocationsScreen() {
   const platform = usePlatformData();
-  const [loc, setLoc] = React.useState(null);
-  const [toast, setToast] = React.useState(null);
-  if (loc) return <LocationDetail location={loc} onBack={() => setLoc(null)} onSaved={(m) => { setLoc(null); setToast(m); }} />;
+  type Location = typeof platform.LOCATIONS[number];
+  const [loc, setLoc] = React.useState<Location | null>(null);
+  const [toast, setToast] = React.useState<string | null>(null);
+  if (loc) return <LocationDetail location={loc} onBack={() => setLoc(null)} onSaved={(m: string) => { setLoc(null); setToast(m); }} />;
   return (
     <>
       <PageHeader
@@ -30,12 +30,12 @@ export function LocationsScreen() {
           </TableToolbar>
           <DataTable
             columns={[
-              { key: "name", header: "Branch", sortable: true, render: (r) => <span><strong style={{ fontWeight: 500 }}>{r.name}</strong><span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)" }}>{r.city}</span></span> },
-              { key: "state", header: "Operational status", render: (r) => <StatusBadge state={r.state} label={r.state === "warning" ? "Degraded" : undefined} /> },
-              { key: "hours", header: "Opening state", render: (r) => <span style={{ fontSize: 12, color: r.state === "paused" ? "var(--text-secondary)" : "var(--text-primary)" }}>{r.hours}</span> },
-              { key: "channels", header: "Channels", render: (r) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.channels}</span> },
-              { key: "fulfilment", header: "Fulfilment", render: (r) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.fulfilment}</span> },
-              { key: "integration", header: "Integration health", render: (r) => <StatusBadge state={r.integration} /> },
+              { key: "name", header: "Branch", sortable: true, render: (r: Location) => <span><strong style={{ fontWeight: 500 }}>{r.name}</strong><span style={{ display: "block", fontSize: 11, color: "var(--text-secondary)" }}>{r.city}</span></span> },
+              { key: "state", header: "Operational status", render: (r: Location) => <StatusBadge state={r.state} label={r.state === "warning" ? "Degraded" : undefined} /> },
+              { key: "hours", header: "Opening state", render: (r: Location) => <span style={{ fontSize: 12, color: r.state === "paused" ? "var(--text-secondary)" : "var(--text-primary)" }}>{r.hours}</span> },
+              { key: "channels", header: "Channels", render: (r: Location) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.channels}</span> },
+              { key: "fulfilment", header: "Fulfilment", render: (r: Location) => <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{r.fulfilment}</span> },
+              { key: "integration", header: "Integration health", render: (r: Location) => <StatusBadge state={r.integration} /> },
             ]}
             rows={platform.LOCATIONS}
             onRowClick={setLoc}
@@ -50,7 +50,7 @@ export function LocationsScreen() {
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 
-export function LocationDetail({ location, onBack, onSaved }) {
+export function LocationDetail({ location, onBack, onSaved }: { location: { id: string; name: string; city: string; state: string; channels: string; fulfilment: string; hours: string; integration: string; exception?: boolean }; onBack: () => void; onSaved: (message: string) => void }) {
   const platform = usePlatformData();
   const [tab, setTab] = React.useState("hours");
   const [dirty, setDirty] = React.useState(false);

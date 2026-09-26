@@ -51,9 +51,10 @@ function path(values: number[], w: number, h: number, pad: number) {
    hairline grid, tabular numeric axis labels, no decorative gradients behind the plot. */
 export function TrendChart({ series = [], labels = [], height = 200, area = true, yTicks = 4, valueFormat = (v) => v, ...rest }: TrendChartProps) {
   const w = 1000, pad = 8;
+  const reactId = React.useId?.() || "";
+  const gid = reactId.replace(/:/g, "") || "g";
   const all = series.flatMap((s) => s.values);
   const max = Math.max(...all, 0), min = Math.min(...all, 0);
-  const gid = React.useId ? React.useId().replace(/:/g, "") : "g";
   return (
     <div {...rest}>
       <div style={{ display: "flex", gap: 8 }}>

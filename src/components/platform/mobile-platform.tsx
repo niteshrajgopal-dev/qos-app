@@ -1,4 +1,3 @@
-// @ts-nocheck
 "use client";
 
 // Direct port of the design prototype. Markup and copy are kept as specified.
@@ -17,7 +16,7 @@ const M_TABS = [
   { id: "more", label: "More", icon: "menu" },
 ];
 
-export function MHeader({ title, sub, right, onBack }) {
+export function MHeader({ title, sub, right, onBack }: { title: React.ReactNode; sub?: string; right?: React.ReactNode; onBack?: () => void }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 16px 12px", minHeight: 56 }}>
       {onBack ? <button type="button" onClick={onBack} style={{ width: 36, height: 36, marginLeft: -8, border: "none", background: "none", display: "grid", placeItems: "center", color: "var(--text-primary)", cursor: "pointer" }}><Icon name="chevron-left" size={20} /></button> : null}
@@ -30,19 +29,20 @@ export function MHeader({ title, sub, right, onBack }) {
   );
 }
 
-export function MCard({ children, style, onClick }) {
+export function MCard({ children, style, onClick }: { children: React.ReactNode; style?: React.CSSProperties; onClick?: () => void }) {
   const Tag = onClick ? "button" : "div";
   return <Tag type={onClick ? "button" : undefined} onClick={onClick} style={{ textAlign: "left", background: "var(--surface-default)", border: "1px solid var(--border-subtle)", borderRadius: 12, padding: 14, boxShadow: "var(--shadow-sm)", color: "inherit", font: "inherit", cursor: onClick ? "pointer" : undefined, width: "100%", ...style }}>{children}</Tag>;
 }
 
 export function MobilePlatform({ theme = "light" }) {
   const platform = usePlatformData();
+  type Order = typeof platform.ORDERS[number];
   const [tab, setTab] = React.useState("home");
-  const [order, setOrder] = React.useState(null);
+  const [order, setOrder] = React.useState<Order | null>(null);
   const [confirm, setConfirm] = React.useState(false);
   const [resolved, setResolved] = React.useState(false);
-  const [toast, setToast] = React.useState(null);
-  const [paused, setPaused] = React.useState({ jbr: true });
+  const [toast, setToast] = React.useState<string | null>(null);
+  const [paused, setPaused] = React.useState<Record<string, boolean>>({ jbr: true });
   const [view, setView] = React.useState("exceptions");
 
   const orders = view === "exceptions" ? platform.ORDERS.filter((o) => o.exception) : platform.ORDERS;
@@ -134,7 +134,7 @@ export function MobilePlatform({ theme = "light" }) {
       </div>
       <div style={{ padding: "0 16px 24px", display: "grid", gap: 10 }}>
         {orders.map((o) => (
-          <MCard key={o.id} onClick={() => setOrder(o)} style={o.exception ? { borderColor: "var(--status-error-border)" } : null}>
+          <MCard key={o.id} onClick={() => setOrder(o)} style={o.exception ? { borderColor: "var(--status-error-border)" } as React.CSSProperties : undefined}>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ flex: 1, minWidth: 0 }}>
                 <span style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 14 }}><span style={{ fontFamily: "var(--font-mono)", fontWeight: 500 }}>{o.id}</span><span style={{ color: "var(--text-secondary)" }}>{o.customer}</span></span>

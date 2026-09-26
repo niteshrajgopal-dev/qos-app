@@ -17,6 +17,7 @@ const eslintConfig = defineConfig([
     "drizzle/**",
     ".agents/**",
     "design-system/**",
+    "design_handoff_qos_platform/**",
   ]),
 ]);
 
