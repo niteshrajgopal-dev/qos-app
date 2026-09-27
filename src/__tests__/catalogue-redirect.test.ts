@@ -25,3 +25,22 @@ describe("Product redirect page", () => {
     );
   });
 });
+
+describe("Products list redirect page", () => {
+  it("redirects to the catalogue page", async () => {
+    const { redirect } = await import("next/navigation");
+    vi.clearAllMocks();
+    
+    const ProductsListRedirectPage = (
+      await import("../app/tenants/[tenantId]/catalogue/products/page")
+    ).default;
+
+    const params = Promise.resolve({
+      tenantId: "tenant-456",
+    });
+
+    await ProductsListRedirectPage({ params });
+
+    expect(redirect).toHaveBeenCalledWith("/tenants/tenant-456/catalogue");
+  });
+});
