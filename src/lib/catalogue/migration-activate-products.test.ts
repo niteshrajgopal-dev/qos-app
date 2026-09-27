@@ -1,8 +1,9 @@
 import { beforeAll, afterAll, beforeEach, describe, expect, test } from "vitest";
+import { eq } from "drizzle-orm";
 
 import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { seedQuotesDevTenant } from "@/lib/seed/dev-tenants";
-import { importQuotesHbzFineDineMenu } from "@/lib/catalogue/finedine-hbz-import";
+import { brands, catalogueProducts } from "@/db/schema";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
@@ -27,12 +28,83 @@ integrationDescribe("migration: activate published products", () => {
     const seed = await seedQuotesDevTenant(testDb);
     tenantId = seed.tenantId;
 
-    await importQuotesHbzFineDineMenu(testDb, {
-      tenantId,
-      staffSubject: "test@quotes.com",
-      useLiveSource: false,
-    });
-  }, 60000);
+    // Create a minimal published menu with payload
+    const payload = {
+      menuPublicId: "test-menu",
+      locationPublicId: "test-location",
+      version: 1,
+      translations: {
+        en: { displayName: "Test Menu", description: null },
+        ar: { displayName: "قائمة", description: null },
+      },
+      sections: [
+        {
+          publicId: "test-section",
+          sortOrder: 0,
+          translations: {
+            en: { displayName: "Test Section", description: null },
+            ar: { displayName: "قسم", description: null },
+          },
+          products: [
+            {
+              productPublicId: "test-product-1",
+              sortOrder: 0,
+              translations: {
+                en: { displayName: "Product 1", description: null },
+                ar: { displayName: "منتج 1", description: null },
+              },
+              price: { amountMinor: 1000, currency: "AED", inheritanceMode: "inherited" as const },
+              mediaAssetId: null,
+            },
+            {
+              productPublicId: "test-product-2",
+              sortOrder: 1,
+              translations: {
+                en: { displayName: "Product 2", description: null },
+                ar: { displayName: "منتج 2", description: null },
+              },
+              price: { amountMinor: 2000, currency: "AED", inheritanceMode: "inherited" as const },
+              mediaAssetId: null,
+            },
+          ],
+        },
+      ],
+    };
+
+    // Insert the live revision with payload
+    await testSqlClient`
+      INSERT INTO qos.catalogue_menu_live_revisions (tenant_id, menu_id, location_id, source_version, payload, published_by_subject)
+      VALUES (${tenantId}, gen_random_uuid(), gen_random_uuid(), 1, ${JSON.stringify(payload)}::jsonb, 'test@test.com')
+    `;
+
+    // Create the draft products that the migration should activate
+    const [brand] = await testDb
+      .select({ id: brands.id })
+      .from(brands)
+      .where(eq(brands.tenantId, tenantId))
+      .limit(1);
+
+    if (brand) {
+      await testDb.insert(catalogueProducts).values([
+        {
+          tenantId,
+          brandId: brand.id,
+          publicId: "test-product-1",
+          internalName: "Product 1",
+          status: "draft",
+          provenance: "operator_entered",
+        },
+        {
+          tenantId,
+          brandId: brand.id,
+          publicId: "test-product-2",
+          internalName: "Product 2",
+          status: "draft",
+          provenance: "operator_entered",
+        },
+      ]);
+    }
+  });
 
   test("identifies draft products in published menus", async () => {
     const productsInPublishedMenus = await testSqlClient<
