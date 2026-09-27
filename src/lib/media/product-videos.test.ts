@@ -75,6 +75,9 @@ class UnreadableSourceStorage implements MediaStorage {
   readPublic(p: string) {
     return this.inner.readPublic(p);
   }
+  deletePublic() {
+    return Promise.resolve();
+  }
 }
 
 integrationDescribe("product video upload and processing", () => {

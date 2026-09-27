@@ -9,6 +9,7 @@ export type MediaStorage = {
   readPrivate(relativePath: string): Promise<Buffer>;
   writePublic(relativePath: string, bytes: Buffer): Promise<void>;
   readPublic(relativePath: string): Promise<Buffer>;
+  deletePublic(relativePath: string): Promise<void>;
 };
 
 export class LocalMediaStorage implements MediaStorage {
@@ -44,6 +45,15 @@ export class LocalMediaStorage implements MediaStorage {
 
   async readPublic(relativePath: string) {
     return readFile(this.resolvePublic(relativePath));
+  }
+
+  async deletePublic(relativePath: string) {
+    const { unlink } = await import("node:fs/promises");
+    try {
+      await unlink(this.resolvePublic(relativePath));
+    } catch {
+      // Ignore errors if file doesn't exist
+    }
   }
 }
 

@@ -55,6 +55,16 @@ export class AzureBlobMediaStorage implements MediaStorage {
       this.resolvePublicBlobName(relativePath),
     );
   }
+
+  async deletePublic(relativePath: string) {
+    try {
+      await this.publicContainer.deleteBlob(
+        this.resolvePublicBlobName(relativePath),
+      );
+    } catch {
+      // Ignore errors if blob doesn't exist
+    }
+  }
 }
 
 export function createAzureBlobServiceClient(

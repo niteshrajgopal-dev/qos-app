@@ -20,7 +20,7 @@ describe("validateVideoUploadBytes", () => {
   });
 
   test("accepts real H.264 MP4 with video track first", () => {
-    const bytes = loadFixture("valid-h264-audio-first.mp4");
+    const bytes = loadFixture("valid-h264-video-first.mp4");
     expect(() => validateVideoUploadBytes(bytes)).not.toThrow();
   });
 
