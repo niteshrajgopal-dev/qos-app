@@ -4,13 +4,15 @@ import path from "node:path";
 
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 
 import {
   staffIdentities,
   staffLocationScopes,
   staffMemberships,
   catalogueProducts,
+  catalogueMenuLiveRevisions,
+  catalogueMenus,
 } from "@/db/schema";
 import {
   hasIntegrationDatabase,
@@ -593,5 +595,86 @@ integrationDescribe("catalogue menu publish", () => {
       .limit(1);
 
     expect(productAfter?.status).toBe("active");
+  });
+
+  it("creates live revision with correct product payload structure", async () => {
+    const quotes = await createQuotesTwoLocationTenant(db);
+    const admin = await seedAdministrator(quotes.tenant.id, [
+      quotes.locationA.id,
+      quotes.locationB.id,
+    ]);
+
+    const product = await createDraftProduct(
+      db,
+      quotes.tenant.id,
+      admin,
+      productInput,
+    );
+
+    const menu = await createDraftMenu(db, quotes.tenant.id, admin, {
+      internalName: "test-payload-structure",
+      locationIds: [quotes.locationA.id],
+      translations: {
+        en: { displayName: "Test Payload Menu" },
+        ar: { displayName: "قائمة اختبار" },
+      },
+      sections: [
+        {
+          internalName: "section-1",
+          sortOrder: 0,
+          translations: {
+            en: { displayName: "Section" },
+            ar: { displayName: "قسم" },
+          },
+          products: [{ productPublicId: product.publicId, sortOrder: 0 }],
+        },
+      ],
+    });
+
+    await approveBilingualProduct(
+      quotes.tenant.id,
+      product.publicId,
+      product.translations.en.translationVersion,
+      product.translations.ar.translationVersion,
+    );
+
+    await publishDraftMenuToLocations(
+      db,
+      quotes.tenant.id,
+      "admin.quotes@test",
+      menu.publicId,
+      { locationIds: [quotes.locationA.id] },
+    );
+
+    const [menuRecord] = await db
+      .select({ id: catalogueMenus.id })
+      .from(catalogueMenus)
+      .where(
+        and(
+          eq(catalogueMenus.tenantId, quotes.tenant.id),
+          eq(catalogueMenus.publicId, menu.publicId),
+        ),
+      )
+      .limit(1);
+
+    expect(menuRecord).toBeDefined();
+
+    const [revision] = await db
+      .select({ payload: catalogueMenuLiveRevisions.payload })
+      .from(catalogueMenuLiveRevisions)
+      .where(
+        and(
+          eq(catalogueMenuLiveRevisions.tenantId, quotes.tenant.id),
+          eq(catalogueMenuLiveRevisions.menuId, menuRecord!.id),
+        ),
+      )
+      .limit(1);
+
+    expect(revision).toBeDefined();
+    expect(revision?.payload.sections).toHaveLength(1);
+    expect(revision?.payload.sections[0]?.products).toHaveLength(1);
+    expect(revision?.payload.sections[0]?.products[0]?.productPublicId).toBe(
+      product.publicId,
+    );
   });
 });

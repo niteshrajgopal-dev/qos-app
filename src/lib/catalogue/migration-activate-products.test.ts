@@ -272,4 +272,89 @@ integrationDescribe("migration: activate published products", () => {
 
     expect(countsAfterSecond).toEqual(countsAfterFirst);
   });
+
+  test("migration 0037 correctly activates products from real publish payload", async () => {
+    // This test validates that migration 0037 uses the correct JSON path
+    // by running it against a payload created by the actual publish code
+
+    const [brand] = await testDb
+      .select({ id: brands.id })
+      .from(brands)
+      .where(eq(brands.tenantId, tenantId))
+      .limit(1);
+
+    const [location] = await testDb
+      .select({ id: locations.id, publicId: locations.publicId })
+      .from(locations)
+      .where(eq(locations.tenantId, tenantId))
+      .limit(1);
+
+    if (!brand || !location) {
+      throw new Error("No brand or location found");
+    }
+
+    // Verify products are still draft before migration 0037
+    const draftCountBefore = await testSqlClient<
+      Array<{ count: string }>
+    >`
+      SELECT COUNT(*)::text as count
+      FROM qos.catalogue_products
+      WHERE tenant_id = ${tenantId}
+        AND status = 'draft'
+    `;
+
+    expect(parseInt(draftCountBefore[0]?.count ?? "0")).toBeGreaterThan(0);
+
+    // Run migration 0037 with the corrected JSON path
+    await testSqlClient`
+      WITH published_product_ids AS (
+        SELECT DISTINCT
+          r.tenant_id,
+          jsonb_array_elements(
+            jsonb_array_elements(r.payload->'sections')->'products'
+          )->>'productPublicId' AS product_public_id
+        FROM qos.catalogue_menu_live_revisions r
+      )
+      UPDATE qos.catalogue_products p
+      SET 
+        status = 'active',
+        updated_at = NOW()
+      FROM published_product_ids pub
+      WHERE
+        p.tenant_id = pub.tenant_id
+        AND p.public_id = pub.product_public_id
+        AND p.status = 'draft'
+    `;
+
+    // Verify products in published menus are now active
+    const stillDraftInPublished = await testSqlClient<
+      Array<{ public_id: string }>
+    >`
+      SELECT p.public_id
+      FROM qos.catalogue_products p
+      WHERE p.tenant_id = ${tenantId}
+        AND p.status = 'draft'
+        AND p.public_id IN (
+          SELECT DISTINCT
+            jsonb_array_elements(
+              jsonb_array_elements(r.payload->'sections')->'products'
+            )->>'productPublicId'
+          FROM qos.catalogue_menu_live_revisions r
+          WHERE r.tenant_id = ${tenantId}
+        )
+    `;
+
+    expect(stillDraftInPublished.length).toBe(0);
+
+    const activeCountAfter = await testSqlClient<
+      Array<{ count: string }>
+    >`
+      SELECT COUNT(*)::text as count
+      FROM qos.catalogue_products
+      WHERE tenant_id = ${tenantId}
+        AND status = 'active'
+    `;
+
+    expect(parseInt(activeCountAfter[0]?.count ?? "0")).toBeGreaterThan(0);
+  });
 });

@@ -141,7 +141,7 @@
 /* ---------- Table ---------- */
 .qos-table-wrap{width:100%;overflow-x:auto}
 .qos-table{width:100%;font-size:var(--text-table-size);line-height:var(--text-table-lh)}
-.qos-table th{text-align:left;font-size:var(--text-meta-size);font-weight:var(--fw-semibold);color:var(--text-secondary);letter-spacing:.02em;text-transform:uppercase;padding:10px var(--table-cell-x);background:var(--surface-subtle);border-bottom:1px solid var(--border-subtle);white-space:nowrap;position:sticky;top:0;z-index:1}
+.qos-table th{text-align:left;font-size:var(--text-meta-size);font-weight:var(--fw-semibold);color:var(--text-secondary);letter-spacing:.02em;padding:10px var(--table-cell-x);background:var(--surface-subtle);border-bottom:1px solid var(--border-subtle);white-space:nowrap;position:sticky;top:0;z-index:1}
 .qos-table td{padding:var(--table-cell-y) var(--table-cell-x);border-bottom:1px solid var(--border-subtle);color:var(--text-primary);vertical-align:middle}
 .qos-table[data-density="dense"] td{padding:var(--table-cell-y-dense) var(--table-cell-x)}
 .qos-table tbody tr{transition:background var(--dur-fast) var(--ease-standard)}
