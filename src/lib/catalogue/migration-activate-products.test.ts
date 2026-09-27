@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 
 import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { seedQuotesDevTenant } from "@/lib/seed/dev-tenants";
-import { brands, catalogueProducts } from "@/db/schema";
+import { brands, catalogueProducts, catalogueMenus, locations } from "@/db/schema";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
@@ -28,10 +28,38 @@ integrationDescribe("migration: activate published products", () => {
     const seed = await seedQuotesDevTenant(testDb);
     tenantId = seed.tenantId;
 
-    // Create a minimal published menu with payload
+    // Get brand and location
+    const [brand] = await testDb
+      .select({ id: brands.id })
+      .from(brands)
+      .where(eq(brands.tenantId, tenantId))
+      .limit(1);
+
+    const [location] = await testDb
+      .select({ id: locations.id, publicId: locations.publicId })
+      .from(locations)
+      .where(eq(locations.tenantId, tenantId))
+      .limit(1);
+
+    if (!brand || !location) {
+      throw new Error("No brand or location found for tenant");
+    }
+
+    // Create a menu
+    const [menu] = await testDb
+      .insert(catalogueMenus)
+      .values({
+        tenantId,
+        publicId: "test-menu",
+        internalName: "Test Menu",
+        provenance: "operator_entered",
+      })
+      .returning();
+
+    // Create a minimal published menu payload
     const payload = {
-      menuPublicId: "test-menu",
-      locationPublicId: "test-location",
+      menuPublicId: menu.publicId,
+      locationPublicId: location.publicId,
       version: 1,
       translations: {
         en: { displayName: "Test Menu", description: null },
@@ -74,36 +102,28 @@ integrationDescribe("migration: activate published products", () => {
     // Insert the live revision with payload
     await testSqlClient`
       INSERT INTO qos.catalogue_menu_live_revisions (tenant_id, menu_id, location_id, source_version, payload, published_by_subject)
-      VALUES (${tenantId}, gen_random_uuid(), gen_random_uuid(), 1, ${JSON.stringify(payload)}::jsonb, 'test@test.com')
+      VALUES (${tenantId}, ${menu.id}, ${location.id}, 1, ${JSON.stringify(payload)}::jsonb, 'test@test.com')
     `;
 
     // Create the draft products that the migration should activate
-    const [brand] = await testDb
-      .select({ id: brands.id })
-      .from(brands)
-      .where(eq(brands.tenantId, tenantId))
-      .limit(1);
-
-    if (brand) {
-      await testDb.insert(catalogueProducts).values([
-        {
-          tenantId,
-          brandId: brand.id,
-          publicId: "test-product-1",
-          internalName: "Product 1",
-          status: "draft",
-          provenance: "operator_entered",
-        },
-        {
-          tenantId,
-          brandId: brand.id,
-          publicId: "test-product-2",
-          internalName: "Product 2",
-          status: "draft",
-          provenance: "operator_entered",
-        },
-      ]);
-    }
+    await testDb.insert(catalogueProducts).values([
+      {
+        tenantId,
+        brandId: brand.id,
+        publicId: "test-product-1",
+        internalName: "Product 1",
+        status: "draft",
+        provenance: "operator_entered",
+      },
+      {
+        tenantId,
+        brandId: brand.id,
+        publicId: "test-product-2",
+        internalName: "Product 2",
+        status: "draft",
+        provenance: "operator_entered",
+      },
+    ]);
   });
 
   test("identifies draft products in published menus", async () => {
