@@ -50,6 +50,7 @@ integrationDescribe("migration: activate published products", () => {
       .insert(catalogueMenus)
       .values({
         tenantId,
+        brandId: brand.id,
         publicId: "test-menu",
         internalName: "Test Menu",
         provenance: "operator_entered",
