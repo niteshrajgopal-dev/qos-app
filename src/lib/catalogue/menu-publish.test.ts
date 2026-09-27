@@ -4,11 +4,13 @@ import path from "node:path";
 
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 
 import {
   staffIdentities,
   staffLocationScopes,
   staffMemberships,
+  catalogueProducts,
 } from "@/db/schema";
 import {
   hasIntegrationDatabase,
@@ -462,5 +464,134 @@ integrationDescribe("catalogue menu publish", () => {
     );
 
     expect(live?.sections[0]?.products[0]?.mediaAssetId).toBe(thumbnailId);
+  });
+
+  it("activates draft products when first published", async () => {
+    const quotes = await createQuotesTwoLocationTenant(db);
+    const admin = await seedAdministrator(quotes.tenant.id, [
+      quotes.locationA.id,
+      quotes.locationB.id,
+    ]);
+
+    const product = await createDraftProduct(
+      db,
+      quotes.tenant.id,
+      admin,
+      productInput,
+    );
+
+    const [productBefore] = await db
+      .select({ status: catalogueProducts.status })
+      .from(catalogueProducts)
+      .where(eq(catalogueProducts.publicId, product.publicId))
+      .limit(1);
+
+    expect(productBefore?.status).toBe("draft");
+
+    const menu = await createDraftMenu(db, quotes.tenant.id, admin, {
+      internalName: "activation-menu",
+      locationIds: [quotes.locationA.id],
+      translations: {
+        en: { displayName: "Activation Menu" },
+        ar: { displayName: "قائمة" },
+      },
+      sections: [
+        {
+          internalName: "section-1",
+          sortOrder: 0,
+          translations: {
+            en: { displayName: "Section" },
+            ar: { displayName: "قسم" },
+          },
+          products: [{ productPublicId: product.publicId, sortOrder: 0 }],
+        },
+      ],
+    });
+
+    await approveBilingualProduct(
+      quotes.tenant.id,
+      product.publicId,
+      product.translations.en.translationVersion,
+      product.translations.ar.translationVersion,
+    );
+
+    await publishDraftMenuToLocations(
+      db,
+      quotes.tenant.id,
+      "admin.quotes@test",
+      menu.publicId,
+      { locationIds: [quotes.locationA.id] },
+    );
+
+    const [productAfter] = await db
+      .select({ status: catalogueProducts.status })
+      .from(catalogueProducts)
+      .where(eq(catalogueProducts.publicId, product.publicId))
+      .limit(1);
+
+    expect(productAfter?.status).toBe("active");
+  });
+
+  it("does not change status of already-active products", async () => {
+    const quotes = await createQuotesTwoLocationTenant(db);
+    const admin = await seedAdministrator(quotes.tenant.id, [
+      quotes.locationA.id,
+      quotes.locationB.id,
+    ]);
+
+    const product = await createDraftProduct(
+      db,
+      quotes.tenant.id,
+      admin,
+      productInput,
+    );
+
+    await db
+      .update(catalogueProducts)
+      .set({ status: "active" })
+      .where(eq(catalogueProducts.publicId, product.publicId));
+
+    const menu = await createDraftMenu(db, quotes.tenant.id, admin, {
+      internalName: "already-active-menu",
+      locationIds: [quotes.locationA.id],
+      translations: {
+        en: { displayName: "Already Active Menu" },
+        ar: { displayName: "قائمة" },
+      },
+      sections: [
+        {
+          internalName: "section-1",
+          sortOrder: 0,
+          translations: {
+            en: { displayName: "Section" },
+            ar: { displayName: "قسم" },
+          },
+          products: [{ productPublicId: product.publicId, sortOrder: 0 }],
+        },
+      ],
+    });
+
+    await approveBilingualProduct(
+      quotes.tenant.id,
+      product.publicId,
+      product.translations.en.translationVersion,
+      product.translations.ar.translationVersion,
+    );
+
+    await publishDraftMenuToLocations(
+      db,
+      quotes.tenant.id,
+      "admin.quotes@test",
+      menu.publicId,
+      { locationIds: [quotes.locationA.id] },
+    );
+
+    const [productAfter] = await db
+      .select({ status: catalogueProducts.status })
+      .from(catalogueProducts)
+      .where(eq(catalogueProducts.publicId, product.publicId))
+      .limit(1);
+
+    expect(productAfter?.status).toBe("active");
   });
 });

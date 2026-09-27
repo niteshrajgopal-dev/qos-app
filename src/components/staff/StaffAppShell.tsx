@@ -19,11 +19,18 @@ import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffUiCopy } from "@/lib/staff/locale";
 import type { ActiveStaffMembershipSummary } from "@/lib/staff/memberships";
 import { activeStaffNavIdFromPath, staffNavHref } from "@/lib/staff/nav";
-import { NAV } from "@/mocks/platform";
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import {
   fetchStaffSession,
   signOutStaff,
 } from "@/lib/staff/staff-session-client";
+
+type CatalogueCounts = {
+  products: number;
+  menus: number;
+  modifierGroups: number;
+  categories: number;
+};
 
 type StaffAppShellProps = {
   tenantId: string;
@@ -42,31 +49,76 @@ function personName(email: string) {
     .join(" ");
 }
 
-function shellGroups(): NonNullable<SideNavProps["groups"]> {
-  return NAV.map((group) => ({
-    label: group.label,
-    items: group.items.map((item) => {
-      if (item.id === "catalogue") {
-        const children =
-          "children" in item && item.children ? item.children : [];
-        return {
-          ...item,
-          children: [...children, { id: "import", label: "Import" }],
-        };
-      }
-      if (item.id === "team") {
-        return {
-          ...item,
+function shellGroups(
+  catalogueCounts: CatalogueCounts | null,
+): NonNullable<SideNavProps["groups"]> {
+  return [
+    {
+      items: [
+        { id: "home", label: "Home", icon: "layout-dashboard" },
+        { id: "orders", label: "Orders", icon: "receipt" },
+      ],
+    },
+    {
+      label: "Commerce",
+      items: [
+        {
+          id: "catalogue",
+          label: "Catalogue",
+          icon: "package",
+          children: [
+            {
+              id: "catalogue",
+              label: "Products",
+              count: catalogueCounts?.products,
+            },
+            { id: "menus", label: "Menus", count: catalogueCounts?.menus },
+            {
+              id: "modifiers",
+              label: "Modifier groups",
+              count: catalogueCounts?.modifierGroups,
+            },
+            {
+              id: "categories",
+              label: "Categories",
+              count: catalogueCounts?.categories,
+            },
+            { id: "import", label: "Import" },
+          ],
+        },
+        { id: "customers", label: "Customers", icon: "users" },
+        {
+          id: "channels",
+          label: "Sales Channels",
+          icon: "store",
+          children: [
+            { id: "channels", label: "All channels" },
+            { id: "store", label: "Online Store" },
+            { id: "pos", label: "POS" },
+          ],
+        },
+        { id: "locations", label: "Locations", icon: "map-pin" },
+      ],
+    },
+    {
+      label: "Platform",
+      items: [
+        { id: "integrations", label: "Integrations", icon: "plug" },
+        { id: "analytics", label: "Analytics", icon: "bar-chart-3" },
+        {
+          id: "team",
+          label: "Team",
+          icon: "shield-check",
           children: [
             { id: "team", label: "Members" },
             { id: "access", label: "Access requests" },
             { id: "audit", label: "Audit" },
           ],
-        };
-      }
-      return item;
-    }),
-  }));
+        },
+        { id: "settings", label: "Settings", icon: "settings" },
+      ],
+    },
+  ];
 }
 
 export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
@@ -79,6 +131,9 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
   );
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
+  const [catalogueCounts, setCatalogueCounts] = useState<CatalogueCounts | null>(
+    null,
+  );
   const [commandOpen, setCommandOpen] = useState(false);
   const [query, setQuery] = useState("");
   const [theme, setTheme] = useState<ThemeName>(() => {
@@ -135,6 +190,27 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
       cancelled = true;
     };
   }, [router]);
+
+  useEffect(() => {
+    if (!ready || !membership) {
+      return;
+    }
+    let cancelled = false;
+    staffApiFetch(`/api/tenants/${tenantId}/catalogue/counts`)
+      .then(async (response) => {
+        if (cancelled) return;
+        if (response.ok) {
+          const counts = (await response.json()) as CatalogueCounts;
+          setCatalogueCounts(counts);
+        }
+      })
+      .catch(() => {
+        // Silently fail - counts are non-critical
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId, ready, membership]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -261,7 +337,7 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
                 <Logo variant={theme === "dark" ? "navy" : "light"} height={17} />
               )
             }
-            groups={shellGroups()}
+            groups={shellGroups(catalogueCounts)}
             activeId={activeId}
             onNavigate={go}
             footer={

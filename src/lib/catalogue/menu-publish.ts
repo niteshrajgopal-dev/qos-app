@@ -762,6 +762,29 @@ export async function publishDraftMenuToLocations(
           })
           .where(eq(catalogueMenus.id, menu.id));
 
+        const productIds = await tx
+          .select({ id: catalogueProducts.id })
+          .from(catalogueProducts)
+          .where(
+            and(
+              eq(catalogueProducts.tenantId, tenantId),
+              inArray(catalogueProducts.publicId, productPublicIds),
+              eq(catalogueProducts.status, "draft"),
+            ),
+          );
+
+        if (productIds.length > 0) {
+          await tx
+            .update(catalogueProducts)
+            .set({ status: "active", updatedAt: new Date() })
+            .where(
+              inArray(
+                catalogueProducts.id,
+                productIds.map((row) => row.id),
+              ),
+            );
+        }
+
         await recordTenantAuditEventInTx(tx, {
           tenantId,
           actorSubject: adminSubject,
@@ -779,6 +802,7 @@ export async function publishDraftMenuToLocations(
             successfulLocations: results
               .filter((result) => result.success)
               .map((result) => result.locationPublicId),
+            productsActivated: productIds.length,
           },
         });
       }

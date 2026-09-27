@@ -150,6 +150,10 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     { id: "archived", label: "Archived", count: counts.archived },
   ];
 
+  const hasSearchQuery = Boolean(searchQuery.trim());
+  const noSearchResults = hasSearchQuery && filtered.length === 0;
+  const emptyTab = !hasSearchQuery && filtered.length === 0 && counts.all > 0;
+
   if (allProducts.length === 0) {
     return (
       <>
@@ -206,6 +210,146 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const totalProducts = filtered.length;
   const pageCount = Math.ceil(totalProducts / pageSize);
   const paginatedProducts = paginateProducts(filtered, currentPage, pageSize);
+
+  if (noSearchResults) {
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={
+            <Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />
+          }
+          title="Products"
+          subtitle={formatSubtitle(
+            allProducts.length,
+            activeTab,
+            hasSearchQuery,
+          )}
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                icon="upload"
+                onClick={() =>
+                  router.push(`/tenants/${tenantId}/catalogue/import`)
+                }
+              >
+                Import
+              </Button>
+              <Button
+                icon="plus"
+                onClick={() =>
+                  router.push(`/tenants/${tenantId}/catalogue/products/new`)
+                }
+              >
+                New product
+              </Button>
+            </>
+          }
+          tabs={
+            <Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />
+          }
+        />
+        <div style={{ marginTop: 20 }}>
+          <Card padding="none">
+            <TableToolbar>
+              <SearchInput
+                placeholder={`Search ${allProducts.length} products`}
+                value={searchQuery}
+                onChange={handleSearchChange}
+                style={{ width: 240 }}
+              />
+            </TableToolbar>
+            <div style={{ padding: "64px 24px", textAlign: "center" }}>
+              <EmptyState
+                icon="search"
+                title="No products match your search"
+                body={`No products found for "${searchQuery}".`}
+                actions={
+                  <Button
+                    variant="secondary"
+                    onClick={() => setSearchQuery("")}
+                  >
+                    Clear search
+                  </Button>
+                }
+              />
+            </div>
+          </Card>
+        </div>
+      </>
+    );
+  }
+
+  if (emptyTab) {
+    const emptyMessages = {
+      active: {
+        title: "No active products",
+        body: "Active products will appear here once published.",
+      },
+      draft: {
+        title: "No draft products",
+        body: "Products you create or import will start as drafts.",
+      },
+      archived: {
+        title: "No archived products",
+        body: "Archived products will appear here.",
+      },
+    };
+
+    const message =
+      activeTab === "active" || activeTab === "draft" || activeTab === "archived"
+        ? emptyMessages[activeTab]
+        : { title: "No products", body: "No products to display." };
+
+    return (
+      <>
+        <PageHeader
+          breadcrumbs={
+            <Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />
+          }
+          title="Products"
+          subtitle={formatSubtitle(
+            allProducts.length,
+            activeTab,
+            hasSearchQuery,
+          )}
+          actions={
+            <>
+              <Button
+                variant="secondary"
+                icon="upload"
+                onClick={() =>
+                  router.push(`/tenants/${tenantId}/catalogue/import`)
+                }
+              >
+                Import
+              </Button>
+              <Button
+                icon="plus"
+                onClick={() =>
+                  router.push(`/tenants/${tenantId}/catalogue/products/new`)
+                }
+              >
+                New product
+              </Button>
+            </>
+          }
+          tabs={
+            <Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />
+          }
+        />
+        <div style={{ marginTop: 20 }}>
+          <Card>
+            <EmptyState
+              icon="package"
+              title={message.title}
+              body={message.body}
+            />
+          </Card>
+        </div>
+      </>
+    );
+  }
 
   const columns = [
     {
