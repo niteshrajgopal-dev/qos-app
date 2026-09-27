@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   filterProducts,
   paginateProducts,
+  formatSubtitle,
 } from "./catalogue-products-filter";
 
 import type { ProductSummary } from "./catalogue-products-list";
@@ -141,5 +142,72 @@ describe("paginateProducts", () => {
   it("handles page size larger than total products", () => {
     const result = paginateProducts(mockProducts, 1, 100);
     expect(result).toHaveLength(5);
+  });
+});
+
+describe("formatSubtitle", () => {
+  describe("All tab", () => {
+    it("formats singular", () => {
+      expect(formatSubtitle(1, "all", false)).toBe("1 product");
+    });
+
+    it("formats plural", () => {
+      expect(formatSubtitle(12, "all", false)).toBe("12 products");
+    });
+
+    it("formats zero", () => {
+      expect(formatSubtitle(0, "all", false)).toBe("0 products");
+    });
+  });
+
+  describe("Active tab", () => {
+    it("formats singular", () => {
+      expect(formatSubtitle(1, "active", false)).toBe("1 active");
+    });
+
+    it("formats plural", () => {
+      expect(formatSubtitle(3, "active", false)).toBe("3 active");
+    });
+  });
+
+  describe("Draft tab", () => {
+    it("formats singular", () => {
+      expect(formatSubtitle(1, "draft", false)).toBe("1 draft");
+    });
+
+    it("formats plural", () => {
+      expect(formatSubtitle(2, "draft", false)).toBe("2 drafts");
+    });
+  });
+
+  describe("Archived tab", () => {
+    it("formats singular", () => {
+      expect(formatSubtitle(1, "archived", false)).toBe("1 archived");
+    });
+
+    it("formats plural", () => {
+      expect(formatSubtitle(5, "archived", false)).toBe("5 archived");
+    });
+  });
+
+  describe("Search query active", () => {
+    it("formats singular match", () => {
+      expect(formatSubtitle(1, "all", true)).toBe("1 product matches");
+    });
+
+    it("formats plural matches", () => {
+      expect(formatSubtitle(2, "draft", true)).toBe("2 products match");
+    });
+
+    it("formats zero matches", () => {
+      expect(formatSubtitle(0, "active", true)).toBe("0 products match");
+    });
+  });
+
+  describe("Unknown tab", () => {
+    it("falls back to products", () => {
+      expect(formatSubtitle(1, "unknown", false)).toBe("1 product");
+      expect(formatSubtitle(5, "unknown", false)).toBe("5 products");
+    });
   });
 });

@@ -22,6 +22,7 @@ import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import {
   filterProducts,
   paginateProducts,
+  formatSubtitle,
 } from "./catalogue-products-filter";
 
 export type ProductSummary = {
@@ -246,10 +247,11 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     },
   ];
 
-  const tabLabel = tabs.find((t) => t.id === activeTab)?.label || "products";
-  const subtitleText = searchQuery
-    ? `${totalProducts} product${totalProducts === 1 ? "" : "s"} in ${tabLabel.toLowerCase()}`
-    : `${totalProducts} ${totalProducts === 1 ? tabLabel.slice(0, -1).toLowerCase() : tabLabel.toLowerCase()}`;
+  const subtitleText = formatSubtitle(
+    totalProducts,
+    activeTab,
+    Boolean(searchQuery),
+  );
 
   return (
     <>
