@@ -1,12 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "vitest";
 
-import { db, sqlClient } from "@/db";
 import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { seedQuotesDevTenant } from "@/lib/seed/dev-tenants";
 import { getCatalogueCounts } from "@/lib/catalogue/counts";
 import {
   catalogueProducts,
-  catalogueMenus,
   catalogueModifierGroups,
   catalogueCategories,
 } from "@/db/schema";
@@ -33,7 +31,7 @@ integrationDescribe("getCatalogueCounts", () => {
     await testSqlClient`TRUNCATE TABLE qos.catalogue_categories, qos.catalogue_modifier_option_translations, qos.catalogue_modifier_options, qos.catalogue_modifier_group_translations, qos.catalogue_product_modifier_groups, qos.catalogue_modifier_groups, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.catalogue_menu_translations, qos.catalogue_menus, qos.location_external_menu_sources, qos.staff_access_request_locations, qos.staff_access_requests, qos.business_provisioning_operations, qos.staff_invitations, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
 
     const seed = await seedQuotesDevTenant(testDb);
-    tenantId = seed.tenant.id;
+    tenantId = seed.tenantId;
   });
 
   test("returns zero counts for empty catalogue", async () => {
@@ -49,19 +47,39 @@ integrationDescribe("getCatalogueCounts", () => {
     });
   });
 
-  test("counts active products only", async () => {
+  test("counts non-archived products only", async () => {
     const counts = await getCatalogueCounts(testDb, tenantId);
 
-    expect(counts.products).toBe(0);
+    // Initially all products are draft (non-archived)
+    expect(counts.products).toBeGreaterThan(0);
 
+    const initialCount = counts.products;
+
+    // Mark some as active - count should stay the same
     await testDb
       .update(catalogueProducts)
       .set({ status: "active" })
       .where(eq(catalogueProducts.tenantId, tenantId));
 
-    const countsAfter = await getCatalogueCounts(testDb, tenantId);
+    const countsAfterActive = await getCatalogueCounts(testDb, tenantId);
+    expect(countsAfterActive.products).toBe(initialCount);
 
-    expect(countsAfter.products).toBeGreaterThan(0);
+    // Archive one product - count should decrease
+    const [firstProduct] = await testDb
+      .select({ id: catalogueProducts.id })
+      .from(catalogueProducts)
+      .where(eq(catalogueProducts.tenantId, tenantId))
+      .limit(1);
+
+    if (firstProduct) {
+      await testDb
+        .update(catalogueProducts)
+        .set({ status: "archived" })
+        .where(eq(catalogueProducts.id, firstProduct.id));
+
+      const countsAfterArchive = await getCatalogueCounts(testDb, tenantId);
+      expect(countsAfterArchive.products).toBe(initialCount - 1);
+    }
   });
 
   test("counts all menus regardless of status", async () => {
@@ -70,7 +88,7 @@ integrationDescribe("getCatalogueCounts", () => {
     expect(counts.menus).toBeGreaterThanOrEqual(0);
   });
 
-  test("counts active modifier groups only", async () => {
+  test("counts non-archived modifier groups only", async () => {
     const counts = await getCatalogueCounts(testDb, tenantId);
 
     const [group] = await testDb
@@ -103,7 +121,7 @@ integrationDescribe("getCatalogueCounts", () => {
   test("counts all categories", async () => {
     const counts = await getCatalogueCounts(testDb, tenantId);
 
-    const [category] = await testDb
+    await testDb
       .insert(catalogueCategories)
       .values({
         tenantId,

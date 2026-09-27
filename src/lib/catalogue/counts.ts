@@ -1,4 +1,4 @@
-import { and, count, eq } from "drizzle-orm";
+import { and, count, eq, inArray } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
 import {
@@ -21,31 +21,35 @@ export async function getCatalogueCounts(
   tenantId: string,
 ): Promise<CatalogueCounts> {
   return withTenantContext(db, tenantId, async (tx) => {
+    // Count all non-archived products
     const [productsCount] = await tx
       .select({ count: count() })
       .from(catalogueProducts)
       .where(
         and(
           eq(catalogueProducts.tenantId, tenantId),
-          eq(catalogueProducts.status, "active"),
+          inArray(catalogueProducts.status, ["draft", "active"]),
         ),
       );
 
+    // Count all menus
     const [menusCount] = await tx
       .select({ count: count() })
       .from(catalogueMenus)
       .where(eq(catalogueMenus.tenantId, tenantId));
 
+    // Count all non-archived modifier groups
     const [modifierGroupsCount] = await tx
       .select({ count: count() })
       .from(catalogueModifierGroups)
       .where(
         and(
           eq(catalogueModifierGroups.tenantId, tenantId),
-          eq(catalogueModifierGroups.status, "active"),
+          inArray(catalogueModifierGroups.status, ["draft", "active"]),
         ),
       );
 
+    // Count all categories
     const [categoriesCount] = await tx
       .select({ count: count() })
       .from(catalogueCategories)

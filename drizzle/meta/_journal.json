@@ -253,6 +253,13 @@
       "when": 1790347548303,
       "tag": "0035_video_worker_fairness",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1790347600000,
+      "tag": "0036_activate_published_products",
+      "breakpoints": true
     }
   ]
 }

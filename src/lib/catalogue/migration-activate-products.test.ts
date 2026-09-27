@@ -1,16 +1,8 @@
 import { beforeAll, afterAll, beforeEach, describe, expect, test } from "vitest";
-import { eq, and } from "drizzle-orm";
 
 import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { seedQuotesDevTenant } from "@/lib/seed/dev-tenants";
 import { importQuotesHbzFineDineMenu } from "@/lib/catalogue/finedine-hbz-import";
-import {
-  catalogueProducts,
-  catalogueMenus,
-  catalogueMenuSections,
-  catalogueMenuSectionProducts,
-  catalogueMenuLiveRevisions,
-} from "@/db/schema";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
@@ -33,7 +25,7 @@ integrationDescribe("migration: activate published products", () => {
     await testSqlClient`TRUNCATE TABLE qos.catalogue_menu_public_links, qos.catalogue_menu_publish_operations, qos.catalogue_menu_live_revisions, qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_variant_location_price_reset_audits, qos.catalogue_variant_location_price_overrides, qos.catalogue_modifier_option_translations, qos.catalogue_modifier_options, qos.catalogue_modifier_group_translations, qos.catalogue_product_modifier_groups, qos.catalogue_modifier_groups, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_media_derivatives, qos.catalogue_media_upload_grants, qos.catalogue_media_assets, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_access_request_locations, qos.staff_access_requests, qos.business_provisioning_operations, qos.staff_invitations, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
 
     const seed = await seedQuotesDevTenant(testDb);
-    tenantId = seed.tenant.id;
+    tenantId = seed.tenantId;
 
     await importQuotesHbzFineDineMenu(testDb, {
       tenantId,
@@ -44,24 +36,36 @@ integrationDescribe("migration: activate published products", () => {
 
   test("identifies draft products in published menus", async () => {
     const productsInPublishedMenus = await testSqlClient<
-      Array<{ id: string; public_id: string; status: string }>
+      Array<{ product_public_id: string }>
     >`
-      SELECT DISTINCT cp.id, cp.public_id, cp.status
-      FROM qos.catalogue_products cp
-      INNER JOIN qos.catalogue_menu_section_products cmsp
-        ON cmsp.tenant_id = cp.tenant_id
-        AND cmsp.product_id = cp.id
-      INNER JOIN qos.catalogue_menu_sections cms
-        ON cms.tenant_id = cmsp.tenant_id
-        AND cms.id = cmsp.section_id
-      INNER JOIN qos.catalogue_menu_live_revisions cmlr
-        ON cmlr.tenant_id = cms.tenant_id
-        AND cmlr.menu_id = cms.menu_id
-      WHERE cp.tenant_id = ${tenantId}
-        AND cp.status = 'draft'
+      SELECT DISTINCT
+        jsonb_array_elements(
+          jsonb_array_elements(payload->'sections')->'products'
+        )->>'productPublicId' AS product_public_id
+      FROM qos.catalogue_menu_live_revisions
+      WHERE tenant_id = ${tenantId}
     `;
 
     expect(productsInPublishedMenus.length).toBeGreaterThan(0);
+
+    const draftProducts = await testSqlClient<
+      Array<{ public_id: string }>
+    >`
+      SELECT public_id
+      FROM qos.catalogue_products
+      WHERE tenant_id = ${tenantId}
+        AND status = 'draft'
+        AND public_id IN (
+          SELECT DISTINCT
+            jsonb_array_elements(
+              jsonb_array_elements(payload->'sections')->'products'
+            )->>'productPublicId'
+          FROM qos.catalogue_menu_live_revisions
+          WHERE tenant_id = ${tenantId}
+        )
+    `;
+
+    expect(draftProducts.length).toBeGreaterThan(0);
   });
 
   test("migration updates only draft products in published menus", async () => {
@@ -77,28 +81,22 @@ integrationDescribe("migration: activate published products", () => {
     const draftCountBefore =
       beforeCounts.find((row) => row.status === "draft")?.count ?? "0";
 
+    // Run the migration
     await testSqlClient`
+      WITH published_product_ids AS (
+        SELECT DISTINCT
+          jsonb_array_elements(
+            jsonb_array_elements(payload->'sections')->'products'
+          )->>'productPublicId' AS product_public_id
+        FROM qos.catalogue_menu_live_revisions
+      )
       UPDATE qos.catalogue_products
       SET 
         status = 'active',
         updated_at = NOW()
       WHERE
         status = 'draft'
-        AND tenant_id = ${tenantId}
-        AND id IN (
-          SELECT DISTINCT cp.id
-          FROM qos.catalogue_products cp
-          INNER JOIN qos.catalogue_menu_section_products cmsp
-            ON cmsp.tenant_id = cp.tenant_id
-            AND cmsp.product_id = cp.id
-          INNER JOIN qos.catalogue_menu_sections cms
-            ON cms.tenant_id = cmsp.tenant_id
-            AND cms.id = cmsp.section_id
-          INNER JOIN qos.catalogue_menu_live_revisions cmlr
-            ON cmlr.tenant_id = cms.tenant_id
-            AND cmlr.menu_id = cms.menu_id
-          WHERE cp.status = 'draft'
-        )
+        AND public_id IN (SELECT product_public_id FROM published_product_ids)
     `;
 
     const afterCounts = await testSqlClient<
@@ -118,22 +116,22 @@ integrationDescribe("migration: activate published products", () => {
     expect(parseInt(draftCountAfter)).toBeLessThan(parseInt(draftCountBefore));
     expect(parseInt(activeCountAfter)).toBeGreaterThan(0);
 
+    // Verify no draft products remain in published menus
     const stillDraft = await testSqlClient<
-      Array<{ id: string; public_id: string }>
+      Array<{ public_id: string }>
     >`
-      SELECT DISTINCT cp.id, cp.public_id
-      FROM qos.catalogue_products cp
-      INNER JOIN qos.catalogue_menu_section_products cmsp
-        ON cmsp.tenant_id = cp.tenant_id
-        AND cmsp.product_id = cp.id
-      INNER JOIN qos.catalogue_menu_sections cms
-        ON cms.tenant_id = cmsp.tenant_id
-        AND cms.id = cmsp.section_id
-      INNER JOIN qos.catalogue_menu_live_revisions cmlr
-        ON cmlr.tenant_id = cms.tenant_id
-        AND cmlr.menu_id = cms.menu_id
-      WHERE cp.tenant_id = ${tenantId}
-        AND cp.status = 'draft'
+      SELECT public_id
+      FROM qos.catalogue_products
+      WHERE tenant_id = ${tenantId}
+        AND status = 'draft'
+        AND public_id IN (
+          SELECT DISTINCT
+            jsonb_array_elements(
+              jsonb_array_elements(payload->'sections')->'products'
+            )->>'productPublicId'
+          FROM qos.catalogue_menu_live_revisions
+          WHERE tenant_id = ${tenantId}
+        )
     `;
 
     expect(stillDraft.length).toBe(0);
@@ -141,27 +139,20 @@ integrationDescribe("migration: activate published products", () => {
 
   test("migration is idempotent", async () => {
     const migrationSql = `
+      WITH published_product_ids AS (
+        SELECT DISTINCT
+          jsonb_array_elements(
+            jsonb_array_elements(payload->'sections')->'products'
+          )->>'productPublicId' AS product_public_id
+        FROM qos.catalogue_menu_live_revisions
+      )
       UPDATE qos.catalogue_products
       SET 
         status = 'active',
         updated_at = NOW()
       WHERE
         status = 'draft'
-        AND tenant_id IS NOT NULL
-        AND id IN (
-          SELECT DISTINCT cp.id
-          FROM qos.catalogue_products cp
-          INNER JOIN qos.catalogue_menu_section_products cmsp
-            ON cmsp.tenant_id = cp.tenant_id
-            AND cmsp.product_id = cp.id
-          INNER JOIN qos.catalogue_menu_sections cms
-            ON cms.tenant_id = cmsp.tenant_id
-            AND cms.id = cmsp.section_id
-          INNER JOIN qos.catalogue_menu_live_revisions cmlr
-            ON cmlr.tenant_id = cms.tenant_id
-            AND cmlr.menu_id = cms.menu_id
-          WHERE cp.status = 'draft'
-        )
+        AND public_id IN (SELECT product_public_id FROM published_product_ids)
     `;
 
     await testSqlClient.unsafe(migrationSql);
