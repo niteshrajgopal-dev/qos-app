@@ -14,14 +14,17 @@ import {
   Tabs,
   Breadcrumbs,
   Icon,
-  IconButton,
   StatusBadge,
   EmptyState,
   Alert,
 } from "@/design-system";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import {
+  filterProducts,
+  paginateProducts,
+} from "./catalogue-products-filter";
 
-type ProductSummary = {
+export type ProductSummary = {
   publicId: string;
   internalName: string;
   displayName: string;
@@ -42,6 +45,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const [state, setState] = useState<LoadingState>({ status: "loading" });
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     let cancelled = false;
@@ -84,6 +88,16 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     };
   }, [tenantId]);
 
+  const handleTabChange = (tabId: string) => {
+    setActiveTab(tabId);
+    setCurrentPage(1);
+  };
+
+  const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setSearchQuery(e.target.value);
+    setCurrentPage(1);
+  };
+
   if (state.status === "loading") {
     return (
       <>
@@ -122,30 +136,17 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   }
 
   const allProducts = state.products;
-
-  const filteredByTab =
-    activeTab === "all"
-      ? allProducts
-      : allProducts.filter((p) => p.status === activeTab);
-
-  const filteredBySearch = searchQuery
-    ? filteredByTab.filter(
-        (p) =>
-          p.displayName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          p.internalName.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : filteredByTab;
-
-  const draftCount = allProducts.filter((p) => p.status === "draft").length;
-  const activeCount = allProducts.filter((p) => p.status === "active").length;
-  const archivedCount = allProducts.filter((p) => p.status === "archived")
-    .length;
+  const { filtered, counts } = filterProducts(
+    allProducts,
+    activeTab,
+    searchQuery,
+  );
 
   const tabs = [
-    { id: "all", label: "All", count: allProducts.length },
-    { id: "active", label: "Active", count: activeCount },
-    { id: "draft", label: "Drafts", count: draftCount },
-    { id: "archived", label: "Archived", count: archivedCount },
+    { id: "all", label: "All", count: counts.all },
+    { id: "active", label: "Active", count: counts.active },
+    { id: "draft", label: "Drafts", count: counts.draft },
+    { id: "archived", label: "Archived", count: counts.archived },
   ];
 
   if (allProducts.length === 0) {
@@ -200,6 +201,11 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     );
   }
 
+  const pageSize = 20;
+  const totalProducts = filtered.length;
+  const pageCount = Math.ceil(totalProducts / pageSize);
+  const paginatedProducts = paginateProducts(filtered, currentPage, pageSize);
+
   const columns = [
     {
       key: "name",
@@ -238,19 +244,12 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
       header: "Status",
       render: (r: ProductSummary) => <StatusBadge state={r.status} />,
     },
-    {
-      key: "act",
-      header: "",
-      width: 40,
-      render: () => (
-        <IconButton icon="more-horizontal" label="Actions" size="sm" />
-      ),
-    },
   ];
 
-  const pageSize = 20;
-  const totalProducts = filteredBySearch.length;
-  const pageCount = Math.ceil(totalProducts / pageSize);
+  const tabLabel = tabs.find((t) => t.id === activeTab)?.label || "products";
+  const subtitleText = searchQuery
+    ? `${totalProducts} product${totalProducts === 1 ? "" : "s"} in ${tabLabel.toLowerCase()}`
+    : `${totalProducts} ${totalProducts === 1 ? tabLabel.slice(0, -1).toLowerCase() : tabLabel.toLowerCase()}`;
 
   return (
     <>
@@ -259,7 +258,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
           <Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />
         }
         title="Products"
-        subtitle={`${totalProducts} product${totalProducts === 1 ? "" : "s"}`}
+        subtitle={subtitleText}
         actions={
           <>
             <Button
@@ -282,11 +281,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
           </>
         }
         tabs={
-          <Tabs
-            tabs={tabs}
-            value={activeTab}
-            onChange={(tabId) => setActiveTab(tabId)}
-          />
+          <Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />
         }
       />
       <div style={{ marginTop: 20 }}>
@@ -295,21 +290,13 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
             <SearchInput
               placeholder={`Search ${allProducts.length} products`}
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={handleSearchChange}
               style={{ width: 240 }}
             />
-            <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-              <IconButton
-                icon="columns-3"
-                label="Columns"
-                variant="outline"
-              />
-              <IconButton icon="rows-3" label="Density" variant="outline" />
-            </div>
           </TableToolbar>
           <DataTable
             columns={columns}
-            rows={filteredBySearch}
+            rows={paginatedProducts}
             onRowClick={(r) =>
               router.push(
                 `/tenants/${tenantId}/catalogue/products/${r.publicId}/edit`,
@@ -319,10 +306,11 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
           />
           {pageCount > 1 ? (
             <Pagination
-              page={1}
+              page={currentPage}
               pageCount={pageCount}
               pageSize={pageSize}
               total={totalProducts}
+              onPageChange={setCurrentPage}
             />
           ) : null}
         </Card>
