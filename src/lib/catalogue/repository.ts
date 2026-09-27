@@ -262,6 +262,7 @@ export async function listCatalogueProductSummaries(
         publicId: catalogueProducts.publicId,
         internalName: catalogueProducts.internalName,
         displayName: catalogueProductTranslations.displayName,
+        status: catalogueProducts.status,
       })
       .from(catalogueProducts)
       .leftJoin(
@@ -279,6 +280,7 @@ export async function listCatalogueProductSummaries(
       publicId: row.publicId,
       internalName: row.internalName,
       displayName: row.displayName ?? row.internalName,
+      status: row.status,
     }));
   });
 }
