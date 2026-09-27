@@ -118,7 +118,11 @@ export function decideVideoJobFailure(
  * This creates a durable work item that will be processed asynchronously.
  * The job tracks retry count and last error for quarantine handling.
  * 
- * Idempotency: If a job already exists for this asset, returns the existing job.
+ * Supersession: A new job for the same product supersedes any queued jobs,
+ * marking them as rejected so the worker doesn't publish stale results. Jobs
+ * already processing or ready are left alone (the caller must handle the
+ * "already ready" case). When a job is superseded, the previous video is
+ * preserved (the rejection does not delete approved derivatives).
  */
 export async function queueVideoProcessingJob(
   db: DbClient,
@@ -126,32 +130,77 @@ export async function queueVideoProcessingJob(
   productId: string,
   assetId: string,
   sourceStoragePath: string,
-): Promise<{ jobId: string; correlationId: string }> {
+): Promise<{ jobId: string; correlationId: string; supersededCount: number }> {
   return withTenantContext(db, tenantId, async (tx) => {
-    const [existingJob] = await tx
+    const existingJobs = await tx
       .select({
         id: videoProcessingJobs.id,
         correlationId: videoProcessingJobs.correlationId,
         status: videoProcessingJobs.status,
+        assetId: videoProcessingJobs.assetId,
       })
       .from(videoProcessingJobs)
       .where(
         and(
           eq(videoProcessingJobs.tenantId, tenantId),
-          eq(videoProcessingJobs.assetId, assetId),
+          eq(videoProcessingJobs.productId, productId),
           inArray(videoProcessingJobs.status, [
             "queued",
             "processing",
             "ready",
           ]),
         ),
-      )
-      .limit(1);
+      );
 
-    if (existingJob) {
+    const queuedJobsToSupersede = existingJobs.filter(
+      (job) => job.status === "queued" && job.assetId !== assetId,
+    );
+
+    const now = new Date();
+    let supersededCount = 0;
+
+    if (queuedJobsToSupersede.length > 0) {
+      const supersededIds = queuedJobsToSupersede.map((job) => job.id);
+      const supersededAssetIds = queuedJobsToSupersede.map((job) => job.assetId);
+
+      await tx
+        .update(videoProcessingJobs)
+        .set({
+          status: "rejected",
+          lastErrorMessage: "Superseded by a newer upload.",
+          lastErrorAt: now,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(videoProcessingJobs.tenantId, tenantId),
+            inArray(videoProcessingJobs.id, supersededIds),
+          ),
+        );
+
+      await tx
+        .update(catalogueMediaAssets)
+        .set({
+          status: "rejected",
+          failureReason: "Superseded by a newer upload.",
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(catalogueMediaAssets.tenantId, tenantId),
+            inArray(catalogueMediaAssets.id, supersededAssetIds),
+          ),
+        );
+
+      supersededCount = queuedJobsToSupersede.length;
+    }
+
+    const matchingJob = existingJobs.find((job) => job.assetId === assetId);
+    if (matchingJob) {
       return {
-        jobId: existingJob.id,
-        correlationId: existingJob.correlationId,
+        jobId: matchingJob.id,
+        correlationId: matchingJob.correlationId,
+        supersededCount,
       };
     }
 
@@ -176,6 +225,7 @@ export async function queueVideoProcessingJob(
     return {
       jobId: job.id,
       correlationId: job.correlationId,
+      supersededCount,
     };
   });
 }
