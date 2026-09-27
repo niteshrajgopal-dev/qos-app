@@ -220,7 +220,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
           }
           title="Products"
           subtitle={formatSubtitle(
-            allProducts.length,
+            filtered.length,
             activeTab,
             hasSearchQuery,
           )}
@@ -309,7 +309,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
           }
           title="Products"
           subtitle={formatSubtitle(
-            allProducts.length,
+            filtered.length,
             activeTab,
             hasSearchQuery,
           )}
