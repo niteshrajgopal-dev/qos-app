@@ -1,8 +1,7 @@
-import { beforeEach, describe, expect, test } from "vitest";
+import { beforeAll, afterAll, beforeEach, describe, expect, test } from "vitest";
 import { eq, and } from "drizzle-orm";
 
-import { db, sqlClient } from "@/db";
-import { integrationDescribe } from "@/lib/test/postgres-container";
+import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { seedQuotesDevTenant } from "@/lib/seed/dev-tenants";
 import { importQuotesHbzFineDineMenu } from "@/lib/catalogue/finedine-hbz-import";
 import {
@@ -13,14 +12,30 @@ import {
   catalogueMenuLiveRevisions,
 } from "@/db/schema";
 
+const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
+
 integrationDescribe("migration: activate published products", () => {
+  let testDb: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
+  let testSqlClient: Awaited<ReturnType<typeof resetAndMigrate>>["sql"];
   let tenantId: string;
 
+  beforeAll(async () => {
+    const connection = await resetAndMigrate();
+    testDb = connection.db;
+    testSqlClient = connection.sql;
+  });
+
+  afterAll(async () => {
+    await testSqlClient.end({ timeout: 5 });
+  });
+
   beforeEach(async () => {
-    const seed = await seedQuotesDevTenant(db);
+    await testSqlClient`TRUNCATE TABLE qos.catalogue_menu_public_links, qos.catalogue_menu_publish_operations, qos.catalogue_menu_live_revisions, qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_variant_location_price_reset_audits, qos.catalogue_variant_location_price_overrides, qos.catalogue_modifier_option_translations, qos.catalogue_modifier_options, qos.catalogue_modifier_group_translations, qos.catalogue_product_modifier_groups, qos.catalogue_modifier_groups, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_media_derivatives, qos.catalogue_media_upload_grants, qos.catalogue_media_assets, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_access_request_locations, qos.staff_access_requests, qos.business_provisioning_operations, qos.staff_invitations, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+
+    const seed = await seedQuotesDevTenant(testDb);
     tenantId = seed.tenant.id;
 
-    await importQuotesHbzFineDineMenu(db, {
+    await importQuotesHbzFineDineMenu(testDb, {
       tenantId,
       staffSubject: "test@quotes.com",
       useLiveSource: false,
@@ -28,7 +43,7 @@ integrationDescribe("migration: activate published products", () => {
   });
 
   test("identifies draft products in published menus", async () => {
-    const productsInPublishedMenus = await sqlClient<
+    const productsInPublishedMenus = await testSqlClient<
       Array<{ id: string; public_id: string; status: string }>
     >`
       SELECT DISTINCT cp.id, cp.public_id, cp.status
@@ -50,7 +65,7 @@ integrationDescribe("migration: activate published products", () => {
   });
 
   test("migration updates only draft products in published menus", async () => {
-    const beforeCounts = await sqlClient<
+    const beforeCounts = await testSqlClient<
       Array<{ status: string; count: string }>
     >`
       SELECT status, COUNT(*)::text as count
@@ -62,7 +77,7 @@ integrationDescribe("migration: activate published products", () => {
     const draftCountBefore =
       beforeCounts.find((row) => row.status === "draft")?.count ?? "0";
 
-    await sqlClient`
+    await testSqlClient`
       UPDATE qos.catalogue_products
       SET 
         status = 'active',
@@ -86,7 +101,7 @@ integrationDescribe("migration: activate published products", () => {
         )
     `;
 
-    const afterCounts = await sqlClient<
+    const afterCounts = await testSqlClient<
       Array<{ status: string; count: string }>
     >`
       SELECT status, COUNT(*)::text as count
@@ -103,7 +118,7 @@ integrationDescribe("migration: activate published products", () => {
     expect(parseInt(draftCountAfter)).toBeLessThan(parseInt(draftCountBefore));
     expect(parseInt(activeCountAfter)).toBeGreaterThan(0);
 
-    const stillDraft = await sqlClient<
+    const stillDraft = await testSqlClient<
       Array<{ id: string; public_id: string }>
     >`
       SELECT DISTINCT cp.id, cp.public_id
@@ -149,9 +164,9 @@ integrationDescribe("migration: activate published products", () => {
         )
     `;
 
-    await sqlClient.unsafe(migrationSql);
+    await testSqlClient.unsafe(migrationSql);
 
-    const countsAfterFirst = await sqlClient<
+    const countsAfterFirst = await testSqlClient<
       Array<{ status: string; count: string }>
     >`
       SELECT status, COUNT(*)::text as count
@@ -160,9 +175,9 @@ integrationDescribe("migration: activate published products", () => {
       GROUP BY status
     `;
 
-    await sqlClient.unsafe(migrationSql);
+    await testSqlClient.unsafe(migrationSql);
 
-    const countsAfterSecond = await sqlClient<
+    const countsAfterSecond = await testSqlClient<
       Array<{ status: string; count: string }>
     >`
       SELECT status, COUNT(*)::text as count
