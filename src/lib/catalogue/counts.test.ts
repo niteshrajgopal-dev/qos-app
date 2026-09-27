@@ -4,6 +4,7 @@ import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { seedQuotesDevTenant } from "@/lib/seed/dev-tenants";
 import { getCatalogueCounts } from "@/lib/catalogue/counts";
 import {
+  brands,
   catalogueProducts,
   catalogueModifierGroups,
   catalogueCategories,
@@ -48,11 +49,23 @@ integrationDescribe("getCatalogueCounts", () => {
   });
 
   test("counts non-archived products only", async () => {
-    // Seed doesn't create products by default, so add a test product
+    // Get the brand ID for this tenant
+    const [brand] = await testDb
+      .select({ id: brands.id })
+      .from(brands)
+      .where(eq(brands.tenantId, tenantId))
+      .limit(1);
+
+    if (!brand) {
+      throw new Error("No brand found for tenant");
+    }
+
+    // Add a test product
     const [product] = await testDb
       .insert(catalogueProducts)
       .values({
         tenantId,
+        brandId: brand.id,
         publicId: "test-product",
         internalName: "Test Product",
         status: "draft",
