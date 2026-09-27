@@ -4,7 +4,9 @@ import { useCallback, useMemo, useState } from "react";
 
 import { ConfirmDialog } from "@/components/Modal";
 import { Toast, ToastStack } from "@/components/Toast";
+import { mapVideoErrorToFriendlyMessage } from "@/lib/media/video-error-messages";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
 
 type TranslationFormState = {
   displayName: string;
@@ -104,9 +106,10 @@ export function ProductEditor({
   );
   const [videoUploading, setVideoUploading] = useState(false);
   const [videoStatus, setVideoStatus] = useState<string | null>(null);
-  const [videoJobState, setVideoJobState] = useState<"queued" | "processing" | "ready" | "rejected" | "failed" | null>(null);
+  const [videoJobState, setVideoJobState] = useState<"queued" | "processing" | "ready" | "rejected" | "failed" | "quarantined" | null>(null);
   const [videoRejectionReason, setVideoRejectionReason] = useState<string | null>(null);
   const [approvedVideoUrls, setApprovedVideoUrls] = useState<{ playbackUrl: string; posterUrl: string } | null>(null);
+  const locale = readStoredStaffLocale();
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
@@ -335,7 +338,7 @@ export function ProductEditor({
     }
 
     setVideoUploading(true);
-    setVideoStatus("Uploading video...");
+    setVideoStatus(staffUiCopy(locale, "videoUploadingStatus"));
     setVideoRejectionReason(null);
     setError(null);
 
@@ -360,7 +363,14 @@ export function ProductEditor({
       };
 
       if (!grantResponse.ok || !grantPayload.grant) {
-        throw new Error(grantPayload.error ?? "Unable to create upload grant.");
+        const friendlyMessage = mapVideoErrorToFriendlyMessage(
+          grantPayload.error ?? null,
+          locale,
+        );
+        setVideoRejectionReason(friendlyMessage);
+        setVideoStatus(null);
+        setVideoUploading(false);
+        return;
       }
 
       const uploadResponse = await staffApiFetch(
@@ -380,10 +390,17 @@ export function ProductEditor({
       };
 
       if (!uploadResponse.ok) {
-        throw new Error(uploadPayload.error ?? "Unable to upload video.");
+        const friendlyMessage = mapVideoErrorToFriendlyMessage(
+          uploadPayload.error ?? null,
+          locale,
+        );
+        setVideoRejectionReason(friendlyMessage);
+        setVideoStatus(null);
+        setVideoUploading(false);
+        return;
       }
 
-      setVideoStatus("Queueing video for processing...");
+      setVideoStatus(staffUiCopy(locale, "videoQueueingStatus"));
 
       const queueResponse = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/videos/queue`,
@@ -404,18 +421,25 @@ export function ProductEditor({
       };
 
       if (!queueResponse.ok || !queuePayload.job) {
-        throw new Error(queuePayload.error ?? "Unable to queue video processing.");
+        const friendlyMessage = mapVideoErrorToFriendlyMessage(
+          queuePayload.error ?? null,
+          locale,
+        );
+        setVideoRejectionReason(friendlyMessage);
+        setVideoStatus(null);
+        setVideoUploading(false);
+        return;
       }
 
       setVideoJobState(queuePayload.job.status as typeof videoJobState);
-      setVideoStatus("Video queued for processing.");
+      setVideoStatus(staffUiCopy(locale, "videoQueuedStatus"));
       void pollVideoJobStatus(queuePayload.job.correlationId);
     } catch (uploadError) {
-      setError(
-        uploadError instanceof Error
-          ? uploadError.message
-          : "Unable to upload product video.",
+      const friendlyMessage = mapVideoErrorToFriendlyMessage(
+        uploadError instanceof Error ? uploadError.message : null,
+        locale,
       );
+      setVideoRejectionReason(friendlyMessage);
       setVideoStatus(null);
     } finally {
       setVideoUploading(false);
@@ -453,7 +477,7 @@ export function ProductEditor({
         };
 
         if (!statusResponse.ok || !statusPayload.job) {
-          setVideoStatus("Unable to check processing status.");
+          setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
           return;
         }
 
@@ -461,24 +485,27 @@ export function ProductEditor({
         setVideoJobState(jobStatus as typeof videoJobState);
 
         if (jobStatus === "queued") {
-          setVideoStatus("Video queued for processing...");
+          setVideoStatus(staffUiCopy(locale, "videoQueuedStatus"));
           setTimeout(poll, pollInterval);
         } else if (jobStatus === "processing") {
-          setVideoStatus("Video is being processed...");
+          setVideoStatus(staffUiCopy(locale, "videoProcessingStatus"));
           setTimeout(poll, pollInterval);
         } else if (jobStatus === "ready") {
-          setVideoStatus("Video processed successfully.");
-          void loadApprovedVideoUrls();
-        } else if (jobStatus === "rejected") {
-          setVideoRejectionReason(
-            statusPayload.job.lastErrorMessage ?? "Video was rejected during validation.",
-          );
           setVideoStatus(null);
-        } else if (jobStatus === "failed" || jobStatus === "quarantined") {
-          setVideoStatus("Video processing failed. Please try again or contact support.");
+          void loadApprovedVideoUrls();
+        } else if (jobStatus === "rejected" || jobStatus === "quarantined") {
+          const friendlyMessage = mapVideoErrorToFriendlyMessage(
+            statusPayload.job.lastErrorMessage ?? null,
+            locale,
+          );
+          setVideoRejectionReason(friendlyMessage);
+          setVideoStatus(null);
+        } else if (jobStatus === "failed") {
+          setVideoRejectionReason(mapVideoErrorToFriendlyMessage(null, locale));
+          setVideoStatus(null);
         }
       } catch {
-        setVideoStatus("Unable to check processing status.");
+        setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
       }
     };
 
@@ -912,17 +939,43 @@ export function ProductEditor({
         <section className="qos-card" data-padding="md">
           <h2 className="text-lg font-semibold">Product video</h2>
           <p className="mt-2 text-sm text-zinc-600">
-            Upload an MP4 video (max 20 MiB, 25 seconds, 1080p, H.264 or H.265).
-            The video is validated and transcoded asynchronously.
+            {staffUiCopy(locale, "videoDescription")}
           </p>
           <div className="mt-4 space-y-3">
+            {approvedVideoUrls ? (
+              <div className="space-y-3">
+                <video
+                  controls
+                  poster={approvedVideoUrls.posterUrl}
+                  className="w-full rounded-lg border border-zinc-200"
+                  style={{ maxHeight: "400px" }}
+                >
+                  <source src={approvedVideoUrls.playbackUrl} type="video/mp4" />
+                  {staffUiCopy(locale, "videoPlayerFallback")}
+                </video>
+                <p className="text-sm text-zinc-600">
+                  {staffUiCopy(locale, "videoReadyForPublish")}
+                </p>
+              </div>
+            ) : null}
+            {videoRejectionReason ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {videoRejectionReason}
+              </div>
+            ) : null}
+            {videoStatus ? (
+              <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                {videoStatus}
+              </p>
+            ) : null}
             <input
               type="file"
               accept="video/mp4"
-              disabled={videoUploading || videoJobState === "queued" || videoJobState === "processing"}
+              disabled={videoUploading}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) {
+                  setVideoRejectionReason(null);
                   void uploadProductVideo(file);
                 }
                 event.target.value = "";
@@ -930,25 +983,7 @@ export function ProductEditor({
               className="block w-full text-sm text-zinc-700 file:mr-4 file:rounded-full file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium"
             />
             {videoUploading ? (
-              <p className="text-sm text-zinc-600">Uploading video…</p>
-            ) : null}
-            {videoStatus ? (
-              <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                {videoStatus}
-              </p>
-            ) : null}
-            {videoRejectionReason ? (
-              <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                Video rejected: {videoRejectionReason}
-              </p>
-            ) : null}
-            {approvedVideoUrls ? (
-              <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
-                <p className="text-sm font-medium text-emerald-800">Video ready</p>
-                <p className="mt-1 text-xs text-emerald-700">
-                  Playback and poster derivatives are approved for menu publish.
-                </p>
-              </div>
+              <p className="text-sm text-zinc-600">{staffUiCopy(locale, "videoUploadingStatus")}</p>
             ) : null}
           </div>
         </section>

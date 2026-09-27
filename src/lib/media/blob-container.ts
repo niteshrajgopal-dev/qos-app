@@ -3,6 +3,7 @@ import type { ContainerClient } from "@azure/storage-blob";
 export type BlobContainerOps = {
   uploadBlob(blobName: string, data: Buffer): Promise<void>;
   downloadBlob(blobName: string): Promise<Buffer>;
+  deleteBlob(blobName: string): Promise<void>;
 };
 
 export function createAzureBlobContainerOps(
@@ -16,6 +17,10 @@ export function createAzureBlobContainerOps(
     async downloadBlob(blobName) {
       const blockBlob = containerClient.getBlockBlobClient(blobName);
       return blockBlob.downloadToBuffer();
+    },
+    async deleteBlob(blobName) {
+      const blockBlob = containerClient.getBlockBlobClient(blobName);
+      await blockBlob.deleteIfExists();
     },
   };
 }
@@ -38,5 +43,9 @@ export class InMemoryBlobContainer implements BlobContainerOps {
     }
 
     return Buffer.from(bytes);
+  }
+
+  async deleteBlob(blobName: string) {
+    this.blobs.delete(blobName);
   }
 }

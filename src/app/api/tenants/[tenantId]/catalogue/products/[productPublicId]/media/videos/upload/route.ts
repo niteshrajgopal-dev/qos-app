@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { productMediaErrorResponse } from "@/lib/media/http";
 import { ingestProductVideoUpload } from "@/lib/media/product-videos";
+import {
+  validateVideoUploadBytes,
+  VideoUploadValidationError,
+} from "@/lib/media/video-upload-validation";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +27,19 @@ export async function PUT(request: Request, context: RouteContext) {
     }
 
     const bytes = Buffer.from(await request.arrayBuffer());
+
+    try {
+      validateVideoUploadBytes(bytes);
+    } catch (error) {
+      if (error instanceof VideoUploadValidationError) {
+        return NextResponse.json(
+          { error: error.message, field: "contentType" },
+          { status: 400 },
+        );
+      }
+      throw error;
+    }
+
     const result = await ingestProductVideoUpload(
       db,
       tenantId,
