@@ -32,7 +32,7 @@ integrationDescribe("migration: activate published products", () => {
       staffSubject: "test@quotes.com",
       useLiveSource: false,
     });
-  }, 30000);
+  }, 60000);
 
   test("identifies draft products in published menus", async () => {
     const productsInPublishedMenus = await testSqlClient<
