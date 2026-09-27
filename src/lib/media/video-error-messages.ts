@@ -1,21 +1,5 @@
-import type { StaffLocale, StaffUiCopyKey } from "@/lib/staff/locale";
+import type { StaffLocale } from "@/lib/staff/locale";
 import { staffUiCopy } from "@/lib/staff/locale";
-
-type VideoErrorKey = Extract<
-  StaffUiCopyKey,
-  | "videoErrorEmpty"
-  | "videoErrorTooLarge"
-  | "videoErrorTooLong"
-  | "videoErrorResolution"
-  | "videoErrorUnsupportedContainer"
-  | "videoErrorUnsupportedCodec"
-  | "videoErrorContentType"
-  | "videoErrorProbe"
-  | "videoErrorTranscode"
-  | "videoErrorPoster"
-  | "videoErrorQuarantined"
-  | "videoErrorGeneric"
->;
 
 export function mapVideoErrorToFriendlyMessage(
   errorMessage: string | null | undefined,
@@ -27,7 +11,26 @@ export function mapVideoErrorToFriendlyMessage(
 
   const lowerMessage = errorMessage.toLowerCase();
 
-  if (lowerMessage.includes("empty")) {
+  if (lowerMessage.includes("quarantined")) {
+    return staffUiCopy(locale, "videoErrorQuarantined");
+  }
+
+  if (lowerMessage.includes("failed to extract poster")) {
+    return staffUiCopy(locale, "videoErrorPoster");
+  }
+
+  if (lowerMessage.includes("failed to transcode")) {
+    return staffUiCopy(locale, "videoErrorTranscode");
+  }
+
+  if (
+    lowerMessage.includes("failed to probe") ||
+    lowerMessage.includes("failed to parse ffprobe")
+  ) {
+    return staffUiCopy(locale, "videoErrorProbe");
+  }
+
+  if (lowerMessage.includes("video is empty")) {
     return staffUiCopy(locale, "videoErrorEmpty");
   }
 
@@ -75,25 +78,6 @@ export function mapVideoErrorToFriendlyMessage(
 
   if (lowerMessage.includes("only mp4")) {
     return staffUiCopy(locale, "videoErrorContentType");
-  }
-
-  if (
-    lowerMessage.includes("failed to probe") ||
-    lowerMessage.includes("failed to parse ffprobe")
-  ) {
-    return staffUiCopy(locale, "videoErrorProbe");
-  }
-
-  if (lowerMessage.includes("failed to transcode")) {
-    return staffUiCopy(locale, "videoErrorTranscode");
-  }
-
-  if (lowerMessage.includes("failed to extract poster")) {
-    return staffUiCopy(locale, "videoErrorPoster");
-  }
-
-  if (lowerMessage.includes("quarantined")) {
-    return staffUiCopy(locale, "videoErrorQuarantined");
   }
 
   return staffUiCopy(locale, "videoErrorGeneric");

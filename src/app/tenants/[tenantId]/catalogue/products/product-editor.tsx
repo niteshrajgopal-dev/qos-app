@@ -109,7 +109,6 @@ export function ProductEditor({
   const [videoJobState, setVideoJobState] = useState<"queued" | "processing" | "ready" | "rejected" | "failed" | "quarantined" | null>(null);
   const [videoRejectionReason, setVideoRejectionReason] = useState<string | null>(null);
   const [approvedVideoUrls, setApprovedVideoUrls] = useState<{ playbackUrl: string; posterUrl: string } | null>(null);
-  const [videoCorrelationId, setVideoCorrelationId] = useState<string | null>(null);
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
@@ -434,7 +433,6 @@ export function ProductEditor({
         return;
       }
 
-      setVideoCorrelationId(queuePayload.job.correlationId);
       setVideoJobState(queuePayload.job.status as typeof videoJobState);
       setVideoStatus("Video queued for processing.");
       void pollVideoJobStatus(queuePayload.job.correlationId);
