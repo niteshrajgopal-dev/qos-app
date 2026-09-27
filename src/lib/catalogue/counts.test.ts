@@ -48,38 +48,40 @@ integrationDescribe("getCatalogueCounts", () => {
   });
 
   test("counts non-archived products only", async () => {
+    // Seed doesn't create products by default, so add a test product
+    const [product] = await testDb
+      .insert(catalogueProducts)
+      .values({
+        tenantId,
+        publicId: "test-product",
+        internalName: "Test Product",
+        status: "draft",
+        provenance: "operator_entered",
+      })
+      .returning();
+
     const counts = await getCatalogueCounts(testDb, tenantId);
 
-    // Initially all products are draft (non-archived)
-    expect(counts.products).toBeGreaterThan(0);
+    // Should count the draft product
+    expect(counts.products).toBe(1);
 
-    const initialCount = counts.products;
-
-    // Mark some as active - count should stay the same
+    // Mark as active - count should stay the same
     await testDb
       .update(catalogueProducts)
       .set({ status: "active" })
-      .where(eq(catalogueProducts.tenantId, tenantId));
+      .where(eq(catalogueProducts.id, product.id));
 
     const countsAfterActive = await getCatalogueCounts(testDb, tenantId);
-    expect(countsAfterActive.products).toBe(initialCount);
+    expect(countsAfterActive.products).toBe(1);
 
-    // Archive one product - count should decrease
-    const [firstProduct] = await testDb
-      .select({ id: catalogueProducts.id })
-      .from(catalogueProducts)
-      .where(eq(catalogueProducts.tenantId, tenantId))
-      .limit(1);
+    // Archive the product - count should decrease to 0
+    await testDb
+      .update(catalogueProducts)
+      .set({ status: "archived" })
+      .where(eq(catalogueProducts.id, product.id));
 
-    if (firstProduct) {
-      await testDb
-        .update(catalogueProducts)
-        .set({ status: "archived" })
-        .where(eq(catalogueProducts.id, firstProduct.id));
-
-      const countsAfterArchive = await getCatalogueCounts(testDb, tenantId);
-      expect(countsAfterArchive.products).toBe(initialCount - 1);
-    }
+    const countsAfterArchive = await getCatalogueCounts(testDb, tenantId);
+    expect(countsAfterArchive.products).toBe(0);
   });
 
   test("counts all menus regardless of status", async () => {
