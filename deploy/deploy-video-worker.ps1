@@ -109,8 +109,19 @@ function Assert-AzCli {
 function Get-ContainerApp {
     param([string] $Name)
 
-    $json = az containerapp show --name $Name --resource-group $ResourceGroup -o json 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not $json) {
+    # A missing app is the create path. With ErrorActionPreference Stop,
+    # Azure CLI's ResourceNotFound stderr becomes a terminating error.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $json = az containerapp show --name $Name --resource-group $ResourceGroup -o json 2>$null
+        $exitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+
+    if ($exitCode -ne 0 -or -not $json) {
         return $null
     }
 
@@ -120,7 +131,14 @@ function Get-ContainerApp {
 function Grant-Role {
     param([string] $PrincipalId, [string] $Role, [string] $Scope)
 
-    $existing = az role assignment list --assignee $PrincipalId --role $Role --scope $Scope --query "[0].id" -o tsv 2>$null
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $existing = az role assignment list --assignee $PrincipalId --role $Role --scope $Scope --query "[0].id" -o tsv 2>$null
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
     if ($existing) {
         Write-Host "  $Role already assigned."
         return
@@ -169,21 +187,53 @@ if (-not $apiEnv["MEDIA_STORAGE"]) {
 $worker = Get-ContainerApp -Name $ContainerAppName
 if (-not $worker) {
     Write-Host "Creating '$ContainerAppName' (scaled to zero until secrets are wired)..."
+    # Azure CLI 2.90 accepts only 'system' or a resource id for --registry-identity.
+    # The API app authenticates to ACR with the environment identity ('system-environment'),
+    # which already has AcrPull, so create through ARM to keep the same registry identity.
+    $subscriptionId = (az account show --query id -o tsv).Trim()
+    $environmentId = "/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.App/managedEnvironments/$EnvironmentName"
+    $location = (az group show --name $ResourceGroup --query location -o tsv).Trim()
+    $createBody = @{
+        location   = $location
+        identity   = @{ type = "SystemAssigned" }
+        properties = @{
+            managedEnvironmentId = $environmentId
+            workloadProfileName  = "Consumption"
+            configuration        = @{
+                activeRevisionsMode = "Single"
+                registries          = @(
+                    @{
+                        server   = "$RegistryName.azurecr.io"
+                        identity = "system-environment"
+                    }
+                )
+            }
+            template             = @{
+                terminationGracePeriodSeconds = $TerminationGracePeriodSeconds
+                containers                    = @(
+                    @{
+                        name      = $ContainerAppName
+                        image     = $image
+                        resources = @{
+                            cpu    = [double]$Cpu
+                            memory = $Memory
+                        }
+                    }
+                )
+                scale                         = @{
+                    minReplicas = 0
+                    maxReplicas = 1
+                }
+            }
+        }
+    } | ConvertTo-Json -Depth 8 -Compress
+    $bodyFile = Join-Path $env:TEMP "qos-video-worker-create.json"
+    [System.IO.File]::WriteAllText($bodyFile, $createBody)
+    $createUrl = "https://management.azure.com/subscriptions/$subscriptionId/resourceGroups/$ResourceGroup/providers/Microsoft.App/containerApps/${ContainerAppName}?api-version=2026-01-01"
     Invoke-Az @(
-        "containerapp", "create",
-        "--name", $ContainerAppName,
-        "--resource-group", $ResourceGroup,
-        "--environment", $EnvironmentName,
-        "--workload-profile-name", "Consumption",
-        "--image", $image,
-        "--registry-server", "$RegistryName.azurecr.io",
-        "--registry-identity", "system-environment",
-        "--system-assigned",
-        "--cpu", $Cpu,
-        "--memory", $Memory,
-        "--min-replicas", "0",
-        "--max-replicas", "1",
-        "--termination-grace-period", "$TerminationGracePeriodSeconds",
+        "rest", "--method", "put",
+        "--url", $createUrl,
+        "--body", "@$bodyFile",
         "--only-show-errors", "-o", "none"
     ) | Out-Null
     $worker = Get-ContainerApp -Name $ContainerAppName
@@ -292,7 +342,14 @@ do {
     Start-Sleep -Seconds 10
     $worker = Get-ContainerApp -Name $ContainerAppName
     $ready = $worker.properties.latestRevisionName
-    $state = az containerapp revision show --name $ContainerAppName --resource-group $ResourceGroup --revision $ready --query "properties.provisioningState" -o tsv 2>$null
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $state = az containerapp revision show --name $ContainerAppName --resource-group $ResourceGroup --revision $ready --query "properties.provisioningState" -o tsv 2>$null
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
     Write-Host "  revision=$ready provisioning=$state"
 } while ($state -notin @("Provisioned", "Failed") -and (Get-Date) -lt $deadline)
 

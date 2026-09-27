@@ -1,6 +1,8 @@
 node_modules
 .next
 .git
+.local-media
+*.log
 .azure
 *.md
 !README.md
