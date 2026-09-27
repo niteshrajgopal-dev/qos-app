@@ -762,6 +762,28 @@ export async function publishDraftMenuToLocations(
           })
           .where(eq(catalogueMenus.id, menu.id));
 
+        const publishedProductPublicIds = view.sections.flatMap((section) =>
+          section.products
+            .filter((product) => !product.archived)
+            .map((product) => product.productPublicId),
+        );
+
+        if (publishedProductPublicIds.length > 0) {
+          await tx
+            .update(catalogueProducts)
+            .set({
+              status: "active",
+              updatedAt: new Date(),
+            })
+            .where(
+              and(
+                eq(catalogueProducts.tenantId, tenantId),
+                inArray(catalogueProducts.publicId, publishedProductPublicIds),
+                eq(catalogueProducts.status, "draft"),
+              ),
+            );
+        }
+
         await recordTenantAuditEventInTx(tx, {
           tenantId,
           actorSubject: adminSubject,

@@ -5,6 +5,7 @@ export type StaffNavItem = {
   label: string;
   icon?: string;
   availability: StaffNavAvailability;
+  count?: number;
   children?: StaffNavItem[];
 };
 

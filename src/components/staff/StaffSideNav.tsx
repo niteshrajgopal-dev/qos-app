@@ -53,6 +53,8 @@ function NavRow({
       </span>
       {item.availability === "soon" ? (
         <span className="qos-nav-item-count">{staffUiCopy(locale, "soon")}</span>
+      ) : item.count != null ? (
+        <span className="qos-nav-item-count">{item.count}</span>
       ) : null}
       {hasChildren ? (
         <Icon

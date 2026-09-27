@@ -207,6 +207,10 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const pageCount = Math.ceil(totalProducts / pageSize);
   const paginatedProducts = paginateProducts(filtered, currentPage, pageSize);
 
+  const hasSearchQuery = Boolean(searchQuery);
+  const noSearchResults = hasSearchQuery && totalProducts === 0;
+  const emptyTab = !hasSearchQuery && totalProducts === 0 && allProducts.length > 0;
+
   const columns = [
     {
       key: "name",
@@ -296,25 +300,79 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
               style={{ width: 240 }}
             />
           </TableToolbar>
-          <DataTable
-            columns={columns}
-            rows={paginatedProducts}
-            onRowClick={(r) =>
-              router.push(
-                `/tenants/${tenantId}/catalogue/products/${r.publicId}/edit`,
-              )
-            }
-            sortKey="name"
-          />
-          {pageCount > 1 ? (
-            <Pagination
-              page={currentPage}
-              pageCount={pageCount}
-              pageSize={pageSize}
-              total={totalProducts}
-              onPageChange={setCurrentPage}
-            />
-          ) : null}
+          {noSearchResults ? (
+            <div style={{ padding: "60px 24px" }}>
+              <EmptyState
+                icon="search"
+                title="No products match"
+                body={`No products match "${searchQuery}". Try a different search term.`}
+                actions={
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setSearchQuery("");
+                      setCurrentPage(1);
+                    }}
+                  >
+                    Clear search
+                  </Button>
+                }
+              />
+            </div>
+          ) : emptyTab ? (
+            <div style={{ padding: "60px 24px" }}>
+              <EmptyState
+                icon="package"
+                title={
+                  activeTab === "active"
+                    ? "No active products"
+                    : activeTab === "draft"
+                      ? "No draft products"
+                      : "No archived products"
+                }
+                body={
+                  activeTab === "active"
+                    ? "Active products will appear here when they are published in a menu."
+                    : activeTab === "draft"
+                      ? "New products start as drafts until they are published in a menu."
+                      : "Archived products will appear here."
+                }
+                actions={
+                  <Button
+                    variant="secondary"
+                    onClick={() => {
+                      setActiveTab("all");
+                      setCurrentPage(1);
+                    }}
+                  >
+                    View all products
+                  </Button>
+                }
+              />
+            </div>
+          ) : (
+            <>
+              <DataTable
+                columns={columns}
+                rows={paginatedProducts}
+                onRowClick={(r) =>
+                  router.push(
+                    `/tenants/${tenantId}/catalogue/products/${r.publicId}/edit`,
+                  )
+                }
+                sortKey="name"
+              />
+              {pageCount > 1 ? (
+                <Pagination
+                  page={currentPage}
+                  pageCount={pageCount}
+                  pageSize={pageSize}
+                  total={totalProducts}
+                  onPageChange={setCurrentPage}
+                />
+              ) : null}
+            </>
+          )}
         </Card>
       </div>
     </>

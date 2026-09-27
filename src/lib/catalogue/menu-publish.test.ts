@@ -170,6 +170,8 @@ integrationDescribe("catalogue menu publish", () => {
       productInput,
     );
 
+    expect(product.status).toBe("draft");
+
     const menu = await createDraftMenu(db, quotes.tenant.id, admin, {
       internalName: "shared-menu",
       locationIds: [quotes.locationA.id, quotes.locationB.id],
@@ -204,6 +206,12 @@ integrationDescribe("catalogue menu publish", () => {
       menu.publicId,
       { locationIds: [quotes.locationA.id, quotes.locationB.id] },
     );
+
+    const productAfterPublish = await db.query.catalogueProducts.findFirst({
+      where: (products, { eq }) => eq(products.publicId, product.publicId),
+    });
+
+    expect(productAfterPublish?.status).toBe("active");
 
     await updateDraftMenu(db, quotes.tenant.id, admin, menu.publicId, {
       expectedVersion: menu.version,

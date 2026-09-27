@@ -24,6 +24,14 @@ import {
   fetchStaffSession,
   signOutStaff,
 } from "@/lib/staff/staff-session-client";
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
+
+type CatalogueCounts = {
+  products: number;
+  menus: number;
+  modifierGroups: number;
+  categories: number;
+};
 
 type StaffAppShellProps = {
   tenantId: string;
@@ -42,7 +50,9 @@ function personName(email: string) {
     .join(" ");
 }
 
-function shellGroups(): NonNullable<SideNavProps["groups"]> {
+function shellGroups(
+  catalogueCounts: CatalogueCounts | null,
+): NonNullable<SideNavProps["groups"]> {
   return NAV.map((group) => ({
     label: group.label,
     items: group.items.map((item) => {
@@ -51,7 +61,25 @@ function shellGroups(): NonNullable<SideNavProps["groups"]> {
           "children" in item && item.children ? item.children : [];
         return {
           ...item,
-          children: [...children, { id: "import", label: "Import" }],
+          children: [
+            {
+              id: "catalogue",
+              label: "Products",
+              count: catalogueCounts?.products,
+            },
+            { id: "menus", label: "Menus", count: catalogueCounts?.menus },
+            {
+              id: "modifiers",
+              label: "Modifier groups",
+              count: catalogueCounts?.modifierGroups,
+            },
+            {
+              id: "categories",
+              label: "Categories",
+              count: catalogueCounts?.categories,
+            },
+            { id: "import", label: "Import" },
+          ],
         };
       }
       if (item.id === "team") {
@@ -76,6 +104,9 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
   const [email, setEmail] = useState("");
   const [memberships, setMemberships] = useState<ActiveStaffMembershipSummary[]>(
     [],
+  );
+  const [catalogueCounts, setCatalogueCounts] = useState<CatalogueCounts | null>(
+    null,
   );
   const [error, setError] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -135,6 +166,23 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
       cancelled = true;
     };
   }, [router]);
+
+  useEffect(() => {
+    let cancelled = false;
+    staffApiFetch(`/api/tenants/${tenantId}/catalogue/counts`)
+      .then(async (response) => {
+        if (cancelled) return;
+        if (response.ok) {
+          const data = (await response.json()) as { counts: CatalogueCounts };
+          setCatalogueCounts(data.counts);
+        }
+      })
+      .catch(() => {
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
@@ -261,7 +309,7 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
                 <Logo variant={theme === "dark" ? "navy" : "light"} height={17} />
               )
             }
-            groups={shellGroups()}
+            groups={shellGroups(catalogueCounts)}
             activeId={activeId}
             onNavigate={go}
             footer={
