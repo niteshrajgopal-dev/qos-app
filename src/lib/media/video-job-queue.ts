@@ -175,6 +175,7 @@ export async function queueVideoProcessingJob(
           and(
             eq(videoProcessingJobs.tenantId, tenantId),
             inArray(videoProcessingJobs.id, supersededIds),
+            eq(videoProcessingJobs.status, "queued"),
           ),
         );
 
@@ -376,6 +377,36 @@ export async function processVideoJob(
 
     await withTenantContext(db, job.tenantId, async (tx) => {
       const now = new Date();
+
+      const newerAssets = await tx
+        .select({ id: catalogueMediaAssets.id })
+        .from(catalogueMediaAssets)
+        .where(
+          and(
+            eq(catalogueMediaAssets.tenantId, job.tenantId),
+            eq(catalogueMediaAssets.productId, job.productId),
+            sql`${catalogueMediaAssets.createdAt} > (
+              SELECT created_at FROM qos.catalogue_media_assets 
+              WHERE tenant_id = ${job.tenantId} AND id = ${job.assetId}
+            )`,
+            sql`${catalogueMediaAssets.status} NOT IN ('rejected')`,
+          ),
+        )
+        .limit(1);
+
+      if (newerAssets.length > 0) {
+        await tx
+          .update(videoProcessingJobs)
+          .set({
+            status: "rejected",
+            lastErrorMessage: "Superseded by a newer upload.",
+            lastErrorAt: now,
+            updatedAt: now,
+            leaseExpiresAt: null,
+          })
+          .where(ownedJob(job));
+        throw new VideoJobError("Superseded by a newer upload.", false);
+      }
 
       const [completed] = await tx
         .update(videoProcessingJobs)

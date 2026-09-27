@@ -40,7 +40,7 @@ describe("mapVideoErrorToFriendlyMessage", () => {
       'Video container format "avi" is not allowed. Allowed: mp4, mov.',
       "en",
     );
-    expect(result).toBe("This file isn't a supported video. Upload an MP4 or MOV video.");
+    expect(result).toBe("This file isn't a supported video. Upload an MP4 video.");
   });
 
   test("maps unsupported codec error", () => {

@@ -14,10 +14,13 @@ export class VideoUploadValidationError extends Error {
 
 const FTYP_ATOM = Buffer.from("ftyp", "ascii");
 const MOOV_ATOM = Buffer.from("moov", "ascii");
+const TRAK_ATOM = Buffer.from("trak", "ascii");
+const MDIA_ATOM = Buffer.from("mdia", "ascii");
+const HDLR_ATOM = Buffer.from("hdlr", "ascii");
+const MINF_ATOM = Buffer.from("minf", "ascii");
+const STBL_ATOM = Buffer.from("stbl", "ascii");
 const STSD_ATOM = Buffer.from("stsd", "ascii");
-const AVC1_CODEC = Buffer.from("avc1", "ascii");
-const HVC1_CODEC = Buffer.from("hvc1", "ascii");
-const HEV1_CODEC = Buffer.from("hev1", "ascii");
+const VIDE_HANDLER = Buffer.from("vide", "ascii");
 
 const DISALLOWED_BRANDS = [
   Buffer.from("qt  ", "ascii"),
@@ -95,7 +98,7 @@ export function validateVideoUploadBytes(bytes: Buffer): void {
     return;
   }
 
-  let stsdOffset: number | null = null;
+  let videoStsdOffset: number | null = null;
   let moovInnerOffset = moovOffset + 8;
   const moovEndOffset = moovOffset + readU32BE(bytes, moovOffset);
 
@@ -105,9 +108,12 @@ export function validateVideoUploadBytes(bytes: Buffer): void {
       break;
     }
 
-    if (atom.type.equals(Buffer.from("trak", "ascii"))) {
+    if (atom.type.equals(TRAK_ATOM)) {
       const trakEndOffset = moovInnerOffset + atom.size;
       let trakInnerOffset = moovInnerOffset + 8;
+
+      let isVideoTrack = false;
+      let trakStsdOffset: number | null = null;
 
       while (trakInnerOffset + 8 < Math.min(trakEndOffset, bytes.length)) {
         const trakAtom = atomAt(bytes, trakInnerOffset);
@@ -115,7 +121,7 @@ export function validateVideoUploadBytes(bytes: Buffer): void {
           break;
         }
 
-        if (trakAtom.type.equals(Buffer.from("mdia", "ascii"))) {
+        if (trakAtom.type.equals(MDIA_ATOM)) {
           const mdiaEndOffset = trakInnerOffset + trakAtom.size;
           let mdiaInnerOffset = trakInnerOffset + 8;
 
@@ -125,7 +131,20 @@ export function validateVideoUploadBytes(bytes: Buffer): void {
               break;
             }
 
-            if (mdiaAtom.type.equals(Buffer.from("minf", "ascii"))) {
+            if (mdiaAtom.type.equals(HDLR_ATOM) && mdiaAtom.size >= 20) {
+              const handlerTypeOffset = mdiaInnerOffset + 16;
+              if (handlerTypeOffset + 4 <= bytes.length) {
+                const handlerType = bytes.subarray(
+                  handlerTypeOffset,
+                  handlerTypeOffset + 4,
+                );
+                if (handlerType.equals(VIDE_HANDLER)) {
+                  isVideoTrack = true;
+                }
+              }
+            }
+
+            if (mdiaAtom.type.equals(MINF_ATOM)) {
               const minfEndOffset = mdiaInnerOffset + mdiaAtom.size;
               let minfInnerOffset = mdiaInnerOffset + 8;
 
@@ -135,7 +154,7 @@ export function validateVideoUploadBytes(bytes: Buffer): void {
                   break;
                 }
 
-                if (minfAtom.type.equals(Buffer.from("stbl", "ascii"))) {
+                if (minfAtom.type.equals(STBL_ATOM)) {
                   const stblEndOffset = minfInnerOffset + minfAtom.size;
                   let stblInnerOffset = minfInnerOffset + 8;
 
@@ -146,7 +165,7 @@ export function validateVideoUploadBytes(bytes: Buffer): void {
                     }
 
                     if (stblAtom.type.equals(STSD_ATOM)) {
-                      stsdOffset = stblInnerOffset;
+                      trakStsdOffset = stblInnerOffset;
                       break;
                     }
 
@@ -154,7 +173,7 @@ export function validateVideoUploadBytes(bytes: Buffer): void {
                   }
                 }
 
-                if (stsdOffset !== null) {
+                if (trakStsdOffset !== null) {
                   break;
                 }
 
@@ -162,47 +181,49 @@ export function validateVideoUploadBytes(bytes: Buffer): void {
               }
             }
 
-            if (stsdOffset !== null) {
-              break;
-            }
-
             mdiaInnerOffset += mdiaAtom.size;
           }
         }
 
-        if (stsdOffset !== null) {
-          break;
-        }
-
         trakInnerOffset += trakAtom.size;
       }
-    }
 
-    if (stsdOffset !== null) {
-      break;
+      if (isVideoTrack && trakStsdOffset !== null) {
+        videoStsdOffset = trakStsdOffset;
+        break;
+      }
     }
 
     moovInnerOffset += atom.size;
   }
 
-  if (stsdOffset === null || stsdOffset + 16 >= bytes.length) {
+  if (videoStsdOffset === null || videoStsdOffset + 20 >= bytes.length) {
     return;
   }
 
-  const stsdEntryOffset = stsdOffset + 16;
-  if (stsdEntryOffset + 8 > bytes.length) {
+  const codecFourccOffset = videoStsdOffset + 20;
+  if (codecFourccOffset + 4 > bytes.length) {
     return;
   }
 
-  const codecType = bytes.subarray(stsdEntryOffset, stsdEntryOffset + 4);
+  const codecType = bytes.subarray(codecFourccOffset, codecFourccOffset + 4);
 
-  if (
-    !codecType.equals(AVC1_CODEC) &&
-    !codecType.equals(HVC1_CODEC) &&
-    !codecType.equals(HEV1_CODEC)
-  ) {
-    throw new VideoUploadValidationError(
-      "Only MP4 video uploads are supported.",
-    );
+  const DISALLOWED_CODECS = [
+    Buffer.from("apch", "ascii"),
+    Buffer.from("apcn", "ascii"),
+    Buffer.from("apcs", "ascii"),
+    Buffer.from("apco", "ascii"),
+    Buffer.from("ap4h", "ascii"),
+    Buffer.from("mp4v", "ascii"),
+    Buffer.from("vp09", "ascii"),
+    Buffer.from("av01", "ascii"),
+  ];
+
+  for (const disallowed of DISALLOWED_CODECS) {
+    if (codecType.equals(disallowed)) {
+      throw new VideoUploadValidationError(
+        "Only MP4 video uploads are supported.",
+      );
+    }
   }
 }
