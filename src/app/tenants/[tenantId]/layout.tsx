@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { StaffAppShell } from "@/components/staff/StaffAppShell";
+import { StaffAppShellPrototype } from "@/components/staff/StaffAppShellPrototype";
 
 type TenantLayoutProps = {
   children: ReactNode;
@@ -13,5 +13,5 @@ export default async function TenantLayout({
 }: TenantLayoutProps) {
   const { tenantId } = await params;
 
-  return <StaffAppShell tenantId={tenantId}>{children}</StaffAppShell>;
+  return <StaffAppShellPrototype tenantId={tenantId}>{children}</StaffAppShellPrototype>;
 }
