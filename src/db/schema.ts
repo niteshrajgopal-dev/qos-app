@@ -9,6 +9,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 import { pgSchema } from "drizzle-orm/pg-core";
@@ -2877,6 +2878,204 @@ export const locationsRelations = relations(locations, ({ one, many }) => ({
   externalMenuSources: many(locationExternalMenuSources),
 }));
 
+export const agentProviderEnum = qos.enum("agent_provider", ["hyperagent"]);
+
+export const agentProviderConnectionStatusEnum = qos.enum(
+  "agent_provider_connection_status",
+  ["disconnected", "connected", "needs_reauth", "error"],
+);
+
+export const agentCapabilityEnum = qos.enum("agent_capability", [
+  "menu_manager",
+]);
+
+export const agentRunStatusEnum = qos.enum("agent_run_status", [
+  "queued",
+  "running",
+  "awaiting_approval",
+  "completed",
+  "failed",
+]);
+
+/**
+ * Platform-scoped: one QOS-owned connection per provider, no tenant_id.
+ * Readable by the runtime for status; writable only under the agent platform
+ * admin setting. Secrets live in `agent_provider_credentials`.
+ */
+export const agentProviderConnections = qos.table(
+  "agent_provider_connections",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    provider: agentProviderEnum("provider").notNull(),
+    status: agentProviderConnectionStatusEnum("status")
+      .notNull()
+      .default("disconnected"),
+    serverUrl: text("server_url").notNull(),
+    accountLabel: text("account_label"),
+    connectedBySubject: text("connected_by_subject"),
+    connectedAt: timestamp("connected_at", { withTimezone: true }),
+    lastCheckedAt: timestamp("last_checked_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("agent_provider_connections_provider_unique").on(table.provider),
+  ],
+);
+
+/**
+ * Encrypted provider OAuth material. Only visible to the runtime inside a
+ * transaction that sets the agent credential access setting.
+ */
+export const agentProviderCredentials = qos.table(
+  "agent_provider_credentials",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    connectionId: uuid("connection_id")
+      .notNull()
+      .references(() => agentProviderConnections.id, { onDelete: "cascade" }),
+    ciphertext: text("ciphertext").notNull(),
+    keyFingerprint: text("key_fingerprint").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("agent_provider_credentials_connection_unique").on(
+      table.connectionId,
+    ),
+  ],
+);
+
+/**
+ * The platform-approved provider agent for a tenant capability. Tenants may
+ * only toggle `enabled`; a trigger rejects any other change outside the agent
+ * platform admin setting.
+ */
+export const tenantAgentBindings = qos.table(
+  "tenant_agent_bindings",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    capability: agentCapabilityEnum("capability").notNull(),
+    provider: agentProviderEnum("provider").notNull(),
+    providerAgentId: text("provider_agent_id").notNull(),
+    enabled: boolean("enabled").notNull().default(false),
+    approvedBySubject: text("approved_by_subject").notNull(),
+    approvedAt: timestamp("approved_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    enabledChangedBySubject: text("enabled_changed_by_subject"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("tenant_agent_bindings_tenant_id_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    unique("tenant_agent_bindings_public_id_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    unique("tenant_agent_bindings_capability_unique").on(
+      table.tenantId,
+      table.capability,
+    ),
+    index("tenant_agent_bindings_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export type AgentRunRequestSummary = Record<string, unknown>;
+
+export const agentRuns = qos.table(
+  "agent_runs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    bindingId: uuid("binding_id").notNull(),
+    capability: agentCapabilityEnum("capability").notNull(),
+    provider: agentProviderEnum("provider").notNull(),
+    providerAgentId: text("provider_agent_id").notNull(),
+    providerThreadId: text("provider_thread_id"),
+    status: agentRunStatusEnum("status").notNull().default("queued"),
+    subjectType: text("subject_type").notNull(),
+    subjectPublicId: text("subject_public_id").notNull(),
+    subjectVersion: integer("subject_version"),
+    requestedBySubject: text("requested_by_subject").notNull(),
+    requestedByActorClass: auditActorClassEnum("requested_by_actor_class").notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    correlationId: uuid("correlation_id").notNull(),
+    requestSummary: jsonb("request_summary")
+      .$type<AgentRunRequestSummary>()
+      .notNull(),
+    result: jsonb("result").$type<Record<string, unknown>>(),
+    rawResultExcerpt: text("raw_result_excerpt"),
+    failureCode: text("failure_code"),
+    failureMessage: text("failure_message"),
+    pollLeaseOwner: text("poll_lease_owner"),
+    pollLeaseExpiresAt: timestamp("poll_lease_expires_at", { withTimezone: true }),
+    lastPolledAt: timestamp("last_polled_at", { withTimezone: true }),
+    nextPollAt: timestamp("next_poll_at", { withTimezone: true }),
+    pollCount: integer("poll_count").notNull().default(0),
+    deadlineAt: timestamp("deadline_at", { withTimezone: true }).notNull(),
+    startedAt: timestamp("started_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      columns: [table.tenantId, table.bindingId],
+      foreignColumns: [tenantAgentBindings.tenantId, tenantAgentBindings.id],
+    }).onDelete("restrict"),
+    unique("agent_runs_public_id_unique").on(table.tenantId, table.publicId),
+    unique("agent_runs_idempotency_unique").on(
+      table.tenantId,
+      table.idempotencyKey,
+    ),
+    uniqueIndex("agent_runs_one_active_per_subject")
+      .on(
+        table.tenantId,
+        table.capability,
+        table.subjectType,
+        table.subjectPublicId,
+      )
+      .where(sql`status in ('queued', 'running')`),
+    index("agent_runs_tenant_subject_idx").on(
+      table.tenantId,
+      table.subjectType,
+      table.subjectPublicId,
+      table.createdAt,
+    ),
+  ],
+);
+
 export const schema = {
   tenants,
   organizations,
@@ -2948,6 +3147,10 @@ export const schema = {
   businessProvisioningOperations,
   tenantAuditEvents,
   staffLocationScopes,
+  agentProviderConnections,
+  agentProviderCredentials,
+  tenantAgentBindings,
+  agentRuns,
 };
 
 export type TenantRecord = typeof tenants.$inferSelect;
@@ -2957,6 +3160,8 @@ export type LocationRecord = typeof locations.$inferSelect;
 
 export const tenantContextSetting = "qos.current_tenant_id";
 export const operatorProvisioningSetting = "qos.operator_provisioning";
+export const agentCredentialAccessSetting = "qos.agent_credential_access";
+export const agentPlatformAdminSetting = "qos.agent_platform_admin";
 
 export function currentTenantIdSql() {
   return sql`current_setting(${tenantContextSetting}, true)::uuid`;

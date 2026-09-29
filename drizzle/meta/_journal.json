@@ -267,6 +267,13 @@
       "when": 1790520000000,
       "tag": "0037_fix_activate_published_products",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790700000000,
+      "tag": "0038_agent_platform_foundation",
+      "breakpoints": true
     }
   ]
 }
