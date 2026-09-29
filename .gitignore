@@ -35,6 +35,11 @@ yarn-error.log*
 # local media storage (MEDIA_LOCAL_ROOT)
 /.local-media
 
+# standalone design prototypes run from design/
+/design/**/node_modules/
+/design/**/.next/
+/design/**/package-lock.json
+
 # env files (can opt-in for committing if needed)
 .env
 .env.local
