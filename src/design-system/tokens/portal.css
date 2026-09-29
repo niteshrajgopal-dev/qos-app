@@ -1,0 +1,60 @@
+/* QOS Portal primitives — the approved cinematic portal palette.
+   Source: design/QOS prototype recreation/cursor-handoff (public/assets/tokens.css,
+   app/globals.css, app/light-effects.css). Values are taken from that source unchanged;
+   semantic-portal.css maps them onto the design-system's semantic tokens. */
+:root {
+  /* Surfaces, darkest first */
+  --portal-ink: #171e28;    /* html backdrop behind the scene */
+  --portal-night: #151b24;  /* sunken wells */
+  --portal-canvas: #1d2531; /* page background */
+  --portal-surface: #202733;
+  --portal-card: #242d3b;
+  --portal-overlay: #273240; /* menus, popovers */
+  --portal-raised: #303948;
+
+  /* Ink */
+  --portal-text: #f4f3f5;
+  --portal-muted: #b7bfcd;
+  --portal-faint: #96a1b3;
+
+  /* Accents */
+  --portal-violet: #b3a1ef;
+  --portal-violet-strong: #a39ae0;
+  --portal-violet-soft: #d5c8f2;
+  --portal-cyan: #99dfe9;
+  --portal-peach: #eec9b4;
+  --portal-mint: #b4d5cc;
+  --portal-amber: #e4cbb0;
+  --portal-rose: #f39393;
+  --portal-focus: #b1e9f5;
+
+  /* Lines and glass */
+  --portal-line: rgba(235, 239, 255, .16);
+  --portal-line-subtle: rgba(255, 255, 255, .07);
+  --portal-line-strong: rgba(255, 255, 255, .26);
+  --portal-glass: linear-gradient(130deg, #75829323, #8590a316 65%, #c9badc17);
+  /* Opaque enough to keep operational metrics readable against the sunset. */
+  --portal-glass-rail: linear-gradient(145deg, #313b49bb, #242e3ec2);
+  --portal-glass-rail-narrow: linear-gradient(140deg, #354052c9, #273445d9);
+  --portal-glass-dock: linear-gradient(100deg, #45556337, #7985952b, #53617b35);
+  --portal-glass-blur: 22px;
+  --portal-glass-border: rgba(216, 222, 237, .155);
+
+  /* Gradients */
+  --portal-gradient-text: linear-gradient(100deg, #a39be4, #c3add7 53%, #e3baa9);
+  --portal-gradient-primary: linear-gradient(115deg, #a39ae0, #b0abc9 57%, #b1b5c7);
+  --portal-gradient-rule: linear-gradient(90deg, #b5a4e5, #a1d6e3);
+
+  /* Geometry and motion */
+  --portal-radius-panel: 20px;
+  --portal-radius-large: 22px;
+  --portal-radius-control: 10px;
+  --portal-ease: cubic-bezier(.16, 1, .3, 1);
+
+  /* Artwork */
+  --portal-scene: url("/portal/qos-portal-scene.png");
+
+  /* Type */
+  --portal-display: var(--font-qos-display), Georgia, serif;
+  --portal-body: var(--font-qos-sans), Arial, sans-serif;
+}

@@ -18,6 +18,8 @@ const eslintConfig = defineConfig([
     ".agents/**",
     "design-system/**",
     "design_handoff_qos_platform/**",
+    "design/**",
+    "handoff/**",
   ]),
 ]);
 

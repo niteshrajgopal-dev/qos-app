@@ -1,20 +1,18 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { PortalOverview } from "@/components/portal/PortalOverview";
+import { usePortalShell } from "@/components/portal/portal-shell-context";
 
-import { HomeScreen } from "@/components/platform/home-screen";
-import { staffNavHref } from "@/lib/staff/nav";
-
-export default function TenantHomePage() {
-  const params = useParams<{ tenantId: string }>();
-  const router = useRouter();
+export default function TenantOverviewPage() {
+  const { tenantId, tenantName, personName, motion, toggleMotion } = usePortalShell();
 
   return (
-    <HomeScreen
-      onNavigate={(id: string) => {
-        const href = staffNavHref(params.tenantId, id);
-        if (href) router.push(href);
-      }}
+    <PortalOverview
+      tenantId={tenantId}
+      tenantName={tenantName}
+      personName={personName}
+      motion={motion}
+      onToggleMotion={toggleMotion}
     />
   );
 }
