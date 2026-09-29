@@ -4,10 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Icon } from "@/components/Icon";
 import type { ActiveStaffMembershipSummary } from "@/lib/staff/memberships";
-import {
-  fetchStaffSession,
-  signOutStaff,
-} from "@/lib/staff/staff-session-client";
+import { fetchStaffSession } from "@/lib/staff/staff-session-client";
 
 type StaffAppShellPrototypeProps = {
   tenantId: string;
@@ -75,20 +72,21 @@ export function StaffAppShellPrototype({
 
   const membership = memberships.find((entry) => entry.tenantId === tenantId);
   const name = personName(email);
-  const roleLabel =
-    membership?.role === "administrator" ? "Administrator" : "User";
 
   const tenantPrefix = `/tenants/${tenantId}`;
   const currentPath = pathname?.slice(tenantPrefix.length) || "";
   
-  const activeNavId = PRIMARY_NAV.find((item) => {
-    if (item.path === "" && currentPath === "") return true;
-    if (item.path !== "" && currentPath.startsWith(item.path)) return true;
-    return false;
-  })?.id || MORE_NAV.find((item) => {
-    if (item.path !== "" && currentPath.startsWith(item.path)) return true;
-    return false;
-  })?.id;
+  // Active nav: prefer more specific paths (menus before catalogue)
+  const activeNavId = 
+    currentPath.startsWith("/catalogue/menus") ? "menus" :
+    PRIMARY_NAV.find((item) => {
+      if (item.path === "" && currentPath === "") return true;
+      if (item.path !== "" && currentPath.startsWith(item.path)) return true;
+      return false;
+    })?.id || MORE_NAV.find((item) => {
+      if (item.path !== "" && currentPath.startsWith(item.path)) return true;
+      return false;
+    })?.id;
 
   useEffect(() => {
     let cancelled = false;
@@ -135,14 +133,10 @@ export function StaffAppShellPrototype({
     setMoreOpen(false);
   }
 
-  async function handleSignOut() {
-    await signOutStaff();
-    router.replace("/staff/sign-in");
-  }
-
   const tenants = memberships.map((entry) => ({
     id: entry.tenantId,
     name: entry.tenantName,
+    role: entry.role,
   }));
 
   const workspace = !ready ? (
@@ -452,18 +446,6 @@ export function StaffAppShellPrototype({
             }}
           >
             <Icon name="bell" size={18} />
-            <span
-              style={{
-                position: "absolute",
-                top: 8,
-                right: 8,
-                width: 6,
-                height: 6,
-                background: "var(--status-error-solid)",
-                borderRadius: "50%",
-                border: "1.5px solid var(--surface-default)",
-              }}
-            />
           </button>
 
           {/* Workspace Switcher */}
@@ -515,7 +497,7 @@ export function StaffAppShellPrototype({
           {/* Profile */}
           <button
             type="button"
-            onClick={() => void handleSignOut()}
+            onClick={() => navigate("/settings")}
             style={{
               width: 32,
               height: 32,
@@ -757,235 +739,48 @@ export function StaffAppShellPrototype({
               </button>
             </div>
 
-            <p
+            <div
               style={{
-                fontSize: 14,
-                color: "var(--text-secondary)",
-                marginBottom: 24,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "48px 24px",
+                textAlign: "center",
               }}
             >
-              QOS · Interactive design prototype
-            </p>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div
                 style={{
-                  padding: "16px",
+                  width: 64,
+                  height: 64,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                   background: "var(--surface-subtle)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "var(--radius-lg)",
+                  borderRadius: "var(--radius-xl)",
+                  marginBottom: 16,
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "start",
-                    gap: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "var(--surface-default)",
-                      borderRadius: "var(--radius-md)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Icon name="receipt" size={18} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      }}
-                    >
-                      4 orders need attention
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text-secondary)",
-                        marginBottom: 12,
-                      }}
-                    >
-                      Review orders in progress.
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => navigate("/orders")}
-                      style={{
-                        padding: "6px 12px",
-                        background: "var(--action-secondary)",
-                        border: "none",
-                        borderRadius: "var(--radius-md)",
-                        color: "var(--text-primary)",
-                        fontSize: 13,
-                        fontWeight: 500,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Review orders
-                      <Icon
-                        name="arrow-right"
-                        size={14}
-                        style={{ marginLeft: 6, display: "inline-block" }}
-                      />
-                    </button>
-                  </div>
-                </div>
+                <Icon name="check-circle" size={32} style={{ color: "var(--status-success-fg)" }} />
               </div>
-
-              <div
+              <p
                 style={{
-                  padding: "16px",
-                  background: "var(--surface-subtle)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "var(--radius-lg)",
+                  fontSize: 16,
+                  fontWeight: 600,
+                  color: "var(--text-primary)",
+                  marginBottom: 8,
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "start",
-                    gap: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "var(--surface-default)",
-                      borderRadius: "var(--radius-md)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Icon name="book-open" size={18} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Menu draft ready for review
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text-secondary)",
-                        marginBottom: 12,
-                      }}
-                    >
-                      Check Arabic content before publishing.
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => navigate("/catalogue/menus")}
-                      style={{
-                        padding: "6px 12px",
-                        background: "var(--action-secondary)",
-                        border: "none",
-                        borderRadius: "var(--radius-md)",
-                        color: "var(--text-primary)",
-                        fontSize: 13,
-                        fontWeight: 500,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Review menus
-                      <Icon
-                        name="arrow-right"
-                        size={14}
-                        style={{ marginLeft: 6, display: "inline-block" }}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div
+                You&apos;re all caught up
+              </p>
+              <p
                 style={{
-                  padding: "16px",
-                  background: "var(--surface-subtle)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "var(--radius-lg)",
+                  fontSize: 14,
+                  color: "var(--text-secondary)",
                 }}
               >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "start",
-                    gap: 12,
-                  }}
-                >
-                  <div
-                    style={{
-                      width: 36,
-                      height: 36,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "var(--surface-default)",
-                      borderRadius: "var(--radius-md)",
-                      flexShrink: 0,
-                    }}
-                  >
-                    <Icon name="package" size={18} />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <div
-                      style={{
-                        fontSize: 14,
-                        fontWeight: 600,
-                        marginBottom: 4,
-                      }}
-                    >
-                      Materials running low
-                    </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text-secondary)",
-                        marginBottom: 12,
-                      }}
-                    >
-                      Review minimum stock levels.
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => navigate("/locations")}
-                      style={{
-                        padding: "6px 12px",
-                        background: "var(--action-secondary)",
-                        border: "none",
-                        borderRadius: "var(--radius-md)",
-                        color: "var(--text-primary)",
-                        fontSize: 13,
-                        fontWeight: 500,
-                        cursor: "pointer",
-                      }}
-                    >
-                      Review inventory
-                      <Icon
-                        name="arrow-right"
-                        size={14}
-                        style={{ marginLeft: 6, display: "inline-block" }}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </div>
+                No notifications right now.
+              </p>
             </div>
           </div>
         </>
@@ -1057,103 +852,108 @@ export function StaffAppShellPrototype({
               </button>
             </div>
 
-            <p
-              style={{
-                fontSize: 14,
-                color: "var(--text-secondary)",
-                marginBottom: 24,
-              }}
-            >
-              QOS · Interactive design prototype
-            </p>
-
-            {tenants.map((tenant) => (
-              <div
-                key={tenant.id}
-                style={{
-                  padding: "16px",
-                  background:
-                    tenant.id === tenantId
-                      ? "var(--surface-selected)"
-                      : "var(--surface-subtle)",
-                  border: "1px solid var(--border-default)",
-                  borderRadius: "var(--radius-lg)",
-                  marginBottom: 12,
-                }}
-              >
-                <div
+            {tenants.map((tenant) => {
+              const tenantRole = tenant.role === "administrator" ? "Administrator" : "User";
+              
+              return (
+                <button
+                  key={tenant.id}
+                  type="button"
+                  onClick={() => {
+                    if (tenant.id !== tenantId) {
+                      router.push(`/tenants/${tenant.id}`);
+                      setWorkspaceSwitcherOpen(false);
+                    }
+                  }}
+                  disabled={tenant.id === tenantId}
                   style={{
-                    display: "flex",
-                    alignItems: "start",
-                    gap: 12,
+                    width: "100%",
+                    padding: "16px",
+                    background:
+                      tenant.id === tenantId
+                        ? "var(--surface-selected)"
+                        : "var(--surface-subtle)",
+                    border: "1px solid var(--border-default)",
+                    borderRadius: "var(--radius-lg)",
+                    marginBottom: 12,
+                    cursor: tenant.id === tenantId ? "default" : "pointer",
+                    transition: "all 0.15s ease",
+                  }}
+                  onMouseEnter={(e) => {
+                    if (tenant.id !== tenantId) {
+                      e.currentTarget.style.background = "var(--surface-hover)";
+                      e.currentTarget.style.borderColor = "var(--border-strong)";
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (tenant.id !== tenantId) {
+                      e.currentTarget.style.background = "var(--surface-subtle)";
+                      e.currentTarget.style.borderColor = "var(--border-default)";
+                    }
                   }}
                 >
                   <div
                     style={{
-                      width: 40,
-                      height: 40,
                       display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      background: "var(--surface-brand)",
-                      borderRadius: "var(--radius-md)",
-                      fontSize: 16,
-                      fontWeight: 600,
-                      color: "var(--text-on-brand)",
-                      flexShrink: 0,
+                      alignItems: "start",
+                      gap: 12,
                     }}
                   >
-                    Q
-                  </div>
-                  <div style={{ flex: 1 }}>
                     <div
                       style={{
+                        width: 40,
+                        height: 40,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        background: "var(--surface-brand)",
+                        borderRadius: "var(--radius-md)",
                         fontSize: 16,
                         fontWeight: 600,
-                        marginBottom: 4,
+                        color: "var(--text-on-brand)",
+                        flexShrink: 0,
                       }}
                     >
-                      {tenant.name}
+                      Q
                     </div>
-                    <div
-                      style={{
-                        fontSize: 13,
-                        color: "var(--text-secondary)",
-                      }}
-                    >
-                      3 branches · {roleLabel}
+                    <div style={{ flex: 1, textAlign: "left" }}>
+                      <div
+                        style={{
+                          fontSize: 16,
+                          fontWeight: 600,
+                          marginBottom: 4,
+                        }}
+                      >
+                        {tenant.name}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 13,
+                          color: "var(--text-secondary)",
+                        }}
+                      >
+                        {tenantRole}
+                      </div>
                     </div>
+                    {tenant.id === tenantId && (
+                      <div
+                        style={{
+                          padding: "4px 10px",
+                          background: "var(--status-success-bg)",
+                          border: "1px solid var(--status-success-border)",
+                          borderRadius: "var(--radius-md)",
+                          color: "var(--status-success-fg)",
+                          fontSize: 12,
+                          fontWeight: 600,
+                        }}
+                      >
+                        Selected
+                      </div>
+                    )}
                   </div>
-                  {tenant.id === tenantId && (
-                    <div
-                      style={{
-                        padding: "4px 10px",
-                        background: "var(--status-success-bg)",
-                        border: "1px solid var(--status-success-border)",
-                        borderRadius: "var(--radius-md)",
-                        color: "var(--status-success-fg)",
-                        fontSize: 12,
-                        fontWeight: 600,
-                      }}
-                    >
-                      Selected
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            <p
-              style={{
-                fontSize: 13,
-                color: "var(--text-tertiary)",
-                marginTop: 16,
-                lineHeight: 1.5,
-              }}
-            >
-              This prototype contains the Quotes sample workspace. Tenant switching
-              will use authenticated QOS memberships.
-            </p>
+                </button>
+              );
+            })}
           </div>
         </>
       )}
