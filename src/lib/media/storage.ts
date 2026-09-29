@@ -7,6 +7,7 @@ import { readMediaConfig, type MediaConfig } from "@/lib/media/config";
 export type MediaStorage = {
   writePrivate(relativePath: string, bytes: Buffer): Promise<void>;
   readPrivate(relativePath: string): Promise<Buffer>;
+  deletePrivate?(relativePath: string): Promise<void>;
   writePublic(relativePath: string, bytes: Buffer): Promise<void>;
   readPublic(relativePath: string): Promise<Buffer>;
   deletePublic(relativePath: string): Promise<void>;
@@ -54,6 +55,42 @@ export class LocalMediaStorage implements MediaStorage {
     } catch {
       // Ignore errors if file doesn't exist
     }
+  }
+
+  async deletePrivate(relativePath: string) {
+    const { unlink } = await import("node:fs/promises");
+    try {
+      await unlink(this.resolvePrivate(relativePath));
+    } catch {
+      // Ignore errors if file doesn't exist
+    }
+  }
+
+  listPublicBlobs(): string[] {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { readdirSync, statSync } = require("node:fs");
+    const publicRoot = this.resolvePublic("");
+    const blobs: string[] = [];
+
+    const walk = (dir: string) => {
+      try {
+        const entries = readdirSync(dir);
+        for (const entry of entries) {
+          const fullPath = path.join(dir, entry);
+          const stat = statSync(fullPath);
+          if (stat.isDirectory()) {
+            walk(fullPath);
+          } else {
+            blobs.push(path.relative(publicRoot, fullPath));
+          }
+        }
+      } catch {
+        // Directory doesn't exist yet
+      }
+    };
+
+    walk(publicRoot);
+    return blobs;
   }
 }
 
