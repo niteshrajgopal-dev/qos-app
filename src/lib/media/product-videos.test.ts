@@ -575,8 +575,8 @@ integrationDescribe("product video upload and processing", () => {
     expect(status.completedAt).toBeTruthy();
 
     const urls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
-    expect(urls?.playbackUrl).toMatch(/^\/api\/media\/public\/mvp_/);
-    expect(urls?.posterUrl).toMatch(/^\/api\/media\/public\/mpo_/);
+    expect(urls?.playbackUrl).toMatch(/^\/api\/public\/media\/mvp_/);
+    expect(urls?.posterUrl).toMatch(/^\/api\/public\/media\/mpo_/);
   });
 
   it.skipIf(!ffmpegAvailable)("rejects an over-duration video on the first attempt", async () => {
