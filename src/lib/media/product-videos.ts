@@ -445,8 +445,8 @@ export async function getApprovedProductVideoUrls(
       }
 
       return {
-        playbackUrl: `/api/media/public/${playback.publicId}`,
-        posterUrl: `/api/media/public/${poster.publicId}`,
+        playbackUrl: `/api/public/media/${playback.publicId}`,
+        posterUrl: `/api/public/media/${poster.publicId}`,
       };
     });
   } catch (error) {

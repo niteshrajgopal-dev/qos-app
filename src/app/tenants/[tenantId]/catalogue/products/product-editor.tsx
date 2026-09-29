@@ -937,7 +937,7 @@ export function ProductEditor({
 
       {isEditMode && productPublicId ? (
         <section className="qos-card" data-padding="md">
-          <h2 className="text-lg font-semibold">Product video</h2>
+          <h2 className="text-lg font-semibold">{staffUiCopy(locale, "productVideoLabel")}</h2>
           <p className="mt-2 text-sm text-zinc-600">
             {staffUiCopy(locale, "videoDescription")}
           </p>
@@ -968,20 +968,34 @@ export function ProductEditor({
                 {videoStatus}
               </p>
             ) : null}
-            <input
-              type="file"
-              accept="video/mp4"
-              disabled={videoUploading}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  setVideoRejectionReason(null);
-                  void uploadProductVideo(file);
-                }
-                event.target.value = "";
-              }}
-              className="block w-full text-sm text-zinc-700 file:mr-4 file:rounded-full file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium"
-            />
+            <div className="relative">
+              <input
+                type="file"
+                accept="video/mp4"
+                disabled={videoUploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    setVideoRejectionReason(null);
+                    void uploadProductVideo(file);
+                  }
+                  event.target.value = "";
+                }}
+                id="video-file-input"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+              />
+              <label
+                htmlFor="video-file-input"
+                className="block w-full text-sm text-zinc-700 cursor-pointer"
+              >
+                <span className="inline-flex items-center gap-2 rounded-full border-0 bg-zinc-100 px-4 py-2 text-sm font-medium hover:bg-zinc-200 transition-colors">
+                  {staffUiCopy(locale, "chooseFile")}
+                </span>
+                <span className="ml-3 text-zinc-500">
+                  {staffUiCopy(locale, "noFileChosen")}
+                </span>
+              </label>
+            </div>
             {videoUploading ? (
               <p className="text-sm text-zinc-600">{staffUiCopy(locale, "videoUploadingStatus")}</p>
             ) : null}

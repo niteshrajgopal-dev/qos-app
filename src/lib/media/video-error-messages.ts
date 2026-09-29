@@ -11,6 +11,10 @@ export function mapVideoErrorToFriendlyMessage(
 
   const lowerMessage = errorMessage.toLowerCase();
 
+  if (lowerMessage.includes("superseded")) {
+    return staffUiCopy(locale, "videoSuperseded");
+  }
+
   if (lowerMessage.includes("quarantined")) {
     return staffUiCopy(locale, "videoErrorQuarantined");
   }
