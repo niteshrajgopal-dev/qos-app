@@ -1,3 +1,8 @@
+import { db as appDb } from "@/db";
+import type { DbClient } from "@/db/client";
+import { readAgentConfig, type AgentConfig } from "@/lib/agents/config";
+import { parseAgentCredentialKey } from "@/lib/agents/credential-crypto";
+import { createHyperagentRuntimeProvider } from "@/lib/agents/hyperagent/hyperagent-runtime";
 import {
   AgentProviderError,
   type AgentProviderKind,
@@ -11,7 +16,10 @@ export function setAgentRuntimeProviderForTesting(provider: AgentRuntimeProvider
   providerOverride = provider;
 }
 
-export function getAgentRuntimeProvider(kind: AgentProviderKind): AgentRuntimeProvider {
+export function getAgentRuntimeProvider(
+  kind: AgentProviderKind,
+  options: { db?: DbClient; config?: AgentConfig } = {},
+): AgentRuntimeProvider {
   if (providerOverride) {
     if (providerOverride.kind !== kind) {
       throw new AgentProviderError(
@@ -20,6 +28,20 @@ export function getAgentRuntimeProvider(kind: AgentProviderKind): AgentRuntimePr
       );
     }
     return providerOverride;
+  }
+
+  const config = options.config ?? readAgentConfig();
+  if (
+    kind === "hyperagent" &&
+    config.enabled &&
+    config.hyperagentMcpUrl &&
+    config.credentialEncryptionKey
+  ) {
+    return createHyperagentRuntimeProvider({
+      db: options.db ?? appDb,
+      credentialKey: parseAgentCredentialKey(config.credentialEncryptionKey),
+      serverUrl: config.hyperagentMcpUrl,
+    });
   }
 
   throw new AgentProviderError(

@@ -27,11 +27,14 @@
     "export:quotes-hbz-finedine": "tsx scripts/export-quotes-hbz-finedine-fixture.ts",
     "import:quotes-hbz-finedine": "tsx scripts/import-quotes-hbz-finedine-menu.ts",
     "approve-publish:quotes-hbz-finedine": "tsx scripts/approve-publish-quotes-hbz-finedine-menu.ts",
-    "audit:ci": "tsx scripts/ci-npm-audit.ts"
+    "audit:ci": "tsx scripts/ci-npm-audit.ts",
+    "agents:connect-hyperagent": "tsx scripts/connect-hyperagent.ts",
+    "agents:approve-binding": "tsx scripts/approve-agent-binding.ts"
   },
   "dependencies": {
     "@azure/identity": "^4.13.3",
     "@azure/storage-blob": "^12.33.0",
+    "@modelcontextprotocol/sdk": "^1.31.0",
     "better-auth": "^1.7.4",
     "drizzle-orm": "^0.45.2",
     "exceljs": "^4.4.0",
@@ -41,7 +44,8 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "sharp": "^0.35.4",
-    "stripe": "^22.6.2"
+    "stripe": "^22.6.2",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
