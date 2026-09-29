@@ -7,6 +7,7 @@ import {
   catalogueMediaDerivatives,
   catalogueMediaUploadGrants,
   catalogueProducts,
+  videoProcessingJobs,
 } from "@/db/schema";
 import { readMediaConfig } from "@/lib/media/config";
 import { getMediaStorage } from "@/lib/media/storage";
@@ -495,7 +496,18 @@ export async function deleteProductVideoAsset(
         throw new ProductVideoError("Media asset not found.", 404);
       }
 
-      if (asset.contentType !== "video/mp4") {
+      const [grant] = await tx
+        .select({ expectedContentType: catalogueMediaUploadGrants.expectedContentType })
+        .from(catalogueMediaUploadGrants)
+        .where(
+          and(
+            eq(catalogueMediaUploadGrants.tenantId, tenantId),
+            eq(catalogueMediaUploadGrants.assetId, asset.id),
+          ),
+        )
+        .limit(1);
+
+      if (!grant || grant.expectedContentType !== "video/mp4") {
         throw new ProductVideoError(
           "Only video assets can be deleted through this endpoint.",
           400,
@@ -546,6 +558,15 @@ export async function deleteProductVideoAsset(
           and(
             eq(catalogueMediaUploadGrants.tenantId, tenantId),
             eq(catalogueMediaUploadGrants.assetId, asset.id),
+          ),
+        );
+
+      await tx
+        .delete(videoProcessingJobs)
+        .where(
+          and(
+            eq(videoProcessingJobs.tenantId, tenantId),
+            eq(videoProcessingJobs.assetId, asset.id),
           ),
         );
 

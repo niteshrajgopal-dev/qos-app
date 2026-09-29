@@ -642,12 +642,12 @@ integrationDescribe("product video upload and processing", () => {
     await processVideoJob(db, first!, { config: testConfig });
     const firstUrls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
 
-    const firstPlaybackPath = firstUrls!.playbackUrl.split("/").pop()!;
-    const firstPosterPath = firstUrls!.posterUrl.split("/").pop()!;
+    const firstPlaybackId = firstUrls!.playbackUrl.split("/").pop()!;
+    const firstPosterId = firstUrls!.posterUrl.split("/").pop()!;
 
     const allBlobs = localStorage.listPublicBlobs();
-    const firstPlaybackBlob = allBlobs.find((b) => b.includes(firstPlaybackPath));
-    const firstPosterBlob = allBlobs.find((b) => b.includes(firstPosterPath));
+    const firstPlaybackBlob = allBlobs.find((b) => b.endsWith(`${firstPlaybackId}.mp4`));
+    const firstPosterBlob = allBlobs.find((b) => b.endsWith(`${firstPosterId}.jpg`));
     expect(firstPlaybackBlob).toBeTruthy();
     expect(firstPosterBlob).toBeTruthy();
 
@@ -656,19 +656,19 @@ integrationDescribe("product video upload and processing", () => {
     await processVideoJob(db, replay!, { config: testConfig });
     const replayUrls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
 
-    const replayPlaybackPath = replayUrls!.playbackUrl.split("/").pop()!;
-    const replayPosterPath = replayUrls!.posterUrl.split("/").pop()!;
+    const replayPlaybackId = replayUrls!.playbackUrl.split("/").pop()!;
+    const replayPosterId = replayUrls!.posterUrl.split("/").pop()!;
 
     const allBlobsAfter = localStorage.listPublicBlobs();
-    const replayPlaybackBlob = allBlobsAfter.find((b) => b.includes(replayPlaybackPath));
-    const replayPosterBlob = allBlobsAfter.find((b) => b.includes(replayPosterPath));
+    const replayPlaybackBlob = allBlobsAfter.find((b) => b.endsWith(`${replayPlaybackId}.mp4`));
+    const replayPosterBlob = allBlobsAfter.find((b) => b.endsWith(`${replayPosterId}.jpg`));
     expect(replayPlaybackBlob).toBeTruthy();
     expect(replayPosterBlob).toBeTruthy();
 
-    expect(allBlobsAfter.find((b) => b.includes(firstPlaybackPath))).toBeUndefined();
-    expect(allBlobsAfter.find((b) => b.includes(firstPosterPath))).toBeUndefined();
+    expect(allBlobsAfter.find((b) => b.endsWith(`${firstPlaybackId}.mp4`))).toBeUndefined();
+    expect(allBlobsAfter.find((b) => b.endsWith(`${firstPosterId}.jpg`))).toBeUndefined();
 
-    const assetBlobs = allBlobsAfter.filter((b) => b.includes(queued.assetPublicId));
+    const assetBlobs = allBlobsAfter.filter((b) => b.includes(`/${queued.assetPublicId}/`));
     expect(assetBlobs).toHaveLength(2);
   });
 
@@ -889,12 +889,12 @@ integrationDescribe("product video upload and processing", () => {
       await processVideoJob(db, job!, { config: testConfig });
 
       const urls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
-      const playbackPath = urls!.playbackUrl.split("/").pop()!;
-      const posterPath = urls!.posterUrl.split("/").pop()!;
+      const playbackId = urls!.playbackUrl.split("/").pop()!;
+      const posterId = urls!.posterUrl.split("/").pop()!;
 
       const blobsBefore = localStorage.listPublicBlobs();
-      expect(blobsBefore.find((b) => b.includes(playbackPath))).toBeTruthy();
-      expect(blobsBefore.find((b) => b.includes(posterPath))).toBeTruthy();
+      expect(blobsBefore.find((b) => b.endsWith(`${playbackId}.mp4`))).toBeTruthy();
+      expect(blobsBefore.find((b) => b.endsWith(`${posterId}.jpg`))).toBeTruthy();
 
       const result = await deleteProductVideoAsset(
         db,
@@ -907,8 +907,8 @@ integrationDescribe("product video upload and processing", () => {
       expect(result.deletedDerivativeCount).toBe(2);
 
       const blobsAfter = localStorage.listPublicBlobs();
-      expect(blobsAfter.find((b) => b.includes(playbackPath))).toBeUndefined();
-      expect(blobsAfter.find((b) => b.includes(posterPath))).toBeUndefined();
+      expect(blobsAfter.find((b) => b.endsWith(`${playbackId}.mp4`))).toBeUndefined();
+      expect(blobsAfter.find((b) => b.endsWith(`${posterId}.jpg`))).toBeUndefined();
     });
 
     it.skipIf(!ffmpegAvailable)("refuses to delete asset referenced by a product as primary media", async () => {
