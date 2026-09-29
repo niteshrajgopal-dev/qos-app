@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { createHash, randomUUID } from "node:crypto";
 
 import type { DbClient } from "@/db/client";
@@ -616,36 +616,73 @@ export async function getApprovedThumbnailPublicIdForProduct(
     )
     .limit(1);
 
-  if (!product?.primaryMediaAssetId) {
+  if (!product) {
     return null;
   }
 
-  const [asset] = await tx
-    .select({ status: catalogueMediaAssets.status })
+  const thumbnails = await getApprovedThumbnailPublicIdsForProducts(
+    tx,
+    tenantId,
+    [{ id: productId, primaryMediaAssetId: product.primaryMediaAssetId }],
+  );
+
+  return thumbnails.get(productId) ?? null;
+}
+
+/**
+ * A product has a usable photo when its primary media asset is approved and
+ * has a thumbnail derivative. Returns productId -> thumbnail public ID for the
+ * products that satisfy that rule.
+ */
+export async function getApprovedThumbnailPublicIdsForProducts(
+  tx: DbClient,
+  tenantId: string,
+  products: Array<{ id: string; primaryMediaAssetId: string | null }>,
+): Promise<Map<string, string>> {
+  const result = new Map<string, string>();
+  const productIdsByAsset = new Map<string, string[]>();
+
+  for (const product of products) {
+    if (!product.primaryMediaAssetId) {
+      continue;
+    }
+    const productIds = productIdsByAsset.get(product.primaryMediaAssetId) ?? [];
+    productIds.push(product.id);
+    productIdsByAsset.set(product.primaryMediaAssetId, productIds);
+  }
+
+  const assetIds = [...productIdsByAsset.keys()];
+  if (assetIds.length === 0) {
+    return result;
+  }
+
+  const rows = await tx
+    .select({
+      assetId: catalogueMediaAssets.id,
+      publicDerivativeId: catalogueMediaDerivatives.publicDerivativeId,
+    })
     .from(catalogueMediaAssets)
-    .where(
-      and(
-        eq(catalogueMediaAssets.tenantId, tenantId),
-        eq(catalogueMediaAssets.id, product.primaryMediaAssetId),
-      ),
-    )
-    .limit(1);
-
-  if (!asset || asset.status !== "approved") {
-    return null;
-  }
-
-  const [derivative] = await tx
-    .select({ publicDerivativeId: catalogueMediaDerivatives.publicDerivativeId })
-    .from(catalogueMediaDerivatives)
-    .where(
+    .innerJoin(
+      catalogueMediaDerivatives,
       and(
         eq(catalogueMediaDerivatives.tenantId, tenantId),
-        eq(catalogueMediaDerivatives.assetId, product.primaryMediaAssetId),
+        eq(catalogueMediaDerivatives.assetId, catalogueMediaAssets.id),
         eq(catalogueMediaDerivatives.derivativeKind, "thumbnail"),
       ),
     )
-    .limit(1);
+    .where(
+      and(
+        eq(catalogueMediaAssets.tenantId, tenantId),
+        eq(catalogueMediaAssets.status, "approved"),
+        inArray(catalogueMediaAssets.id, assetIds),
+      ),
+    );
 
-  return derivative?.publicDerivativeId ?? null;
+  for (const row of rows) {
+    for (const productId of productIdsByAsset.get(row.assetId) ?? []) {
+      result.set(productId, row.publicDerivativeId);
+    }
+  }
+
+  return result;
 }

@@ -536,44 +536,65 @@ export async function validateProductTranslationsForPublish(
         ),
       );
 
-    const english = translationRows.find((row) => row.locale === "en");
-    const arabic = translationRows.find((row) => row.locale === "ar");
+    issues.push(
+      ...evaluateProductTranslationsForPublish(productPublicId, translationRows),
+    );
+  }
 
-    for (const locale of ["en", "ar"] as const) {
-      const translation = locale === "en" ? english : arabic;
-      const field = `products.${productPublicId}.translations.${locale}`;
+  return issues;
+}
 
-      if (!translation?.displayName.trim()) {
-        issues.push({
-          productPublicId,
-          field,
-          message: `${locale.toUpperCase()} display name is required before publishing.`,
-        });
-        continue;
-      }
+export type PublishTranslationFacts = Pick<
+  typeof catalogueProductTranslations.$inferSelect,
+  | "locale"
+  | "displayName"
+  | "approvalStatus"
+  | "translationVersion"
+  | "approvedSourceTranslationVersion"
+>;
 
-      if (translation.approvalStatus !== "approved") {
-        issues.push({
-          productPublicId,
-          field,
-          message: `${locale.toUpperCase()} translation requires Administrator approval before publishing.`,
-        });
-      }
-    }
+export function evaluateProductTranslationsForPublish(
+  productPublicId: string,
+  translationRows: PublishTranslationFacts[],
+): PublishTranslationValidationIssue[] {
+  const issues: PublishTranslationValidationIssue[] = [];
+  const english = translationRows.find((row) => row.locale === "en");
+  const arabic = translationRows.find((row) => row.locale === "ar");
 
-    if (
-      arabic?.approvalStatus === "approved" &&
-      english &&
-      arabic.approvedSourceTranslationVersion != null &&
-      arabic.approvedSourceTranslationVersion !== english.translationVersion
-    ) {
+  for (const locale of ["en", "ar"] as const) {
+    const translation = locale === "en" ? english : arabic;
+    const field = `products.${productPublicId}.translations.${locale}`;
+
+    if (!translation?.displayName.trim()) {
       issues.push({
         productPublicId,
-        field: `products.${productPublicId}.translations.ar`,
-        message:
-          "Arabic approval is stale because the English source changed. Re-approve Arabic before publishing.",
+        field,
+        message: `${locale.toUpperCase()} display name is required before publishing.`,
+      });
+      continue;
+    }
+
+    if (translation.approvalStatus !== "approved") {
+      issues.push({
+        productPublicId,
+        field,
+        message: `${locale.toUpperCase()} translation requires Administrator approval before publishing.`,
       });
     }
+  }
+
+  if (
+    arabic?.approvalStatus === "approved" &&
+    english &&
+    arabic.approvedSourceTranslationVersion != null &&
+    arabic.approvedSourceTranslationVersion !== english.translationVersion
+  ) {
+    issues.push({
+      productPublicId,
+      field: `products.${productPublicId}.translations.ar`,
+      message:
+        "Arabic approval is stale because the English source changed. Re-approve Arabic before publishing.",
+    });
   }
 
   return issues;
