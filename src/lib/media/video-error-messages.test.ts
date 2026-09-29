@@ -99,6 +99,22 @@ describe("mapVideoErrorToFriendlyMessage", () => {
     expect(result).toBe("The video could not be processed after multiple attempts.");
   });
 
+  test("maps superseded error to friendly message", () => {
+    const result = mapVideoErrorToFriendlyMessage(
+      "Superseded by a newer upload.",
+      "en",
+    );
+    expect(result).toBe("Superseded by a newer upload.");
+  });
+
+  test("maps superseded error to Arabic", () => {
+    const result = mapVideoErrorToFriendlyMessage(
+      "Superseded by a newer upload.",
+      "ar",
+    );
+    expect(result).toBe("تم استبداله بملف أحدث.");
+  });
+
   test("maps unknown error to generic message", () => {
     const result = mapVideoErrorToFriendlyMessage(
       "Some unexpected error occurred",

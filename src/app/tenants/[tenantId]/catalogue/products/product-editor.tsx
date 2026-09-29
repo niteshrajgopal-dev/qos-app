@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/Modal";
 import { Toast, ToastStack } from "@/components/Toast";
@@ -109,6 +109,8 @@ export function ProductEditor({
   const [videoJobState, setVideoJobState] = useState<"queued" | "processing" | "ready" | "rejected" | "failed" | "quarantined" | null>(null);
   const [videoRejectionReason, setVideoRejectionReason] = useState<string | null>(null);
   const [approvedVideoUrls, setApprovedVideoUrls] = useState<{ playbackUrl: string; posterUrl: string } | null>(null);
+  const [selectedVideoFilename, setSelectedVideoFilename] = useState<string | null>(null);
+  const activeCorrelationIdRef = useRef<string | null>(null);
   const locale = readStoredStaffLocale();
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
@@ -337,10 +339,13 @@ export function ProductEditor({
       return;
     }
 
+    activeCorrelationIdRef.current = null;
+
     setVideoUploading(true);
     setVideoStatus(staffUiCopy(locale, "videoUploadingStatus"));
     setVideoRejectionReason(null);
     setError(null);
+    setSelectedVideoFilename(file.name);
 
     try {
       const grantResponse = await staffApiFetch(
@@ -416,6 +421,7 @@ export function ProductEditor({
         job?: {
           correlationId: string;
           status: string;
+          supersededCount?: number;
         };
         error?: string;
       };
@@ -431,8 +437,14 @@ export function ProductEditor({
         return;
       }
 
+      activeCorrelationIdRef.current = queuePayload.job.correlationId;
       setVideoJobState(queuePayload.job.status as typeof videoJobState);
       setVideoStatus(staffUiCopy(locale, "videoQueuedStatus"));
+      
+      if (queuePayload.job.supersededCount && queuePayload.job.supersededCount > 0) {
+        setVideoRejectionReason(staffUiCopy(locale, "videoSuperseded"));
+      }
+      
       void pollVideoJobStatus(queuePayload.job.correlationId);
     } catch (uploadError) {
       const friendlyMessage = mapVideoErrorToFriendlyMessage(
@@ -456,8 +468,14 @@ export function ProductEditor({
     const pollInterval = 3000;
 
     const poll = async () => {
+      if (activeCorrelationIdRef.current !== correlationId) {
+        return;
+      }
+
       if (attempts >= maxAttempts) {
-        setVideoStatus("Processing took too long. Check back later.");
+        if (activeCorrelationIdRef.current === correlationId) {
+          setVideoStatus("Processing took too long. Check back later.");
+        }
         return;
       }
 
@@ -477,7 +495,13 @@ export function ProductEditor({
         };
 
         if (!statusResponse.ok || !statusPayload.job) {
-          setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
+          if (activeCorrelationIdRef.current === correlationId) {
+            setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
+          }
+          return;
+        }
+
+        if (activeCorrelationIdRef.current !== correlationId) {
           return;
         }
 
@@ -505,7 +529,9 @@ export function ProductEditor({
           setVideoStatus(null);
         }
       } catch {
-        setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
+        if (activeCorrelationIdRef.current === correlationId) {
+          setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
+        }
       }
     };
 
@@ -937,7 +963,7 @@ export function ProductEditor({
 
       {isEditMode && productPublicId ? (
         <section className="qos-card" data-padding="md">
-          <h2 className="text-lg font-semibold">Product video</h2>
+          <h2 className="text-lg font-semibold">{staffUiCopy(locale, "productVideoLabel")}</h2>
           <p className="mt-2 text-sm text-zinc-600">
             {staffUiCopy(locale, "videoDescription")}
           </p>
@@ -968,20 +994,34 @@ export function ProductEditor({
                 {videoStatus}
               </p>
             ) : null}
-            <input
-              type="file"
-              accept="video/mp4"
-              disabled={videoUploading}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  setVideoRejectionReason(null);
-                  void uploadProductVideo(file);
-                }
-                event.target.value = "";
-              }}
-              className="block w-full text-sm text-zinc-700 file:mr-4 file:rounded-full file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium"
-            />
+            <div className="relative">
+              <input
+                type="file"
+                accept="video/mp4"
+                disabled={videoUploading}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (file) {
+                    setVideoRejectionReason(null);
+                    void uploadProductVideo(file);
+                  }
+                  event.target.value = "";
+                }}
+                id="video-file-input"
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
+              />
+              <label
+                htmlFor="video-file-input"
+                className="block w-full text-sm text-zinc-700 cursor-pointer"
+              >
+                <span className="inline-flex items-center gap-2 rounded-full border-0 bg-zinc-100 px-4 py-2 text-sm font-medium hover:bg-zinc-200 transition-colors">
+                  {staffUiCopy(locale, "chooseFile")}
+                </span>
+                <span className="ml-3 text-zinc-500">
+                  {selectedVideoFilename || staffUiCopy(locale, "noFileChosen")}
+                </span>
+              </label>
+            </div>
             {videoUploading ? (
               <p className="text-sm text-zinc-600">{staffUiCopy(locale, "videoUploadingStatus")}</p>
             ) : null}

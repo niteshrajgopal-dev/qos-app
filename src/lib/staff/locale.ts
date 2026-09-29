@@ -94,6 +94,10 @@ export const STAFF_UI_COPY = {
     videoReadyForPublish: "Video ready for menu publish.",
     videoDescription: "Upload an MP4 video (max 20 MiB, 25 seconds, 1080p, H.264 or H.265). The video is validated and transcoded asynchronously.",
     videoPlayerFallback: "Your browser does not support the video tag.",
+    videoSuperseded: "Superseded by a newer upload.",
+    productVideoLabel: "Product video",
+    chooseFile: "Choose File",
+    noFileChosen: "No file chosen",
   },
   ar: {
     signInTitle: "تسجيل الدخول إلى QOS",
@@ -151,6 +155,10 @@ export const STAFF_UI_COPY = {
     videoReadyForPublish: "الفيديو جاهز للنشر في القائمة.",
     videoDescription: "ارفع فيديو MP4 (بحد أقصى 20 ميغابايت، 25 ثانية، 1080 بكسل، H.264 أو H.265). يتم التحقق من الفيديو وتحويله تلقائيًا.",
     videoPlayerFallback: "متصفحك لا يدعم عرض الفيديو.",
+    videoSuperseded: "تم استبداله بملف أحدث.",
+    productVideoLabel: "فيديو المنتج",
+    chooseFile: "اختيار ملف",
+    noFileChosen: "لم يتم اختيار ملف",
   },
 } as const;
 
