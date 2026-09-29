@@ -109,6 +109,8 @@ export function ProductEditor({
   const [videoJobState, setVideoJobState] = useState<"queued" | "processing" | "ready" | "rejected" | "failed" | "quarantined" | null>(null);
   const [videoRejectionReason, setVideoRejectionReason] = useState<string | null>(null);
   const [approvedVideoUrls, setApprovedVideoUrls] = useState<{ playbackUrl: string; posterUrl: string } | null>(null);
+  const [activeCorrelationId, setActiveCorrelationId] = useState<string | null>(null);
+  const [selectedVideoFilename, setSelectedVideoFilename] = useState<string | null>(null);
   const locale = readStoredStaffLocale();
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
@@ -341,6 +343,7 @@ export function ProductEditor({
     setVideoStatus(staffUiCopy(locale, "videoUploadingStatus"));
     setVideoRejectionReason(null);
     setError(null);
+    setSelectedVideoFilename(file.name);
 
     try {
       const grantResponse = await staffApiFetch(
@@ -416,6 +419,7 @@ export function ProductEditor({
         job?: {
           correlationId: string;
           status: string;
+          supersededCount?: number;
         };
         error?: string;
       };
@@ -431,8 +435,14 @@ export function ProductEditor({
         return;
       }
 
+      setActiveCorrelationId(queuePayload.job.correlationId);
       setVideoJobState(queuePayload.job.status as typeof videoJobState);
       setVideoStatus(staffUiCopy(locale, "videoQueuedStatus"));
+      
+      if (queuePayload.job.supersededCount && queuePayload.job.supersededCount > 0) {
+        setVideoRejectionReason(staffUiCopy(locale, "videoSuperseded"));
+      }
+      
       void pollVideoJobStatus(queuePayload.job.correlationId);
     } catch (uploadError) {
       const friendlyMessage = mapVideoErrorToFriendlyMessage(
@@ -456,8 +466,14 @@ export function ProductEditor({
     const pollInterval = 3000;
 
     const poll = async () => {
+      if (activeCorrelationId !== correlationId) {
+        return;
+      }
+
       if (attempts >= maxAttempts) {
-        setVideoStatus("Processing took too long. Check back later.");
+        if (activeCorrelationId === correlationId) {
+          setVideoStatus("Processing took too long. Check back later.");
+        }
         return;
       }
 
@@ -477,7 +493,13 @@ export function ProductEditor({
         };
 
         if (!statusResponse.ok || !statusPayload.job) {
-          setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
+          if (activeCorrelationId === correlationId) {
+            setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
+          }
+          return;
+        }
+
+        if (activeCorrelationId !== correlationId) {
           return;
         }
 
@@ -505,7 +527,9 @@ export function ProductEditor({
           setVideoStatus(null);
         }
       } catch {
-        setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
+        if (activeCorrelationId === correlationId) {
+          setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
+        }
       }
     };
 
@@ -992,7 +1016,7 @@ export function ProductEditor({
                   {staffUiCopy(locale, "chooseFile")}
                 </span>
                 <span className="ml-3 text-zinc-500">
-                  {staffUiCopy(locale, "noFileChosen")}
+                  {selectedVideoFilename || staffUiCopy(locale, "noFileChosen")}
                 </span>
               </label>
             </div>

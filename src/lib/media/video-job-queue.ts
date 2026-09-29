@@ -7,7 +7,7 @@ import {
   catalogueMediaDerivatives,
   videoProcessingJobs,
 } from "@/db/schema";
-import { withTenantContext } from "@/lib/tenant/context";
+import { setTenantContext, withTenantContext, type DbTransaction } from "@/lib/tenant/context";
 import {
   readVideoProcessingConfig,
   type VideoProcessingConfig,
@@ -125,114 +125,116 @@ export function decideVideoJobFailure(
  * preserved (the rejection does not delete approved derivatives).
  */
 export async function queueVideoProcessingJob(
-  db: DbClient,
+  dbOrTx: DbClient | DbTransaction,
   tenantId: string,
   productId: string,
   assetId: string,
   sourceStoragePath: string,
 ): Promise<{ jobId: string; correlationId: string; supersededCount: number }> {
-  return withTenantContext(db, tenantId, async (tx) => {
-    const existingJobs = await tx
-      .select({
-        id: videoProcessingJobs.id,
-        correlationId: videoProcessingJobs.correlationId,
-        status: videoProcessingJobs.status,
-        assetId: videoProcessingJobs.assetId,
+  const executor = dbOrTx as DbTransaction;
+  
+  await setTenantContext(executor, tenantId);
+
+  const existingJobs = await executor
+    .select({
+      id: videoProcessingJobs.id,
+      correlationId: videoProcessingJobs.correlationId,
+      status: videoProcessingJobs.status,
+      assetId: videoProcessingJobs.assetId,
+    })
+    .from(videoProcessingJobs)
+    .where(
+      and(
+        eq(videoProcessingJobs.tenantId, tenantId),
+        eq(videoProcessingJobs.productId, productId),
+        inArray(videoProcessingJobs.status, [
+          "queued",
+          "processing",
+          "ready",
+        ]),
+      ),
+    );
+
+  const queuedJobsToSupersede = existingJobs.filter(
+    (job) => job.status === "queued" && job.assetId !== assetId,
+  );
+
+  const now = new Date();
+  let supersededCount = 0;
+
+  if (queuedJobsToSupersede.length > 0) {
+    const supersededIds = queuedJobsToSupersede.map((job) => job.id);
+
+    const rejectedJobs = await executor
+      .update(videoProcessingJobs)
+      .set({
+        status: "rejected",
+        lastErrorMessage: "Superseded by a newer upload.",
+        lastErrorAt: now,
+        updatedAt: now,
       })
-      .from(videoProcessingJobs)
       .where(
         and(
           eq(videoProcessingJobs.tenantId, tenantId),
-          eq(videoProcessingJobs.productId, productId),
-          inArray(videoProcessingJobs.status, [
-            "queued",
-            "processing",
-            "ready",
-          ]),
+          inArray(videoProcessingJobs.id, supersededIds),
+          eq(videoProcessingJobs.status, "queued"),
         ),
-      );
+      )
+      .returning({ assetId: videoProcessingJobs.assetId });
 
-    const queuedJobsToSupersede = existingJobs.filter(
-      (job) => job.status === "queued" && job.assetId !== assetId,
-    );
+    if (rejectedJobs.length > 0) {
+      const rejectedAssetIds = rejectedJobs.map((job) => job.assetId);
 
-    const now = new Date();
-    let supersededCount = 0;
-
-    if (queuedJobsToSupersede.length > 0) {
-      const supersededIds = queuedJobsToSupersede.map((job) => job.id);
-
-      const rejectedJobs = await tx
-        .update(videoProcessingJobs)
+      await executor
+        .update(catalogueMediaAssets)
         .set({
           status: "rejected",
-          lastErrorMessage: "Superseded by a newer upload.",
-          lastErrorAt: now,
+          failureReason: "Superseded by a newer upload.",
           updatedAt: now,
         })
         .where(
           and(
-            eq(videoProcessingJobs.tenantId, tenantId),
-            inArray(videoProcessingJobs.id, supersededIds),
-            eq(videoProcessingJobs.status, "queued"),
+            eq(catalogueMediaAssets.tenantId, tenantId),
+            inArray(catalogueMediaAssets.id, rejectedAssetIds),
           ),
-        )
-        .returning({ assetId: videoProcessingJobs.assetId });
-
-      if (rejectedJobs.length > 0) {
-        const rejectedAssetIds = rejectedJobs.map((job) => job.assetId);
-
-        await tx
-          .update(catalogueMediaAssets)
-          .set({
-            status: "rejected",
-            failureReason: "Superseded by a newer upload.",
-            updatedAt: now,
-          })
-          .where(
-            and(
-              eq(catalogueMediaAssets.tenantId, tenantId),
-              inArray(catalogueMediaAssets.id, rejectedAssetIds),
-            ),
-          );
-      }
-
-      supersededCount = rejectedJobs.length;
+        );
     }
 
-    const matchingJob = existingJobs.find((job) => job.assetId === assetId);
-    if (matchingJob) {
-      return {
-        jobId: matchingJob.id,
-        correlationId: matchingJob.correlationId,
-        supersededCount,
-      };
-    }
+    supersededCount = rejectedJobs.length;
+  }
 
-    const correlationId = generateCorrelationId(tenantId, productId, assetId);
-
-    const [job] = await tx
-      .insert(videoProcessingJobs)
-      .values({
-        tenantId,
-        assetId,
-        productId,
-        correlationId,
-        sourceStoragePath,
-        status: "queued",
-        retryCount: 0,
-      })
-      .returning({
-        id: videoProcessingJobs.id,
-        correlationId: videoProcessingJobs.correlationId,
-      });
-
+  const matchingJob = existingJobs.find((job) => job.assetId === assetId);
+  if (matchingJob) {
     return {
-      jobId: job.id,
-      correlationId: job.correlationId,
+      jobId: matchingJob.id,
+      correlationId: matchingJob.correlationId,
       supersededCount,
     };
-  });
+  }
+
+  const correlationId = generateCorrelationId(tenantId, productId, assetId);
+
+  const [job] = await executor
+    .insert(videoProcessingJobs)
+    .values({
+      tenantId,
+      assetId,
+      productId,
+      correlationId,
+      sourceStoragePath,
+      status: "queued",
+      retryCount: 0,
+    })
+    .returning({
+      id: videoProcessingJobs.id,
+      correlationId: videoProcessingJobs.correlationId,
+    });
+
+  return {
+    jobId: job.id,
+    correlationId: job.correlationId,
+    supersededCount,
+  };
 }
 
 type ClaimRow = {

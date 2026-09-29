@@ -338,8 +338,8 @@ export async function queueProductVideoProcessing(
         })
         .where(eq(catalogueMediaAssets.id, asset.id));
 
-      const { jobId, correlationId } = await queueVideoProcessingJob(
-        tx as DbClient,
+      const { jobId, correlationId, supersededCount } = await queueVideoProcessingJob(
+        tx,
         tenantId,
         product.id,
         asset.id,
@@ -350,6 +350,7 @@ export async function queueProductVideoProcessing(
         assetPublicId: asset.publicId,
         jobId,
         correlationId,
+        supersededCount,
         status: "processing" as const,
       };
     });
