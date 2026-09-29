@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { StorefrontPublishPanel } from "@/app/tenants/[tenantId]/channels/online-store/storefront-publish-panel";
 import { StorefrontContentBlocksPanel } from "@/app/tenants/[tenantId]/channels/online-store/storefront-content-blocks-panel";
@@ -27,47 +27,50 @@ type OnlineStoreManagementProps = {
   tenantId: string;
 };
 
+async function fetchIsAdministrator(tenantId: string) {
+  const response = await staffApiFetch("/api/staff/me/memberships");
+  const payload = (await response.json()) as {
+    memberships?: Array<{
+      tenantId: string;
+      role: "administrator" | "user";
+    }>;
+    error?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Unable to load staff membership.");
+  }
+
+  const membership = payload.memberships?.find(
+    (entry) => entry.tenantId === tenantId,
+  );
+
+  return membership?.role === "administrator";
+}
+
+async function fetchStorefronts(tenantId: string) {
+  const response = await staffApiFetch(`/api/tenants/${tenantId}/storefronts`);
+  const payload = (await response.json()) as {
+    storefronts?: StorefrontSummary[];
+    error?: string;
+  };
+
+  if (!response.ok) {
+    throw new Error(payload.error ?? "Unable to load storefronts.");
+  }
+
+  return payload.storefronts ?? [];
+}
+
 export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) {
   const [storefronts, setStorefronts] = useState<StorefrontSummary[]>([]);
   const [selectedPublicId, setSelectedPublicId] = useState<string | null>(null);
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
-  const loadMembership = useCallback(async () => {
-    const response = await staffApiFetch("/api/staff/me/memberships");
-    const payload = (await response.json()) as {
-      memberships?: Array<{
-        tenantId: string;
-        role: "administrator" | "user";
-      }>;
-      error?: string;
-    };
-
-    if (!response.ok) {
-      throw new Error(payload.error ?? "Unable to load staff membership.");
-    }
-
-    const membership = payload.memberships?.find(
-      (entry) => entry.tenantId === tenantId,
-    );
-
-    setIsAdministrator(membership?.role === "administrator");
-  }, [tenantId]);
-
-  const loadStorefronts = useCallback(async () => {
+  const applyStorefronts = useCallback((nextStorefronts: StorefrontSummary[]) => {
     setError(null);
-
-    const response = await staffApiFetch(`/api/tenants/${tenantId}/storefronts`);
-    const payload = (await response.json()) as {
-      storefronts?: StorefrontSummary[];
-      error?: string;
-    };
-
-    if (!response.ok) {
-      throw new Error(payload.error ?? "Unable to load storefronts.");
-    }
-
-    const nextStorefronts = payload.storefronts ?? [];
     setStorefronts(nextStorefronts);
     setSelectedPublicId((current) => {
       if (current && nextStorefronts.some((row) => row.publicId === current)) {
@@ -76,11 +79,50 @@ export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) 
 
       return nextStorefronts[0]?.publicId ?? null;
     });
-  }, [tenantId]);
+  }, []);
+
+  const loadStorefronts = useCallback(async () => {
+    applyStorefronts(await fetchStorefronts(tenantId));
+  }, [applyStorefronts, tenantId]);
 
   const refresh = useCallback(async () => {
-    await Promise.all([loadMembership(), loadStorefronts()]);
-  }, [loadMembership, loadStorefronts]);
+    const [administrator, nextStorefronts] = await Promise.all([
+      fetchIsAdministrator(tenantId),
+      fetchStorefronts(tenantId),
+    ]);
+    setIsAdministrator(administrator);
+    applyStorefronts(nextStorefronts);
+  }, [applyStorefronts, tenantId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    Promise.all([fetchIsAdministrator(tenantId), fetchStorefronts(tenantId)])
+      .then(([administrator, nextStorefronts]) => {
+        if (!cancelled) {
+          setIsAdministrator(administrator);
+          applyStorefronts(nextStorefronts);
+        }
+      })
+      .catch((loadError) => {
+        if (!cancelled) {
+          setError(
+            loadError instanceof Error
+              ? loadError.message
+              : "Unable to load online store.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setLoaded(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [applyStorefronts, tenantId]);
 
   const selectedStorefront =
     storefronts.find((storefront) => storefront.publicId === selectedPublicId) ??
@@ -102,7 +144,7 @@ export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) 
           }
           className="qos-btn" data-variant="secondary"
         >
-          Load online store
+          Refresh
         </button>
         <Link
           href={`/tenants/${tenantId}/catalogue/menus`}
@@ -154,7 +196,7 @@ export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) 
             onStorefrontUpdated={loadStorefronts}
           />
         </>
-      ) : storefronts.length === 0 ? (
+      ) : loaded && !error && storefronts.length === 0 ? (
         <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
           No storefronts found for this tenant yet.
         </p>

@@ -1,7 +1,12 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
-import { staffMemberships } from "@/db/schema";
+import {
+  locations,
+  staffIdentities,
+  staffLocationScopes,
+  staffMemberships,
+} from "@/db/schema";
 import { recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -27,6 +32,71 @@ export type ActiveStaffMembershipSummary = {
   membershipId: string;
   role: "administrator" | "user";
 };
+
+export type TenantStaffMember = {
+  membershipId: string;
+  email: string;
+  role: "administrator" | "user";
+  status: "active" | "revoked";
+  createdAt: string;
+  updatedAt: string;
+  locations: { publicId: string; name: string }[];
+};
+
+export async function listTenantStaffMembers(
+  db: DbClient,
+  tenantId: string,
+): Promise<TenantStaffMember[]> {
+  return withTenantContext(db, tenantId, async (tx) => {
+    const members = await tx
+      .select({
+        membershipId: staffMemberships.id,
+        email: staffIdentities.email,
+        role: staffMemberships.role,
+        status: staffMemberships.status,
+        createdAt: staffMemberships.createdAt,
+        updatedAt: staffMemberships.updatedAt,
+      })
+      .from(staffMemberships)
+      .innerJoin(
+        staffIdentities,
+        eq(staffIdentities.id, staffMemberships.staffIdentityId),
+      )
+      .where(eq(staffMemberships.tenantId, tenantId))
+      .orderBy(asc(staffMemberships.status), desc(staffMemberships.createdAt));
+
+    const scopes = await tx
+      .select({
+        membershipId: staffLocationScopes.staffMembershipId,
+        publicId: locations.publicId,
+        name: locations.name,
+      })
+      .from(staffLocationScopes)
+      .innerJoin(
+        locations,
+        and(
+          eq(locations.tenantId, staffLocationScopes.tenantId),
+          eq(locations.id, staffLocationScopes.locationId),
+        ),
+      )
+      .where(eq(staffLocationScopes.tenantId, tenantId))
+      .orderBy(locations.name);
+
+    const scopesByMembership = new Map<string, { publicId: string; name: string }[]>();
+    for (const scope of scopes) {
+      const list = scopesByMembership.get(scope.membershipId) ?? [];
+      list.push({ publicId: scope.publicId, name: scope.name });
+      scopesByMembership.set(scope.membershipId, list);
+    }
+
+    return members.map((member) => ({
+      ...member,
+      createdAt: member.createdAt.toISOString(),
+      updatedAt: member.updatedAt.toISOString(),
+      locations: scopesByMembership.get(member.membershipId) ?? [],
+    }));
+  });
+}
 
 export async function revokeStaffMembership(
   db: DbClient,
