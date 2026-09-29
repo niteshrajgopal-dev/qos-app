@@ -668,7 +668,12 @@ integrationDescribe("product video upload and processing", () => {
     expect(allBlobsAfter.find((b) => b.endsWith(`${firstPlaybackId}.mp4`))).toBeUndefined();
     expect(allBlobsAfter.find((b) => b.endsWith(`${firstPosterId}.jpg`))).toBeUndefined();
 
-    const assetBlobs = allBlobsAfter.filter((b) => b.includes(`/${queued.assetPublicId}/`));
+    const assetIdRow = await sqlClient`
+      SELECT id FROM qos.catalogue_media_assets WHERE public_id = ${queued.assetPublicId}
+    `;
+    const assetId = assetIdRow[0].id as string;
+
+    const assetBlobs = allBlobsAfter.filter((b) => b.includes(`/${assetId}/`));
     expect(assetBlobs).toHaveLength(2);
   });
 
@@ -697,26 +702,30 @@ integrationDescribe("product video upload and processing", () => {
       }
     }
 
-    setMediaStorage(new FailingDeleteStorage(localStorage));
+    try {
+      setMediaStorage(new FailingDeleteStorage(localStorage));
 
-    await sqlClient`UPDATE qos.video_processing_jobs SET status = 'queued' WHERE id = ${first!.jobId}`;
-    const replay = await claimNextQueuedJob(db, { config: testConfig });
-    await processVideoJob(db, replay!, { config: testConfig });
+      await sqlClient`UPDATE qos.video_processing_jobs SET status = 'queued' WHERE id = ${first!.jobId}`;
+      const replay = await claimNextQueuedJob(db, { config: testConfig });
+      await processVideoJob(db, replay!, { config: testConfig });
 
-    const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
-    expect(status.status).toBe("ready");
-    expect(status.completedAt).toBeTruthy();
+      const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
+      expect(status.status).toBe("ready");
+      expect(status.completedAt).toBeTruthy();
 
-    const replayUrls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
-    expect(replayUrls?.playbackUrl).toBeTruthy();
-    expect(replayUrls?.posterUrl).toBeTruthy();
+      const replayUrls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
+      expect(replayUrls?.playbackUrl).toBeTruthy();
+      expect(replayUrls?.posterUrl).toBeTruthy();
 
-    const derivativeRows = await sqlClient`
-      SELECT derivative_kind FROM qos.catalogue_media_derivatives d
-      JOIN qos.catalogue_media_assets a ON a.id = d.asset_id
-      WHERE a.public_id = ${queued.assetPublicId}
-    `;
-    expect(derivativeRows).toHaveLength(2);
+      const derivativeRows = await sqlClient`
+        SELECT derivative_kind FROM qos.catalogue_media_derivatives d
+        JOIN qos.catalogue_media_assets a ON a.id = d.asset_id
+        WHERE a.public_id = ${queued.assetPublicId}
+      `;
+      expect(derivativeRows).toHaveLength(2);
+    } finally {
+      setMediaStorage(localStorage);
+    }
   });
 
   it("rejects foreign-tenant product ID", async () => {
