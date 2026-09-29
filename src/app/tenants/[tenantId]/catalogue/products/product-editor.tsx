@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/Modal";
 import { Toast, ToastStack } from "@/components/Toast";
@@ -109,8 +109,8 @@ export function ProductEditor({
   const [videoJobState, setVideoJobState] = useState<"queued" | "processing" | "ready" | "rejected" | "failed" | "quarantined" | null>(null);
   const [videoRejectionReason, setVideoRejectionReason] = useState<string | null>(null);
   const [approvedVideoUrls, setApprovedVideoUrls] = useState<{ playbackUrl: string; posterUrl: string } | null>(null);
-  const [activeCorrelationId, setActiveCorrelationId] = useState<string | null>(null);
   const [selectedVideoFilename, setSelectedVideoFilename] = useState<string | null>(null);
+  const activeCorrelationIdRef = useRef<string | null>(null);
   const locale = readStoredStaffLocale();
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
@@ -339,6 +339,8 @@ export function ProductEditor({
       return;
     }
 
+    activeCorrelationIdRef.current = null;
+
     setVideoUploading(true);
     setVideoStatus(staffUiCopy(locale, "videoUploadingStatus"));
     setVideoRejectionReason(null);
@@ -435,7 +437,7 @@ export function ProductEditor({
         return;
       }
 
-      setActiveCorrelationId(queuePayload.job.correlationId);
+      activeCorrelationIdRef.current = queuePayload.job.correlationId;
       setVideoJobState(queuePayload.job.status as typeof videoJobState);
       setVideoStatus(staffUiCopy(locale, "videoQueuedStatus"));
       
@@ -466,12 +468,12 @@ export function ProductEditor({
     const pollInterval = 3000;
 
     const poll = async () => {
-      if (activeCorrelationId !== correlationId) {
+      if (activeCorrelationIdRef.current !== correlationId) {
         return;
       }
 
       if (attempts >= maxAttempts) {
-        if (activeCorrelationId === correlationId) {
+        if (activeCorrelationIdRef.current === correlationId) {
           setVideoStatus("Processing took too long. Check back later.");
         }
         return;
@@ -493,13 +495,13 @@ export function ProductEditor({
         };
 
         if (!statusResponse.ok || !statusPayload.job) {
-          if (activeCorrelationId === correlationId) {
+          if (activeCorrelationIdRef.current === correlationId) {
             setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
           }
           return;
         }
 
-        if (activeCorrelationId !== correlationId) {
+        if (activeCorrelationIdRef.current !== correlationId) {
           return;
         }
 
@@ -527,7 +529,7 @@ export function ProductEditor({
           setVideoStatus(null);
         }
       } catch {
-        if (activeCorrelationId === correlationId) {
+        if (activeCorrelationIdRef.current === correlationId) {
           setVideoStatus(staffUiCopy(locale, "videoCheckStatusError"));
         }
       }
