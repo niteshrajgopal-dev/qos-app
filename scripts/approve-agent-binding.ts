@@ -56,6 +56,9 @@ async function main() {
 
 main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : error);
+  if (error instanceof Error && error.cause instanceof Error) {
+    console.error(`Cause: ${error.cause.message}`);
+  }
   console.error(`\n${usage()}`);
   process.exitCode = 1;
 });

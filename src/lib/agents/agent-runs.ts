@@ -8,6 +8,7 @@ import type { TenantAgentBinding } from "@/lib/agents/tenant-agent-bindings";
 import {
   AgentProviderError,
   type AgentCapability,
+  type AgentProviderKind,
   type AgentRunObservation,
   type AgentRunStatus,
   type AgentRuntimeProvider,
@@ -44,6 +45,8 @@ export type AgentRunView = {
 
 export type AgentRunRecord = AgentRunView & {
   id: string;
+  provider: AgentProviderKind;
+  requestSummary: Record<string, unknown>;
   providerAgentId: string;
   providerThreadId: string | null;
   correlationId: string;
@@ -90,6 +93,8 @@ function toRecord(row: AgentRunRow): AgentRunRecord {
     finishedAt: iso(row.finishedAt),
     deadlineAt: row.deadlineAt.toISOString(),
     nextPollAt: iso(row.nextPollAt),
+    provider: row.provider,
+    requestSummary: row.requestSummary ?? {},
     providerAgentId: row.providerAgentId,
     providerThreadId: row.providerThreadId,
     correlationId: row.correlationId,
@@ -182,8 +187,10 @@ export type CreateAgentRunInput = {
   subject: { type: string; publicId: string; version: number | null };
   requestedBy: { subject: string; actorClass: AuditActorClass };
   idempotencyKey: string;
-  /** Small, non-sensitive facts about the request. Never the full snapshot. */
+  /** Non-sensitive facts QOS needs later, e.g. to validate the reply. Never the full snapshot. */
   requestSummary: Record<string, unknown>;
+  /** What the audit trail records about the request; defaults to `requestSummary`. */
+  auditRequestSummary?: Record<string, unknown>;
   runTimeoutMs: number;
   now?: Date;
 };
@@ -244,7 +251,7 @@ export async function createAgentRun(
     if (inserted) {
       await auditRun(tx, inserted, "agent_run.requested", input.requestedBy, {
         providerAgentId: inserted.providerAgentId,
-        request: input.requestSummary,
+        request: input.auditRequestSummary ?? input.requestSummary,
       });
       return { run: toRecord(inserted), created: true };
     }

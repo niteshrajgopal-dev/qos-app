@@ -168,6 +168,9 @@ async function main() {
 
 main().catch((error: unknown) => {
   console.error(error instanceof Error ? error.message : error);
+  if (error instanceof Error && error.cause instanceof Error) {
+    console.error(`Cause: ${error.cause.message}`);
+  }
   console.error(`\n${usage()}`);
   // The loopback listener may still be open after an early failure.
   process.exit(1);

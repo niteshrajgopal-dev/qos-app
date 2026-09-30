@@ -18,11 +18,17 @@ export class FakeAgentProvider implements AgentRuntimeProvider {
   readonly getRunCalls: string[] = [];
   private observations: ScriptedObservation[] = [{ state: "running" }];
   private threadCounter = 0;
+  private startError: Error | null = null;
 
   constructor(private readonly agents: AgentDescriptor[] = []) {}
 
   script(...observations: ScriptedObservation[]) {
     this.observations = observations;
+    return this;
+  }
+
+  failStartWith(error: Error | null) {
+    this.startError = error;
     return this;
   }
 
@@ -32,6 +38,9 @@ export class FakeAgentProvider implements AgentRuntimeProvider {
 
   async startRun(input: StartAgentRunInput) {
     this.startCalls.push(input);
+    if (this.startError) {
+      throw this.startError;
+    }
     this.threadCounter += 1;
     return { providerThreadId: `thread_fake_${this.threadCounter}` };
   }
