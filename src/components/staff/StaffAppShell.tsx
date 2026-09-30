@@ -115,6 +115,7 @@ function shellGroups(
             { id: "audit", label: "Audit" },
           ],
         },
+        { id: "ai-agents", label: "AI & Agents", icon: "sparkles" },
         { id: "settings", label: "Settings", icon: "settings" },
       ],
     },

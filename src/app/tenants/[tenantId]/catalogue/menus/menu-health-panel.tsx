@@ -11,11 +11,15 @@ import {
   productsForIssueType,
   visibleIssueGroups,
 } from "@/app/tenants/[tenantId]/catalogue/menus/menu-health-view";
+import { MenuManagerSection } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-section";
+import { unavailableHint } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-view";
 import { Alert } from "@/components/Alert";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Drawer } from "@/components/Drawer";
+import { Checkbox } from "@/design-system/components/primitives/Checkbox";
+import type { TenantAgentSettingsView } from "@/lib/agents/tenant-agent-settings";
 import type {
   MenuHealthIssueType,
   MenuHealthReport,
@@ -39,6 +43,41 @@ export function MenuHealthPanel({
   const [loading, setLoading] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [focusType, setFocusType] = useState<MenuHealthIssueType | null>(null);
+  const [agents, setAgents] = useState<TenantAgentSettingsView | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await staffApiFetch(`/api/tenants/${tenantId}/agents`);
+        const payload = (await response.json().catch(() => ({}))) as {
+          agents?: TenantAgentSettingsView;
+        };
+        if (!cancelled && response.ok && payload.agents) {
+          setAgents(payload.agents);
+        }
+      } catch {
+        // Without agent settings the AI entry point simply stays hidden.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [tenantId]);
+
+  const menuManagerAvailable = agents?.menuManager.available ?? false;
+  const agentHint = agents
+    ? unavailableHint(agents.menuManager.unavailableReason, agents.canManage)
+    : null;
+
+  function toggleSelected(productPublicId: string) {
+    setSelected((current) =>
+      current.includes(productPublicId)
+        ? current.filter((id) => id !== productPublicId)
+        : [...current, productPublicId],
+    );
+  }
 
   const loadHealth = useCallback(async () => {
     setLoading(true);
@@ -86,6 +125,7 @@ export function MenuHealthPanel({
   }
 
   return (
+    <>
     <Card
       header="Menu health"
       subtitle={
@@ -197,10 +237,19 @@ export function MenuHealthPanel({
         description={report ? menuHealthHeadline(report) : undefined}
         onClose={() => setDrawerOpen(false)}
         footer={
-          focusType && groups.length > 1 ? (
-            <Button variant="secondary" onClick={() => setFocusType(null)}>
-              Show all issues
-            </Button>
+          (focusType && groups.length > 1) || (menuManagerAvailable && selected.length > 0) ? (
+            <>
+              {menuManagerAvailable && selected.length > 0 ? (
+                <span className="qos-card-sub">
+                  {selected.length} selected for Menu Manager
+                </span>
+              ) : null}
+              {focusType && groups.length > 1 ? (
+                <Button variant="secondary" onClick={() => setFocusType(null)}>
+                  Show all issues
+                </Button>
+              ) : null}
+            </>
           ) : undefined
         }
       >
@@ -230,7 +279,18 @@ export function MenuHealthPanel({
                         alignItems: "flex-start",
                       }}
                     >
-                      <div style={{ minWidth: 0 }}>
+                      {menuManagerAvailable ? (
+                        <Checkbox
+                          label={
+                            <span className="sr-only">
+                              Select {product.displayName} for Menu Manager
+                            </span>
+                          }
+                          checked={selected.includes(product.productPublicId)}
+                          onChange={() => toggleSelected(product.productPublicId)}
+                        />
+                      ) : null}
+                      <div style={{ minWidth: 0, flex: 1 }}>
                         <div>{product.displayName}</div>
                         <div className="qos-card-sub">
                           <code>{product.productPublicId}</code>
@@ -257,6 +317,18 @@ export function MenuHealthPanel({
           </div>
         ) : null}
       </Drawer>
+      {agentHint ? <p className="qos-card-sub">{agentHint}</p> : null}
     </Card>
+    {menuManagerAvailable ? (
+      <MenuManagerSection
+        tenantId={tenantId}
+        menuPublicId={menuPublicId}
+        menuVersion={menuVersion}
+        report={report}
+        selectedProductPublicIds={selected}
+        onClearSelection={() => setSelected([])}
+      />
+    ) : null}
+    </>
   );
 }

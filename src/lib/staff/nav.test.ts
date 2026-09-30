@@ -60,6 +60,9 @@ describe("staffNavHref", () => {
     expect(staffNavHref(tenantId, "categories")).toBe(
       `/tenants/${tenantId}/catalogue/categories`,
     );
+    expect(staffNavHref(tenantId, "ai-agents")).toBe(
+      `/tenants/${tenantId}/settings/ai-agents`,
+    );
   });
 });
 
@@ -121,5 +124,11 @@ describe("activeStaffNavIdFromPath", () => {
     expect(
       activeStaffNavIdFromPath(`/tenants/${tenantId}/integrations`),
     ).toBe("integrations");
+    expect(
+      activeStaffNavIdFromPath(`/tenants/${tenantId}/settings/ai-agents`),
+    ).toBe("ai-agents");
+    expect(activeStaffNavIdFromPath(`/tenants/${tenantId}/settings`)).toBe(
+      "settings",
+    );
   });
 });

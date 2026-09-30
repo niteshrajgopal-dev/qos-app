@@ -67,6 +67,7 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
           { id: "audit", label: "Audit", availability: "ready" },
         ],
       },
+      { id: "ai-agents", label: "AI & Agents", icon: "sparkles", availability: "ready" },
       { id: "settings", label: "Settings", icon: "settings", availability: "ready" },
     ],
   },
@@ -90,6 +91,7 @@ const STAFF_NAV_PATHS: Record<string, string> = {
   team: "/team",
   access: "/staff/access-requests",
   audit: "/staff/audit",
+  "ai-agents": "/settings/ai-agents",
   settings: "/settings",
 };
 
@@ -110,6 +112,7 @@ const PATH_MATCHERS: Array<{ id: string; suffix: string }> = [
   { id: "customers", suffix: "/customers" },
   { id: "integrations", suffix: "/integrations" },
   { id: "analytics", suffix: "/analytics" },
+  { id: "ai-agents", suffix: "/settings/ai-agents" },
   { id: "settings", suffix: "/settings" },
 ];
 
