@@ -206,6 +206,50 @@ async function assertAuthorizedLocations(
   }
 }
 
+/**
+ * Applies the same effective authorization as `updateDraftMenu`: the menu
+ * must exist for the tenant and the membership must cover every location the
+ * menu is assigned to. Must run inside `withTenantContext`.
+ */
+export async function assertMenuLocationAccess(
+  tx: DbClient,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  menuPublicId: string,
+) {
+  const [menu] = await tx
+    .select({ id: catalogueMenus.id })
+    .from(catalogueMenus)
+    .where(
+      and(
+        eq(catalogueMenus.tenantId, tenantId),
+        eq(catalogueMenus.publicId, menuPublicId),
+      ),
+    )
+    .limit(1);
+
+  if (!menu) {
+    throw new MenuError("Menu not found.", 404);
+  }
+
+  const locationRows = await tx
+    .select({ locationId: catalogueMenuLocations.locationId })
+    .from(catalogueMenuLocations)
+    .where(
+      and(
+        eq(catalogueMenuLocations.tenantId, tenantId),
+        eq(catalogueMenuLocations.menuId, menu.id),
+      ),
+    );
+
+  await assertAuthorizedLocations(
+    tx,
+    tenantId,
+    membership,
+    locationRows.map((row) => row.locationId),
+  );
+}
+
 async function resolveProductIdsByPublicId(
   tx: DbClient,
   tenantId: string,

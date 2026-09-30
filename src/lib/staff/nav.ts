@@ -67,10 +67,61 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
           { id: "audit", label: "Audit", availability: "ready" },
         ],
       },
+      { id: "ai-agents", label: "AI & Agents", icon: "sparkles", availability: "ready" },
       { id: "settings", label: "Settings", icon: "settings", availability: "ready" },
     ],
   },
 ];
+
+/* The portal shell puts five destinations in the 94px header and files the rest
+   under "More", mirroring the approved prototype's Overview/Orders/Catalogue/
+   Menus/Storefronts/More header. Ids are the same ones staffNavHref resolves. */
+export const STAFF_TOP_NAV: Array<{ id: string; label: string }> = [
+  { id: "home", label: "Overview" },
+  { id: "orders", label: "Orders" },
+  { id: "catalogue", label: "Catalogue" },
+  { id: "menus", label: "Menus" },
+  { id: "store", label: "Storefronts" },
+];
+
+export const STAFF_MORE_NAV_GROUPS: StaffNavGroup[] = [
+  {
+    label: "Catalogue",
+    items: [
+      { id: "categories", label: "Categories", availability: "ready" },
+      { id: "modifiers", label: "Modifier groups", availability: "ready" },
+      { id: "import", label: "Import", availability: "ready" },
+    ],
+  },
+  {
+    label: "Commerce",
+    items: [
+      { id: "channels", label: "Sales channels", availability: "ready" },
+      { id: "pos", label: "POS", availability: "ready" },
+      { id: "locations", label: "Locations", availability: "ready" },
+      { id: "customers", label: "Customers", availability: "ready" },
+    ],
+  },
+  {
+    label: "Platform",
+    items: [
+      { id: "integrations", label: "Integrations", availability: "ready" },
+      { id: "analytics", label: "Analytics", availability: "ready" },
+      { id: "team", label: "Team", availability: "ready" },
+      { id: "access", label: "Access requests", availability: "ready" },
+      { id: "audit", label: "Audit", availability: "ready" },
+      { id: "ai-agents", label: "AI & Agents", availability: "ready" },
+      { id: "settings", label: "Settings", availability: "ready" },
+    ],
+  },
+];
+
+/** True when the active destination lives under "More" rather than the header. */
+export function isStaffMoreNavId(id: string): boolean {
+  return STAFF_MORE_NAV_GROUPS.some((group) =>
+    group.items.some((item) => item.id === id),
+  );
+}
 
 const STAFF_NAV_PATHS: Record<string, string> = {
   home: "",
@@ -90,6 +141,7 @@ const STAFF_NAV_PATHS: Record<string, string> = {
   team: "/team",
   access: "/staff/access-requests",
   audit: "/staff/audit",
+  "ai-agents": "/settings/ai-agents",
   settings: "/settings",
 };
 
@@ -110,6 +162,7 @@ const PATH_MATCHERS: Array<{ id: string; suffix: string }> = [
   { id: "customers", suffix: "/customers" },
   { id: "integrations", suffix: "/integrations" },
   { id: "analytics", suffix: "/analytics" },
+  { id: "ai-agents", suffix: "/settings/ai-agents" },
   { id: "settings", suffix: "/settings" },
 ];
 

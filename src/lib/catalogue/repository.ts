@@ -2,6 +2,8 @@ import { and, asc, eq, inArray } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
 import {
+  catalogueMediaAssets,
+  catalogueMediaDerivatives,
   catalogueModifierGroupTranslations,
   catalogueModifierGroups,
   catalogueModifierOptionTranslations,
@@ -263,6 +265,7 @@ export async function listCatalogueProductSummaries(
         internalName: catalogueProducts.internalName,
         displayName: catalogueProductTranslations.displayName,
         status: catalogueProducts.status,
+        thumbnailPublicId: catalogueMediaDerivatives.publicDerivativeId,
       })
       .from(catalogueProducts)
       .leftJoin(
@@ -273,6 +276,22 @@ export async function listCatalogueProductSummaries(
           eq(catalogueProductTranslations.locale, locale),
         ),
       )
+      .leftJoin(
+        catalogueMediaAssets,
+        and(
+          eq(catalogueMediaAssets.tenantId, tenantId),
+          eq(catalogueMediaAssets.id, catalogueProducts.primaryMediaAssetId),
+          eq(catalogueMediaAssets.status, "approved"),
+        ),
+      )
+      .leftJoin(
+        catalogueMediaDerivatives,
+        and(
+          eq(catalogueMediaDerivatives.tenantId, tenantId),
+          eq(catalogueMediaDerivatives.assetId, catalogueMediaAssets.id),
+          eq(catalogueMediaDerivatives.derivativeKind, "thumbnail"),
+        ),
+      )
       .where(eq(catalogueProducts.tenantId, tenantId))
       .orderBy(asc(catalogueProducts.publicId));
 
@@ -281,6 +300,7 @@ export async function listCatalogueProductSummaries(
       internalName: row.internalName,
       displayName: row.displayName ?? row.internalName,
       status: row.status,
+      thumbnailPublicId: row.thumbnailPublicId ?? null,
     }));
   });
 }

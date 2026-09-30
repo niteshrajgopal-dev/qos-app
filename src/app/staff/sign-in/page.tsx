@@ -1,3 +1,5 @@
+import Image from "next/image";
+
 import { StaffSignInForm } from "@/app/staff/sign-in/staff-sign-in-form";
 import { Logo } from "@/design-system";
 
@@ -5,17 +7,13 @@ export default function StaffSignInPage() {
   return (
     <div className="qos-login" data-qos-theme="dark">
       <div className="qos-login-brand">
-        <img
+        <Image
           src="/brand/motif-orbital-hero.png"
           alt=""
-          style={{
-            position: "absolute",
-            inset: 0,
-            width: "100%",
-            height: "100%",
-            objectFit: "cover",
-            opacity: 0.9,
-          }}
+          fill
+          priority
+          sizes="(max-width: 900px) 100vw, 50vw"
+          style={{ objectFit: "cover", opacity: 0.9 }}
         />
         <div
           style={{
@@ -26,17 +24,10 @@ export default function StaffSignInPage() {
         />
         <Logo variant="navy" height={26} style={{ position: "relative" }} />
         <div style={{ position: "relative", maxWidth: 460 }}>
-          <h1
-            style={{
-              fontSize: 40,
-              lineHeight: "48px",
-              letterSpacing: "-.02em",
-              fontWeight: 600,
-            }}
-          >
+          <h1 className="qosp-auth-title">
             Ideas today.
             <br />
-            Impact tomorrow.
+            <em>Impact tomorrow.</em>
           </h1>
           <p
             style={{

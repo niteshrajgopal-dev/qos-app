@@ -1,5 +1,11 @@
-import { TeamScreen } from "@/components/platform/team-settings-screen";
+import { TeamScreen } from "@/components/staff/team-screen";
 
-export default function TenantTeamPage() {
-  return <TeamScreen />;
+type PageProps = {
+  params: Promise<{ tenantId: string }>;
+};
+
+export default async function TenantTeamPage({ params }: PageProps) {
+  const { tenantId } = await params;
+
+  return <TeamScreen tenantId={tenantId} />;
 }

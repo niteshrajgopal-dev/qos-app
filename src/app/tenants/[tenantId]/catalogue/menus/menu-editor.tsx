@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useMemo, useState } from "react";
 
+import { MenuHealthPanel } from "@/app/tenants/[tenantId]/catalogue/menus/menu-health-panel";
 import { MenuPublishPanel } from "@/app/tenants/[tenantId]/catalogue/menus/menu-publish-panel";
 import { ConfirmDialog } from "@/components/Modal";
 import { Toast, ToastStack } from "@/components/Toast";
@@ -455,6 +456,14 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
 
   return (
     <div className="space-y-6 pb-24">
+      {isEditMode && form.publicId ? (
+        <MenuHealthPanel
+          tenantId={tenantId}
+          menuPublicId={form.publicId}
+          menuVersion={form.version}
+        />
+      ) : null}
+
       <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold">Menu details</h2>
         <div className="mt-4 grid gap-4">

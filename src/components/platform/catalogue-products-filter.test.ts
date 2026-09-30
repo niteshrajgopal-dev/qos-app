@@ -14,30 +14,35 @@ const mockProducts: ProductSummary[] = [
     internalName: "flat-white",
     displayName: "Flat White",
     status: "active",
+    thumbnailPublicId: null,
   },
   {
     publicId: "prd_2",
     internalName: "latte",
     displayName: "Latte",
     status: "draft",
+    thumbnailPublicId: null,
   },
   {
     publicId: "prd_3",
     internalName: "cortado",
     displayName: "Cortado",
     status: "active",
+    thumbnailPublicId: null,
   },
   {
     publicId: "prd_4",
     internalName: "cold-brew",
     displayName: "Cold Brew",
     status: "archived",
+    thumbnailPublicId: null,
   },
   {
     publicId: "prd_5",
     internalName: "demo-latte",
     displayName: "Demo Latte",
     status: "draft",
+    thumbnailPublicId: null,
   },
 ];
 

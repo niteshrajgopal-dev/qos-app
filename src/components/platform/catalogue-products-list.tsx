@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import {
@@ -30,7 +31,12 @@ export type ProductSummary = {
   internalName: string;
   displayName: string;
   status: string;
+  thumbnailPublicId: string | null;
 };
+
+export function publicProductThumbnailUrl(thumbnailPublicId: string) {
+  return `/api/public/media/${thumbnailPublicId}`;
+}
 
 type ApiResponse = {
   products: ProductSummary[];
@@ -367,9 +373,22 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
               display: "grid",
               placeItems: "center",
               color: "var(--text-tertiary)",
+              overflow: "hidden",
+              flex: "none",
             }}
           >
-            <Icon name="image" size={13} />
+            {r.thumbnailPublicId ? (
+              <Image
+                src={publicProductThumbnailUrl(r.thumbnailPublicId)}
+                alt=""
+                width={28}
+                height={28}
+                unoptimized
+                style={{ width: 28, height: 28, objectFit: "cover", display: "block" }}
+              />
+            ) : (
+              <Icon name="image" size={13} />
+            )}
           </span>
           <span style={{ fontWeight: 500 }}>{r.displayName}</span>
         </span>

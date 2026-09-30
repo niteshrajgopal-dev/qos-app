@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   activeStaffNavIdFromPath,
+  isStaffMoreNavId,
   staffNavHref,
   staffNavItemById,
+  STAFF_MORE_NAV_GROUPS,
+  STAFF_TOP_NAV,
 } from "@/lib/staff/nav";
 
 const tenantId = "0fe2c09b-e07e-4c0c-a3e1-254773eed5b9";
@@ -60,6 +63,9 @@ describe("staffNavHref", () => {
     expect(staffNavHref(tenantId, "categories")).toBe(
       `/tenants/${tenantId}/catalogue/categories`,
     );
+    expect(staffNavHref(tenantId, "ai-agents")).toBe(
+      `/tenants/${tenantId}/settings/ai-agents`,
+    );
   });
 });
 
@@ -72,6 +78,39 @@ describe("staffNavItemById", () => {
     expect(staffNavItemById("pos")?.availability).toBe("ready");
     expect(staffNavItemById("categories")?.availability).toBe("ready");
     expect(staffNavItemById("menus")?.label).toBe("Menus");
+  });
+});
+
+describe("portal header navigation", () => {
+  it("puts the prototype's five destinations in the header", () => {
+    expect(STAFF_TOP_NAV.map((item) => item.label)).toEqual([
+      "Overview",
+      "Orders",
+      "Catalogue",
+      "Menus",
+      "Storefronts",
+    ]);
+  });
+
+  it("resolves every header and More destination to a route", () => {
+    const ids = [
+      ...STAFF_TOP_NAV.map((item) => item.id),
+      ...STAFF_MORE_NAV_GROUPS.flatMap((group) =>
+        group.items.map((item) => item.id),
+      ),
+    ];
+
+    for (const id of ids) {
+      expect(staffNavHref(tenantId, id), id).not.toBeNull();
+    }
+  });
+
+  it("never lists a header destination under More as well", () => {
+    for (const item of STAFF_TOP_NAV) {
+      expect(isStaffMoreNavId(item.id), item.id).toBe(false);
+    }
+
+    expect(isStaffMoreNavId("settings")).toBe(true);
   });
 });
 
@@ -121,5 +160,11 @@ describe("activeStaffNavIdFromPath", () => {
     expect(
       activeStaffNavIdFromPath(`/tenants/${tenantId}/integrations`),
     ).toBe("integrations");
+    expect(
+      activeStaffNavIdFromPath(`/tenants/${tenantId}/settings/ai-agents`),
+    ).toBe("ai-agents");
+    expect(activeStaffNavIdFromPath(`/tenants/${tenantId}/settings`)).toBe(
+      "settings",
+    );
   });
 });
