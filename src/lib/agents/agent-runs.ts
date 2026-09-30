@@ -157,6 +157,7 @@ async function auditRun(
   action:
     | "agent_run.requested"
     | "agent_run.started"
+    | "agent_run.awaiting_approval"
     | "agent_run.completed"
     | "agent_run.failed",
   actor: { subject: string; actorClass: AuditActorClass },
@@ -509,6 +510,9 @@ export async function recordAgentRunOutcome(
         .set({ ...releaseLease, status: "awaiting_approval", nextPollAt: null })
         .where(heldLease)
         .returning();
+      if (row) {
+        await auditRun(tx, row, "agent_run.awaiting_approval", SYSTEM_ACTOR, {});
+      }
     } else if (outcome.state === "completed") {
       [row] = await tx
         .update(agentRuns)

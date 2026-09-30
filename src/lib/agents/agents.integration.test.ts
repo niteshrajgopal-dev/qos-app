@@ -505,6 +505,14 @@ integrationDescribe("agent platform foundation", () => {
       expect(provider.getRunCalls).toHaveLength(1);
       expect("resolveApproval" in provider).toBe(false);
 
+      const audit = await auditActions(quotes.tenant.id, run.publicId);
+      expect(audit.map((event) => event.action)).toEqual([
+        "agent_run.requested",
+        "agent_run.started",
+        "agent_run.awaiting_approval",
+      ]);
+      expect(audit[2]!.changeSummary).toMatchObject({ status: "awaiting_approval" });
+
       await expect(
         withTenantContext(db, quotes.tenant.id, (tx) =>
           tx
