@@ -1,0 +1,118 @@
+/* QOS semantic tokens — PORTAL. The staff app is dark-only and runs the approved portal
+   palette, so this layer re-points every semantic token at portal.css primitives.
+   Imported after semantic-dark.css, which it deliberately overrides; the brand-guide
+   light and dark layers are kept for the customer-facing storefront surfaces. */
+[data-qos-theme="dark"] {
+  color-scheme: dark;
+
+  --surface-canvas: var(--portal-canvas);
+  --surface-default: var(--portal-card);
+  --surface-subtle: var(--portal-surface);
+  --surface-sunken: var(--portal-night);
+  --surface-hover: rgba(255, 255, 255, .05);
+  --surface-active: rgba(255, 255, 255, .09);
+  --surface-selected: rgba(179, 161, 239, .18);
+  --surface-inverse: var(--portal-text);
+  --surface-inverse-subtle: #e6e6ef;
+  --surface-overlay: var(--portal-overlay);
+  --surface-scrim: rgba(12, 19, 25, .66);
+  --surface-brand: var(--portal-violet);
+  --surface-brand-subtle: rgba(179, 161, 239, .14);
+  --surface-intelligence: rgba(179, 161, 239, .16);
+  --surface-disabled: rgba(255, 255, 255, .06);
+
+  --text-primary: var(--portal-text);
+  --text-secondary: var(--portal-muted);
+  --text-tertiary: var(--portal-faint);
+  --text-inverse: #171d29;
+  --text-inverse-secondary: #4b5565;
+  --text-brand: var(--portal-violet);
+  --text-link: var(--portal-violet-soft);
+  --text-link-hover: var(--portal-cyan);
+  --text-intelligence: var(--portal-violet-soft);
+  --text-disabled: rgba(244, 243, 245, .38);
+  --text-on-brand: #fff;
+  --text-placeholder: #a2aabb;
+
+  --border-subtle: var(--portal-line-subtle);
+  --border-default: rgba(255, 255, 255, .125);
+  --border-strong: var(--portal-line-strong);
+  --border-inverse: #cbd2e1;
+  --border-brand: var(--portal-violet);
+  --border-focus: var(--portal-focus);
+  --border-intelligence: rgba(195, 178, 222, .34);
+
+  --action-primary: var(--portal-violet-strong);
+  --action-primary-hover: #b5a3ee;
+  --action-primary-active: #9a90d6;
+  --action-primary-disabled: rgba(163, 154, 224, .32);
+  --action-secondary: rgba(255, 255, 255, .06);
+  --action-secondary-hover: rgba(255, 255, 255, .11);
+  --action-secondary-active: rgba(255, 255, 255, .16);
+  --action-ghost-hover: rgba(255, 255, 255, .08);
+  --action-danger: var(--portal-rose);
+  --action-danger-hover: #f8a5a5;
+  --action-danger-subtle: rgba(243, 147, 147, .16);
+
+  --status-success-fg: var(--portal-mint);
+  --status-success-bg: rgba(125, 210, 181, .10);
+  --status-success-border: rgba(140, 189, 162, .32);
+  --status-success-solid: #7dd2b5;
+  --status-warning-fg: var(--portal-amber);
+  --status-warning-bg: rgba(217, 189, 162, .10);
+  --status-warning-border: rgba(203, 177, 142, .34);
+  --status-warning-solid: #d9bda2;
+  --status-error-fg: var(--portal-rose);
+  --status-error-bg: rgba(243, 147, 147, .14);
+  --status-error-border: rgba(243, 147, 147, .38);
+  --status-error-solid: #f39393;
+  --status-info-fg: var(--portal-cyan);
+  --status-info-bg: rgba(153, 223, 233, .14);
+  --status-info-border: rgba(153, 223, 233, .34);
+  --status-info-solid: var(--portal-cyan);
+  --status-neutral-fg: var(--portal-muted);
+  --status-neutral-bg: rgba(255, 255, 255, .07);
+  --status-neutral-border: rgba(255, 255, 255, .16);
+  --status-neutral-solid: var(--portal-faint);
+  --status-processing-fg: var(--portal-cyan);
+  --status-processing-bg: rgba(153, 223, 233, .14);
+  --status-processing-border: rgba(153, 223, 233, .34);
+  --status-processing-solid: var(--portal-cyan);
+
+  --intelligence-accent: var(--portal-violet);
+  --intelligence-accent-strong: var(--portal-violet-soft);
+  --intelligence-surface: rgba(179, 161, 239, .14);
+  --intelligence-border: rgba(179, 161, 239, .34);
+  --qos-gradient: var(--portal-gradient-primary);
+  --qos-gradient-diagonal: var(--portal-gradient-primary);
+  --intelligence-gradient: var(--portal-gradient-primary);
+
+  --viz-1: var(--portal-violet);
+  --viz-2: var(--portal-cyan);
+  --viz-3: var(--portal-peach);
+  --viz-4: var(--portal-muted);
+  --viz-5: var(--portal-violet-soft);
+  --viz-6: var(--portal-mint);
+  --viz-grid: rgba(255, 255, 255, .08);
+  --viz-axis: var(--portal-faint);
+  --viz-area-from: rgba(195, 179, 227, .42);
+  --viz-area-to: rgba(116, 110, 156, .05);
+
+  --shadow-xs: 0 1px 2px rgba(6, 13, 25, .34);
+  --shadow-sm: 0 2px 8px rgba(6, 13, 25, .30);
+  --shadow-md: 0 10px 34px rgba(6, 13, 25, .34);
+  --shadow-lg: 0 18px 48px rgba(5, 11, 25, .44);
+  --shadow-xl: 0 35px 100px rgba(5, 11, 25, .50);
+  --shadow-inset: inset 0 1px 0 rgba(255, 255, 255, .06);
+  --ring-focus: 0 0 0 3px rgba(177, 233, 245, .26);
+  --glow-intelligence: 0 0 0 3px rgba(179, 161, 239, .28);
+
+  --skeleton-base: rgba(255, 255, 255, .06);
+  --skeleton-sheen: rgba(255, 255, 255, .13);
+
+  /* Panels in the portal language are larger-radius than the brand-guide default. */
+  --radius-card: 16px;
+  --radius-surface: var(--portal-radius-panel);
+  --radius-modal: var(--portal-radius-large);
+  --radius-control: var(--portal-radius-control);
+}

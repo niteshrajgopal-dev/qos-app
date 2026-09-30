@@ -1,5 +1,11 @@
-import { LocationsScreen } from "@/components/platform/locations-screen";
+import { LocationsScreen } from "@/components/staff/locations-screen";
 
-export default function TenantLocationsPage() {
-  return <LocationsScreen />;
+type PageProps = {
+  params: Promise<{ tenantId: string }>;
+};
+
+export default async function TenantLocationsPage({ params }: PageProps) {
+  const { tenantId } = await params;
+
+  return <LocationsScreen tenantId={tenantId} />;
 }

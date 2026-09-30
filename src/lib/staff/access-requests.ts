@@ -228,6 +228,8 @@ export async function listTenantLocationsForAdmin(
         publicId: locations.publicId,
         name: locations.name,
         slug: locations.slug,
+        timezone: locations.timezone,
+        status: locations.status,
       })
       .from(locations)
       .where(eq(locations.tenantId, tenantId))

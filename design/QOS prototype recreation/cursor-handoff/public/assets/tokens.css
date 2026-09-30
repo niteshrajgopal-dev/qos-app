@@ -1,0 +1,12 @@
+:root {
+ --qos-night:#151b24; --qos-surface:#202733; --qos-text:#f4f3f5;
+ --qos-muted:#b1b7c4; --qos-violet:#b3a1ef; --qos-cyan:#99dfe9;
+ --qos-peach:#eec9b4; --qos-line:rgba(235,239,255,.16);
+ --qos-glass:rgba(43,51,64,.45); --qos-glass-blur:24px;
+ --qos-radius:22px; --qos-radius-control:10px;
+ --qos-display:'QOS Display',Georgia,serif; --qos-body:'QOS Sans',Arial,sans-serif;
+ --qos-ease:cubic-bezier(.16,1,.3,1);
+}
+@font-face{font-family:'QOS Display';src:url('./fonts/qos-display.otf') format('opentype');font-display:swap}
+@font-face{font-family:'QOS Sans';src:url('./fonts/qos-sans.otf') format('opentype');font-display:swap;font-weight:400}
+@font-face{font-family:'QOS Sans';src:url('./fonts/qos-sans-bold.otf') format('opentype');font-display:swap;font-weight:600 800}

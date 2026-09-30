@@ -9,5 +9,7 @@
 @import url("../design-system/tokens/motion.css");
 @import url("../design-system/tokens/semantic-light.css");
 @import url("../design-system/tokens/semantic-dark.css");
+@import url("../design-system/tokens/portal.css");
+@import url("../design-system/tokens/semantic-portal.css");
 @import url("../design-system/tokens/base.css");
 @import url("../design-system/components/components.css");
