@@ -278,6 +278,19 @@ async function requireMenuProduct(
   return product;
 }
 
+/**
+ * Failures where the provider refused the request before generating anything
+ * (bad credentials, rate limit, unreachable, not configured) are not billed,
+ * so they do not spend the allowance. Timeouts, unusable output and unknown
+ * errors may have been billed and still count.
+ */
+export const UNBILLED_FAILURE_CODES = [
+  "provider_auth",
+  "provider_rate_limited",
+  "provider_unreachable",
+  "provider_unavailable",
+] as const;
+
 async function countAttemptsInWindow(tx: DbTransaction, tenantId: string, since: Date) {
   const [row] = await tx
     .select({ count: sql<number>`count(*)::int` })
@@ -287,6 +300,10 @@ async function countAttemptsInWindow(tx: DbTransaction, tenantId: string, since:
         eq(catalogueMediaAssets.tenantId, tenantId),
         eq(catalogueMediaAssets.sourceProvenance, "ai_generated"),
         gte(catalogueMediaAssets.createdAt, since),
+        sql`not (${catalogueMediaAssets.status} = 'failed' and coalesce(${catalogueMediaAssets.generationMetadata} ->> 'failureCode', '') in (${sql.join(
+          UNBILLED_FAILURE_CODES.map((code) => sql`${code}`),
+          sql`, `,
+        )}))`,
       ),
     );
   return Number(row?.count ?? 0);
