@@ -1,12 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AiPhotoGenerator } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-generator";
+import {
+  itemsNeedPhotosLabel,
+  menuPhotoSummary,
+  progressFromCandidates,
+  thumbnailsByProduct,
+  type ItemProgress,
+} from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-view";
 import { MenuHealthPanel } from "@/app/tenants/[tenantId]/catalogue/menus/menu-health-panel";
 import { MenuPublishPanel } from "@/app/tenants/[tenantId]/catalogue/menus/menu-publish-panel";
+import { Button } from "@/components/Button";
+import { Icon } from "@/components/Icon";
+import { IconButton } from "@/components/IconButton";
 import { ConfirmDialog } from "@/components/Modal";
+import { publicProductThumbnailUrl } from "@/components/platform/catalogue-products-list";
 import { Toast, ToastStack } from "@/components/Toast";
+import { Switch } from "@/design-system/components/primitives/Switch";
+import type { MenuHealthReport } from "@/lib/catalogue/menu-health";
+import type { MenuAiPhotosView } from "@/lib/media/ai-photos/ai-photo-candidates";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type TranslationState = {
@@ -112,6 +127,11 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(!isEditMode);
+  const [healthReport, setHealthReport] = useState<MenuHealthReport | null>(null);
+  const [healthRefreshKey, setHealthRefreshKey] = useState(0);
+  const [aiPhotos, setAiPhotos] = useState<MenuAiPhotosView | null>(null);
+  const [photoProgress, setPhotoProgress] = useState<Record<string, ItemProgress>>({});
+  const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
@@ -249,6 +269,64 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       setLoading(false);
     }
   }, [applyMenuPayload, loadSupportData, menuPublicId, tenantId]);
+
+  const savedMenuPublicId = isEditMode ? form.publicId : null;
+
+  const loadAiPhotos = useCallback(async () => {
+    if (!savedMenuPublicId) {
+      return;
+    }
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/menus/${savedMenuPublicId}/ai-photos`,
+      );
+      const payload = (await response.json().catch(() => ({}))) as {
+        aiPhotos?: MenuAiPhotosView;
+      };
+      if (response.ok && payload.aiPhotos) {
+        const view = payload.aiPhotos;
+        setAiPhotos(view);
+        setPhotoProgress((current) => ({ ...progressFromCandidates(view.candidates), ...current }));
+      }
+    } catch {
+      // AI photos are optional; the editor works without them.
+    }
+  }, [savedMenuPublicId, tenantId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => void loadAiPhotos(), 0);
+    return () => window.clearTimeout(timer);
+  }, [loadAiPhotos]);
+
+  const refreshPhotos = useCallback(() => {
+    setHealthRefreshKey((key) => key + 1);
+    void loadAiPhotos();
+  }, [loadAiPhotos]);
+
+  const setItemProgress = useCallback((productPublicId: string, next: ItemProgress) => {
+    setPhotoProgress((current) => ({ ...current, [productPublicId]: next }));
+  }, []);
+
+  const thumbnails = useMemo(() => thumbnailsByProduct(healthReport), [healthReport]);
+  const aiPhotoProducts = useMemo(() => {
+    const ids = new Set(aiPhotos?.aiPhotoProductPublicIds ?? []);
+    for (const [productPublicId, entry] of Object.entries(photoProgress)) {
+      if (entry.state === "accepted") {
+        ids.add(productPublicId);
+      }
+    }
+    return ids;
+  }, [aiPhotos, photoProgress]);
+  const photoSummary = healthReport ? menuPhotoSummary(healthReport) : null;
+
+  function updateSection(sectionIndex: number, update: (section: SectionState) => SectionState) {
+    setForm((current) => ({
+      ...current,
+      sections: current.sections.map((item, index) =>
+        index === sectionIndex ? update(item) : item,
+      ),
+    }));
+  }
 
   async function prepareNewMenu() {
     setLoading(true);
@@ -461,6 +539,8 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
           tenantId={tenantId}
           menuPublicId={form.publicId}
           menuVersion={form.version}
+          refreshKey={healthRefreshKey}
+          onReport={setHealthReport}
         />
       ) : null}
 
@@ -575,185 +655,115 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
           </button>
         </div>
 
-        {form.sections.map((section, sectionIndex) => (
-          <article
-            key={section.publicId ?? `new-${sectionIndex}`}
-            className="qos-card" data-padding="sm"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
+        {form.sections.map((section, sectionIndex) => {
+          const sectionName =
+            section.translations.en.displayName || section.internalName || "Untitled section";
+          return (
+          <article key={section.publicId ?? `new-${sectionIndex}`} className="qos-menu-section">
+            <div className="qos-menu-section-head">
               <button
                 type="button"
-                onClick={() =>
-                  setForm((current) => ({
-                    ...current,
-                    sections: current.sections.map((item, index) =>
-                      index === sectionIndex
-                        ? { ...item, collapsed: !item.collapsed }
-                        : item,
-                    ),
-                  }))
-                }
-                className="text-left"
+                className="qos-menu-section-title"
+                aria-expanded={!section.collapsed}
+                onClick={() => updateSection(sectionIndex, (item) => ({ ...item, collapsed: !item.collapsed }))}
               >
-                <p className="font-medium text-zinc-900">
-                  {section.translations.en.displayName || section.internalName || "Untitled section"}
-                </p>
-                <p className="text-sm text-zinc-600">
-                  {section.products.length} items
-                </p>
+                <div className="qos-menu-section-name">
+                  <span className="qos-status-dot" data-off={section.archived || undefined} aria-hidden="true" />
+                  {sectionName}
+                </div>
+                <div className="qos-menu-row-meta">
+                  {section.products.length} {section.products.length === 1 ? "item" : "items"}
+                  {section.archived ? " · Hidden" : ""}
+                </div>
               </button>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => moveSection(sectionIndex, -1)}
-                  className="qos-btn" data-variant="ghost" data-size="sm"
-                >
-                  Move up
-                </button>
-                <button
-                  type="button"
-                  onClick={() => moveSection(sectionIndex, 1)}
-                  className="qos-btn" data-variant="ghost" data-size="sm"
-                >
-                  Move down
-                </button>
-              </div>
+              <Switch
+                label={<span className="sr-only">Show {sectionName} on the menu</span>}
+                checked={!section.archived}
+                onChange={() => updateSection(sectionIndex, (item) => ({ ...item, archived: !item.archived }))}
+              />
+              <IconButton icon="arrow-up" label={`Move ${sectionName} up`} size="sm" disabled={sectionIndex === 0} onClick={() => moveSection(sectionIndex, -1)} />
+              <IconButton icon="arrow-down" label={`Move ${sectionName} down`} size="sm" disabled={sectionIndex === form.sections.length - 1} onClick={() => moveSection(sectionIndex, 1)} />
+              <IconButton
+                icon={section.collapsed ? "chevron-down" : "chevron-up"}
+                label={section.collapsed ? `Expand ${sectionName}` : `Collapse ${sectionName}`}
+                size="sm"
+                onClick={() => updateSection(sectionIndex, (item) => ({ ...item, collapsed: !item.collapsed }))}
+              />
             </div>
 
             {!section.collapsed ? (
-              <div className="mt-4 space-y-4">
-                <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-zinc-700">
-                      Internal section name
-                    </span>
-                    <input
-                      className="qos-input"
-                      value={section.internalName}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          sections: current.sections.map((item, index) =>
-                            index === sectionIndex
-                              ? { ...item, internalName: event.target.value }
-                              : item,
-                          ),
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="block space-y-2">
-                    <span className="text-sm font-medium text-zinc-700">
-                      English section label
-                    </span>
-                    <input
-                      className="qos-input"
-                      value={section.translations.en.displayName}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          sections: current.sections.map((item, index) =>
-                            index === sectionIndex
-                              ? {
+              <div className="qos-menu-section-body">
+                {section.products.length > 0 ? (
+                  <ul className="qos-menu-rows" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+                    {section.products.map((product, productIndex) => {
+                      const thumbnailPublicId = thumbnails.get(product.productPublicId) ?? null;
+                      return (
+                        <li
+                          key={`${product.productPublicId}-${productIndex}`}
+                          className="qos-menu-row"
+                          data-muted={product.archived || undefined}
+                        >
+                          {thumbnailPublicId ? (
+                            <span className="qos-thumb">
+                              {/* eslint-disable-next-line @next/next/no-img-element -- matches catalogue thumbnails */}
+                              <img src={publicProductThumbnailUrl(thumbnailPublicId)} alt="" />
+                              {aiPhotoProducts.has(product.productPublicId) ? (
+                                <span className="qos-thumb-tag" title="AI-generated image">AI</span>
+                              ) : null}
+                            </span>
+                          ) : (
+                            <span className="qos-thumb" data-empty="true" title="No photo">
+                              <Icon name="camera" size={16} />
+                            </span>
+                          )}
+                          <div className="qos-menu-row-main">
+                            <div className="qos-menu-row-name">
+                              <span className="qos-status-dot" data-off={product.archived || undefined} aria-hidden="true" />
+                              {product.displayName}
+                            </div>
+                            <div className="qos-menu-row-meta">
+                              {product.archived ? "Hidden · " : ""}
+                              {thumbnailPublicId ? "" : "No photo · "}
+                              <code>{product.productPublicId}</code>
+                            </div>
+                          </div>
+                          <div className="qos-menu-row-actions">
+                            <Switch
+                              label={<span className="sr-only">Show {product.displayName} on the menu</span>}
+                              checked={!product.archived}
+                              onChange={() =>
+                                updateSection(sectionIndex, (item) => ({
                                   ...item,
-                                  translations: {
-                                    ...item.translations,
-                                    en: {
-                                      ...item.translations.en,
-                                      displayName: event.target.value,
-                                    },
-                                  },
-                                }
-                              : item,
-                          ),
-                        }))
-                      }
-                    />
-                  </label>
-                  <label className="block space-y-2 md:col-span-2">
-                    <span className="text-sm font-medium text-zinc-700">
-                      Arabic section label
-                    </span>
-                    <input
-                      dir="rtl"
-                      className="qos-input"
-                      value={section.translations.ar.displayName}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          sections: current.sections.map((item, index) =>
-                            index === sectionIndex
-                              ? {
+                                  products: item.products.map((entry, idx) =>
+                                    idx === productIndex ? { ...entry, archived: !entry.archived } : entry,
+                                  ),
+                                }))
+                              }
+                            />
+                            <IconButton icon="arrow-up" label={`Move ${product.displayName} up`} size="sm" disabled={productIndex === 0} onClick={() => moveProduct(sectionIndex, productIndex, -1)} />
+                            <IconButton icon="arrow-down" label={`Move ${product.displayName} down`} size="sm" disabled={productIndex === section.products.length - 1} onClick={() => moveProduct(sectionIndex, productIndex, 1)} />
+                            <IconButton
+                              icon="trash-2"
+                              label={`Remove ${product.displayName}`}
+                              size="sm"
+                              onClick={() =>
+                                updateSection(sectionIndex, (item) => ({
                                   ...item,
-                                  translations: {
-                                    ...item.translations,
-                                    ar: {
-                                      ...item.translations.ar,
-                                      displayName: event.target.value,
-                                    },
-                                  },
-                                }
-                              : item,
-                          ),
-                        }))
-                      }
-                    />
-                  </label>
-                </div>
-
-                <div className="space-y-2">
-                  {section.products.map((product, productIndex) => (
-                    <div
-                      key={`${product.productPublicId}-${productIndex}`}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-zinc-100 px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-sm font-medium">{product.displayName}</p>
-                        <p className="text-xs text-zinc-500">{product.productPublicId}</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => moveProduct(sectionIndex, productIndex, -1)}
-                          className="qos-btn" data-variant="ghost" data-size="sm"
-                        >
-                          Move up
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => moveProduct(sectionIndex, productIndex, 1)}
-                          className="qos-btn" data-variant="ghost" data-size="sm"
-                        >
-                          Move down
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setForm((current) => ({
-                              ...current,
-                              sections: current.sections.map((item, index) =>
-                                index === sectionIndex
-                                  ? {
-                                      ...item,
-                                      products: item.products.filter(
-                                        (_, idx) => idx !== productIndex,
-                                      ),
-                                    }
-                                  : item,
-                              ),
-                            }))
-                          }
-                          className="qos-btn" data-variant="ghost" data-size="sm"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                                  products: item.products.filter((_, idx) => idx !== productIndex),
+                                }))
+                              }
+                            />
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="qos-card-sub">No items in this section yet.</p>
+                )}
 
                 <div className="flex flex-wrap items-end gap-2">
-                  <label className="block space-y-2">
+                  <label className="block min-w-0 flex-1 space-y-2">
                     <span className="text-sm font-medium text-zinc-700">
                       Add product
                     </span>
@@ -768,24 +778,17 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                           return;
                         }
 
-                        setForm((current) => ({
-                          ...current,
-                          sections: current.sections.map((item, index) =>
-                            index === sectionIndex
-                              ? {
-                                  ...item,
-                                  products: [
-                                    ...item.products,
-                                    {
-                                      productPublicId: selected.publicId,
-                                      displayName: selected.displayName,
-                                      sortOrder: item.products.length,
-                                      archived: false,
-                                    },
-                                  ],
-                                }
-                              : item,
-                          ),
+                        updateSection(sectionIndex, (item) => ({
+                          ...item,
+                          products: [
+                            ...item.products,
+                            {
+                              productPublicId: selected.publicId,
+                              displayName: selected.displayName,
+                              sortOrder: item.products.length,
+                              archived: false,
+                            },
+                          ],
                         }));
                         event.target.value = "";
                       }}
@@ -805,10 +808,68 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                     New product
                   </Link>
                 </div>
+
+                <details>
+                  <summary className="cursor-pointer text-sm font-medium text-zinc-700">
+                    Section names
+                  </summary>
+                  <div className="mt-3 grid gap-4 md:grid-cols-2">
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-zinc-700">
+                        Internal section name
+                      </span>
+                      <input
+                        className="qos-input"
+                        value={section.internalName}
+                        onChange={(event) =>
+                          updateSection(sectionIndex, (item) => ({ ...item, internalName: event.target.value }))
+                        }
+                      />
+                    </label>
+                    <label className="block space-y-2">
+                      <span className="text-sm font-medium text-zinc-700">
+                        English section label
+                      </span>
+                      <input
+                        className="qos-input"
+                        value={section.translations.en.displayName}
+                        onChange={(event) =>
+                          updateSection(sectionIndex, (item) => ({
+                            ...item,
+                            translations: {
+                              ...item.translations,
+                              en: { ...item.translations.en, displayName: event.target.value },
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                    <label className="block space-y-2 md:col-span-2">
+                      <span className="text-sm font-medium text-zinc-700">
+                        Arabic section label
+                      </span>
+                      <input
+                        dir="rtl"
+                        className="qos-input"
+                        value={section.translations.ar.displayName}
+                        onChange={(event) =>
+                          updateSection(sectionIndex, (item) => ({
+                            ...item,
+                            translations: {
+                              ...item.translations,
+                              ar: { ...item.translations.ar, displayName: event.target.value },
+                            },
+                          }))
+                        }
+                      />
+                    </label>
+                  </div>
+                </details>
               </div>
             ) : null}
           </article>
-        ))}
+          );
+        })}
       </section>
 
       {error ? (
@@ -848,7 +909,36 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         />
       ) : null}
 
-      <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+      {isEditMode && form.publicId ? (
+        <AiPhotoGenerator
+          tenantId={tenantId}
+          menuPublicId={form.publicId}
+          open={photoSheetOpen}
+          onClose={() => setPhotoSheetOpen(false)}
+          report={healthReport}
+          aiPhotos={aiPhotos}
+          progress={photoProgress}
+          onProgress={setItemProgress}
+          onChanged={refreshPhotos}
+        />
+      ) : null}
+
+      <div className="sticky bottom-4 z-20 grid gap-3">
+      {isEditMode && photoSummary && photoSummary.needPhotos > 0 && !photoSheetOpen ? (
+        <div className="qos-ai-bar" role="region" aria-label="AI photos">
+          <span className="qos-ai-bar-icon" aria-hidden="true">
+            <Icon name="sparkles" size={20} />
+          </span>
+          <div className="qos-ai-bar-text">
+            <div className="qos-ai-bar-title">{itemsNeedPhotosLabel(photoSummary.needPhotos)}</div>
+            <div className="qos-ai-bar-sub">Generate with AI, then review before use</div>
+          </div>
+          <Button size="sm" icon="sparkles" onClick={() => setPhotoSheetOpen(true)}>
+            Generate
+          </Button>
+        </div>
+      ) : null}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <p className="text-sm text-zinc-600">
           {isDirty ? "Unsaved changes" : "All changes saved locally"}
           {form.publicId ? (
@@ -876,6 +966,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
             {saving ? "Saving…" : "Save draft"}
           </button>
         </div>
+      </div>
       </div>
     </div>
   );

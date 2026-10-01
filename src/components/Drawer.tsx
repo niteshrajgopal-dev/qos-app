@@ -13,6 +13,8 @@ export type DrawerProps = {
   children?: ReactNode;
   footer?: ReactNode;
   width?: number | string;
+  /** "sheet" docks to the bottom on narrow screens; wider screens keep the side drawer. */
+  placement?: "side" | "sheet";
   onClose?: () => void;
 };
 
@@ -23,6 +25,7 @@ export function Drawer({
   children,
   footer,
   width,
+  placement = "side",
   onClose,
 }: DrawerProps) {
   if (!open) {
@@ -30,13 +33,17 @@ export function Drawer({
   }
 
   return (
-    <OverlaySurface className="qos-drawer-scrim" onClose={onClose}>
+    <OverlaySurface
+      className={placement === "sheet" ? "qos-drawer-scrim qos-sheet-scrim" : "qos-drawer-scrim"}
+      onClose={onClose}
+    >
       <div
         className="qos-drawer"
         role="dialog"
         aria-modal="true"
         aria-labelledby="qos-drawer-title"
         data-inline-side={overlayDrawerInlineSide("ltr")}
+        data-placement={placement === "sheet" ? "sheet" : undefined}
         style={width == null ? undefined : { width }}
       >
         <div className="qos-drawer-head">
