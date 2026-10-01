@@ -103,13 +103,30 @@ export type CreateUploadGrantInput = {
   expectedContentType: "image/jpeg" | "image/png";
   altTextEn?: string | null;
   altTextAr?: string | null;
-  sourceProvenance?: "imported" | "operator_entered";
+  sourceProvenance?: "imported" | "operator_entered" | "ai_generated";
+  generationMetadata?: Record<string, unknown> | null;
 };
 
 export async function createProductImageUploadGrant(
   db: DbClient,
   tenantId: string,
   membership: ActiveStaffMembership,
+  productPublicId: string,
+  input: CreateUploadGrantInput,
+) {
+  try {
+    return await withTenantContext(db, tenantId, (tx) =>
+      createProductImageUploadGrantInTx(tx, tenantId, productPublicId, input),
+    );
+  } catch (error) {
+    mapMediaError(error);
+  }
+}
+
+/** Must run inside `withTenantContext`. */
+export async function createProductImageUploadGrantInTx(
+  tx: DbClient,
+  tenantId: string,
   productPublicId: string,
   input: CreateUploadGrantInput,
 ) {
@@ -138,50 +155,45 @@ export async function createProductImageUploadGrant(
     );
   }
 
-  try {
-    return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await requireDraftProduct(tx, tenantId, productPublicId);
-      const assetPublicId = generateAssetPublicId();
-      const grantToken = generateGrantToken();
-      const privateStoragePath = `${tenantId}/quarantine/${assetPublicId}/original`;
+  const product = await requireDraftProduct(tx, tenantId, productPublicId);
+  const assetPublicId = generateAssetPublicId();
+  const grantToken = generateGrantToken();
+  const privateStoragePath = `${tenantId}/quarantine/${assetPublicId}/original`;
 
-      const [asset] = await tx
-        .insert(catalogueMediaAssets)
-        .values({
-          tenantId,
-          productId: product.id,
-          publicId: assetPublicId,
-          altTextEn: input.altTextEn ?? null,
-          altTextAr: input.altTextAr ?? null,
-          sourceProvenance: input.sourceProvenance ?? "operator_entered",
-        })
-        .returning();
+  const [asset] = await tx
+    .insert(catalogueMediaAssets)
+    .values({
+      tenantId,
+      productId: product.id,
+      publicId: assetPublicId,
+      altTextEn: input.altTextEn ?? null,
+      altTextAr: input.altTextAr ?? null,
+      sourceProvenance: input.sourceProvenance ?? "operator_entered",
+      generationMetadata: input.generationMetadata ?? null,
+    })
+    .returning();
 
-      const expiresAt = new Date(Date.now() + config.grantTtlSeconds * 1000);
+  const expiresAt = new Date(Date.now() + config.grantTtlSeconds * 1000);
 
-      const [grant] = await tx
-        .insert(catalogueMediaUploadGrants)
-        .values({
-          tenantId,
-          assetId: asset.id,
-          grantToken,
-          privateStoragePath,
-          expectedByteSize: input.expectedByteSize,
-          expectedContentType: input.expectedContentType,
-          expiresAt,
-        })
-        .returning();
+  const [grant] = await tx
+    .insert(catalogueMediaUploadGrants)
+    .values({
+      tenantId,
+      assetId: asset.id,
+      grantToken,
+      privateStoragePath,
+      expectedByteSize: input.expectedByteSize,
+      expectedContentType: input.expectedContentType,
+      expiresAt,
+    })
+    .returning();
 
-      return {
-        assetPublicId: asset.publicId,
-        grantToken: grant.grantToken,
-        expiresAt: grant.expiresAt.toISOString(),
-        uploadPath: `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/upload`,
-      };
-    });
-  } catch (error) {
-    mapMediaError(error);
-  }
+  return {
+    assetPublicId: asset.publicId,
+    grantToken: grant.grantToken,
+    expiresAt: grant.expiresAt.toISOString(),
+    uploadPath: `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/upload`,
+  };
 }
 
 export async function ingestProductImageUpload(
@@ -280,148 +292,164 @@ export async function processProductImage(
   publisherSubject: string,
 ) {
   try {
-    return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await requireDraftProduct(tx, tenantId, productPublicId);
-
-      const [asset] = await tx
-        .select()
-        .from(catalogueMediaAssets)
-        .where(
-          and(
-            eq(catalogueMediaAssets.tenantId, tenantId),
-            eq(catalogueMediaAssets.publicId, assetPublicId),
-            eq(catalogueMediaAssets.productId, product.id),
-          ),
-        )
-        .limit(1);
-
-      if (!asset) {
-        throw new ProductMediaError("Media asset not found.", 404);
-      }
-
-      if (asset.status === "approved") {
-        const derivatives = await tx
-          .select()
-          .from(catalogueMediaDerivatives)
-          .where(
-            and(
-              eq(catalogueMediaDerivatives.tenantId, tenantId),
-              eq(catalogueMediaDerivatives.assetId, asset.id),
-            ),
-          );
-
-        return {
-          assetPublicId: asset.publicId,
-          status: asset.status,
-          derivatives: derivatives.map((derivative) => ({
-            kind: derivative.derivativeKind,
-            publicDerivativeId: derivative.publicDerivativeId,
-          })),
-        };
-      }
-
-      if (asset.status !== "uploaded" && asset.status !== "failed") {
-        throw new ProductMediaError(
-          "Media asset is not ready for processing.",
-          409,
-        );
-      }
-
-      const [grant] = await tx
-        .select()
-        .from(catalogueMediaUploadGrants)
-        .where(
-          and(
-            eq(catalogueMediaUploadGrants.tenantId, tenantId),
-            eq(catalogueMediaUploadGrants.assetId, asset.id),
-            eq(catalogueMediaUploadGrants.status, "used"),
-          ),
-        )
-        .limit(1);
-
-      if (!grant) {
-        throw new ProductMediaError("Completed upload grant not found.", 404);
-      }
-
-      await tx
-        .update(catalogueMediaAssets)
-        .set({ status: "processing", failureReason: null, updatedAt: new Date() })
-        .where(eq(catalogueMediaAssets.id, asset.id));
-
-      const storage = getMediaStorage();
-      const originalBytes = await storage.readPrivate(grant.privateStoragePath);
-
-      try {
-        const derivatives = await generateImageDerivatives(originalBytes);
-        const createdDerivatives: Array<{
-          kind: "thumbnail" | "display";
-          publicDerivativeId: string;
-        }> = [];
-
-        for (const kind of ["thumbnail", "display"] as const) {
-          const derivative = derivatives[kind];
-          const publicDerivativeId = generateDerivativePublicId();
-          const storagePath = `${tenantId}/public/${publicDerivativeId}.jpg`;
-
-          await storage.writePublic(storagePath, derivative.bytes);
-
-          await tx.insert(catalogueMediaDerivatives).values({
-            tenantId,
-            assetId: asset.id,
-            derivativeKind: kind,
-            publicDerivativeId,
-            storagePath,
-            contentType: derivative.contentType,
-            width: derivative.width,
-            height: derivative.height,
-            byteSize: derivative.bytes.byteLength,
-          });
-
-          createdDerivatives.push({ kind, publicDerivativeId });
-        }
-
-        await tx
-          .update(catalogueMediaAssets)
-          .set({
-            status: "approved",
-            approvedBySubject: publisherSubject,
-            approvedAt: new Date(),
-            updatedAt: new Date(),
-          })
-          .where(eq(catalogueMediaAssets.id, asset.id));
-
-        await tx
-          .update(catalogueProducts)
-          .set({
-            primaryMediaAssetId: asset.id,
-            updatedAt: new Date(),
-          })
-          .where(eq(catalogueProducts.id, product.id));
-
-        return {
-          assetPublicId: asset.publicId,
-          status: "approved" as const,
-          derivatives: createdDerivatives,
-        };
-      } catch (error) {
-        await tx
-          .update(catalogueMediaAssets)
-          .set({
-            status: "failed",
-            failureReason:
-              error instanceof Error ? error.message : "Processing failed.",
-            updatedAt: new Date(),
-          })
-          .where(eq(catalogueMediaAssets.id, asset.id));
-
-        throw new ProductMediaError(
-          error instanceof Error ? error.message : "Processing failed.",
-          422,
-        );
-      }
-    });
+    return await withTenantContext(db, tenantId, (tx) =>
+      processProductImageInTx(tx, tenantId, productPublicId, assetPublicId, publisherSubject),
+    );
   } catch (error) {
     mapMediaError(error);
+  }
+}
+
+/**
+ * Quarantine -> derivatives -> approved -> product primary. Must run inside
+ * `withTenantContext`; the asset row is locked so concurrent calls for the
+ * same asset serialize and the loser sees it already approved.
+ */
+export async function processProductImageInTx(
+  tx: DbClient,
+  tenantId: string,
+  productPublicId: string,
+  assetPublicId: string,
+  publisherSubject: string,
+) {
+  const product = await requireDraftProduct(tx, tenantId, productPublicId);
+
+  const [asset] = await tx
+    .select()
+    .from(catalogueMediaAssets)
+    .where(
+      and(
+        eq(catalogueMediaAssets.tenantId, tenantId),
+        eq(catalogueMediaAssets.publicId, assetPublicId),
+        eq(catalogueMediaAssets.productId, product.id),
+      ),
+    )
+    .limit(1)
+    .for("update");
+
+  if (!asset) {
+    throw new ProductMediaError("Media asset not found.", 404);
+  }
+
+  if (asset.status === "approved") {
+    const derivatives = await tx
+      .select()
+      .from(catalogueMediaDerivatives)
+      .where(
+        and(
+          eq(catalogueMediaDerivatives.tenantId, tenantId),
+          eq(catalogueMediaDerivatives.assetId, asset.id),
+        ),
+      );
+
+    return {
+      assetPublicId: asset.publicId,
+      status: asset.status,
+      derivatives: derivatives.map((derivative) => ({
+        kind: derivative.derivativeKind,
+        publicDerivativeId: derivative.publicDerivativeId,
+      })),
+    };
+  }
+
+  if (asset.status !== "uploaded" && asset.status !== "failed") {
+    throw new ProductMediaError(
+      "Media asset is not ready for processing.",
+      409,
+    );
+  }
+
+  const [grant] = await tx
+    .select()
+    .from(catalogueMediaUploadGrants)
+    .where(
+      and(
+        eq(catalogueMediaUploadGrants.tenantId, tenantId),
+        eq(catalogueMediaUploadGrants.assetId, asset.id),
+        eq(catalogueMediaUploadGrants.status, "used"),
+      ),
+    )
+    .limit(1);
+
+  if (!grant) {
+    throw new ProductMediaError("Completed upload grant not found.", 404);
+  }
+
+  await tx
+    .update(catalogueMediaAssets)
+    .set({ status: "processing", failureReason: null, updatedAt: new Date() })
+    .where(eq(catalogueMediaAssets.id, asset.id));
+
+  const storage = getMediaStorage();
+  const originalBytes = await storage.readPrivate(grant.privateStoragePath);
+
+  try {
+    const derivatives = await generateImageDerivatives(originalBytes);
+    const createdDerivatives: Array<{
+      kind: "thumbnail" | "display";
+      publicDerivativeId: string;
+    }> = [];
+
+    for (const kind of ["thumbnail", "display"] as const) {
+      const derivative = derivatives[kind];
+      const publicDerivativeId = generateDerivativePublicId();
+      const storagePath = `${tenantId}/public/${publicDerivativeId}.jpg`;
+
+      await storage.writePublic(storagePath, derivative.bytes);
+
+      await tx.insert(catalogueMediaDerivatives).values({
+        tenantId,
+        assetId: asset.id,
+        derivativeKind: kind,
+        publicDerivativeId,
+        storagePath,
+        contentType: derivative.contentType,
+        width: derivative.width,
+        height: derivative.height,
+        byteSize: derivative.bytes.byteLength,
+      });
+
+      createdDerivatives.push({ kind, publicDerivativeId });
+    }
+
+    await tx
+      .update(catalogueMediaAssets)
+      .set({
+        status: "approved",
+        approvedBySubject: publisherSubject,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(catalogueMediaAssets.id, asset.id));
+
+    await tx
+      .update(catalogueProducts)
+      .set({
+        primaryMediaAssetId: asset.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(catalogueProducts.id, product.id));
+
+    return {
+      assetPublicId: asset.publicId,
+      status: "approved" as const,
+      derivatives: createdDerivatives,
+    };
+  } catch (error) {
+    await tx
+      .update(catalogueMediaAssets)
+      .set({
+        status: "failed",
+        failureReason:
+          error instanceof Error ? error.message : "Processing failed.",
+        updatedAt: new Date(),
+      })
+      .where(eq(catalogueMediaAssets.id, asset.id));
+
+    throw new ProductMediaError(
+      error instanceof Error ? error.message : "Processing failed.",
+      422,
+    );
   }
 }
 

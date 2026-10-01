@@ -68,6 +68,7 @@ export const dataProvenanceEnum = qos.enum("data_provenance", [
   "synthetic_fixture",
   "operator_entered",
   "imported",
+  "ai_generated",
 ]);
 
 export const auditActorClassEnum = qos.enum("audit_actor_class", [
@@ -2401,6 +2402,8 @@ export const catalogueMediaAssets = qos.table(
     sourceProvenance: dataProvenanceEnum("source_provenance")
       .notNull()
       .default("operator_entered"),
+    /** Private AI generation/review record; only set when provenance is ai_generated. */
+    generationMetadata: jsonb("generation_metadata").$type<Record<string, unknown>>(),
     failureReason: text("failure_reason"),
     approvedBySubject: text("approved_by_subject"),
     approvedAt: timestamp("approved_at", { withTimezone: true }),
@@ -2425,6 +2428,11 @@ export const catalogueMediaAssets = qos.table(
       table.id,
     ),
     index("catalogue_media_assets_tenant_id_idx").on(table.tenantId),
+    index("catalogue_media_assets_tenant_provenance_created_idx").on(
+      table.tenantId,
+      table.sourceProvenance,
+      table.createdAt,
+    ),
   ],
 );
 
