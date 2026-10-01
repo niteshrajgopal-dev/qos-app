@@ -27,13 +27,22 @@ export interface AiPhotoProvider {
   generate(request: AiPhotoGenerationRequest): Promise<AiPhotoGenerationResult>;
 }
 
+export type AiPhotoProviderDiagnostics = {
+  httpStatus: number;
+  /** Provider error `code` / `type` identifiers only; never the free-text message. */
+  providerCode: string | null;
+  providerType: string | null;
+};
+
 export class AiPhotoProviderError extends Error {
   readonly code: string;
+  readonly diagnostics: AiPhotoProviderDiagnostics | null;
 
-  constructor(code: string, message: string) {
+  constructor(code: string, message: string, diagnostics: AiPhotoProviderDiagnostics | null = null) {
     super(message);
     this.name = "AiPhotoProviderError";
     this.code = code;
+    this.diagnostics = diagnostics;
   }
 }
 
@@ -63,20 +72,23 @@ function readUsage(value: unknown): AiPhotoUsage | null {
 function errorFromResponse(status: number, body: unknown): AiPhotoProviderError {
   const error =
     body && typeof body === "object" && "error" in body
-      ? ((body as { error?: { code?: unknown } }).error ?? {})
+      ? ((body as { error?: { code?: unknown; type?: unknown } }).error ?? {})
       : {};
-  const code = typeof error.code === "string" ? error.code : null;
+  const identifier = (value: unknown) =>
+    typeof value === "string" && /^[A-Za-z0-9_.-]{1,80}$/.test(value) ? value : null;
+  const code = identifier(error.code);
+  const diagnostics = { httpStatus: status, providerCode: code, providerType: identifier(error.type) };
 
   if (code === "moderation_blocked" || code === "content_policy_violation") {
-    return new AiPhotoProviderError("unsafe_output", "The image service declined this request.");
+    return new AiPhotoProviderError("unsafe_output", "The image service declined this request.", diagnostics);
   }
   if (status === 401 || status === 403) {
-    return new AiPhotoProviderError("provider_auth", "The image service rejected QOS credentials.");
+    return new AiPhotoProviderError("provider_auth", "The image service rejected QOS credentials.", diagnostics);
   }
   if (status === 429) {
-    return new AiPhotoProviderError("provider_rate_limited", "The image service is busy. Try again later.");
+    return new AiPhotoProviderError("provider_rate_limited", "The image service is busy. Try again later.", diagnostics);
   }
-  return new AiPhotoProviderError("provider_error", "The image service could not generate this photo.");
+  return new AiPhotoProviderError("provider_error", "The image service could not generate this photo.", diagnostics);
 }
 
 export function createOpenAiPhotoProvider(options: {

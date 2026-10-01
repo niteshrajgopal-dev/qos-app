@@ -66,7 +66,7 @@ async function jpeg(color: { r: number; g: number; b: number }, size = 96) {
     .toBuffer();
 }
 
-type Behaviour = "ok" | "fail" | "garbage";
+type Behaviour = "ok" | "fail" | "garbage" | "auth";
 
 function fakeProvider(behaviour: (prompt: string) => Behaviour = () => "ok") {
   const prompts: string[] = [];
@@ -77,6 +77,9 @@ function fakeProvider(behaviour: (prompt: string) => Behaviour = () => "ok") {
       const mode = behaviour(request.prompt);
       if (mode === "fail") {
         throw new AiPhotoProviderError("unsafe_output", "The image service declined this request.");
+      }
+      if (mode === "auth") {
+        throw new AiPhotoProviderError("provider_auth", "The image service rejected QOS credentials.");
       }
       if (mode === "garbage") {
         return { bytes: Buffer.from("not an image"), model: "gpt-image-1", usage: null };
@@ -394,6 +397,33 @@ integrationDescribe("menu AI photo candidates", () => {
       generateMenuAiPhoto(db, admin, { menuPublicId: menu.publicId, productPublicId: latte.publicId }, { config: limited, provider }),
     ).rejects.toMatchObject({ code: "daily_limit_reached", statusCode: 429 });
     expect(prompts).toHaveLength(2);
+  });
+
+  it("does not spend the allowance on requests the provider refused, but does on billable failures", async () => {
+    const { admin, menu, latte, mocha } = await seed();
+    const limited = { ...config, dailyLimitPerTenant: 2 };
+    const rejected = fakeProvider(() => "auth").provider;
+
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const { candidate } = await generateMenuAiPhoto(
+        db,
+        admin,
+        { menuPublicId: menu.publicId, productPublicId: latte.publicId },
+        { config: limited, provider: rejected },
+      );
+      expect(candidate).toMatchObject({ status: "failed", failureCode: "provider_auth" });
+    }
+    expect((await getMenuAiPhotos(db, admin, menu.publicId, { config: limited })).availability).toMatchObject({
+      usedToday: 0,
+      remainingToday: 2,
+    });
+
+    const garbage = fakeProvider(() => "garbage").provider;
+    await generateMenuAiPhoto(db, admin, { menuPublicId: menu.publicId, productPublicId: mocha.publicId }, { config: limited, provider: garbage });
+    expect((await getMenuAiPhotos(db, admin, menu.publicId, { config: limited })).availability).toMatchObject({
+      usedToday: 1,
+      remainingToday: 1,
+    });
   });
 
   it("serializes concurrent requests so the daily limit cannot be overshot", async () => {

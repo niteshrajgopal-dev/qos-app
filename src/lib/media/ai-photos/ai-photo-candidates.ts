@@ -27,6 +27,7 @@ import {
 } from "@/lib/media/ai-photos/prompt";
 import {
   AiPhotoProviderError,
+  type AiPhotoProviderDiagnostics,
   getAiPhotoProvider,
   hasAiPhotoProviderOverride,
   type AiPhotoProvider,
@@ -277,6 +278,19 @@ async function requireMenuProduct(
   return product;
 }
 
+/**
+ * Failures where the provider refused the request before generating anything
+ * (bad credentials, rate limit, unreachable, not configured) are not billed,
+ * so they do not spend the allowance. Timeouts, unusable output and unknown
+ * errors may have been billed and still count.
+ */
+export const UNBILLED_FAILURE_CODES = [
+  "provider_auth",
+  "provider_rate_limited",
+  "provider_unreachable",
+  "provider_unavailable",
+] as const;
+
 async function countAttemptsInWindow(tx: DbTransaction, tenantId: string, since: Date) {
   const [row] = await tx
     .select({ count: sql<number>`count(*)::int` })
@@ -286,6 +300,10 @@ async function countAttemptsInWindow(tx: DbTransaction, tenantId: string, since:
         eq(catalogueMediaAssets.tenantId, tenantId),
         eq(catalogueMediaAssets.sourceProvenance, "ai_generated"),
         gte(catalogueMediaAssets.createdAt, since),
+        sql`not (${catalogueMediaAssets.status} = 'failed' and coalesce(${catalogueMediaAssets.generationMetadata} ->> 'failureCode', '') in (${sql.join(
+          UNBILLED_FAILURE_CODES.map((code) => sql`${code}`),
+          sql`, `,
+        )}))`,
       ),
     );
   return Number(row?.count ?? 0);
@@ -396,6 +414,7 @@ async function markGenerationFailed(
   assetPublicId: string,
   failureCode: string,
   message: string,
+  providerDiagnostics: AiPhotoProviderDiagnostics | null = null,
 ) {
   return withTenantContext(db, caller.tenantId, async (tx) => {
     const [asset] = await tx
@@ -433,7 +452,11 @@ async function markGenerationFailed(
       .set({
         status: "failed",
         failureReason: message,
-        generationMetadata: { ...metadataOf(asset), failureCode },
+        generationMetadata: {
+          ...metadataOf(asset),
+          failureCode,
+          ...(providerDiagnostics ? { providerDiagnostics } : {}),
+        },
         updatedAt: new Date(),
       })
       .where(eq(catalogueMediaAssets.id, asset.id))
@@ -446,7 +469,7 @@ async function markGenerationFailed(
       action: "catalogue.media.ai_photo_failed",
       entityType: "catalogue_media_asset",
       entityPublicId: asset.publicId,
-      changeSummary: { failureCode },
+      changeSummary: { failureCode, ...(providerDiagnostics ? { providerDiagnostics } : {}) },
     });
     return failed;
   });
@@ -626,7 +649,14 @@ export async function generateMenuAiPhoto(
     const code = error instanceof AiPhotoProviderError ? error.code : "provider_error";
     const message =
       error instanceof AiPhotoProviderError ? error.message : "The image service could not generate this photo.";
-    const failed = await markGenerationFailed(db, caller, grant.assetPublicId, code, message);
+    const diagnostics = error instanceof AiPhotoProviderError ? error.diagnostics : null;
+    console.warn("AI photo generation failed", {
+      tenantId: caller.tenantId,
+      assetPublicId: grant.assetPublicId,
+      failureCode: code,
+      ...diagnostics,
+    });
+    const failed = await markGenerationFailed(db, caller, grant.assetPublicId, code, message, diagnostics);
     if (!failed) {
       throw error;
     }

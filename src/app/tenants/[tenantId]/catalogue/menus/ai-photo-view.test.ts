@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  allowanceLabel,
   generateActionState,
   itemsNeedPhotosLabel,
   menuPhotoSummary,
@@ -90,6 +91,18 @@ describe("generator selection", () => {
     ).toMatchObject({ disabled: true, label: "AI photos unavailable" });
     expect(generateActionState(1, available, true)).toMatchObject({ disabled: true, label: "Generating…" });
     expect(generateActionState(1, null, false).disabled).toBe(true);
+    expect(generateActionState(1, null, false, "AI photos could not be loaded (HTTP 500).")).toMatchObject({
+      disabled: true,
+      hint: "AI photos could not be loaded (HTTP 500).",
+    });
+  });
+
+  it("never reports a failed load or a switched-off feature as a spent allowance", () => {
+    expect(allowanceLabel(null, null)).toBe("—");
+    expect(allowanceLabel(null, "AI photos could not be loaded (HTTP 500).")).toBe("Unavailable");
+    expect(allowanceLabel({ ...available, available: false, unavailableReason: "disabled" }, null)).toBe("Off");
+    expect(allowanceLabel(available, null)).toBe(`${available.remainingToday} of ${available.dailyLimit}`);
+    expect(allowanceLabel({ ...available, remainingToday: 0 }, null)).toBe(`0 of ${available.dailyLimit}`);
   });
 });
 

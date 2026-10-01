@@ -1,3 +1,4 @@
+import { DrizzleQueryError } from "drizzle-orm/errors";
 import { NextResponse } from "next/server";
 
 import { catalogueErrorResponse } from "@/lib/catalogue/http";
@@ -24,6 +25,15 @@ export function aiPhotoErrorResponse(error: unknown) {
     return NextResponse.json(
       { error: error.message, field: error.field },
       { status: error.statusCode },
+    );
+  }
+
+  // Query errors carry SQL text and parameters (tenant ids); keep them in server logs only.
+  if (error instanceof DrizzleQueryError) {
+    console.error("AI photo request failed", error.cause ?? error);
+    return NextResponse.json(
+      { error: "AI photos are temporarily unavailable.", code: "ai_photos_storage_error" },
+      { status: 500 },
     );
   }
 
