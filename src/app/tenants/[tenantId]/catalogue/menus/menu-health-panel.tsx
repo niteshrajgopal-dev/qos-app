@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   MENU_HEALTH_ISSUE_COPY,
@@ -11,6 +11,7 @@ import {
   productsForIssueType,
   visibleIssueGroups,
 } from "@/app/tenants/[tenantId]/catalogue/menus/menu-health-view";
+import { menuPhotoSummary } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-view";
 import { MenuManagerSection } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-section";
 import { unavailableHint } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-view";
 import { Alert } from "@/components/Alert";
@@ -18,6 +19,7 @@ import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
 import { Card } from "@/components/Card";
 import { Drawer } from "@/components/Drawer";
+import { ProgressBar } from "@/design-system/components/data/ProgressBar";
 import { Checkbox } from "@/design-system/components/primitives/Checkbox";
 import type { TenantAgentSettingsView } from "@/lib/agents/tenant-agent-settings";
 import type {
@@ -31,12 +33,17 @@ type MenuHealthPanelProps = {
   menuPublicId: string;
   /** Saved draft version; health is re-checked whenever it changes. */
   menuVersion: number;
+  /** Bumped by the parent after photo changes so counts re-check. */
+  refreshKey?: number;
+  onReport?: (report: MenuHealthReport) => void;
 };
 
 export function MenuHealthPanel({
   tenantId,
   menuPublicId,
   menuVersion,
+  refreshKey = 0,
+  onReport,
 }: MenuHealthPanelProps) {
   const [report, setReport] = useState<MenuHealthReport | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -45,6 +52,10 @@ export function MenuHealthPanel({
   const [focusType, setFocusType] = useState<MenuHealthIssueType | null>(null);
   const [agents, setAgents] = useState<TenantAgentSettingsView | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
+  const onReportRef = useRef(onReport);
+  useEffect(() => {
+    onReportRef.current = onReport;
+  }, [onReport]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +106,7 @@ export function MenuHealthPanel({
       }
 
       setReport(payload.health);
+      onReportRef.current?.(payload.health);
       setError(null);
     } catch (loadError) {
       setError(
@@ -112,9 +124,10 @@ export function MenuHealthPanel({
       void loadHealth();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadHealth, menuVersion]);
+  }, [loadHealth, menuVersion, refreshKey]);
 
   const groups = report ? visibleIssueGroups(report) : [];
+  const photos = report ? menuPhotoSummary(report) : null;
   const drawerGroups = focusType
     ? groups.filter((group) => group.type === focusType)
     : groups;
@@ -127,7 +140,7 @@ export function MenuHealthPanel({
   return (
     <>
     <Card
-      header="Menu health"
+      header="Menu completeness"
       subtitle={
         report
           ? `Checked against saved draft v${report.menuVersion} · ${new Date(report.evaluatedAt).toLocaleTimeString()}`
@@ -155,26 +168,32 @@ export function MenuHealthPanel({
         <p className="qos-card-sub">Checking menu health…</p>
       ) : null}
 
-      {report ? (
+      {report && photos ? (
         <div style={{ display: "grid", gap: 12 }}>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "baseline",
-              gap: 12,
-              flexWrap: "wrap",
-            }}
-          >
-            <strong style={{ fontSize: 28, lineHeight: "32px" }}>
-              {report.completeness.percent === null
-                ? "—"
-                : `${report.completeness.percent}%`}
-            </strong>
-            <span className="qos-card-sub">
-              {groups.length > 0
-                ? `complete · ${report.completeness.passedChecks} of ${report.completeness.totalChecks} checks passed`
-                : `complete · ${menuHealthHeadline(report)}`}
-            </span>
+          <div className="qos-menu-summary">
+            <div className="qos-menu-summary-head">
+              <span className="qos-card-sub">
+                {groups.length > 0
+                  ? `${report.completeness.passedChecks} of ${report.completeness.totalChecks} checks passed`
+                  : menuHealthHeadline(report)}
+              </span>
+              <span className="qos-menu-summary-pct">
+                {report.completeness.percent === null ? "—" : `${report.completeness.percent}%`}
+              </span>
+            </div>
+            <ProgressBar tone="intelligence" value={report.completeness.percent ?? 0} />
+            {photos.totalItems > 0 ? (
+              <div className="qos-legend" aria-label="Photo coverage">
+                <span className="qos-legend-item">
+                  <span className="qos-legend-dot" aria-hidden="true" />
+                  {photos.withPhotos} with photos
+                </span>
+                <span className="qos-legend-item">
+                  <span className="qos-legend-dot" data-tone="intelligence" aria-hidden="true" />
+                  {photos.needPhotos} need photos
+                </span>
+              </div>
+            ) : null}
           </div>
 
           {groups.length > 0 ? (
