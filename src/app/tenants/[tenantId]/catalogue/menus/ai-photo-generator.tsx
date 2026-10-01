@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import {
+  allowanceLabel,
   costLabel,
   failureMessage,
   generateActionState,
@@ -37,6 +38,8 @@ type AiPhotoGeneratorProps = {
   onClose: () => void;
   report: MenuHealthReport | null;
   aiPhotos: MenuAiPhotosView | null;
+  /** Why the AI photo state could not be loaded, shown instead of a misleading empty allowance. */
+  aiPhotosError: string | null;
   progress: Record<string, ItemProgress>;
   onProgress: (productPublicId: string, next: ItemProgress) => void;
   /** Called after generations or accepts so health, thumbnails and the daily allowance reload. */
@@ -54,6 +57,7 @@ export function AiPhotoGenerator({
   onClose,
   report,
   aiPhotos,
+  aiPhotosError,
   progress,
   onProgress,
   onChanged,
@@ -92,7 +96,7 @@ export function AiPhotoGenerator({
     .map((item) => item.productPublicId);
   const chosen = selected.filter((id) => selectable.includes(id));
   const allState = selectAllState(chosen, selectable);
-  const action = generateActionState(chosen.length, availability, generating);
+  const action = generateActionState(chosen.length, availability, generating, aiPhotosError);
   const ready = readyCandidates(progress);
   const needsReplace = Object.values(progress).filter((entry) => entry.state === "needs_replace").length;
 
@@ -297,9 +301,7 @@ export function AiPhotoGenerator({
               <div>
                 <div className="qos-credit-label">Left today</div>
                 <div className="qos-credit-value">
-                  {availability?.available
-                    ? `${availability.remainingToday} of ${availability.dailyLimit}`
-                    : "0"}
+                  {allowanceLabel(availability, aiPhotosError)}
                 </div>
               </div>
             </div>

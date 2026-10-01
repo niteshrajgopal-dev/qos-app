@@ -130,6 +130,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
   const [healthReport, setHealthReport] = useState<MenuHealthReport | null>(null);
   const [healthRefreshKey, setHealthRefreshKey] = useState(0);
   const [aiPhotos, setAiPhotos] = useState<MenuAiPhotosView | null>(null);
+  const [aiPhotosError, setAiPhotosError] = useState<string | null>(null);
   const [photoProgress, setPhotoProgress] = useState<Record<string, ItemProgress>>({});
   const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
 
@@ -282,14 +283,21 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       );
       const payload = (await response.json().catch(() => ({}))) as {
         aiPhotos?: MenuAiPhotosView;
+        error?: string;
       };
       if (response.ok && payload.aiPhotos) {
         const view = payload.aiPhotos;
         setAiPhotos(view);
+        setAiPhotosError(null);
         setPhotoProgress((current) => ({ ...progressFromCandidates(view.candidates), ...current }));
+      } else {
+        setAiPhotosError(
+          `AI photos could not be loaded (HTTP ${response.status}${payload.error ? `: ${payload.error}` : ""}).`,
+        );
       }
     } catch {
       // AI photos are optional; the editor works without them.
+      setAiPhotosError("AI photos could not be loaded. Check your connection and try again.");
     }
   }, [savedMenuPublicId, tenantId]);
 
@@ -917,6 +925,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
           onClose={() => setPhotoSheetOpen(false)}
           report={healthReport}
           aiPhotos={aiPhotos}
+          aiPhotosError={aiPhotosError}
           progress={photoProgress}
           onProgress={setItemProgress}
           onChanged={refreshPhotos}

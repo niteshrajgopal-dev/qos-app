@@ -70,12 +70,13 @@ export function generateActionState(
   selectedCount: number,
   availability: AiPhotoAvailabilityView | null,
   busy: boolean,
+  loadError: string | null = null,
 ): GenerateActionState {
   if (busy) {
     return { disabled: true, label: "Generating…", hint: null };
   }
   if (!availability) {
-    return { disabled: true, label: "Select items to generate", hint: null };
+    return { disabled: true, label: "Select items to generate", hint: loadError };
   }
   if (!availability.available) {
     return {
@@ -109,6 +110,17 @@ export function generateActionState(
     label: `Generate ${selectedCount} ${selectedCount === 1 ? "photo" : "photos"}`,
     hint: null,
   };
+}
+
+/** Allowance cell: distinguishes "still loading", "failed to load" and "switched off" from a spent allowance. */
+export function allowanceLabel(availability: AiPhotoAvailabilityView | null, loadError: string | null) {
+  if (!availability) {
+    return loadError ? "Unavailable" : "—";
+  }
+  if (!availability.available) {
+    return "Off";
+  }
+  return `${availability.remainingToday} of ${availability.dailyLimit}`;
 }
 
 export function costLabel(selectedCount: number) {
