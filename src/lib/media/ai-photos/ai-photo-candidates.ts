@@ -555,8 +555,8 @@ export async function generateMenuAiPhoto(
     const prompt = buildAiPhotoPrompt(product.context);
     const metadata: GenerationMetadata = {
       schema: AI_PHOTO_METADATA_SCHEMA,
-      provider: "openai",
-      model: config.model,
+      provider: config.provider,
+      model: config.provider === "mock" ? "mock" : config.model,
       quality: config.quality,
       promptVersion: AI_PHOTO_PROMPT_VERSION,
       prompt,

@@ -52,6 +52,7 @@ const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
 const config: AiPhotoConfig = {
   enabled: true,
+  provider: "openai",
   openAiApiKey: null,
   model: "gpt-image-1",
   quality: "low",

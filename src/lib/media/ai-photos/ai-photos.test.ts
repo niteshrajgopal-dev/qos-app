@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import { aiPhotoUnavailableReason, readAiPhotoConfig } from "@/lib/media/ai-photos/config";
 import { aiPhotoContextSha256, buildAiPhotoPrompt } from "@/lib/media/ai-photos/prompt";
-import { AiPhotoProviderError, createOpenAiPhotoProvider } from "@/lib/media/ai-photos/provider";
+import sharp from "sharp";
+
+import {
+  AiPhotoProviderError,
+  createMockAiPhotoProvider,
+  createOpenAiPhotoProvider,
+} from "@/lib/media/ai-photos/provider";
 
 describe("readAiPhotoConfig", () => {
   it("is off by default and unavailable without a key", () => {
@@ -13,6 +19,13 @@ describe("readAiPhotoConfig", () => {
     expect(
       aiPhotoUnavailableReason(readAiPhotoConfig({ AI_PHOTOS_ENABLED: "true", OPENAI_API_KEY: "sk-test" })),
     ).toBeNull();
+  });
+
+  it("allows the mock provider only outside production and without a key", () => {
+    const mock = readAiPhotoConfig({ AI_PHOTOS_ENABLED: "true", AI_PHOTO_PROVIDER: "mock" });
+    expect(aiPhotoUnavailableReason(mock)).toBeNull();
+    expect(() => readAiPhotoConfig({ AI_PHOTO_PROVIDER: "mock", NODE_ENV: "production" })).toThrow(/local development/);
+    expect(() => readAiPhotoConfig({ AI_PHOTO_PROVIDER: "other" })).toThrow(/AI_PHOTO_PROVIDER/);
   });
 
   it("bounds the daily limit and rejects unapproved models", () => {
@@ -84,5 +97,12 @@ describe("createOpenAiPhotoProvider", () => {
     await expect(
       provider(Response.json({ data: [] })).generate({ prompt: "p", requestId: "mas_1" }),
     ).rejects.toBeInstanceOf(AiPhotoProviderError);
+  });
+});
+
+describe("createMockAiPhotoProvider", () => {
+  it("renders a decodable jpeg without any network call", async () => {
+    const result = await createMockAiPhotoProvider().generate({ prompt: "Latte", requestId: "mas_1" });
+    expect((await sharp(result.bytes).metadata()).format).toBe("jpeg");
   });
 });

@@ -3,9 +3,13 @@ import type { EnvSource } from "@/lib/env";
 export const AI_PHOTO_QUALITIES = ["low", "medium", "high"] as const;
 export type AiPhotoQuality = (typeof AI_PHOTO_QUALITIES)[number];
 
+export type AiPhotoProviderKind = "openai" | "mock";
+
 export type AiPhotoConfig = {
   /** Off by default: no paid provider call is made unless explicitly enabled. */
   enabled: boolean;
+  /** "mock" renders a placeholder locally with no network call; refused in production. */
+  provider: AiPhotoProviderKind;
   openAiApiKey: string | null;
   model: string;
   quality: AiPhotoQuality;
@@ -51,8 +55,17 @@ export function readAiPhotoConfig(source: EnvSource = process.env): AiPhotoConfi
     throw new Error(`AI_PHOTO_QUALITY must be one of ${AI_PHOTO_QUALITIES.join(", ")}.`);
   }
 
+  const provider = (source.AI_PHOTO_PROVIDER?.trim().toLowerCase() || "openai") as AiPhotoProviderKind;
+  if (provider !== "openai" && provider !== "mock") {
+    throw new Error("AI_PHOTO_PROVIDER must be openai or mock.");
+  }
+  if (provider === "mock" && source.NODE_ENV === "production") {
+    throw new Error("AI_PHOTO_PROVIDER=mock is for local development only.");
+  }
+
   return {
     enabled: parseFlag(source.AI_PHOTOS_ENABLED),
+    provider,
     openAiApiKey: source.OPENAI_API_KEY?.trim() || null,
     model,
     quality,
@@ -74,7 +87,7 @@ export function aiPhotoUnavailableReason(
   if (!config.enabled) {
     return "disabled";
   }
-  if (!config.openAiApiKey && !options.providerOverride) {
+  if (config.provider === "openai" && !config.openAiApiKey && !options.providerOverride) {
     return "not_configured";
   }
   return null;
