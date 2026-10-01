@@ -923,7 +923,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         />
       ) : null}
 
-      <div className="sticky bottom-4 z-20 grid gap-3">
+      <div className="sticky bottom-4 z-20 grid min-w-0 grid-cols-1 gap-3">
       {isEditMode && photoSummary && photoSummary.needPhotos > 0 && !photoSheetOpen ? (
         <div className="qos-ai-bar" role="region" aria-label="AI photos">
           <span className="qos-ai-bar-icon" aria-hidden="true">
@@ -939,12 +939,12 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         </div>
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
-        <p className="text-sm text-zinc-600">
+        <p className="min-w-0 text-sm text-zinc-600">
           {isDirty ? "Unsaved changes" : "All changes saved locally"}
           {form.publicId ? (
             <>
               {" "}
-              · Menu <code>{form.publicId}</code> · Version {form.version}
+              · Menu <code className="break-all">{form.publicId}</code> · Version {form.version}
             </>
           ) : null}
         </p>

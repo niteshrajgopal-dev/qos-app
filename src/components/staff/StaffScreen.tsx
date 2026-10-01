@@ -18,7 +18,7 @@ export function StaffScreen({
   children,
 }: StaffScreenProps) {
   return (
-    <div style={{ display: "grid", gap: "var(--space-6)" }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: "var(--space-6)" }}>
       <PageHeader
         title={title}
         subtitle={subtitle}

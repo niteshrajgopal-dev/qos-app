@@ -45,8 +45,8 @@ a.qos-card,a.qos-card:hover{text-decoration:none;color:inherit}
 .qos-menu-section-head{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) var(--space-4)}
 .qos-menu-section-title{flex:1;min-width:0;text-align:start;background:none;border:0;padding:0;cursor:pointer;color:inherit}
 .qos-menu-section-name{font-weight:var(--fw-semibold);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.qos-menu-section-body{border-top:1px solid var(--border-subtle);padding:var(--space-4);display:grid;gap:var(--space-4);background:var(--surface-subtle)}
-.qos-menu-rows{display:grid;gap:var(--space-2)}
+.qos-menu-section-body{border-top:1px solid var(--border-subtle);padding:var(--space-4);display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-4);background:var(--surface-subtle)}
+.qos-menu-rows{display:grid;grid-template-columns:minmax(0,1fr);gap:var(--space-2)}
 .qos-menu-row{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-2) var(--space-3);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);background:var(--surface-default);min-height:60px}
 .qos-menu-row[data-muted="true"] .qos-menu-row-name{color:var(--text-tertiary)}
 .qos-menu-row-main{flex:1;min-width:0}
@@ -67,7 +67,7 @@ a.qos-card,a.qos-card:hover{text-decoration:none;color:inherit}
 .qos-ai-bar-sub{font-size:var(--text-meta-size);opacity:.85;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .qos-ai-bar .qos-btn{flex:none;background:var(--white);color:var(--violet-700);border:none}
 .qos-ai-bar .qos-btn:hover{filter:brightness(.97)}
-.qos-ai-list{display:grid;list-style:none;margin:0;padding:0}
+.qos-ai-list{display:grid;grid-template-columns:minmax(0,1fr);list-style:none;margin:0;padding:0}
 .qos-ai-item{display:flex;align-items:center;gap:var(--space-3);padding:var(--space-3) 0;border-bottom:1px solid var(--border-subtle)}
 .qos-ai-item:last-child{border-bottom:0}
 .qos-ai-item-main{flex:1;min-width:0}
@@ -84,6 +84,7 @@ a.qos-card,a.qos-card:hover{text-decoration:none;color:inherit}
   .qos-drawer[data-placement="sheet"] .qos-drawer-head,.qos-drawer[data-placement="sheet"] .qos-drawer-body{padding-inline:var(--space-4)}
   .qos-drawer[data-placement="sheet"] .qos-drawer-foot{padding:var(--space-3) var(--space-4) calc(var(--space-3) + env(safe-area-inset-bottom))}
   .qos-menu-section-body{padding:var(--space-3)}
+  .qos-ai-bar-icon{display:none}
 }
 @keyframes qos-sheet-in{from{transform:translateY(32px);opacity:.6}to{transform:none;opacity:1}}
 .qos-spin{animation:qos-spin 1s linear infinite}
