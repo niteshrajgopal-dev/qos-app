@@ -7,6 +7,7 @@ import {
   catalogueMediaDerivatives,
   catalogueMediaUploadGrants,
   catalogueProducts,
+  videoProcessingJobs,
 } from "@/db/schema";
 import { readMediaConfig } from "@/lib/media/config";
 import { getMediaStorage } from "@/lib/media/storage";
@@ -453,4 +454,171 @@ export async function getApprovedProductVideoUrls(
   } catch (error) {
     return mapVideoError(error);
   }
+}
+
+/**
+ * Delete a video asset and its derivatives.
+ * 
+ * Only deletes blobs if no product currently references this asset as its
+ * primary media asset. This prevents accidentally deleting a live product's
+ * visible media. Source and derivative blobs are deleted best-effort; blob
+ * storage failures are logged but do not fail the overall deletion.
+ */
+export async function deleteProductVideoAsset(
+  db: DbClient,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  productPublicId: string,
+  assetPublicId: string,
+) {
+  requireAdministratorRole(membership);
+
+  try {
+    return withTenantContext(db, tenantId, async (tx) => {
+      const product = await requireDraftProduct(tx, tenantId, productPublicId);
+
+      const [asset] = await tx
+        .select({
+          id: catalogueMediaAssets.id,
+          contentType: catalogueMediaAssets.contentType,
+        })
+        .from(catalogueMediaAssets)
+        .where(
+          and(
+            eq(catalogueMediaAssets.tenantId, tenantId),
+            eq(catalogueMediaAssets.publicId, assetPublicId),
+            eq(catalogueMediaAssets.productId, product.id),
+          ),
+        )
+        .limit(1);
+
+      if (!asset) {
+        throw new ProductVideoError("Media asset not found.", 404);
+      }
+
+      const [grant] = await tx
+        .select({ expectedContentType: catalogueMediaUploadGrants.expectedContentType })
+        .from(catalogueMediaUploadGrants)
+        .where(
+          and(
+            eq(catalogueMediaUploadGrants.tenantId, tenantId),
+            eq(catalogueMediaUploadGrants.assetId, asset.id),
+          ),
+        )
+        .limit(1);
+
+      if (!grant || grant.expectedContentType !== "video/mp4") {
+        throw new ProductVideoError(
+          "Only video assets can be deleted through this endpoint.",
+          400,
+        );
+      }
+
+      const productsReferencingAsset = await tx
+        .select({ publicId: catalogueProducts.publicId })
+        .from(catalogueProducts)
+        .where(
+          and(
+            eq(catalogueProducts.tenantId, tenantId),
+            eq(catalogueProducts.primaryMediaAssetId, asset.id),
+          ),
+        );
+
+      if (productsReferencingAsset.length > 0) {
+        throw new ProductVideoError(
+          `Cannot delete asset: still referenced by ${productsReferencingAsset.length} product(s) as primary media.`,
+          409,
+        );
+      }
+
+      const derivatives = await tx
+        .delete(catalogueMediaDerivatives)
+        .where(
+          and(
+            eq(catalogueMediaDerivatives.tenantId, tenantId),
+            eq(catalogueMediaDerivatives.assetId, asset.id),
+          ),
+        )
+        .returning({ storagePath: catalogueMediaDerivatives.storagePath });
+
+      const uploadGrants = await tx
+        .select({ privateStoragePath: catalogueMediaUploadGrants.privateStoragePath })
+        .from(catalogueMediaUploadGrants)
+        .where(
+          and(
+            eq(catalogueMediaUploadGrants.tenantId, tenantId),
+            eq(catalogueMediaUploadGrants.assetId, asset.id),
+            eq(catalogueMediaUploadGrants.status, "used"),
+          ),
+        );
+
+      await tx
+        .delete(catalogueMediaUploadGrants)
+        .where(
+          and(
+            eq(catalogueMediaUploadGrants.tenantId, tenantId),
+            eq(catalogueMediaUploadGrants.assetId, asset.id),
+          ),
+        );
+
+      await tx
+        .delete(videoProcessingJobs)
+        .where(
+          and(
+            eq(videoProcessingJobs.tenantId, tenantId),
+            eq(videoProcessingJobs.assetId, asset.id),
+          ),
+        );
+
+      await tx
+        .delete(catalogueMediaAssets)
+        .where(
+          and(
+            eq(catalogueMediaAssets.tenantId, tenantId),
+            eq(catalogueMediaAssets.id, asset.id),
+          ),
+        );
+
+      const storage = getMediaStorage();
+
+      for (const derivative of derivatives) {
+        try {
+          await storage.deletePublic(derivative.storagePath);
+        } catch (error) {
+          console.warn({
+            event: "video_asset_deletion.derivative_blob_cleanup_failed",
+            assetPublicId,
+            storagePath: derivative.storagePath,
+            error: errorMessage(error),
+          });
+        }
+      }
+
+      for (const grant of uploadGrants) {
+        try {
+          if (storage.deletePrivate) {
+            await storage.deletePrivate(grant.privateStoragePath);
+          }
+        } catch (error) {
+          console.warn({
+            event: "video_asset_deletion.source_blob_cleanup_failed",
+            assetPublicId,
+            storagePath: grant.privateStoragePath,
+            error: errorMessage(error),
+          });
+        }
+      }
+
+      return {
+        assetPublicId,
+        deletedDerivativeCount: derivatives.length,
+      };
+    });
+  } catch (error) {
+    return mapVideoError(error);
+  }
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "Unknown error";
 }

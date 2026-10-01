@@ -3,8 +3,9 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { eq } from "drizzle-orm";
 
-import { staffIdentities, staffMemberships } from "@/db/schema";
+import { catalogueProducts, staffIdentities, staffMemberships } from "@/db/schema";
 import {
   grantRoleMembership,
   hasIntegrationDatabase,
@@ -14,6 +15,7 @@ import {
 import { createDraftProduct } from "@/lib/catalogue/products";
 import {
   createProductVideoUploadGrant,
+  deleteProductVideoAsset,
   getApprovedProductVideoUrls,
   getProductVideoJobStatus,
   ingestProductVideoUpload,
@@ -32,6 +34,7 @@ import {
 } from "@/lib/media/video-job-queue";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
+import { withTenantContext } from "@/lib/tenant/context";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
@@ -632,6 +635,99 @@ integrationDescribe("product video upload and processing", () => {
     expect(replayUrls?.playbackUrl).not.toBe(firstUrls?.playbackUrl);
   });
 
+  it.skipIf(!ffmpegAvailable)("deletes superseded blobs on replay, leaving exactly one playback + poster", async () => {
+    const queued = await queueUploadedVideo(tenantId, admin);
+
+    const first = await claimNextQueuedJob(db, { config: testConfig });
+    await processVideoJob(db, first!, { config: testConfig });
+    const firstUrls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
+
+    const firstPlaybackId = firstUrls!.playbackUrl.split("/").pop()!;
+    const firstPosterId = firstUrls!.posterUrl.split("/").pop()!;
+
+    const allBlobs = localStorage.listPublicBlobs();
+    const firstPlaybackBlob = allBlobs.find((b) => b.endsWith(`${firstPlaybackId}.mp4`));
+    const firstPosterBlob = allBlobs.find((b) => b.endsWith(`${firstPosterId}.jpg`));
+    expect(firstPlaybackBlob).toBeTruthy();
+    expect(firstPosterBlob).toBeTruthy();
+
+    await sqlClient`UPDATE qos.video_processing_jobs SET status = 'queued' WHERE id = ${first!.jobId}`;
+    const replay = await claimNextQueuedJob(db, { config: testConfig });
+    await processVideoJob(db, replay!, { config: testConfig });
+    const replayUrls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
+
+    const replayPlaybackId = replayUrls!.playbackUrl.split("/").pop()!;
+    const replayPosterId = replayUrls!.posterUrl.split("/").pop()!;
+
+    const allBlobsAfter = localStorage.listPublicBlobs();
+    const replayPlaybackBlob = allBlobsAfter.find((b) => b.endsWith(`${replayPlaybackId}.mp4`));
+    const replayPosterBlob = allBlobsAfter.find((b) => b.endsWith(`${replayPosterId}.jpg`));
+    expect(replayPlaybackBlob).toBeTruthy();
+    expect(replayPosterBlob).toBeTruthy();
+
+    expect(allBlobsAfter.find((b) => b.endsWith(`${firstPlaybackId}.mp4`))).toBeUndefined();
+    expect(allBlobsAfter.find((b) => b.endsWith(`${firstPosterId}.jpg`))).toBeUndefined();
+
+    const assetIdRow = await sqlClient`
+      SELECT id FROM qos.catalogue_media_assets WHERE public_id = ${queued.assetPublicId}
+    `;
+    const assetId = assetIdRow[0].id as string;
+
+    const assetBlobs = allBlobsAfter.filter((b) => b.includes(`/${assetId}/`));
+    expect(assetBlobs).toHaveLength(2);
+  });
+
+  it.skipIf(!ffmpegAvailable)("storage failure during cleanup does not roll back the successful job", async () => {
+    const queued = await queueUploadedVideo(tenantId, admin);
+
+    const first = await claimNextQueuedJob(db, { config: testConfig });
+    await processVideoJob(db, first!, { config: testConfig });
+
+    class FailingDeleteStorage implements MediaStorage {
+      constructor(private readonly inner: MediaStorage) {}
+      writePrivate(p: string, b: Buffer) {
+        return this.inner.writePrivate(p, b);
+      }
+      readPrivate(p: string) {
+        return this.inner.readPrivate(p);
+      }
+      writePublic(p: string, b: Buffer) {
+        return this.inner.writePublic(p, b);
+      }
+      readPublic(p: string) {
+        return this.inner.readPublic(p);
+      }
+      deletePublic(): Promise<void> {
+        return Promise.reject(new Error("simulated blob delete failure"));
+      }
+    }
+
+    try {
+      setMediaStorage(new FailingDeleteStorage(localStorage));
+
+      await sqlClient`UPDATE qos.video_processing_jobs SET status = 'queued' WHERE id = ${first!.jobId}`;
+      const replay = await claimNextQueuedJob(db, { config: testConfig });
+      await processVideoJob(db, replay!, { config: testConfig });
+
+      const status = await getProductVideoJobStatus(db, tenantId, admin, queued.correlationId);
+      expect(status.status).toBe("ready");
+      expect(status.completedAt).toBeTruthy();
+
+      const replayUrls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
+      expect(replayUrls?.playbackUrl).toBeTruthy();
+      expect(replayUrls?.posterUrl).toBeTruthy();
+
+      const derivativeRows = await sqlClient`
+        SELECT derivative_kind FROM qos.catalogue_media_derivatives d
+        JOIN qos.catalogue_media_assets a ON a.id = d.asset_id
+        WHERE a.public_id = ${queued.assetPublicId}
+      `;
+      expect(derivativeRows).toHaveLength(2);
+    } finally {
+      setMediaStorage(localStorage);
+    }
+  });
+
   it("rejects foreign-tenant product ID", async () => {
     const hierarchy2 = await createTenantHierarchy(db, {
       tenant: {
@@ -754,6 +850,152 @@ integrationDescribe("product video upload and processing", () => {
     ).rejects.toMatchObject({
       message: expect.stringMatching(/administrator.*required/i),
       statusCode: 403,
+    });
+  });
+
+  describe("video asset deletion", () => {
+    it("deletes a video asset and its derivatives when no product references it", async () => {
+      const product = await createDraftProduct(db, tenantId, admin, productInput);
+      const videoBytes = await readFile(VALID_VIDEO_PATH);
+
+      const grant = await createProductVideoUploadGrant(
+        db,
+        tenantId,
+        admin,
+        product.publicId,
+        { byteSize: videoBytes.length, contentType: "video/mp4" },
+      );
+
+      await ingestProductVideoUpload(
+        db,
+        tenantId,
+        product.publicId,
+        grant.grantToken,
+        videoBytes,
+      );
+
+      const result = await deleteProductVideoAsset(
+        db,
+        tenantId,
+        admin,
+        product.publicId,
+        grant.assetPublicId,
+      );
+
+      expect(result.assetPublicId).toBe(grant.assetPublicId);
+      expect(result.deletedDerivativeCount).toBe(0);
+
+      const assetRows = await sqlClient`
+        SELECT id FROM qos.catalogue_media_assets WHERE public_id = ${grant.assetPublicId}
+      `;
+      expect(assetRows).toHaveLength(0);
+    });
+
+    it.skipIf(!ffmpegAvailable)("deletes derivative blobs when asset is deleted", async () => {
+      const queued = await queueUploadedVideo(tenantId, admin);
+
+      const job = await claimNextQueuedJob(db, { config: testConfig });
+      await processVideoJob(db, job!, { config: testConfig });
+
+      const urls = await getApprovedProductVideoUrls(db, tenantId, queued.productPublicId);
+      const playbackId = urls!.playbackUrl.split("/").pop()!;
+      const posterId = urls!.posterUrl.split("/").pop()!;
+
+      const blobsBefore = localStorage.listPublicBlobs();
+      expect(blobsBefore.find((b) => b.endsWith(`${playbackId}.mp4`))).toBeTruthy();
+      expect(blobsBefore.find((b) => b.endsWith(`${posterId}.jpg`))).toBeTruthy();
+
+      const result = await deleteProductVideoAsset(
+        db,
+        tenantId,
+        admin,
+        queued.productPublicId,
+        queued.assetPublicId,
+      );
+
+      expect(result.deletedDerivativeCount).toBe(2);
+
+      const blobsAfter = localStorage.listPublicBlobs();
+      expect(blobsAfter.find((b) => b.endsWith(`${playbackId}.mp4`))).toBeUndefined();
+      expect(blobsAfter.find((b) => b.endsWith(`${posterId}.jpg`))).toBeUndefined();
+    });
+
+    it.skipIf(!ffmpegAvailable)("refuses to delete asset referenced by a product as primary media", async () => {
+      const queued = await queueUploadedVideo(tenantId, admin);
+
+      const job = await claimNextQueuedJob(db, { config: testConfig });
+      await processVideoJob(db, job!, { config: testConfig });
+
+      const assetIdRow = await sqlClient`
+        SELECT id FROM qos.catalogue_media_assets WHERE public_id = ${queued.assetPublicId}
+      `;
+      const assetId = assetIdRow[0].id as string;
+
+      await withTenantContext(db, tenantId, async (tx) => {
+        await tx
+          .update(catalogueProducts)
+          .set({ primaryMediaAssetId: assetId })
+          .where(eq(catalogueProducts.publicId, queued.productPublicId));
+      });
+
+      await expect(
+        deleteProductVideoAsset(
+          db,
+          tenantId,
+          admin,
+          queued.productPublicId,
+          queued.assetPublicId,
+        ),
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/still referenced.*primary media/i),
+        statusCode: 409,
+      });
+
+      const assetStillExists = await sqlClient`
+        SELECT id FROM qos.catalogue_media_assets WHERE public_id = ${queued.assetPublicId}
+      `;
+      expect(assetStillExists).toHaveLength(1);
+    });
+
+    it("returns 404 when asset does not belong to the specified product", async () => {
+      const product1 = await createDraftProduct(db, tenantId, admin, {
+        ...productInput,
+        internalName: "product-1",
+      });
+      const product2 = await createDraftProduct(db, tenantId, admin, {
+        ...productInput,
+        internalName: "product-2",
+      });
+
+      const videoBytes = await readFile(VALID_VIDEO_PATH);
+      const grant = await createProductVideoUploadGrant(
+        db,
+        tenantId,
+        admin,
+        product1.publicId,
+        { byteSize: videoBytes.length, contentType: "video/mp4" },
+      );
+
+      await ingestProductVideoUpload(
+        db,
+        tenantId,
+        product1.publicId,
+        grant.grantToken,
+        videoBytes,
+      );
+
+      await expect(
+        deleteProductVideoAsset(
+          db,
+          tenantId,
+          admin,
+          product2.publicId,
+          grant.assetPublicId,
+        ),
+      ).rejects.toMatchObject({
+        message: expect.stringMatching(/not found/i),
+        statusCode: 404,
+      });
     });
   });
 });

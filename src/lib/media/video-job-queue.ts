@@ -462,7 +462,7 @@ export async function processVideoJob(
       throw new VideoJobError("Superseded by a newer upload.", false);
     }
 
-    await withTenantContext(db, job.tenantId, async (tx) => {
+    const supersededBlobPaths = await withTenantContext(db, job.tenantId, async (tx) => {
       const now = new Date();
 
       const [completed] = await tx
@@ -481,14 +481,15 @@ export async function processVideoJob(
         throw new VideoJobLeaseLostError(job.jobId);
       }
 
-      await tx
+      const supersededDerivatives = await tx
         .delete(catalogueMediaDerivatives)
         .where(
           and(
             eq(catalogueMediaDerivatives.tenantId, job.tenantId),
             eq(catalogueMediaDerivatives.assetId, job.assetId),
           ),
-        );
+        )
+        .returning({ storagePath: catalogueMediaDerivatives.storagePath });
 
       await tx.insert(catalogueMediaDerivatives).values([
         {
@@ -530,7 +531,26 @@ export async function processVideoJob(
             eq(catalogueMediaAssets.id, job.assetId),
           ),
         );
+
+      return supersededDerivatives.map(d => d.storagePath);
     });
+
+    if (supersededBlobPaths.length > 0) {
+      const storage = getMediaStorage();
+      for (const blobPath of supersededBlobPaths) {
+        try {
+          await storage.deletePublic(blobPath);
+        } catch (error) {
+          console.warn({
+            event: "video_job.blob_cleanup_failed",
+            jobId: job.jobId,
+            correlationId: job.correlationId,
+            blobPath,
+            error: errorMessage(error),
+          });
+        }
+      }
+    }
   } catch (error) {
     if (error instanceof VideoJobLeaseLostError) {
       throw error;
