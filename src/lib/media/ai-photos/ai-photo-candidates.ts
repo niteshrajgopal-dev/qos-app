@@ -27,6 +27,7 @@ import {
 } from "@/lib/media/ai-photos/prompt";
 import {
   AiPhotoProviderError,
+  type AiPhotoProviderDiagnostics,
   getAiPhotoProvider,
   hasAiPhotoProviderOverride,
   type AiPhotoProvider,
@@ -396,6 +397,7 @@ async function markGenerationFailed(
   assetPublicId: string,
   failureCode: string,
   message: string,
+  providerDiagnostics: AiPhotoProviderDiagnostics | null = null,
 ) {
   return withTenantContext(db, caller.tenantId, async (tx) => {
     const [asset] = await tx
@@ -433,7 +435,11 @@ async function markGenerationFailed(
       .set({
         status: "failed",
         failureReason: message,
-        generationMetadata: { ...metadataOf(asset), failureCode },
+        generationMetadata: {
+          ...metadataOf(asset),
+          failureCode,
+          ...(providerDiagnostics ? { providerDiagnostics } : {}),
+        },
         updatedAt: new Date(),
       })
       .where(eq(catalogueMediaAssets.id, asset.id))
@@ -446,7 +452,7 @@ async function markGenerationFailed(
       action: "catalogue.media.ai_photo_failed",
       entityType: "catalogue_media_asset",
       entityPublicId: asset.publicId,
-      changeSummary: { failureCode },
+      changeSummary: { failureCode, ...(providerDiagnostics ? { providerDiagnostics } : {}) },
     });
     return failed;
   });
@@ -626,7 +632,14 @@ export async function generateMenuAiPhoto(
     const code = error instanceof AiPhotoProviderError ? error.code : "provider_error";
     const message =
       error instanceof AiPhotoProviderError ? error.message : "The image service could not generate this photo.";
-    const failed = await markGenerationFailed(db, caller, grant.assetPublicId, code, message);
+    const diagnostics = error instanceof AiPhotoProviderError ? error.diagnostics : null;
+    console.warn("AI photo generation failed", {
+      tenantId: caller.tenantId,
+      assetPublicId: grant.assetPublicId,
+      failureCode: code,
+      ...diagnostics,
+    });
+    const failed = await markGenerationFailed(db, caller, grant.assetPublicId, code, message, diagnostics);
     if (!failed) {
       throw error;
     }

@@ -98,6 +98,31 @@ describe("createOpenAiPhotoProvider", () => {
       provider(Response.json({ data: [] })).generate({ prompt: "p", requestId: "mas_1" }),
     ).rejects.toBeInstanceOf(AiPhotoProviderError);
   });
+
+  it("keeps the HTTP status and provider error identifiers for diagnosis, but not the message", async () => {
+    const rejected = provider(
+      Response.json(
+        { error: { code: "invalid_api_key", type: "invalid_request_error", message: "Incorrect API key sk-****abcd" } },
+        { status: 401 },
+      ),
+    ).generate({ prompt: "p", requestId: "mas_1" });
+
+    const error = (await rejected.catch((caught: unknown) => caught)) as AiPhotoProviderError;
+    expect(error.code).toBe("provider_auth");
+    expect(error.diagnostics).toEqual({
+      httpStatus: 401,
+      providerCode: "invalid_api_key",
+      providerType: "invalid_request_error",
+    });
+    expect(JSON.stringify(error.diagnostics)).not.toContain("sk-");
+
+    const unverified = (await provider(
+      Response.json({ error: { code: null, type: "invalid_request_error", message: "must be verified" } }, { status: 403 }),
+    )
+      .generate({ prompt: "p", requestId: "mas_1" })
+      .catch((caught: unknown) => caught)) as AiPhotoProviderError;
+    expect(unverified.diagnostics).toEqual({ httpStatus: 403, providerCode: null, providerType: "invalid_request_error" });
+  });
 });
 
 describe("createMockAiPhotoProvider", () => {
