@@ -32,9 +32,12 @@ integrationDescribe("0038 agent platform foundation migration", () => {
     const journal = JSON.parse(await readFile(journalPath, "utf8")) as {
       entries: Array<{ tag: string }>;
     };
-    journal.entries = journal.entries.filter(
-      (entry) => entry.tag !== "0038_agent_platform_foundation",
+    // Drizzle only applies entries newer than the last applied one, so every
+    // migration from 0038 onwards must be absent from the "before" state.
+    const cutoff = journal.entries.findIndex(
+      (entry) => entry.tag === "0038_agent_platform_foundation",
     );
+    journal.entries = journal.entries.slice(0, cutoff);
     await writeFile(journalPath, JSON.stringify(journal));
   }, 60_000);
 
