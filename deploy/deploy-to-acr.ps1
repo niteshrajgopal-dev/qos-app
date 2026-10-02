@@ -3,6 +3,11 @@
 .SYNOPSIS
   Deploy the qos-api image from ACR to Azure Container Apps.
 
+.DESCRIPTION
+  The image tag defaults to the short git commit of the checkout, matching
+  build-and-push-to-acr. A unique tag per build is what makes Container Apps
+  roll a new revision; re-applying an unchanged tag is a no-op.
+
 .EXAMPLE
   .\deploy\deploy-to-acr.cmd
 
@@ -15,7 +20,7 @@ param(
     [string] $ResourceGroup = "rg-qos-dev-core",
     [string] $ContainerAppName = "ca-qos-dev-api",
     [string] $ImageName = "qos-api",
-    [string] $ImageTag = "0.2",
+    [string] $ImageTag = "",
     [string] $HealthPath = "/api/health",
     [switch] $WaitForHealth,
     [int] $HealthTimeoutSeconds = 120
@@ -39,7 +44,8 @@ function Assert-AzCli {
 function Wait-ForHealthyRevision {
     param(
         [string] $HealthUrl,
-        [int] $TimeoutSeconds
+        [int] $TimeoutSeconds,
+        [string] $ExpectedBuild
     )
 
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
@@ -50,11 +56,16 @@ function Wait-ForHealthyRevision {
         try {
             $health = Invoke-RestMethod -Uri $HealthUrl -TimeoutSec 15
             if ($health.status -eq "healthy") {
-                Write-Host "Health check passed."
-                return $health
-            }
+                if (-not $ExpectedBuild -or $health.build -eq $ExpectedBuild) {
+                    Write-Host "Health check passed."
+                    return $health
+                }
 
-            Write-Host "Health status: $($health.status)"
+                Write-Host "Healthy, but serving build '$($health.build)'; waiting for '$ExpectedBuild'..."
+            }
+            else {
+                Write-Host "Health status: $($health.status)"
+            }
         }
         catch {
             Write-Host "Health endpoint not ready yet..."
@@ -64,6 +75,16 @@ function Wait-ForHealthyRevision {
     }
 
     throw "Timed out waiting for a healthy deployment at $HealthUrl"
+}
+
+$expectedBuild = $null
+if (-not $ImageTag) {
+    $projectRoot = Split-Path -Parent $PSScriptRoot
+    $ImageTag = (git -C $projectRoot rev-parse --short=12 HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or -not $ImageTag) {
+        throw "Could not resolve the git commit; pass -ImageTag explicitly."
+    }
+    $expectedBuild = $ImageTag
 }
 
 $image = "$RegistryName.azurecr.io/${ImageName}:${ImageTag}"
@@ -97,7 +118,8 @@ Write-Host "Health:        $healthUrl"
 if ($WaitForHealth) {
     $result = Wait-ForHealthyRevision `
         -HealthUrl $healthUrl `
-        -TimeoutSeconds $HealthTimeoutSeconds
+        -TimeoutSeconds $HealthTimeoutSeconds `
+        -ExpectedBuild $expectedBuild
 
     $result | ConvertTo-Json -Depth 5 | Write-Host
 }

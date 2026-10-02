@@ -3,6 +3,11 @@
 .SYNOPSIS
   Build the qos-api Docker image in Azure Container Registry and push it.
 
+.DESCRIPTION
+  The image tag defaults to the short git commit of the project root. Reusing
+  a fixed tag (e.g. "0.2") lets `az containerapp update` treat the deploy as
+  a no-op and keep serving the previous build.
+
 .EXAMPLE
   .\deploy\build-and-push-to-acr.cmd
 
@@ -17,7 +22,7 @@ param(
     [string] $RegistryName = "qosdevacr",
     [string] $ResourceGroup = "rg-qos-dev-core",
     [string] $ImageName = "qos-api",
-    [string] $ImageTag = "0.2",
+    [string] $ImageTag = "",
     [string] $ProjectRoot = "",
     # Dockerfile stage to build; empty builds the last stage (the API image).
     [string] $Target = "",
@@ -130,6 +135,19 @@ function Write-AcrRunLogs {
     }
 }
 
+$buildSha = (git -C $ProjectRoot rev-parse --short=12 HEAD).Trim()
+if ($LASTEXITCODE -ne 0 -or -not $buildSha) {
+    throw "Could not resolve the git commit for $ProjectRoot."
+}
+
+if (git -C $ProjectRoot status --porcelain) {
+    Write-Warning "Working tree has uncommitted changes; image $buildSha will not match the commit exactly."
+}
+
+if (-not $ImageTag) {
+    $ImageTag = $buildSha
+}
+
 $fullImage = "${ImageName}:${ImageTag}"
 
 Write-Host "Building and pushing $RegistryName.azurecr.io/$fullImage"
@@ -143,6 +161,7 @@ try {
         "acr", "build",
         "--registry", $RegistryName,
         "--image", $fullImage,
+        "--build-arg", "QOS_BUILD_SHA=$buildSha",
         "--resource-group", $ResourceGroup,
         "--only-show-errors",
         # Next.js prints Unicode (e.g. ▲). Streaming those logs through
@@ -204,6 +223,7 @@ This is a known Windows log-encoding issue with Next.js Unicode output. The imag
 
     Write-Host ""
     Write-Host "Image published: $RegistryName.azurecr.io/$fullImage"
+    Write-Host "Deploy it with: .\deploy\deploy-to-acr.cmd -ImageTag $ImageTag -WaitForHealth"
 }
 finally {
     Pop-Location
