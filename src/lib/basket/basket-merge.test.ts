@@ -251,7 +251,71 @@ integrationDescribe("anonymous-to-account basket merge", () => {
       "admin.merge@test",
     );
 
-    return { quotes, product, storefront };
+    return { quotes, product, storefront, admin };
+  }
+
+  async function republishLocationMenuWithNewProduct(
+    seeded: Awaited<ReturnType<typeof seedPublishedStorefrontMenu>>,
+  ) {
+    const { quotes, storefront, admin } = seeded;
+
+    const pipe = await createDraftProduct(db, quotes.tenant.id, admin, {
+      internalName: "pipe-tabaco",
+      translations: {
+        en: { displayName: "Pipe Tabaco", description: "V60 beans" },
+        ar: { displayName: "بايب", description: "قهوة" },
+      },
+      defaultVariant: { amountMinor: 5000, currency: "AED" },
+    });
+
+    for (const locale of ["en", "ar"] as const) {
+      await approveProductTranslation(
+        db,
+        quotes.tenant.id,
+        "admin.merge@test",
+        pipe.publicId,
+        locale,
+        { expectedTranslationVersion: pipe.translations[locale].translationVersion },
+      );
+    }
+
+    const menu = await createDraftMenu(db, quotes.tenant.id, admin, {
+      internalName: "finedine-menu",
+      locationIds: [quotes.locationA.id],
+      translations: {
+        en: { displayName: "FineDine Menu" },
+        ar: { displayName: "قائمة" },
+      },
+      sections: [
+        {
+          internalName: "beans",
+          sortOrder: 0,
+          translations: {
+            en: { displayName: "New V60 Beans" },
+            ar: { displayName: "حبوب" },
+          },
+          products: [{ productPublicId: pipe.publicId, sortOrder: 0 }],
+        },
+      ],
+    });
+
+    await publishDraftMenuToLocations(
+      db,
+      quotes.tenant.id,
+      "admin.merge@test",
+      menu.publicId,
+      { locationIds: [quotes.locationA.id] },
+    );
+
+    await assignPublishedCollection(
+      db,
+      quotes.tenant.id,
+      storefront.publicId,
+      quotes.locationA.publicId,
+      menu.publicId,
+    );
+
+    return { pipe, menu };
   }
 
   async function seedSignedInMergeScenario() {
@@ -380,6 +444,69 @@ integrationDescribe("anonymous-to-account basket merge", () => {
 
     const reloadedAccount = await getCustomerAccountBasket(db, customerRequest, context);
     expect(reloadedAccount.lines[0]?.quantity).toBe(3);
+  });
+
+  it("merges a guest line into an account basket created before the location menu changed", async () => {
+    const seeded = await seedPublishedStorefrontMenu();
+    const context = {
+      storefrontPublicId: seeded.storefront.publicId,
+      locationPublicId: seeded.quotes.locationA.publicId,
+    };
+
+    await registerCustomer("sticky-merge@example.com", "Password123!", "Sticky");
+    const customerRequest = await signInCustomer(
+      "sticky-merge@example.com",
+      "Password123!",
+    );
+    const staleAccount = await getCustomerAccountBasket(db, customerRequest, context);
+
+    const { pipe, menu } = await republishLocationMenuWithNewProduct(seeded);
+
+    const anon = await createAnonymousBasket(db, { ...context, locale: "en" });
+    const anonymousBasket = await upsertAnonymousBasketLine(
+      db,
+      new Request("http://localhost/api/public/baskets/current/lines", {
+        method: "POST",
+        headers: {
+          Cookie: `qos_anon_session=${encodeURIComponent(anon.sessionToken)}; qos_anon_csrf=${encodeURIComponent(anon.csrfToken)}`,
+          "X-QOS-CSRF-Token": anon.csrfToken,
+        },
+      }),
+      anon.sessionToken,
+      { productPublicId: pipe.publicId, quantity: 1, expectedVersion: anon.basket.version },
+    );
+    expect(anonymousBasket.menuPublicId).toBe(menu.publicId);
+
+    const preview = await previewBasketMerge(
+      db,
+      buildMergeRequest(customerRequest, anon.sessionToken, anon.csrfToken),
+      anon.sessionToken,
+    );
+    expect(preview.accountBasket.basketPublicId).toBe(staleAccount.basketPublicId);
+    expect(preview.accountBasket.menuPublicId).toBe(menu.publicId);
+    expect(preview.lineValidations).toEqual([
+      expect.objectContaining({ productPublicId: pipe.publicId, status: "ok" }),
+    ]);
+
+    const body = {
+      decision: "merge",
+      operationId: "merge_sticky_menu",
+      payloadHash: preview.decisionPayloadHashes.merge,
+      anonymousExpectedVersion: anonymousBasket.version,
+      accountExpectedVersion: preview.accountBasket.version,
+    };
+    const committed = await commitBasketMerge(
+      db,
+      buildMergeCommitRequest(customerRequest, anon.sessionToken, anon.csrfToken, body),
+      anon.sessionToken,
+      body,
+    );
+
+    expect(committed.accountBasket.menuPublicId).toBe(menu.publicId);
+    expect(committed.accountBasket.lines).toEqual([
+      expect.objectContaining({ productPublicId: pipe.publicId, quantity: 1 }),
+    ]);
+    expect(committed.accountBasket.provisionalSubtotalMinor).toBe(5000);
   });
 
   it("keeps the account basket unchanged when keep_account is chosen", async () => {
