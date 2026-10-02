@@ -8,7 +8,7 @@ import { readMediaConfig } from "@/lib/media/config";
 
 export async function databaseHealthResponse() {
   const startedAt = Date.now();
-  const { serviceVersion } = readAppEnv();
+  const { serviceVersion, buildSha } = readAppEnv();
 
   try {
     const mediaConfig = readMediaConfig();
@@ -17,6 +17,7 @@ export async function databaseHealthResponse() {
     return NextResponse.json(
       healthyPayload({
         version: serviceVersion,
+        build: buildSha,
         startedAt,
         mediaStorage: mediaConfig.storageBackend,
       }),
@@ -25,7 +26,7 @@ export async function databaseHealthResponse() {
     console.error("Readiness check failed", error);
 
     return NextResponse.json(
-      unhealthyPayload({ version: serviceVersion, startedAt }),
+      unhealthyPayload({ version: serviceVersion, build: buildSha, startedAt }),
       { status: 503 },
     );
   }

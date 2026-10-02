@@ -10,6 +10,13 @@ describe("readAppEnv", () => {
     expect(env.dbPoolMax).toBe(10);
     expect(env.nodeEnv).toBe("development");
     expect(env.serviceVersion).toBe("0.1.0");
+    expect(env.buildSha).toBe("unknown");
+  });
+
+  it("reads the build sha baked into the image", () => {
+    expect(readAppEnv({ QOS_BUILD_SHA: " 71816f8c0ffe " }).buildSha).toBe(
+      "71816f8c0ffe",
+    );
   });
 
   it("rejects a non-integer pool size", () => {

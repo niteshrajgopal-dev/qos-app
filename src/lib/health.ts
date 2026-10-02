@@ -6,6 +6,7 @@ export type HealthPayload = {
   status: HealthStatus;
   service: "qos-api";
   version: string;
+  build: string;
   database?: "connected" | "disconnected";
   mediaStorage?: MediaStorageBackend;
   uptimeSeconds: number;
@@ -15,14 +16,20 @@ export type HealthPayload = {
 
 type HealthBase = {
   version: string;
+  build?: string;
   startedAt?: number;
   mediaStorage?: MediaStorageBackend;
 };
 
-function basePayload({ version, startedAt = Date.now() }: HealthBase) {
+function basePayload({
+  version,
+  build = "unknown",
+  startedAt = Date.now(),
+}: HealthBase) {
   return {
     service: "qos-api" as const,
     version,
+    build,
     uptimeSeconds: Math.floor(process.uptime()),
     responseTimeMs: Date.now() - startedAt,
     timestamp: new Date().toISOString(),

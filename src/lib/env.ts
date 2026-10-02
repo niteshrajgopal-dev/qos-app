@@ -1,6 +1,7 @@
 export type AppEnv = {
   nodeEnv: string;
   serviceVersion: string;
+  buildSha: string;
   databaseUrl?: string;
   dbHost?: string;
   dbPort: string;
@@ -30,6 +31,7 @@ export function readAppEnv(source: EnvSource = process.env): AppEnv {
   return {
     nodeEnv: source.NODE_ENV ?? "development",
     serviceVersion: source.npm_package_version ?? "0.1.0",
+    buildSha: source.QOS_BUILD_SHA?.trim() || "unknown",
     databaseUrl: source.DATABASE_URL,
     dbHost: source.DB_HOST,
     dbPort: source.DB_PORT ?? "5432",
