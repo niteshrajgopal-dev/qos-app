@@ -10,6 +10,13 @@ describe("health payloads", () => {
     expect(payload.service).toBe("qos-api");
     expect(payload.version).toBe("0.1.0");
     expect(payload.database).toBeUndefined();
+    expect(payload.build).toBe("unknown");
+  });
+
+  it("reports the deployed build so a rollout can be verified", () => {
+    const payload = livePayload({ version: "0.1.0", build: "71816f8c0ffe" });
+
+    expect(payload.build).toBe("71816f8c0ffe");
   });
 
   it("does not include error details when the database is down", () => {

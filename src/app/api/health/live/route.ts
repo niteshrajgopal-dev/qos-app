@@ -6,7 +6,7 @@ import { livePayload } from "@/lib/health";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const { serviceVersion } = readAppEnv();
+  const { serviceVersion, buildSha } = readAppEnv();
 
-  return NextResponse.json(livePayload({ version: serviceVersion }));
+  return NextResponse.json(livePayload({ version: serviceVersion, build: buildSha }));
 }

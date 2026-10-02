@@ -34,7 +34,9 @@ USER worker
 CMD ["node", "video-worker.cjs"]
 
 FROM base AS runner
+ARG QOS_BUILD_SHA=unknown
 WORKDIR /app
+ENV QOS_BUILD_SHA=$QOS_BUILD_SHA
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
