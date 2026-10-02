@@ -1,3 +1,5 @@
+import { PERSISTED_AGENT_PROVIDER_IDENTITY } from "@/lib/agents/execution-identity";
+import { HYPERAGENT_EXECUTOR_CAPABILITIES } from "@/lib/agents/hyperagent/hyperagent-provider";
 import type {
   AgentDescriptor,
   AgentRunObservation,
@@ -10,10 +12,13 @@ type ScriptedObservation = AgentRunObservation | Error;
 /**
  * Scriptable provider for tests. Each `getRun` call consumes the next
  * scripted observation (the last one repeats). Records every call so tests can
- * assert on how often, and with what, the provider was invoked.
+ * assert on how often, and with what, the provider was invoked. It stands in
+ * for the Hyperagent adapter, so it declares the same identity and capabilities.
  */
 export class FakeAgentProvider implements AgentRuntimeProvider {
   readonly kind = "hyperagent" as const;
+  readonly identity = PERSISTED_AGENT_PROVIDER_IDENTITY.hyperagent;
+  readonly capabilities = HYPERAGENT_EXECUTOR_CAPABILITIES;
   readonly startCalls: StartAgentRunInput[] = [];
   readonly getRunCalls: string[] = [];
   private observations: ScriptedObservation[] = [{ state: "running" }];

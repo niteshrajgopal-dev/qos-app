@@ -72,6 +72,7 @@ function fakeProvider(behaviour: (prompt: string) => Behaviour = () => "ok") {
   const prompts: string[] = [];
   const provider: AiPhotoProvider = {
     kind: "fake",
+    capabilities: { network: false, submitIdempotency: "none", usageReporting: true, internalRetries: 0 },
     async generate(request) {
       prompts.push(request.prompt);
       const mode = behaviour(request.prompt);

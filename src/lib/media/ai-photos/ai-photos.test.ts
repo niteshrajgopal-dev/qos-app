@@ -4,10 +4,10 @@ import { aiPhotoUnavailableReason, readAiPhotoConfig } from "@/lib/media/ai-phot
 import { aiPhotoContextSha256, buildAiPhotoPrompt } from "@/lib/media/ai-photos/prompt";
 import sharp from "sharp";
 
+import { createOpenAiPhotoProvider } from "@/lib/media/ai-photos/openai-photo-provider";
 import {
   AiPhotoProviderError,
   createMockAiPhotoProvider,
-  createOpenAiPhotoProvider,
 } from "@/lib/media/ai-photos/provider";
 
 describe("readAiPhotoConfig", () => {

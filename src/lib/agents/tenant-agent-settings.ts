@@ -1,6 +1,9 @@
 import type { DbClient } from "@/db/client";
 import { isMenuManagerAvailable, readAgentConfig, type AgentConfig } from "@/lib/agents/config";
-import { getAgentProviderConnectionStatus } from "@/lib/agents/provider-connections";
+import {
+  DEFAULT_AGENT_PROVIDER,
+  getAgentExecutorReadiness,
+} from "@/lib/agents/executor-readiness";
 import { getTenantAgentBinding } from "@/lib/agents/tenant-agent-bindings";
 import type { AgentConnectionStatus } from "@/lib/agents/types";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
@@ -55,10 +58,13 @@ export async function getTenantAgentSettings(
 ): Promise<TenantAgentSettingsView> {
   const config = options.config ?? readAgentConfig();
   const featureEnabled = isMenuManagerAvailable(config);
-  const [connection, row] = await Promise.all([
-    getAgentProviderConnectionStatus(db, "hyperagent"),
-    withTenantContext(db, tenantId, (tx) => getTenantAgentBinding(tx, tenantId, "menu_manager")),
-  ]);
+  const row = await withTenantContext(db, tenantId, (tx) =>
+    getTenantAgentBinding(tx, tenantId, "menu_manager"),
+  );
+  const { connection } = await getAgentExecutorReadiness(
+    db,
+    row?.provider ?? DEFAULT_AGENT_PROVIDER,
+  );
 
   const binding = row
     ? { publicId: row.publicId, enabled: row.enabled, version: row.version, approvedAt: row.approvedAt }
@@ -67,7 +73,7 @@ export async function getTenantAgentSettings(
 
   return {
     canManage: membership.role === "administrator",
-    connection: { status: connection.status, lastCheckedAt: connection.lastCheckedAt },
+    connection,
     menuManager: {
       featureEnabled,
       binding,
