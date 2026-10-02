@@ -206,7 +206,77 @@ integrationDescribe("customer account basket", () => {
       "admin.basket@test",
     );
 
-    return { quotes, product, storefront };
+    return { quotes, product, storefront, admin };
+  }
+
+  async function republishLocationMenu(
+    seeded: Awaited<ReturnType<typeof seedPublishedStorefrontMenu>>,
+    options: { includeOriginalProduct: boolean },
+  ) {
+    const { quotes, storefront, admin } = seeded;
+
+    const pipe = await createDraftProduct(db, quotes.tenant.id, admin, {
+      internalName: "pipe-tabaco",
+      translations: {
+        en: { displayName: "Pipe Tabaco", description: "V60 beans" },
+        ar: { displayName: "بايب", description: "قهوة" },
+      },
+      defaultVariant: { amountMinor: 5000, currency: "AED" },
+    });
+
+    for (const locale of ["en", "ar"] as const) {
+      await approveProductTranslation(
+        db,
+        quotes.tenant.id,
+        "admin.basket@test",
+        pipe.publicId,
+        locale,
+        { expectedTranslationVersion: pipe.translations[locale].translationVersion },
+      );
+    }
+
+    const products = [{ productPublicId: pipe.publicId, sortOrder: 0 }];
+    if (options.includeOriginalProduct) {
+      products.push({ productPublicId: seeded.product.publicId, sortOrder: 1 });
+    }
+
+    const menu = await createDraftMenu(db, quotes.tenant.id, admin, {
+      internalName: "finedine-menu",
+      locationIds: [quotes.locationA.id],
+      translations: {
+        en: { displayName: "FineDine Menu" },
+        ar: { displayName: "قائمة" },
+      },
+      sections: [
+        {
+          internalName: "beans",
+          sortOrder: 0,
+          translations: {
+            en: { displayName: "New V60 Beans" },
+            ar: { displayName: "حبوب" },
+          },
+          products,
+        },
+      ],
+    });
+
+    await publishDraftMenuToLocations(
+      db,
+      quotes.tenant.id,
+      "admin.basket@test",
+      menu.publicId,
+      { locationIds: [quotes.locationA.id] },
+    );
+
+    await assignPublishedCollection(
+      db,
+      quotes.tenant.id,
+      storefront.publicId,
+      quotes.locationA.publicId,
+      menu.publicId,
+    );
+
+    return { pipe, menu };
   }
 
   it("recovers the same account basket on another device after sign-in", async () => {
@@ -302,6 +372,82 @@ integrationDescribe("customer account basket", () => {
         expectedVersion: initial.version,
       }),
     ).rejects.toMatchObject({ statusCode: 409, field: "expectedVersion" });
+  });
+
+  it("rebinds a sticky account basket to the location's current published menu", async () => {
+    const seeded = await seedPublishedStorefrontMenu();
+    const { quotes, product, storefront } = seeded;
+    const context = {
+      storefrontPublicId: storefront.publicId,
+      locationPublicId: quotes.locationA.publicId,
+    };
+
+    await registerCustomer("sticky@example.com", "Password123!", "Sticky User");
+    const request = await signInCustomer("sticky@example.com", "Password123!");
+    const initial = await getCustomerAccountBasket(db, request, context);
+    const withLatte = await upsertCustomerAccountBasketLine(db, request, {
+      ...context,
+      productPublicId: product.publicId,
+      quantity: 1,
+      expectedVersion: initial.version,
+    });
+
+    const { pipe, menu } = await republishLocationMenu(seeded, {
+      includeOriginalProduct: true,
+    });
+
+    const withPipe = await upsertCustomerAccountBasketLine(db, request, {
+      ...context,
+      productPublicId: pipe.publicId,
+      quantity: 1,
+      expectedVersion: withLatte.version,
+    });
+
+    expect(withPipe.basketPublicId).toBe(withLatte.basketPublicId);
+    expect(withPipe.menuPublicId).toBe(menu.publicId);
+    expect(withPipe.lines.map((line) => line.productPublicId)).toEqual([
+      product.publicId,
+      pipe.publicId,
+    ]);
+    expect(withPipe.provisionalSubtotalMinor).toBe(1800 + 5000);
+  });
+
+  it("drops lines that left the menu on rebind and keeps rejecting off-menu products", async () => {
+    const seeded = await seedPublishedStorefrontMenu();
+    const { quotes, product, storefront } = seeded;
+    const context = {
+      storefrontPublicId: storefront.publicId,
+      locationPublicId: quotes.locationA.publicId,
+    };
+
+    await registerCustomer("pruned@example.com", "Password123!", "Pruned User");
+    const request = await signInCustomer("pruned@example.com", "Password123!");
+    const initial = await getCustomerAccountBasket(db, request, context);
+    const withLatte = await upsertCustomerAccountBasketLine(db, request, {
+      ...context,
+      productPublicId: product.publicId,
+      quantity: 2,
+      expectedVersion: initial.version,
+    });
+
+    const { menu } = await republishLocationMenu(seeded, {
+      includeOriginalProduct: false,
+    });
+
+    const rebound = await getCustomerAccountBasket(db, request, context);
+    expect(rebound.basketPublicId).toBe(withLatte.basketPublicId);
+    expect(rebound.menuPublicId).toBe(menu.publicId);
+    expect(rebound.lines).toEqual([]);
+    expect(rebound.version).toBe(withLatte.version + 1);
+
+    await expect(
+      upsertCustomerAccountBasketLine(db, request, {
+        ...context,
+        productPublicId: product.publicId,
+        quantity: 1,
+        expectedVersion: rebound.version,
+      }),
+    ).rejects.toMatchObject({ statusCode: 400, field: "productPublicId" });
   });
 
   it("replays idempotent mutations without duplicating lines", async () => {

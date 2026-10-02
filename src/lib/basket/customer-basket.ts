@@ -6,6 +6,7 @@ import type { DbClient } from "@/db/client";
 import {
   catalogueMenus,
   locations,
+  type MenuLiveSnapshotPayload,
   storefrontCustomerBasketLines,
   storefrontCustomerBasketMutations,
   storefrontCustomerBaskets,
@@ -20,6 +21,7 @@ import {
 } from "@/lib/basket/basket-contract";
 import { readAnonymousBasketConfig } from "@/lib/basket/config";
 import {
+  buildPublishedProductIndex,
   loadPublishedMenuSnapshot,
   resolvePublishedProductWithAvailability,
 } from "@/lib/basket/menu-eligibility";
@@ -346,6 +348,79 @@ function assertExpectedVersion(
   }
 }
 
+/**
+ * Account baskets outlive menu assignments: the storefront location can be
+ * re-pointed at a different published menu (e.g. a FineDine import) after the
+ * basket row was created. Eligibility checks run against `basket.menuId`, so a
+ * stale binding would reject products that are on the location's current menu.
+ * Lines not on the current menu are dropped and surviving lines are repriced;
+ * the version only bumps when lines actually change.
+ */
+async function rebindBasketToPublishedMenu(
+  tx: DbClient,
+  tenantId: string,
+  basket: typeof storefrontCustomerBaskets.$inferSelect,
+  menuId: string,
+  snapshot: MenuLiveSnapshotPayload,
+) {
+  const productIndex = buildPublishedProductIndex(snapshot);
+  const lines = await tx
+    .select()
+    .from(storefrontCustomerBasketLines)
+    .where(
+      and(
+        eq(storefrontCustomerBasketLines.tenantId, tenantId),
+        eq(storefrontCustomerBasketLines.basketId, basket.id),
+      ),
+    );
+
+  let linesChanged = false;
+
+  for (const line of lines) {
+    const product = productIndex.get(line.productPublicId);
+
+    if (!product) {
+      await tx
+        .delete(storefrontCustomerBasketLines)
+        .where(eq(storefrontCustomerBasketLines.id, line.id));
+      linesChanged = true;
+      continue;
+    }
+
+    if (
+      line.unitAmountMinor !== product.price.amountMinor ||
+      line.unitCurrency !== product.price.currency
+    ) {
+      await tx
+        .update(storefrontCustomerBasketLines)
+        .set({
+          unitAmountMinor: product.price.amountMinor,
+          unitCurrency: product.price.currency,
+          updatedAt: new Date(),
+        })
+        .where(eq(storefrontCustomerBasketLines.id, line.id));
+      linesChanged = true;
+    }
+  }
+
+  const [rebound] = await tx
+    .update(storefrontCustomerBaskets)
+    .set({
+      menuId,
+      version: linesChanged ? basket.version + 1 : basket.version,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(storefrontCustomerBaskets.id, basket.id),
+        eq(storefrontCustomerBaskets.menuId, basket.menuId),
+      ),
+    )
+    .returning();
+
+  return rebound ?? basket;
+}
+
 type AccountBasketContext = {
   tenantId: string;
   basketId: string;
@@ -384,7 +459,7 @@ export async function resolveCustomerAccountBasketContext(
       context.locationPublicId,
     );
 
-    await loadPublishedMenuSnapshot(
+    const bindingSnapshot = await loadPublishedMenuSnapshot(
       tx,
       storefrontRow.tenantId,
       binding.menuId,
@@ -432,6 +507,16 @@ export async function resolveCustomerAccountBasketContext(
 
     if (basket.status !== "active") {
       throw new CustomerBasketError("Basket not found.", 404);
+    }
+
+    if (basket.menuId !== binding.menuId) {
+      basket = await rebindBasketToPublishedMenu(
+        tx,
+        storefrontRow.tenantId,
+        basket,
+        binding.menuId,
+        bindingSnapshot,
+      );
     }
 
     return {
