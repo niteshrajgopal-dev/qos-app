@@ -13,6 +13,9 @@ export function agentErrorResponse(error: unknown) {
         error: error.message,
         code: error.code,
         ...(error.activeRunPublicId ? { activeRunPublicId: error.activeRunPublicId } : {}),
+        ...(error.unresolvedRunPublicId
+          ? { unresolvedRunPublicId: error.unresolvedRunPublicId }
+          : {}),
       },
       { status: error.statusCode },
     );

@@ -4,11 +4,13 @@ import type { DbClient } from "@/db/client";
 import {
   AgentRunError,
   createAgentRun,
+  expireAgentRunIfDue,
   getAgentRun,
   getLatestAgentRunForSubject,
   markAgentRunFailed,
   markAgentRunStarted,
   pollAgentRunOnce,
+  START_OUTCOME_UNKNOWN_CODE,
   toAgentRunView,
   type AgentRunRecord,
   type AgentRunView,
@@ -23,8 +25,10 @@ import {
 import { getAgentRuntimeProvider } from "@/lib/agents/provider-registry";
 import { getTenantAgentBinding } from "@/lib/agents/tenant-agent-bindings";
 import {
+  ACTIVE_AGENT_RUN_STATUSES,
   AgentProviderError,
   type AgentProviderKind,
+  type AgentRunStatus,
   type AgentRuntimeProvider,
 } from "@/lib/agents/types";
 import { auditActorClassFromStaffRole } from "@/lib/audit/tenant-audit";
@@ -48,6 +52,35 @@ type Caller = {
   subject: string;
   membership: ActiveStaffMembership;
 };
+
+/** Why QOS is not polling an active run right now. */
+export type MenuManagerWaitReason = "agent_connection" | "service_unavailable";
+
+export type MenuManagerRunView = AgentRunView & { waitingOn: MenuManagerWaitReason | null };
+
+function isActive(status: AgentRunStatus) {
+  return (ACTIVE_AGENT_RUN_STATUSES as readonly AgentRunStatus[]).includes(status);
+}
+
+function toMenuManagerRunView(
+  run: AgentRunRecord,
+  waitingOn: MenuManagerWaitReason | null = null,
+): MenuManagerRunView {
+  return { ...toAgentRunView(run), waitingOn: isActive(run.status) ? waitingOn : null };
+}
+
+/** Decided from local state only: no provider construction or credential read. */
+async function pollingBlockedBy(
+  db: DbClient,
+  run: AgentRunRecord,
+  config: AgentConfig,
+): Promise<MenuManagerWaitReason | null> {
+  if (!isMenuManagerAvailable(config)) {
+    return "service_unavailable";
+  }
+  const readiness = await getAgentExecutorReadiness(db, run.provider);
+  return readiness.ready ? null : "agent_connection";
+}
 
 function requireAvailable(config: AgentConfig) {
   if (!isMenuManagerAvailable(config)) {
@@ -120,6 +153,8 @@ async function onReauthRequired(
  * feature, an enabled binding, a connected provider and menu/location access
  * before any menu data is assembled for disclosure. Replaying the same
  * idempotency key returns the original run without contacting the provider.
+ * If the menu's previous run ended with an unknown remote outcome, a new run
+ * needs `acknowledgeUnresolvedRunPublicId` naming that run.
  */
 export async function askMenuManager(
   db: DbClient,
@@ -128,9 +163,10 @@ export async function askMenuManager(
     menuPublicId: string;
     idempotencyKey: string;
     selectedProductPublicIds?: readonly string[];
+    acknowledgeUnresolvedRunPublicId?: string;
   },
   options: ServiceOptions = {},
-): Promise<{ run: AgentRunView; created: boolean }> {
+): Promise<{ run: MenuManagerRunView; created: boolean }> {
   const config = options.config ?? readAgentConfig();
   const clock = options.now ?? (() => new Date());
   requireAvailable(config);
@@ -169,13 +205,14 @@ export async function askMenuManager(
     idempotencyKey: input.idempotencyKey,
     requestSummary: { ...auditRequestSummary, productPublicIds: built.productPublicIds },
     auditRequestSummary,
+    acknowledgedUnresolvedRunPublicId: input.acknowledgeUnresolvedRunPublicId,
     runTimeoutMs: config.runTimeoutMs,
     now: clock(),
   });
 
   if (!created) {
     assertMenuManagerRun(run, input.menuPublicId);
-    return { run: toAgentRunView(run), created: false };
+    return { run: toMenuManagerRunView(run), created: false };
   }
 
   try {
@@ -191,7 +228,7 @@ export async function askMenuManager(
       pollIntervalMs: config.pollIntervalMs,
       now: clock(),
     });
-    return { run: toAgentRunView(running), created: true };
+    return { run: toMenuManagerRunView(running), created: true };
   } catch (error) {
     if (!(error instanceof AgentProviderError)) {
       throw error;
@@ -199,36 +236,51 @@ export async function askMenuManager(
     if (error.requiresReauth) {
       await onReauthRequired(db, binding.provider, error);
     }
+    const unknown = error.outcome === "submission_unknown";
     const failed = await markAgentRunFailed(db, caller.tenantId, run.publicId, {
-      code: error.code,
-      message: "The agent service could not start this review.",
+      code: unknown ? START_OUTCOME_UNKNOWN_CODE : error.code,
+      message: unknown
+        ? "QOS could not confirm whether the agent service accepted this review."
+        : "The agent service could not start this review.",
       now: clock(),
     });
-    return { run: toAgentRunView(failed), created: true };
+    return { run: toMenuManagerRunView(failed), created: true };
   }
 }
 
 /**
- * Reads a Menu Manager run and, when it is active and due, performs at most one
- * leased provider poll. Access is re-checked on every read.
+ * Reads a Menu Manager run after re-checking access. An active run past its
+ * deadline is ended locally first, whatever the feature or connection state.
+ * Otherwise, when polling is possible and due, performs at most one leased
+ * provider poll of the run's existing thread.
  */
 export async function refreshMenuManagerRun(
   db: DbClient,
   caller: Caller,
   input: { menuPublicId: string; runPublicId: string },
   options: ServiceOptions = {},
-): Promise<AgentRunView> {
+): Promise<MenuManagerRunView> {
   await requireMenuAccess(db, caller, input.menuPublicId);
-  const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
-  assertMenuManagerRun(run, input.menuPublicId);
+  const found = await getAgentRun(db, caller.tenantId, input.runPublicId);
+  assertMenuManagerRun(found, input.menuPublicId);
 
-  if (run.status !== "queued" && run.status !== "running") {
-    return toAgentRunView(run);
+  if (!isActive(found.status)) {
+    return toMenuManagerRunView(found);
   }
 
   const config = options.config ?? readAgentConfig();
-  if (!isMenuManagerAvailable(config)) {
-    return toAgentRunView(run);
+  const clock = options.now ?? (() => new Date());
+  const run = await expireAgentRunIfDue(db, caller.tenantId, found.publicId, {
+    queuedStaleMs: config.queuedStaleMs,
+    now: clock(),
+  });
+  if (!isActive(run.status)) {
+    return toMenuManagerRunView(run);
+  }
+
+  const blocked = await pollingBlockedBy(db, run, config);
+  if (blocked) {
+    return toMenuManagerRunView(run, blocked);
   }
 
   let provider: AgentRuntimeProvider;
@@ -236,7 +288,7 @@ export async function refreshMenuManagerRun(
     provider = options.provider ?? getAgentRuntimeProvider(run.provider);
   } catch (error) {
     if (error instanceof AgentProviderError) {
-      return toAgentRunView(run);
+      return toMenuManagerRunView(run, "service_unavailable");
     }
     throw error;
   }
@@ -252,7 +304,7 @@ export async function refreshMenuManagerRun(
     pollIntervalMs: config.pollIntervalMs,
     leaseMs: config.pollLeaseMs,
     queuedStaleMs: config.queuedStaleMs,
-    now: options.now,
+    now: clock,
     interpretCompletion: (finalMessage) =>
       interpretMenuManagerReply(finalMessage, {
         menuPublicId: run.subjectPublicId,
@@ -263,19 +315,32 @@ export async function refreshMenuManagerRun(
     onReauthRequired: (error) => onReauthRequired(db, run.provider, error),
   });
 
-  return toAgentRunView(polled.run);
+  return toMenuManagerRunView(polled.run, polled.reauthRequired ? "agent_connection" : null);
 }
 
+/** Latest run for the menu; an active run past its deadline is ended first. Never polls. */
 export async function getLatestMenuManagerRun(
   db: DbClient,
   caller: Caller,
   menuPublicId: string,
-): Promise<AgentRunView | null> {
+  options: Omit<ServiceOptions, "provider"> = {},
+): Promise<MenuManagerRunView | null> {
   await requireMenuAccess(db, caller, menuPublicId);
-  const run = await getLatestAgentRunForSubject(db, caller.tenantId, {
+  const latest = await getLatestAgentRunForSubject(db, caller.tenantId, {
     capability: CAPABILITY,
     subjectType: SUBJECT_TYPE,
     subjectPublicId: menuPublicId,
   });
-  return run ? toAgentRunView(run) : null;
+  if (!latest || !isActive(latest.status)) {
+    return latest ? toMenuManagerRunView(latest) : null;
+  }
+  const config = options.config ?? readAgentConfig();
+  const run = await expireAgentRunIfDue(db, caller.tenantId, latest.publicId, {
+    queuedStaleMs: config.queuedStaleMs,
+    now: (options.now ?? (() => new Date()))(),
+  });
+  if (!isActive(run.status)) {
+    return toMenuManagerRunView(run);
+  }
+  return toMenuManagerRunView(run, await pollingBlockedBy(db, run, config));
 }

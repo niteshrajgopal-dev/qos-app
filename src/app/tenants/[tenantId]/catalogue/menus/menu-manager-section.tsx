@@ -17,8 +17,9 @@ import {
   nextPollDelayMs,
   productNameLookup,
   readMenuManagerResult,
-  RUN_STATUS_COPY,
+  runStatusCopy,
   SUGGESTION_FIELD_LABEL,
+  UNRESOLVED_RESTART_COPY,
   type MenuManagerRunLike,
 } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-view";
 import { Alert } from "@/components/Alert";
@@ -43,6 +44,7 @@ type RunPayload = {
   error?: string;
   code?: string;
   activeRunPublicId?: string;
+  unresolvedRunPublicId?: string;
 };
 
 async function readPayload(response: Response) {
@@ -64,6 +66,8 @@ export function MenuManagerSection({
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const [visible, setVisible] = useState(true);
+  /** Set when QOS refused a new review until the user confirms this unresolved one. */
+  const [unresolvedRunPublicId, setUnresolvedRunPublicId] = useState<string | null>(null);
 
   const runsPath = `/api/tenants/${tenantId}/catalogue/menus/${menuPublicId}/agent-runs`;
 
@@ -120,7 +124,7 @@ export function MenuManagerSection({
     return () => window.clearTimeout(timer);
   }, [loadRun, run, visible]);
 
-  async function ask() {
+  async function ask(acknowledgeUnresolvedRunPublicId?: string) {
     const idempotencyKey = pendingKey ?? newIdempotencyKey();
     setPendingKey(idempotencyKey);
     setAsking(true);
@@ -132,6 +136,7 @@ export function MenuManagerSection({
         body: JSON.stringify({
           idempotencyKey,
           ...(selectedProductPublicIds.length > 0 ? { selectedProductPublicIds } : {}),
+          ...(acknowledgeUnresolvedRunPublicId ? { acknowledgeUnresolvedRunPublicId } : {}),
         }),
       });
       const payload = await readPayload(response);
@@ -139,11 +144,16 @@ export function MenuManagerSection({
 
       if (response.ok && payload.run) {
         setRun(payload.run);
+        setUnresolvedRunPublicId(null);
         onClearSelection();
         return;
       }
       if (payload.code === "run_in_progress" && payload.activeRunPublicId) {
         await loadRun(payload.activeRunPublicId);
+        return;
+      }
+      if (payload.code === "unresolved_previous_run" && payload.unresolvedRunPublicId) {
+        setUnresolvedRunPublicId(payload.unresolvedRunPublicId);
         return;
       }
       setError(payload.error ?? "Unable to start the review.");
@@ -165,7 +175,7 @@ export function MenuManagerSection({
   }
 
   const active = run ? isActiveRunStatus(run.status) : false;
-  const status = run ? RUN_STATUS_COPY[run.status] : null;
+  const status = run ? runStatusCopy(run) : null;
   const result = run?.status === "completed" ? readMenuManagerResult(run.result) : null;
   const productName = productNameLookup(report);
   const selectedCount = selectedProductPublicIds.length;
@@ -180,10 +190,16 @@ export function MenuManagerSection({
           size="sm"
           icon="sparkles"
           loading={asking}
-          disabled={active}
+          disabled={active || unresolvedRunPublicId !== null}
           onClick={() => void ask()}
         >
-          {run && !active ? (selectedCount > 0 ? askButtonLabel(selectedCount) : "Ask again") : askButtonLabel(selectedCount)}
+          {run && !active
+            ? selectedCount > 0
+              ? askButtonLabel(selectedCount)
+              : run.remoteOutcomeUnknown
+                ? "Start a new review"
+                : "Ask again"
+            : askButtonLabel(selectedCount)}
         </Button>
       }
     >
@@ -200,6 +216,30 @@ export function MenuManagerSection({
         {error ? (
           <Alert tone="error" title="Menu Manager">
             {error}
+          </Alert>
+        ) : null}
+
+        {unresolvedRunPublicId ? (
+          <Alert
+            tone="warning"
+            title="Start a new review?"
+            actions={
+              <>
+                <Button
+                  variant="intelligence"
+                  size="sm"
+                  loading={asking}
+                  onClick={() => void ask(unresolvedRunPublicId)}
+                >
+                  Start a new review
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setUnresolvedRunPublicId(null)}>
+                  Cancel
+                </Button>
+              </>
+            }
+          >
+            {UNRESOLVED_RESTART_COPY}
           </Alert>
         ) : null}
 

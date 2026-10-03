@@ -269,7 +269,7 @@ integrationDescribe("Menu Manager readiness compatibility", () => {
     await expectNoProviderOrCredentialAccess();
   });
 
-  it("a failed poll keeps the accepted run's thread reference and never resubmits", async () => {
+  it("a rejected poll keeps the accepted run, pauses polling and resumes the same thread after reconnection", async () => {
     const { tenantId, menu } = await seed({ binding: "enabled", connection: "connected" });
     const membership = await runAsRole(sqlClient, "qos_app", () =>
       requireActiveStaffMembership(db, tenantId, ADMIN),
@@ -288,6 +288,7 @@ integrationDescribe("Menu Manager readiness compatibility", () => {
     provider.script(
       new AgentProviderError("provider_not_connected", "Not connected.", { outcome: "not_dispatched" }),
       new AgentProviderError("provider_reauth_required", "Expired.", { requiresReauth: true, outcome: "rejected" }),
+      { state: "running" },
     );
     const poll = (n: number) =>
       runAsRole(sqlClient, "qos_app", () =>
@@ -308,22 +309,30 @@ integrationDescribe("Menu Manager readiness compatibility", () => {
       failureCode: null,
     });
 
-    // Pre-existing policy (unchanged by this PR): a reauth-required poll ends
-    // the accepted run locally, although the remote thread may still finish.
-    await poll(2);
-    const rows = await db.select().from(agentRuns);
-    expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({
+    await expect(poll(2)).resolves.toMatchObject({ status: "running", waitingOn: "agent_connection" });
+    const [afterReauth] = await db.select().from(agentRuns);
+    expect(afterReauth).toMatchObject({
       publicId: asked.run.publicId,
-      status: "failed",
-      failureCode: "provider_reauth_required",
+      status: "running",
+      failureCode: null,
       providerThreadId: "thread_fake_1",
+      deadlineAt: accepted!.deadlineAt,
     });
-    expect(provider.startCalls).toHaveLength(1);
-    expect(provider.getRunCalls).toEqual(["thread_fake_1", "thread_fake_1"]);
     await expect(connections.getAgentProviderConnectionStatus(db, "hyperagent")).resolves.toMatchObject({
       status: "needs_reauth",
     });
+
+    // While the connection needs re-authorization, polls make no provider call.
+    await expect(poll(3)).resolves.toMatchObject({ status: "running", waitingOn: "agent_connection" });
+    expect(provider.getRunCalls).toEqual(["thread_fake_1", "thread_fake_1"]);
+
+    await connect();
+    await expect(poll(4)).resolves.toMatchObject({ status: "running", waitingOn: null });
+    expect(provider.getRunCalls).toEqual(["thread_fake_1", "thread_fake_1", "thread_fake_1"]);
+    expect(provider.startCalls).toHaveLength(1);
+    const rows = await db.select().from(agentRuns);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.deadlineAt).toEqual(accepted!.deadlineAt);
   });
 
   it("settings view reports a reauth-required connection without exposing details", async () => {

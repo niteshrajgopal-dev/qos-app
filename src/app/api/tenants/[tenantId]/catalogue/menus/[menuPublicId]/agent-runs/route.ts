@@ -26,6 +26,7 @@ const askBody = z.strictObject({
     .array(z.string().max(128))
     .max(MENU_SNAPSHOT_MAX_PRODUCTS)
     .optional(),
+  acknowledgeUnresolvedRunPublicId: z.string().max(64).optional(),
 });
 
 export async function GET(request: Request, context: RouteContext) {
@@ -66,6 +67,7 @@ export async function POST(request: Request, context: RouteContext) {
         menuPublicId,
         idempotencyKey: parsed.data.idempotencyKey,
         selectedProductPublicIds: parsed.data.selectedProductPublicIds,
+        acknowledgeUnresolvedRunPublicId: parsed.data.acknowledgeUnresolvedRunPublicId,
       },
     );
 
