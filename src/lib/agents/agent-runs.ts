@@ -108,6 +108,7 @@ export type AgentRunView = {
 
 export type AgentRunRecord = AgentRunView & {
   id: string;
+  bindingId: string;
   provider: AgentProviderKind;
   requestSummary: Record<string, unknown>;
   providerAgentId: string;
@@ -149,6 +150,7 @@ function iso(value: Date | null) {
 function toRecord(row: AgentRunRow): AgentRunRecord {
   return {
     id: row.id,
+    bindingId: row.bindingId,
     publicId: row.publicId,
     capability: row.capability,
     status: row.status,

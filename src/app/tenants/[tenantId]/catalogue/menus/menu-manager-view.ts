@@ -110,6 +110,11 @@ const STATUS_COPY_WHILE_WAITING: Record<
     title: "Review on hold",
     description: "Menu Manager is unavailable right now. QOS stops waiting at the review's time limit; nothing is sent again.",
   },
+  access_changed: {
+    tone: "warning",
+    title: "Review on hold: access changed",
+    description: "The business, the agent approval or the requester's access changed, so QOS is not collecting this review. It stops waiting at the time limit; nothing is sent again.",
+  },
 };
 
 const UNRESOLVED_STATUS_COPY = {
@@ -140,6 +145,10 @@ const FAILURE_COPY: Record<string, string> = {
   definition_unavailable: "QOS was updated before this review was sent, so it was not sent. Ask again.",
   pinned_input_invalid: "QOS could not verify the menu data for this review, so it was not sent.",
   executor_mismatch: "QOS's agent service changed before this review was sent, so it was not sent. Ask again.",
+  tenant_inactive: "This business is not active, so the review was not sent.",
+  binding_changed: "Menu Manager's approval changed before this review was sent, so it was not sent.",
+  requester_access_revoked: "Your access changed before this review was sent, so it was not sent.",
+  subject_unavailable: "This menu is no longer available, so the review was not sent.",
   provider_reauth_required: "QOS needs to reconnect its agent service. Try again later.",
   provider_not_connected: "QOS's agent service is not connected right now.",
   invalid_result_json: "The agent's reply could not be read, so QOS discarded it.",
