@@ -23,11 +23,15 @@ import {
   boundRawResultExcerpt,
   claimAgentRunPoll,
   createAgentRun,
+  expireAgentRunIfDue,
   getAgentRun,
   getLatestAgentRunForSubject,
+  markAgentRunFailed,
   markAgentRunStarted,
   pollAgentRunOnce,
+  QOS_WAIT_DEADLINE_CODE,
   RAW_RESULT_EXCERPT_MAX_CHARS,
+  recordAgentRunOutcome,
   toAgentRunView,
   type CompletionInterpretation,
 } from "@/lib/agents/agent-runs";
@@ -562,7 +566,7 @@ integrationDescribe("agent platform foundation", () => {
       expect(boundRawResultExcerpt(null)).toBeNull();
     });
 
-    it("fails the run and flags re-auth when the provider rejects the connection", async () => {
+    it("keeps the accepted run and its thread, and flags re-auth, when a poll is rejected", async () => {
       const { quotes, binding } = await seedTenantWithBinding();
       const provider = new FakeAgentProvider().script(
         new AgentProviderError("unauthorized", "401 from provider", { requiresReauth: true }),
@@ -588,8 +592,13 @@ integrationDescribe("agent platform foundation", () => {
         now: () => new Date(t0.getTime() + 6_000),
       });
 
-      expect(result.run).toMatchObject({ status: "failed", failureCode: "provider_reauth_required" });
+      expect(result).toMatchObject({
+        reauthRequired: true,
+        run: { status: "running", failureCode: null, providerThreadId: "thread_1", deadlineAt: run.deadlineAt },
+      });
       expect(reauthCodes).toEqual(["unauthorized"]);
+      const audit = await auditActions(quotes.tenant.id, run.publicId);
+      expect(audit.map((event) => event.action)).toEqual(["agent_run.requested", "agent_run.started"]);
     });
 
     it("keeps polling after a transient provider error", async () => {
@@ -640,7 +649,10 @@ integrationDescribe("agent platform foundation", () => {
         queuedStaleMs: POLL.queuedStaleMs,
         now: new Date(t0.getTime() + TIMEOUT_MS),
       });
-      expect(timedOut).toMatchObject({ claimed: false, run: { status: "failed", failureCode: "timeout" } });
+      expect(timedOut).toMatchObject({
+        claimed: false,
+        run: { status: "failed", failureCode: QOS_WAIT_DEADLINE_CODE, remoteOutcomeUnknown: true, providerThreadId: "thread_1" },
+      });
 
       const { run: queued } = await createAgentRun(db, {
         ...runInput(quotes.tenant.id, binding, {
@@ -664,7 +676,140 @@ integrationDescribe("agent platform foundation", () => {
       expect(latest?.publicId).toBe(queued.publicId);
 
       const audit = await auditActions(quotes.tenant.id, running.publicId);
-      expect(audit.map((event) => event.action)).toContain("agent_run.failed");
+      expect(audit.at(-1)).toMatchObject({
+        action: "agent_run.wait_expired",
+        changeSummary: { failureCode: QOS_WAIT_DEADLINE_CODE, remoteOutcome: "unknown" },
+      });
+      expect(audit.map((event) => event.action)).not.toContain("agent_run.failed");
+    });
+
+    it("lets an in-flight poll lease finish before the deadline ends the run", async () => {
+      const { quotes, binding } = await seedTenantWithBinding();
+      const t0 = new Date("2026-09-30T08:00:00.000Z");
+      const { run } = await createAgentRun(db, { ...runInput(quotes.tenant.id, binding), now: t0 });
+      await markAgentRunStarted(db, quotes.tenant.id, run.publicId, {
+        providerThreadId: "thread_1",
+        actor: { subject: "admin.quotes@test", actorClass: "staff_administrator" },
+        pollIntervalMs: POLL.pollIntervalMs,
+        now: t0,
+      });
+      const leaseTakenAt = new Date(t0.getTime() + TIMEOUT_MS - 1_000);
+      const claim = await claimAgentRunPoll(db, quotes.tenant.id, run.publicId, {
+        owner: "replica-a",
+        leaseMs: POLL.leaseMs,
+        queuedStaleMs: POLL.queuedStaleMs,
+        now: leaseTakenAt,
+      });
+      expect(claim.claimed).toBe(true);
+
+      const pastDeadline = new Date(t0.getTime() + TIMEOUT_MS + 1_000);
+      await expect(
+        expireAgentRunIfDue(db, quotes.tenant.id, run.publicId, { queuedStaleMs: POLL.queuedStaleMs, now: pastDeadline }),
+      ).resolves.toMatchObject({ status: "running" });
+
+      const recorded = await recordAgentRunOutcome(db, quotes.tenant.id, run.publicId, {
+        owner: "replica-a",
+        outcome: { state: "completed", result: { summary: "done" } },
+        pollIntervalMs: POLL.pollIntervalMs,
+        now: pastDeadline,
+      });
+      expect(recorded).toMatchObject({ recorded: true, run: { status: "completed", result: { summary: "done" } } });
+
+      await expect(
+        expireAgentRunIfDue(db, quotes.tenant.id, run.publicId, {
+          queuedStaleMs: POLL.queuedStaleMs,
+          now: new Date(pastDeadline.getTime() + TIMEOUT_MS),
+        }),
+      ).resolves.toMatchObject({ status: "completed", result: { summary: "done" }, providerThreadId: "thread_1" });
+    });
+
+    it("ends an expired run once when callers race, with one terminal audit event", async () => {
+      const { quotes, binding } = await seedTenantWithBinding();
+      const t0 = new Date("2026-09-30T08:00:00.000Z");
+      const { run } = await createAgentRun(db, { ...runInput(quotes.tenant.id, binding), now: t0 });
+      await markAgentRunStarted(db, quotes.tenant.id, run.publicId, {
+        providerThreadId: "thread_1",
+        actor: { subject: "admin.quotes@test", actorClass: "staff_administrator" },
+        pollIntervalMs: POLL.pollIntervalMs,
+        now: t0,
+      });
+      const pastDeadline = new Date(t0.getTime() + TIMEOUT_MS);
+
+      const results = await Promise.all(
+        Array.from({ length: 5 }, () =>
+          expireAgentRunIfDue(db, quotes.tenant.id, run.publicId, {
+            queuedStaleMs: POLL.queuedStaleMs,
+            now: pastDeadline,
+          }),
+        ),
+      );
+
+      expect(new Set(results.map((result) => result.status))).toEqual(new Set(["failed"]));
+      const audit = await auditActions(quotes.tenant.id, run.publicId);
+      expect(audit.filter((event) => event.action === "agent_run.wait_expired")).toHaveLength(1);
+      const row = await getAgentRun(db, quotes.tenant.id, run.publicId);
+      expect(row).toMatchObject({
+        failureCode: QOS_WAIT_DEADLINE_CODE,
+        deadlineAt: run.deadlineAt,
+        finishedAt: pastDeadline.toISOString(),
+      });
+    });
+
+    it("requires acknowledging an unresolved previous run before admitting a new key", async () => {
+      const { quotes, binding } = await seedTenantWithBinding();
+      const t0 = new Date("2026-09-30T08:00:00.000Z");
+      const first = await createAgentRun(db, { ...runInput(quotes.tenant.id, binding), now: t0 });
+      await markAgentRunStarted(db, quotes.tenant.id, first.run.publicId, {
+        providerThreadId: "thread_1",
+        actor: { subject: "admin.quotes@test", actorClass: "staff_administrator" },
+        pollIntervalMs: POLL.pollIntervalMs,
+        now: t0,
+      });
+      await expireAgentRunIfDue(db, quotes.tenant.id, first.run.publicId, {
+        queuedStaleMs: POLL.queuedStaleMs,
+        now: new Date(t0.getTime() + TIMEOUT_MS),
+      });
+
+      const blocked = await createAgentRun(db, runInput(quotes.tenant.id, binding)).catch((error: unknown) => error);
+      expect(blocked).toBeInstanceOf(AgentRunError);
+      expect(blocked).toMatchObject({
+        code: "unresolved_previous_run",
+        statusCode: 409,
+        unresolvedRunPublicId: first.run.publicId,
+      });
+      await expect(
+        createAgentRun(db, runInput(quotes.tenant.id, binding, { acknowledgedUnresolvedRunPublicId: "run_other" })),
+      ).rejects.toMatchObject({ code: "unresolved_previous_run" });
+
+      // Replaying the original key still returns the original run.
+      const replay = await withTenantContext(db, quotes.tenant.id, (tx) =>
+        tx.select({ key: agentRuns.idempotencyKey }).from(agentRuns).where(eq(agentRuns.publicId, first.run.publicId)),
+      );
+      await expect(
+        createAgentRun(db, runInput(quotes.tenant.id, binding, { idempotencyKey: replay[0]!.key })),
+      ).resolves.toMatchObject({ created: false, run: { publicId: first.run.publicId } });
+
+      const second = await createAgentRun(
+        db,
+        runInput(quotes.tenant.id, binding, { acknowledgedUnresolvedRunPublicId: first.run.publicId }),
+      );
+      expect(second.created).toBe(true);
+      const audit = await auditActions(quotes.tenant.id, second.run.publicId);
+      expect(audit[0]).toMatchObject({
+        action: "agent_run.requested",
+        changeSummary: { acknowledgedUnresolvedRunPublicId: first.run.publicId },
+      });
+    });
+
+    it("admits a new key without acknowledgement after a resolved failure", async () => {
+      const { quotes, binding } = await seedTenantWithBinding();
+      const first = await createAgentRun(db, runInput(quotes.tenant.id, binding));
+      await markAgentRunFailed(db, quotes.tenant.id, first.run.publicId, {
+        code: "provider_not_connected",
+        message: "Not connected.",
+      });
+
+      await expect(createAgentRun(db, runInput(quotes.tenant.id, binding))).resolves.toMatchObject({ created: true });
     });
 
     it("rejects invalid idempotency keys", async () => {

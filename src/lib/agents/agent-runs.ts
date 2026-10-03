@@ -23,6 +23,39 @@ export const RAW_RESULT_EXCERPT_MAX_CHARS = 16_384;
 const FAILURE_MESSAGE_MAX_CHARS = 2_000;
 const SYSTEM_ACTOR = { subject: "qos.agent-runtime", actorClass: "system" as const };
 
+/** QOS stopped waiting at its own deadline; the remote run may still finish. */
+export const QOS_WAIT_DEADLINE_CODE = "qos_wait_deadline";
+/** The start request may have reached the provider, but QOS holds no reference. */
+export const START_OUTCOME_UNKNOWN_CODE = "start_outcome_unknown";
+
+const UNRESOLVED_FAILURE_CODES = new Set<string>([
+  QOS_WAIT_DEADLINE_CODE,
+  START_OUTCOME_UNKNOWN_CODE,
+  "start_not_recorded",
+  // Written before qos_wait_deadline existed; same meaning.
+  "timeout",
+]);
+
+/**
+ * True when a run ended locally without QOS learning the remote outcome, so the
+ * provider may still process and bill it. Starting another run for the same
+ * subject then requires explicit acknowledgement. A reauth failure with a
+ * thread reference is a pre-PR-2a row with the same meaning.
+ */
+export function isRemoteOutcomeUnknown(run: {
+  status: AgentRunStatus;
+  failureCode: string | null;
+  providerThreadId: string | null;
+}) {
+  if (run.status !== "failed" || run.failureCode === null) {
+    return false;
+  }
+  return (
+    UNRESOLVED_FAILURE_CODES.has(run.failureCode) ||
+    (run.failureCode === "provider_reauth_required" && run.providerThreadId !== null)
+  );
+}
+
 type AgentRunRow = typeof agentRuns.$inferSelect;
 
 /** Browser-safe run view: no provider thread id, idempotency key or raw output. */
@@ -36,6 +69,8 @@ export type AgentRunView = {
   result: Record<string, unknown> | null;
   failureCode: string | null;
   failureMessage: string | null;
+  /** See `isRemoteOutcomeUnknown`. */
+  remoteOutcomeUnknown: boolean;
   createdAt: string;
   startedAt: string | null;
   finishedAt: string | null;
@@ -57,18 +92,20 @@ export class AgentRunError extends Error {
   readonly statusCode: number;
   readonly code: string;
   readonly activeRunPublicId?: string;
+  readonly unresolvedRunPublicId?: string;
 
   constructor(
     code: string,
     message: string,
     statusCode: number,
-    options: { activeRunPublicId?: string } = {},
+    options: { activeRunPublicId?: string; unresolvedRunPublicId?: string } = {},
   ) {
     super(message);
     this.name = "AgentRunError";
     this.code = code;
     this.statusCode = statusCode;
     this.activeRunPublicId = options.activeRunPublicId;
+    this.unresolvedRunPublicId = options.unresolvedRunPublicId;
   }
 }
 
@@ -88,6 +125,7 @@ function toRecord(row: AgentRunRow): AgentRunRecord {
     result: row.result ?? null,
     failureCode: row.failureCode,
     failureMessage: row.failureMessage,
+    remoteOutcomeUnknown: isRemoteOutcomeUnknown(row),
     createdAt: row.createdAt.toISOString(),
     startedAt: iso(row.startedAt),
     finishedAt: iso(row.finishedAt),
@@ -113,6 +151,7 @@ export function toAgentRunView(run: AgentRunRecord): AgentRunView {
     result: run.result,
     failureCode: run.failureCode,
     failureMessage: run.failureMessage,
+    remoteOutcomeUnknown: run.remoteOutcomeUnknown,
     createdAt: run.createdAt,
     startedAt: run.startedAt,
     finishedAt: run.finishedAt,
@@ -159,7 +198,8 @@ async function auditRun(
     | "agent_run.started"
     | "agent_run.awaiting_approval"
     | "agent_run.completed"
-    | "agent_run.failed",
+    | "agent_run.failed"
+    | "agent_run.wait_expired",
   actor: { subject: string; actorClass: AuditActorClass },
   changeSummary: Record<string, unknown>,
 ) {
@@ -182,6 +222,50 @@ async function auditRun(
   });
 }
 
+/** A local deadline is audited as QOS stopping, never as a provider failure. */
+async function auditRunFailure(tx: TenantDbExecutor, row: AgentRunRow) {
+  await auditRun(
+    tx,
+    row,
+    row.failureCode === QOS_WAIT_DEADLINE_CODE ? "agent_run.wait_expired" : "agent_run.failed",
+    SYSTEM_ACTOR,
+    {
+      failureCode: row.failureCode,
+      ...(isRemoteOutcomeUnknown(row) ? { remoteOutcome: "unknown" } : {}),
+    },
+  );
+}
+
+async function findRunByIdempotencyKey(tx: TenantDbExecutor, tenantId: string, key: string) {
+  const [row] = await tx
+    .select()
+    .from(agentRuns)
+    .where(and(eq(agentRuns.tenantId, tenantId), eq(agentRuns.idempotencyKey, key)))
+    .limit(1);
+  return row ?? null;
+}
+
+async function findLatestRunForSubject(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  input: { capability: AgentCapability; subjectType: string; subjectPublicId: string },
+) {
+  const [row] = await tx
+    .select()
+    .from(agentRuns)
+    .where(
+      and(
+        eq(agentRuns.tenantId, tenantId),
+        eq(agentRuns.capability, input.capability),
+        eq(agentRuns.subjectType, input.subjectType),
+        eq(agentRuns.subjectPublicId, input.subjectPublicId),
+      ),
+    )
+    .orderBy(desc(agentRuns.createdAt))
+    .limit(1);
+  return row ?? null;
+}
+
 export type CreateAgentRunInput = {
   tenantId: string;
   binding: TenantAgentBinding;
@@ -192,6 +276,11 @@ export type CreateAgentRunInput = {
   requestSummary: Record<string, unknown>;
   /** What the audit trail records about the request; defaults to `requestSummary`. */
   auditRequestSummary?: Record<string, unknown>;
+  /**
+   * Public id of the subject's latest run whose remote outcome is unknown,
+   * echoed back by the requester to confirm a new run anyway.
+   */
+  acknowledgedUnresolvedRunPublicId?: string;
   runTimeoutMs: number;
   now?: Date;
 };
@@ -199,6 +288,8 @@ export type CreateAgentRunInput = {
 /**
  * Creates a queued run. Replaying the same idempotency key returns the
  * original run; a second concurrent run for the same subject is rejected.
+ * When the subject's latest run ended with an unknown remote outcome, a new
+ * key is rejected unless the requester acknowledges that run by public id.
  */
 export async function createAgentRun(
   db: DbClient,
@@ -223,7 +314,43 @@ export async function createAgentRun(
 
   const now = input.now ?? new Date();
 
+  const replayOf = (replay: AgentRunRow) => {
+    if (
+      replay.capability !== input.binding.capability ||
+      replay.subjectType !== input.subject.type ||
+      replay.subjectPublicId !== input.subject.publicId ||
+      replay.requestedBySubject !== input.requestedBy.subject
+    ) {
+      throw new AgentRunError(
+        "idempotency_key_reused",
+        "idempotencyKey was already used for a different request.",
+        409,
+      );
+    }
+    return { run: toRecord(replay), created: false };
+  };
+
   return withTenantContext(db, input.tenantId, async (tx) => {
+    const existing = await findRunByIdempotencyKey(tx, input.tenantId, key);
+    if (existing) {
+      return replayOf(existing);
+    }
+
+    const latest = await findLatestRunForSubject(tx, input.tenantId, {
+      capability: input.binding.capability,
+      subjectType: input.subject.type,
+      subjectPublicId: input.subject.publicId,
+    });
+    const acknowledged = latest && isRemoteOutcomeUnknown(latest) ? latest.publicId : null;
+    if (acknowledged !== null && input.acknowledgedUnresolvedRunPublicId !== acknowledged) {
+      throw new AgentRunError(
+        "unresolved_previous_run",
+        "The previous run ended before QOS learned whether the agent service finished it. Confirm to start another.",
+        409,
+        { unresolvedRunPublicId: acknowledged },
+      );
+    }
+
     const [inserted] = await tx
       .insert(agentRuns)
       .values({
@@ -253,30 +380,14 @@ export async function createAgentRun(
       await auditRun(tx, inserted, "agent_run.requested", input.requestedBy, {
         providerAgentId: inserted.providerAgentId,
         request: input.auditRequestSummary ?? input.requestSummary,
+        ...(acknowledged !== null ? { acknowledgedUnresolvedRunPublicId: acknowledged } : {}),
       });
       return { run: toRecord(inserted), created: true };
     }
 
-    const [replay] = await tx
-      .select()
-      .from(agentRuns)
-      .where(and(eq(agentRuns.tenantId, input.tenantId), eq(agentRuns.idempotencyKey, key)))
-      .limit(1);
-
-    if (replay) {
-      if (
-        replay.capability !== input.binding.capability ||
-        replay.subjectType !== input.subject.type ||
-        replay.subjectPublicId !== input.subject.publicId ||
-        replay.requestedBySubject !== input.requestedBy.subject
-      ) {
-        throw new AgentRunError(
-          "idempotency_key_reused",
-          "idempotencyKey was already used for a different request.",
-          409,
-        );
-      }
-      return { run: toRecord(replay), created: false };
+    const concurrentReplay = await findRunByIdempotencyKey(tx, input.tenantId, key);
+    if (concurrentReplay) {
+      return replayOf(concurrentReplay);
     }
 
     const [active] = await tx
@@ -380,12 +491,63 @@ async function failRunInTx(
     .returning();
 
   if (row) {
-    await auditRun(tx, row, "agent_run.failed", SYSTEM_ACTOR, {
-      failureCode: row.failureCode,
-    });
+    await auditRunFailure(tx, row);
   }
 
   return row ?? null;
+}
+
+/**
+ * Ends a running run at its original deadline unless a poller still holds an
+ * unexpired lease (its in-flight result wins), and fails a queued run whose
+ * start was never recorded. Each rule is one conditional update, so concurrent
+ * callers write at most one terminal state and audit event.
+ */
+async function applyRunDeadlinesInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  runPublicId: string,
+  input: { queuedStaleMs: number; now: Date },
+) {
+  await failRunInTx(tx, tenantId, runPublicId, {
+    code: QOS_WAIT_DEADLINE_CODE,
+    message:
+      "QOS stopped waiting at the run deadline. The agent service may still finish this run; QOS will not use its reply.",
+    now: input.now,
+    extraWhere: and(
+      eq(agentRuns.status, "running"),
+      lte(agentRuns.deadlineAt, input.now),
+      or(isNull(agentRuns.pollLeaseExpiresAt), lt(agentRuns.pollLeaseExpiresAt, input.now)),
+    ),
+  });
+
+  await failRunInTx(tx, tenantId, runPublicId, {
+    code: "start_not_recorded",
+    message: "The agent run was not started with the provider in time.",
+    now: input.now,
+    extraWhere: and(
+      eq(agentRuns.status, "queued"),
+      lte(agentRuns.createdAt, new Date(input.now.getTime() - input.queuedStaleMs)),
+    ),
+  });
+}
+
+/**
+ * Applies the deadline rules without constructing or contacting any provider,
+ * so a run cannot stay active because the feature or connection is down.
+ * Callers must have authorized the requester for the run first.
+ */
+export async function expireAgentRunIfDue(
+  db: DbClient,
+  tenantId: string,
+  runPublicId: string,
+  input: { queuedStaleMs: number; now?: Date },
+): Promise<AgentRunRecord> {
+  const now = input.now ?? new Date();
+  return withTenantContext(db, tenantId, async (tx) => {
+    await applyRunDeadlinesInTx(tx, tenantId, runPublicId, { queuedStaleMs: input.queuedStaleMs, now });
+    return toRecord(await requireRunRow(tx, tenantId, runPublicId));
+  });
 }
 
 /** Fails a queued or running run. No-op for runs that already finished. */
@@ -419,22 +581,7 @@ export async function claimAgentRunPoll(
   const now = input.now ?? new Date();
 
   return withTenantContext(db, tenantId, async (tx) => {
-    await failRunInTx(tx, tenantId, runPublicId, {
-      code: "timeout",
-      message: "The agent did not finish before the run deadline.",
-      now,
-      extraWhere: and(eq(agentRuns.status, "running"), lte(agentRuns.deadlineAt, now)),
-    });
-
-    await failRunInTx(tx, tenantId, runPublicId, {
-      code: "start_not_recorded",
-      message: "The agent run was not started with the provider in time.",
-      now,
-      extraWhere: and(
-        eq(agentRuns.status, "queued"),
-        lte(agentRuns.createdAt, new Date(now.getTime() - input.queuedStaleMs)),
-      ),
-    });
+    await applyRunDeadlinesInTx(tx, tenantId, runPublicId, { queuedStaleMs: input.queuedStaleMs, now });
 
     const [claimed] = await tx
       .update(agentRuns)
@@ -543,9 +690,7 @@ export async function recordAgentRunOutcome(
         .where(heldLease)
         .returning();
       if (row) {
-        await auditRun(tx, row, "agent_run.failed", SYSTEM_ACTOR, {
-          failureCode: row.failureCode,
-        });
+        await auditRunFailure(tx, row);
       }
     }
 
@@ -564,7 +709,9 @@ export type CompletionInterpretation =
 /**
  * One bounded poll: claim the lease, ask the provider once, persist the
  * outcome. Callers must have authorized the requester before calling.
- * `interpretCompletion` validates the untrusted final message.
+ * `interpretCompletion` validates the untrusted final message. A poll rejected
+ * for re-authorization keeps the run and its thread active (`reauthRequired`);
+ * callers must stop polling until the connection is ready again.
  */
 export async function pollAgentRunOnce(
   db: DbClient,
@@ -580,7 +727,7 @@ export async function pollAgentRunOnce(
     onReauthRequired?: (error: AgentProviderError) => Promise<void>;
     now?: () => Date;
   },
-): Promise<{ polled: boolean; run: AgentRunRecord }> {
+): Promise<{ polled: boolean; reauthRequired: boolean; run: AgentRunRecord }> {
   const clock = input.now ?? (() => new Date());
   const claim = await claimAgentRunPoll(db, tenantId, runPublicId, {
     owner: input.owner,
@@ -590,10 +737,11 @@ export async function pollAgentRunOnce(
   });
 
   if (!claim.claimed || !claim.run.providerThreadId) {
-    return { polled: false, run: claim.run };
+    return { polled: false, reauthRequired: false, run: claim.run };
   }
 
   let outcome: AgentRunOutcome;
+  let reauthRequired = false;
   try {
     const observation: AgentRunObservation = await input.provider.getRun({
       providerThreadId: claim.run.providerThreadId,
@@ -604,15 +752,10 @@ export async function pollAgentRunOnce(
       throw error;
     }
     if (error.requiresReauth) {
+      reauthRequired = true;
       await input.onReauthRequired?.(error);
-      outcome = {
-        state: "failed",
-        code: "provider_reauth_required",
-        message: "The platform agent connection needs to be re-authorized by QOS.",
-      };
-    } else {
-      outcome = { state: "running" };
     }
+    outcome = { state: "running" };
   }
 
   const recorded = await recordAgentRunOutcome(db, tenantId, runPublicId, {
@@ -622,7 +765,7 @@ export async function pollAgentRunOnce(
     now: clock(),
   });
 
-  return { polled: recorded.recorded, run: recorded.run };
+  return { polled: recorded.recorded, reauthRequired, run: recorded.run };
 }
 
 function outcomeFromObservation(
@@ -671,19 +814,7 @@ export async function getLatestAgentRunForSubject(
   input: { capability: AgentCapability; subjectType: string; subjectPublicId: string },
 ): Promise<AgentRunRecord | null> {
   return withTenantContext(db, tenantId, async (tx) => {
-    const [row] = await tx
-      .select()
-      .from(agentRuns)
-      .where(
-        and(
-          eq(agentRuns.tenantId, tenantId),
-          eq(agentRuns.capability, input.capability),
-          eq(agentRuns.subjectType, input.subjectType),
-          eq(agentRuns.subjectPublicId, input.subjectPublicId),
-        ),
-      )
-      .orderBy(desc(agentRuns.createdAt))
-      .limit(1);
+    const row = await findLatestRunForSubject(tx, tenantId, input);
     return row ? toRecord(row) : null;
   });
 }

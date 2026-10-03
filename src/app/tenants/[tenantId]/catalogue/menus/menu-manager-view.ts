@@ -1,3 +1,4 @@
+import type { MenuManagerWaitReason } from "@/lib/agents/menu-manager/menu-manager-service";
 import type { AgentRunStatus } from "@/lib/agents/types";
 import type { MenuManagerUnavailableReason } from "@/lib/agents/tenant-agent-settings";
 import { MENU_HEALTH_ISSUE_COPY } from "@/app/tenants/[tenantId]/catalogue/menus/menu-health-view";
@@ -14,6 +15,9 @@ export type MenuManagerRunLike = {
   status: AgentRunStatus;
   result: Record<string, unknown> | null;
   failureCode: string | null;
+  /** The run ended before QOS learned whether the agent service finished it. */
+  remoteOutcomeUnknown?: boolean;
+  waitingOn?: MenuManagerWaitReason | null;
   nextPollAt: string | null;
   createdAt: string;
   finishedAt: string | null;
@@ -50,6 +54,9 @@ export function isActiveRunStatus(status: AgentRunStatus) {
 export function nextPollDelayMs(run: MenuManagerRunLike, now = Date.now()): number | null {
   if (!isActiveRunStatus(run.status)) {
     return null;
+  }
+  if (run.waitingOn) {
+    return MAX_POLL_DELAY_MS;
   }
   if (!run.nextPollAt) {
     return QUEUED_POLL_DELAY_MS;
@@ -89,9 +96,47 @@ export const RUN_STATUS_COPY: Record<
   },
 };
 
+const STATUS_COPY_WHILE_WAITING: Record<
+  MenuManagerWaitReason,
+  { tone: AlertTone; title: string; description: string }
+> = {
+  agent_connection: {
+    tone: "warning",
+    title: "Review waiting for QOS's agent connection",
+    description: "QOS needs to reconnect its agent service. The review continues if the connection returns before its time limit; nothing is sent again.",
+  },
+  service_unavailable: {
+    tone: "warning",
+    title: "Review on hold",
+    description: "Menu Manager is unavailable right now. QOS stops waiting at the review's time limit; nothing is sent again.",
+  },
+};
+
+const UNRESOLVED_STATUS_COPY = {
+  tone: "warning" as const,
+  title: "QOS stopped waiting",
+  description: "The agent service may still finish this review, but QOS will not use its reply. Nothing on the menu was changed.",
+};
+
+export const UNRESOLVED_RESTART_COPY =
+  "QOS stopped waiting for the previous review, but the agent service may still process it, and it may count toward usage. A new review is sent separately.";
+
+/** Status copy that never presents QOS stopping as the agent service failing. */
+export function runStatusCopy(run: MenuManagerRunLike) {
+  if (run.status === "failed" && run.remoteOutcomeUnknown) {
+    return UNRESOLVED_STATUS_COPY;
+  }
+  if (isActiveRunStatus(run.status) && run.waitingOn) {
+    return STATUS_COPY_WHILE_WAITING[run.waitingOn];
+  }
+  return RUN_STATUS_COPY[run.status];
+}
+
 const FAILURE_COPY: Record<string, string> = {
-  timeout: "The agent took too long to finish.",
-  start_not_recorded: "The review could not be started. Try again.",
+  qos_wait_deadline: "The review did not finish within QOS's time limit.",
+  timeout: "The review did not finish within QOS's time limit.",
+  start_outcome_unknown: "QOS could not confirm whether the agent service received the review.",
+  start_not_recorded: "QOS could not confirm that the review started.",
   provider_reauth_required: "QOS needs to reconnect its agent service. Try again later.",
   provider_not_connected: "QOS's agent service is not connected right now.",
   invalid_result_json: "The agent's reply could not be read, so QOS discarded it.",

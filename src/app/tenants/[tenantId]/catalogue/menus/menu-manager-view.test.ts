@@ -9,6 +9,8 @@ import {
   nextPollDelayMs,
   productNameLookup,
   readMenuManagerResult,
+  RUN_STATUS_COPY,
+  runStatusCopy,
   unavailableHint,
   type MenuManagerRunLike,
 } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-view";
@@ -48,6 +50,30 @@ describe("nextPollDelayMs", () => {
     for (const status of ["completed", "failed", "awaiting_approval"] as const) {
       expect(nextPollDelayMs(run({ status }), NOW)).toBeNull();
     }
+  });
+
+  it("backs off to the slowest interval while the run is waiting on QOS", () => {
+    const overdue = new Date(NOW - 60_000).toISOString();
+    expect(nextPollDelayMs(run({ nextPollAt: overdue, waitingOn: "agent_connection" }), NOW)).toBe(15_000);
+    expect(nextPollDelayMs(run({ nextPollAt: overdue, waitingOn: "service_unavailable" }), NOW)).toBe(15_000);
+  });
+});
+
+describe("runStatusCopy", () => {
+  it("presents a local stop as QOS stopping, never as the agent service failing", () => {
+    const stopped = runStatusCopy(run({ status: "failed", failureCode: "qos_wait_deadline", remoteOutcomeUnknown: true }));
+    expect(stopped.title).toBe("QOS stopped waiting");
+    expect(stopped.description).toContain("may still finish");
+    expect(`${stopped.title} ${stopped.description}`).not.toMatch(/failed|cancel/i);
+    expect(failureCopy("qos_wait_deadline")).toContain("time limit");
+    expect(failureCopy("start_outcome_unknown")).toContain("could not confirm");
+  });
+
+  it("explains why an active run is on hold", () => {
+    expect(runStatusCopy(run({ waitingOn: "agent_connection" })).title).toContain("agent connection");
+    expect(runStatusCopy(run({ waitingOn: "service_unavailable" })).title).toBe("Review on hold");
+    expect(runStatusCopy(run())).toBe(RUN_STATUS_COPY.running);
+    expect(runStatusCopy(run({ status: "failed", failureCode: "invalid_result_json" }))).toBe(RUN_STATUS_COPY.failed);
   });
 });
 

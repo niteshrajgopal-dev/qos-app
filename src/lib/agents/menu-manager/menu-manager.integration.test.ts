@@ -551,7 +551,10 @@ integrationDescribe("Menu Manager service", () => {
   it("records a provider start failure and flags reauth on the connection", async () => {
     const { menu, admin } = await seed();
     const provider = new FakeAgentProvider().failStartWith(
-      new AgentProviderError("provider_reauth_required", "token expired", { requiresReauth: true }),
+      new AgentProviderError("provider_reauth_required", "token expired", {
+        requiresReauth: true,
+        outcome: "rejected",
+      }),
     );
 
     const { run } = await askMenuManager(db, admin, { menuPublicId: menu.publicId, idempotencyKey: key() }, {
@@ -610,7 +613,7 @@ integrationDescribe("Menu Manager service", () => {
         provider: slow,
         now: () => new Date(Date.now() + ENABLED.runTimeoutMs + 1),
       }),
-    ).resolves.toMatchObject({ status: "failed", failureCode: "timeout" });
+    ).resolves.toMatchObject({ status: "failed", failureCode: "qos_wait_deadline", remoteOutcomeUnknown: true });
     expect(slow.getRunCalls).toHaveLength(0);
   });
 
@@ -628,7 +631,7 @@ integrationDescribe("Menu Manager service", () => {
         provider,
         now: () => new Date(Date.now() + ENABLED.pollIntervalMs + 1),
       }),
-    ).resolves.toMatchObject({ status: "running" });
+    ).resolves.toMatchObject({ status: "running", waitingOn: "service_unavailable" });
     expect(provider.getRunCalls).toHaveLength(0);
   });
 
