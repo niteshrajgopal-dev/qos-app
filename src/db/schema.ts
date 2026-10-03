@@ -1,12 +1,15 @@
 import { relations, sql } from "drizzle-orm";
 import {
+  bigint,
   boolean,
   char,
   check,
+  date,
   foreignKey,
   index,
   integer,
   jsonb,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -3137,6 +3140,90 @@ export const agentRunInputs = qos.table(
   ],
 );
 
+/**
+ * One admission reservation per subject and paid path. Units are the quota
+ * measure; estimated cost exists only with versioned pricing; reported usage
+ * is kept apart; "uncertain" is potentially billed work with an unknown
+ * outcome. Lifecycle and immutability are enforced by a trigger.
+ */
+export const aiSpendReservations = qos.table(
+  "ai_spend_reservations",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    path: text("path").notNull(),
+    provider: text("provider").notNull(),
+    subjectType: text("subject_type").notNull(),
+    subjectPublicId: text("subject_public_id").notNull(),
+    units: integer("units").notNull(),
+    estimatedCostMicros: bigint("estimated_cost_micros", { mode: "number" }),
+    pricingVersion: text("pricing_version"),
+    state: text("state").notNull().default("reserved"),
+    dailyWindow: date("daily_window").notNull(),
+    monthlyWindow: date("monthly_window").notNull(),
+    dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    outcome: text("outcome"),
+    reportedUsage: jsonb("reported_usage"),
+    resolution: text("resolution"),
+    resolvedBySubject: text("resolved_by_subject"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("ai_spend_reservations_public_id_unique").on(table.tenantId, table.publicId),
+    unique("ai_spend_reservations_subject_unique").on(
+      table.tenantId,
+      table.path,
+      table.subjectType,
+      table.subjectPublicId,
+    ),
+    check("ai_spend_reservations_units_positive", sql`${table.units} > 0`),
+    check(
+      "ai_spend_reservations_state",
+      sql`${table.state} IN ('reserved', 'consumed', 'released', 'uncertain')`,
+    ),
+  ],
+);
+
+export const aiSpendTenantCounters = qos.table(
+  "ai_spend_tenant_counters",
+  {
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    scopeKey: text("scope_key").notNull(),
+    windowStart: date("window_start").notNull(),
+    units: integer("units").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({
+      name: "ai_spend_tenant_counters_pk",
+      columns: [table.tenantId, table.scopeKey, table.windowStart],
+    }),
+  ],
+);
+
+/** Platform and provider aggregates only; holds no tenant data. */
+export const aiSpendPlatformCounters = qos.table(
+  "ai_spend_platform_counters",
+  {
+    scopeKey: text("scope_key").notNull(),
+    windowStart: date("window_start").notNull(),
+    units: integer("units").notNull().default(0),
+  },
+  (table) => [
+    primaryKey({
+      name: "ai_spend_platform_counters_pk",
+      columns: [table.scopeKey, table.windowStart],
+    }),
+  ],
+);
+
 export const schema = {
   tenants,
   organizations,
@@ -3213,6 +3300,9 @@ export const schema = {
   tenantAgentBindings,
   agentRuns,
   agentRunInputs,
+  aiSpendReservations,
+  aiSpendTenantCounters,
+  aiSpendPlatformCounters,
 };
 
 export type TenantRecord = typeof tenants.$inferSelect;
