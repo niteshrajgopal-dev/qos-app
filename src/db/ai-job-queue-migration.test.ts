@@ -1,6 +1,12 @@
+import { randomBytes } from "node:crypto";
+import path from "node:path";
+
+import { drizzle } from "drizzle-orm/postgres-js";
+import { migrate } from "drizzle-orm/postgres-js/migrator";
+import postgres from "postgres";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
+import { hasIntegrationDatabase, integrationDatabaseUrl, resetAndMigrate } from "@/db/test-utils";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
@@ -139,6 +145,40 @@ integrationDescribe("0042 AI job queue migration", () => {
       tenants: "SELECT",
     });
   });
+
+  it("applies every migration as a non-superuser admin with CREATEROLE, as on Azure", async () => {
+    const { sql } = connection;
+    const admin = "qos_az_admin_test";
+    const database = `qos_az_${randomBytes(4).toString("hex")}`;
+    const [exists] = await sql`SELECT 1 AS found FROM pg_roles WHERE rolname = ${admin}`;
+    if (!exists) {
+      await sql.unsafe(`CREATE ROLE ${admin} LOGIN CREATEROLE BYPASSRLS PASSWORD '${admin}'`);
+    }
+    // Roles are cluster-wide and earlier tests created them as superuser. On
+    // Azure the admin created them itself and so holds ADMIN on each.
+    const existing = await sql`SELECT rolname FROM pg_roles WHERE rolname ~ '^qos_(app|migrator|ai_)'`;
+    for (const { rolname } of existing) {
+      await sql.unsafe(`GRANT ${rolname} TO ${admin} WITH ADMIN OPTION`);
+    }
+    await sql.unsafe(`CREATE DATABASE ${database} OWNER ${admin}`);
+
+    const url = new URL(integrationDatabaseUrl);
+    url.username = admin;
+    url.password = admin;
+    url.pathname = `/${database}`;
+    const asAdmin = postgres(url.toString(), { max: 1, onnotice: () => undefined });
+    try {
+      await migrate(drizzle(asAdmin), { migrationsFolder: path.join(process.cwd(), "drizzle") });
+      const [state] = await asAdmin`
+        SELECT
+          (SELECT count(*)::int FROM pg_proc WHERE pronamespace = 'qos'::regnamespace AND proowner = 'qos_ai_queue_owner'::regrole) AS owned,
+          has_schema_privilege('qos_ai_queue_owner', 'qos', 'CREATE') AS owner_can_create`;
+      expect(state).toEqual({ owned: 4, owner_can_create: false });
+    } finally {
+      await asAdmin.end({ timeout: 5 });
+      await sql.unsafe(`DROP DATABASE ${database} WITH (FORCE)`);
+    }
+  }, 120_000);
 
   it("forces row-level security on the queue tables", async () => {
     const security = await connection.sql`

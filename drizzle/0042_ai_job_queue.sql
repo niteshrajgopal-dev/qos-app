@@ -486,10 +486,14 @@ BEGIN
 END;
 $$;--> statement-breakpoint
 
+-- For a non-superuser migrator, ALTER ... OWNER requires the new owner to hold
+-- CREATE on the schema. It is held only for the hand-off.
+GRANT CREATE ON SCHEMA qos TO qos_ai_queue_owner;--> statement-breakpoint
 ALTER FUNCTION qos.claim_next_ai_job(text, text[], integer, integer, integer, integer) OWNER TO qos_ai_queue_owner;--> statement-breakpoint
 ALTER FUNCTION qos.heartbeat_ai_job(uuid, uuid, integer) OWNER TO qos_ai_queue_owner;--> statement-breakpoint
 ALTER FUNCTION qos.count_due_ai_work() OWNER TO qos_ai_queue_owner;--> statement-breakpoint
 ALTER FUNCTION qos.cancel_queued_ai_job(text, text, text) OWNER TO qos_ai_queue_owner;--> statement-breakpoint
+REVOKE CREATE ON SCHEMA qos FROM qos_ai_queue_owner;--> statement-breakpoint
 REVOKE ALL ON FUNCTION qos.claim_next_ai_job(text, text[], integer, integer, integer, integer) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION qos.heartbeat_ai_job(uuid, uuid, integer) FROM PUBLIC;--> statement-breakpoint
 REVOKE ALL ON FUNCTION qos.count_due_ai_work() FROM PUBLIC;--> statement-breakpoint
