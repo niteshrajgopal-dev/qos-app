@@ -70,7 +70,7 @@ export function extractMenuManagerJson(finalMessage: string): unknown {
   return JSON.parse(candidate);
 }
 
-type ValidationContext = {
+export type MenuManagerReplyContext = {
   menuPublicId: string;
   productPublicIds: readonly string[];
   menuVersion: number | null;
@@ -92,7 +92,7 @@ function invalid(code: string, message: string, finalMessage: string): Completio
  */
 export function interpretMenuManagerReply(
   finalMessage: string,
-  context: ValidationContext,
+  context: MenuManagerReplyContext,
 ): CompletionInterpretation {
   let payload: unknown;
   try {

@@ -33,8 +33,10 @@ import {
   RAW_RESULT_EXCERPT_MAX_CHARS,
   recordAgentRunOutcome,
   toAgentRunView,
+  type AgentRunPin,
   type CompletionInterpretation,
 } from "@/lib/agents/agent-runs";
+import { executionIdentityForPersistedProvider } from "@/lib/agents/execution-identity";
 import { parseAgentCredentialKey } from "@/lib/agents/credential-crypto";
 import { withAgentCredentialAccess } from "@/lib/agents/db-context";
 import {
@@ -62,6 +64,24 @@ const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 const APPROVED_AGENT_ID = "cmun4w730017807adjrkbep1t";
 const POLL = { pollIntervalMs: 5_000, leaseMs: 30_000, queuedStaleMs: 120_000 };
 const TIMEOUT_MS = 10 * 60_000;
+
+function testPin(payload = '{"schema":"test.input.v1"}'): AgentRunPin {
+  return {
+    definition: { key: "menu_manager", version: "test.v1" },
+    executionIdentity: executionIdentityForPersistedProvider("hyperagent"),
+    runConfig: {
+      schema: "qos.agent_run_config.v1",
+      runTimeoutMs: TIMEOUT_MS,
+      pollIntervalMs: POLL.pollIntervalMs,
+      pollLeaseMs: POLL.leaseMs,
+      queuedStaleMs: POLL.queuedStaleMs,
+      outputSchema: "test.output.v1",
+      allowedTools: [],
+      toolSchemaVersions: {},
+    },
+    input: { schema: "test.input.v1", payload },
+  };
+}
 
 const acceptAll = (finalMessage: string): CompletionInterpretation => ({
   ok: true,
@@ -135,7 +155,7 @@ integrationDescribe("agent platform foundation", () => {
       requestedBy: { subject: "admin.quotes@test", actorClass: "staff_administrator" as const },
       idempotencyKey: `idem-${randomBytes(6).toString("hex")}`,
       requestSummary: { productCount: 12, selectedProductCount: 0 },
-      runTimeoutMs: TIMEOUT_MS,
+      pin: testPin(),
       ...overrides,
     };
   }

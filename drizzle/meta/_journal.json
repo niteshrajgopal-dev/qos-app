@@ -281,6 +281,13 @@
       "when": 1790900000000,
       "tag": "0039_ai_photo_candidates",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791100000000,
+      "tag": "0040_agent_run_pinning",
+      "breakpoints": true
     }
   ]
 }

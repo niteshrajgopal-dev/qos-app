@@ -7,17 +7,23 @@ import {
   expireAgentRunIfDue,
   getAgentRun,
   getLatestAgentRunForSubject,
+  loadPinnedRunInput,
   markAgentRunFailed,
   markAgentRunStarted,
   pollAgentRunOnce,
   START_OUTCOME_UNKNOWN_CODE,
   toAgentRunView,
+  type AgentRunConfig,
   type AgentRunRecord,
   type AgentRunView,
 } from "@/lib/agents/agent-runs";
 import { isMenuManagerAvailable, readAgentConfig, type AgentConfig } from "@/lib/agents/config";
-import { interpretMenuManagerReply } from "@/lib/agents/menu-manager/menu-manager-result";
-import { buildMenuManagerRequest } from "@/lib/agents/menu-manager/menu-manager-request";
+import { executionIdentityForPersistedProvider } from "@/lib/agents/execution-identity";
+import {
+  CURRENT_MENU_MANAGER_DEFINITION,
+  getMenuManagerDefinition,
+  type MenuManagerDefinition,
+} from "@/lib/agents/menu-manager/menu-manager-definition";
 import {
   getAgentExecutorReadiness,
   reportAgentExecutorReauthRequired,
@@ -31,8 +37,9 @@ import {
   type AgentRunStatus,
   type AgentRuntimeProvider,
 } from "@/lib/agents/types";
+import type { AgentExecutionIdentity } from "@/lib/ai/execution-identity";
 import { auditActorClassFromStaffRole } from "@/lib/audit/tenant-audit";
-import { loadMenuSnapshotForAgent } from "@/lib/catalogue/menu-snapshot";
+import { loadMenuSnapshotForAgent, type MenuSnapshot } from "@/lib/catalogue/menu-snapshot";
 import { assertMenuLocationAccess } from "@/lib/catalogue/menus";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -140,6 +147,70 @@ function assertMenuManagerRun(run: AgentRunRecord, menuPublicId?: string) {
   }
 }
 
+export const DEFINITION_UNAVAILABLE_CODE = "definition_unavailable";
+export const PINNED_INPUT_INVALID_CODE = "pinned_input_invalid";
+export const EXECUTOR_MISMATCH_CODE = "executor_mismatch";
+
+function runConfigFor(definition: MenuManagerDefinition, config: AgentConfig): AgentRunConfig {
+  return {
+    schema: "qos.agent_run_config.v1",
+    runTimeoutMs: config.runTimeoutMs,
+    pollIntervalMs: config.pollIntervalMs,
+    pollLeaseMs: config.pollLeaseMs,
+    queuedStaleMs: config.queuedStaleMs,
+    outputSchema: definition.outputSchema,
+    allowedTools: [...definition.allowedTools],
+    toolSchemaVersions: {},
+  };
+}
+
+/** Pinned limits; runs created before pinning use the current configuration. */
+function runLimits(run: AgentRunRecord, config: AgentConfig) {
+  return run.runConfig ?? runConfigFor(CURRENT_MENU_MANAGER_DEFINITION, config);
+}
+
+/** Runs created before pinning carry no identity and are accepted by any provider of their kind. */
+function executorMatches(run: AgentRunRecord, provider: AgentRuntimeProvider) {
+  const pinned: AgentExecutionIdentity | null = run.executionIdentity;
+  if (!pinned) {
+    return provider.kind === run.provider;
+  }
+  const live = provider.identity;
+  return (
+    provider.kind === run.provider &&
+    live.executorKind === pinned.executorKind &&
+    live.executorAdapter === pinned.executorAdapter &&
+    live.adapterVersion === pinned.adapterVersion &&
+    live.modelProvider === pinned.modelProvider &&
+    live.modelId === pinned.modelId
+  );
+}
+
+/** Rebuilds the request from the run's pinned input and definition, never from live data. */
+async function pinnedRequest(
+  db: DbClient,
+  tenantId: string,
+  run: AgentRunRecord,
+): Promise<{ ok: true; message: string } | { ok: false; code: string; message: string }> {
+  const definition = getMenuManagerDefinition(run.definitionVersion);
+  if (!definition) {
+    return {
+      ok: false,
+      code: DEFINITION_UNAVAILABLE_CODE,
+      message: "This version of QOS cannot run the Menu Manager version this review was created for.",
+    };
+  }
+  const input = await loadPinnedRunInput(db, tenantId, run.id);
+  if (!input.ok || input.schema !== definition.inputSchema) {
+    return {
+      ok: false,
+      code: PINNED_INPUT_INVALID_CODE,
+      message: "QOS could not verify the menu data saved for this review.",
+    };
+  }
+  return { ok: true, message: definition.buildRequest(JSON.parse(input.payload) as MenuSnapshot) };
+}
+
 async function onReauthRequired(
   db: DbClient,
   provider: AgentProviderKind,
@@ -172,6 +243,7 @@ export async function askMenuManager(
   requireAvailable(config);
   const binding = await requireEnabledBinding(db, caller.tenantId);
   await requireReadyExecutor(db, binding.provider);
+  const definition = CURRENT_MENU_MANAGER_DEFINITION;
 
   const built = await loadMenuSnapshotForAgent(
     db,
@@ -206,7 +278,12 @@ export async function askMenuManager(
     requestSummary: { ...auditRequestSummary, productPublicIds: built.productPublicIds },
     auditRequestSummary,
     acknowledgedUnresolvedRunPublicId: input.acknowledgeUnresolvedRunPublicId,
-    runTimeoutMs: config.runTimeoutMs,
+    pin: {
+      definition: { key: definition.key, version: definition.version },
+      executionIdentity: executionIdentityForPersistedProvider(binding.provider),
+      runConfig: runConfigFor(definition, config),
+      input: { schema: built.snapshot.schema, payload: JSON.stringify(built.snapshot) },
+    },
     now: clock(),
   });
 
@@ -215,17 +292,37 @@ export async function askMenuManager(
     return { run: toMenuManagerRunView(run), created: false };
   }
 
+  const notSent = async (code: string, message: string) => {
+    const failed = await markAgentRunFailed(db, caller.tenantId, run.publicId, {
+      code,
+      message,
+      now: clock(),
+    });
+    return { run: toMenuManagerRunView(failed), created: true };
+  };
+
+  const request = await pinnedRequest(db, caller.tenantId, run);
+  if (!request.ok) {
+    return notSent(request.code, request.message);
+  }
+
   try {
     const provider = options.provider ?? getAgentRuntimeProvider(binding.provider);
+    if (!executorMatches(run, provider)) {
+      return notSent(
+        EXECUTOR_MISMATCH_CODE,
+        "The QOS agent service changed before this review could be sent.",
+      );
+    }
     const started = await provider.startRun({
       providerAgentId: run.providerAgentId,
-      message: buildMenuManagerRequest(built.snapshot),
+      message: request.message,
       idempotencyKey: input.idempotencyKey,
     });
     const running = await markAgentRunStarted(db, caller.tenantId, run.publicId, {
       providerThreadId: started.providerThreadId,
       actor: requestedBy,
-      pollIntervalMs: config.pollIntervalMs,
+      pollIntervalMs: runLimits(run, config).pollIntervalMs,
       now: clock(),
     });
     return { run: toMenuManagerRunView(running), created: true };
@@ -270,8 +367,9 @@ export async function refreshMenuManagerRun(
 
   const config = options.config ?? readAgentConfig();
   const clock = options.now ?? (() => new Date());
+  const limits = runLimits(found, config);
   const run = await expireAgentRunIfDue(db, caller.tenantId, found.publicId, {
-    queuedStaleMs: config.queuedStaleMs,
+    queuedStaleMs: limits.queuedStaleMs,
     now: clock(),
   });
   if (!isActive(run.status)) {
@@ -283,6 +381,13 @@ export async function refreshMenuManagerRun(
     return toMenuManagerRunView(run, blocked);
   }
 
+  // A reply is only read with the definition the run was sent with. Until a
+  // build that has it is deployed, the run waits and its deadline ends it.
+  const definition = getMenuManagerDefinition(run.definitionVersion);
+  if (!definition) {
+    return toMenuManagerRunView(run, "service_unavailable");
+  }
+
   let provider: AgentRuntimeProvider;
   try {
     provider = options.provider ?? getAgentRuntimeProvider(run.provider);
@@ -291,6 +396,9 @@ export async function refreshMenuManagerRun(
       return toMenuManagerRunView(run, "service_unavailable");
     }
     throw error;
+  }
+  if (!executorMatches(run, provider)) {
+    return toMenuManagerRunView(run, "service_unavailable");
   }
 
   const summary = run.requestSummary;
@@ -301,12 +409,12 @@ export async function refreshMenuManagerRun(
   const polled = await pollAgentRunOnce(db, caller.tenantId, run.publicId, {
     provider,
     owner: `menu-manager:${randomUUID()}`,
-    pollIntervalMs: config.pollIntervalMs,
-    leaseMs: config.pollLeaseMs,
-    queuedStaleMs: config.queuedStaleMs,
+    pollIntervalMs: limits.pollIntervalMs,
+    leaseMs: limits.pollLeaseMs,
+    queuedStaleMs: limits.queuedStaleMs,
     now: clock,
     interpretCompletion: (finalMessage) =>
-      interpretMenuManagerReply(finalMessage, {
+      definition.interpretReply(finalMessage, {
         menuPublicId: run.subjectPublicId,
         productPublicIds,
         menuVersion: run.subjectVersion,
@@ -336,7 +444,7 @@ export async function getLatestMenuManagerRun(
   }
   const config = options.config ?? readAgentConfig();
   const run = await expireAgentRunIfDue(db, caller.tenantId, latest.publicId, {
-    queuedStaleMs: config.queuedStaleMs,
+    queuedStaleMs: runLimits(latest, config).queuedStaleMs,
     now: (options.now ?? (() => new Date()))(),
   });
   if (!isActive(run.status)) {

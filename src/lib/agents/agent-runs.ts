@@ -1,9 +1,11 @@
-import { randomBytes, randomUUID } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { z } from "zod";
 
 import type { DbClient } from "@/db/client";
-import { agentRuns } from "@/db/schema";
+import { agentRunInputs, agentRuns } from "@/db/schema";
+import type { AgentExecutionIdentity } from "@/lib/ai/execution-identity";
 import type { TenantAgentBinding } from "@/lib/agents/tenant-agent-bindings";
 import {
   AgentProviderError,
@@ -58,6 +60,32 @@ export function isRemoteOutcomeUnknown(run: {
 
 type AgentRunRow = typeof agentRuns.$inferSelect;
 
+/** Largest pinned input accepted; matches `agent_run_inputs_payload_size`. */
+export const MAX_RUN_INPUT_BYTES = 1_048_576;
+
+const agentRunConfigSchema = z.strictObject({
+  schema: z.literal("qos.agent_run_config.v1"),
+  runTimeoutMs: z.number().int().positive(),
+  pollIntervalMs: z.number().int().positive(),
+  pollLeaseMs: z.number().int().positive(),
+  queuedStaleMs: z.number().int().positive(),
+  outputSchema: z.string().min(1),
+  allowedTools: z.array(z.string()),
+  toolSchemaVersions: z.record(z.string(), z.string()),
+});
+
+/** Operational configuration fixed when a run is accepted; later config changes apply to new runs only. */
+export type AgentRunConfig = z.infer<typeof agentRunConfigSchema>;
+
+/** Everything a run pins at acceptance (ADR-AI-02 decision 9). */
+export type AgentRunPin = {
+  definition: { key: string; version: string };
+  executionIdentity: AgentExecutionIdentity;
+  runConfig: AgentRunConfig;
+  /** Exact bounded input text; its SHA-256 is computed and stored with it. */
+  input: { schema: string; payload: string };
+};
+
 /** Browser-safe run view: no provider thread id, idempotency key or raw output. */
 export type AgentRunView = {
   publicId: string;
@@ -86,6 +114,11 @@ export type AgentRunRecord = AgentRunView & {
   providerThreadId: string | null;
   correlationId: string;
   requestedBySubject: string;
+  /** Pins; null on runs created before pinning existed. */
+  definitionKey: string | null;
+  definitionVersion: string | null;
+  executionIdentity: AgentExecutionIdentity | null;
+  runConfig: AgentRunConfig | null;
 };
 
 export class AgentRunError extends Error {
@@ -137,7 +170,24 @@ function toRecord(row: AgentRunRow): AgentRunRecord {
     providerThreadId: row.providerThreadId,
     correlationId: row.correlationId,
     requestedBySubject: row.requestedBySubject,
+    definitionKey: row.definitionKey,
+    definitionVersion: row.definitionVersion,
+    executionIdentity: (row.executionIdentity as AgentExecutionIdentity | null) ?? null,
+    runConfig: parseRunConfig(row.runConfig),
   };
+}
+
+/** A stored config this build cannot read is treated as absent, never guessed. */
+function parseRunConfig(value: unknown): AgentRunConfig | null {
+  if (value == null) {
+    return null;
+  }
+  const parsed = agentRunConfigSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+function sha256Hex(text: string) {
+  return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
 export function toAgentRunView(run: AgentRunRecord): AgentRunView {
@@ -281,7 +331,7 @@ export type CreateAgentRunInput = {
    * echoed back by the requester to confirm a new run anyway.
    */
   acknowledgedUnresolvedRunPublicId?: string;
-  runTimeoutMs: number;
+  pin: AgentRunPin;
   now?: Date;
 };
 
@@ -312,6 +362,12 @@ export async function createAgentRun(
     );
   }
 
+  const pin = input.pin;
+  const runConfig = agentRunConfigSchema.parse(pin.runConfig);
+  if (Buffer.byteLength(pin.input.payload, "utf8") > MAX_RUN_INPUT_BYTES || pin.input.payload.length === 0) {
+    throw new AgentRunError("run_input_too_large", "The request is too large to send to the agent.", 413);
+  }
+  const inputSha256 = sha256Hex(pin.input.payload);
   const now = input.now ?? new Date();
 
   const replayOf = (replay: AgentRunRow) => {
@@ -369,7 +425,11 @@ export async function createAgentRun(
         idempotencyKey: key,
         correlationId: randomUUID(),
         requestSummary: input.requestSummary,
-        deadlineAt: new Date(now.getTime() + input.runTimeoutMs),
+        definitionKey: pin.definition.key,
+        definitionVersion: pin.definition.version,
+        executionIdentity: pin.executionIdentity,
+        runConfig,
+        deadlineAt: new Date(now.getTime() + runConfig.runTimeoutMs),
         createdAt: now,
         updatedAt: now,
       })
@@ -377,8 +437,19 @@ export async function createAgentRun(
       .returning();
 
     if (inserted) {
+      await tx.insert(agentRunInputs).values({
+        runId: inserted.id,
+        tenantId: input.tenantId,
+        inputSchema: pin.input.schema,
+        payload: pin.input.payload,
+        payloadSha256: inputSha256,
+        createdAt: now,
+      });
       await auditRun(tx, inserted, "agent_run.requested", input.requestedBy, {
         providerAgentId: inserted.providerAgentId,
+        definitionVersion: pin.definition.version,
+        adapterVersion: pin.executionIdentity.adapterVersion,
+        input: { schema: pin.input.schema, sha256: inputSha256 },
         request: input.auditRequestSummary ?? input.requestSummary,
         ...(acknowledged !== null ? { acknowledgedUnresolvedRunPublicId: acknowledged } : {}),
       });
@@ -806,6 +877,35 @@ export async function getAgentRun(
   return withTenantContext(db, tenantId, async (tx) =>
     toRecord(await requireRunRow(tx, tenantId, runPublicId)),
   );
+}
+
+export type PinnedRunInput =
+  | { ok: true; schema: string; payload: string; sha256: string }
+  | { ok: false; reason: "missing" | "checksum_mismatch" };
+
+/**
+ * Loads a run's pinned input and re-verifies its checksum. Callers must have
+ * authorized the requester for the run and must not dispatch on `ok: false`.
+ */
+export async function loadPinnedRunInput(
+  db: DbClient,
+  tenantId: string,
+  runId: string,
+): Promise<PinnedRunInput> {
+  const [row] = await withTenantContext(db, tenantId, (tx) =>
+    tx
+      .select()
+      .from(agentRunInputs)
+      .where(and(eq(agentRunInputs.tenantId, tenantId), eq(agentRunInputs.runId, runId)))
+      .limit(1),
+  );
+  if (!row) {
+    return { ok: false, reason: "missing" };
+  }
+  if (sha256Hex(row.payload) !== row.payloadSha256) {
+    return { ok: false, reason: "checksum_mismatch" };
+  }
+  return { ok: true, schema: row.inputSchema, payload: row.payload, sha256: row.payloadSha256 };
 }
 
 export async function getLatestAgentRunForSubject(
