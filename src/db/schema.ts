@@ -2,6 +2,7 @@ import { relations, sql } from "drizzle-orm";
 import {
   boolean,
   char,
+  check,
   foreignKey,
   index,
   integer,
@@ -3014,6 +3015,15 @@ export const tenantAgentBindings = qos.table(
 
 export type AgentRunRequestSummary = Record<string, unknown>;
 
+/** Persisted shape of `agent_runs.execution_identity` (see `src/lib/ai/execution-identity.ts`). */
+export type AgentRunExecutionIdentity = {
+  executorKind: string;
+  executorAdapter: string;
+  adapterVersion: string;
+  modelProvider: string | null;
+  modelId: string | null;
+};
+
 export const agentRuns = qos.table(
   "agent_runs",
   {
@@ -3050,6 +3060,11 @@ export const agentRuns = qos.table(
     deadlineAt: timestamp("deadline_at", { withTimezone: true }).notNull(),
     startedAt: timestamp("started_at", { withTimezone: true }),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
+    /** Pins; NULL only on rows created before migration 0040. */
+    definitionKey: text("definition_key"),
+    definitionVersion: text("definition_version"),
+    executionIdentity: jsonb("execution_identity").$type<AgentRunExecutionIdentity>(),
+    runConfig: jsonb("run_config").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -3062,6 +3077,11 @@ export const agentRuns = qos.table(
       columns: [table.tenantId, table.bindingId],
       foreignColumns: [tenantAgentBindings.tenantId, tenantAgentBindings.id],
     }).onDelete("restrict"),
+    check(
+      "agent_runs_pin_complete",
+      sql`(${table.definitionKey} IS NULL AND ${table.definitionVersion} IS NULL AND ${table.executionIdentity} IS NULL AND ${table.runConfig} IS NULL) OR (${table.definitionKey} IS NOT NULL AND ${table.definitionVersion} IS NOT NULL AND ${table.executionIdentity} IS NOT NULL AND ${table.runConfig} IS NOT NULL)`,
+    ),
+    unique("agent_runs_tenant_id_id_unique").on(table.tenantId, table.id),
     unique("agent_runs_public_id_unique").on(table.tenantId, table.publicId),
     unique("agent_runs_idempotency_unique").on(
       table.tenantId,
@@ -3080,6 +3100,39 @@ export const agentRuns = qos.table(
       table.subjectType,
       table.subjectPublicId,
       table.createdAt,
+    ),
+  ],
+);
+
+/**
+ * The exact bounded input text a run was accepted with. Immutable; never
+ * copied into audit metadata. Text rather than jsonb so the checksum can be
+ * re-verified byte for byte.
+ */
+export const agentRunInputs = qos.table(
+  "agent_run_inputs",
+  {
+    runId: uuid("run_id").primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    inputSchema: text("input_schema").notNull(),
+    payload: text("payload").notNull(),
+    payloadSha256: text("payload_sha256").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "agent_run_inputs_run_fk",
+      columns: [table.tenantId, table.runId],
+      foreignColumns: [agentRuns.tenantId, agentRuns.id],
+    }).onDelete("restrict"),
+    check("agent_run_inputs_sha256_format", sql`${table.payloadSha256} ~ '^[0-9a-f]{64}$'`),
+    check(
+      "agent_run_inputs_payload_size",
+      sql`octet_length(${table.payload}) BETWEEN 1 AND 1048576`,
     ),
   ],
 );
@@ -3159,6 +3212,7 @@ export const schema = {
   agentProviderCredentials,
   tenantAgentBindings,
   agentRuns,
+  agentRunInputs,
 };
 
 export type TenantRecord = typeof tenants.$inferSelect;
