@@ -5,6 +5,7 @@ import {
   AgentRunError,
   createAgentRun,
   expireAgentRunIfDue,
+  failQueuedAgentRunInTx,
   getAgentRun,
   getLatestAgentRunForSubject,
   loadPinnedRunInput,
@@ -42,6 +43,7 @@ import {
   type AgentRuntimeProvider,
 } from "@/lib/agents/types";
 import type { AgentExecutionIdentity } from "@/lib/ai/execution-identity";
+import { cancelUnclaimedAiJobInTx, enqueueAiJobInTx, getAiJobForRun } from "@/lib/ai/jobs/ai-job-queue";
 import { auditActorClassFromStaffRole } from "@/lib/audit/tenant-audit";
 import { loadMenuSnapshotForAgent, type MenuSnapshot } from "@/lib/catalogue/menu-snapshot";
 import { assertMenuLocationAccess } from "@/lib/catalogue/menus";
@@ -70,7 +72,7 @@ export type MenuManagerWaitReason = "agent_connection" | "service_unavailable" |
 
 export type MenuManagerRunView = AgentRunView & { waitingOn: MenuManagerWaitReason | null };
 
-function isActive(status: AgentRunStatus) {
+export function isActive(status: AgentRunStatus) {
   return (ACTIVE_AGENT_RUN_STATUSES as readonly AgentRunStatus[]).includes(status);
 }
 
@@ -86,7 +88,7 @@ function toMenuManagerRunView(
  * Rebuilds the run's execution context, so a suspended business, a changed
  * binding or the requester losing access stops collection of the reply.
  */
-async function pollingBlockedBy(
+export async function pollingBlockedBy(
   db: DbClient,
   tenantId: string,
   run: AgentRunRecord,
@@ -159,7 +161,7 @@ function assertMenuManagerRun(run: AgentRunRecord, menuPublicId?: string) {
   }
 }
 
-const NOT_SENT_MESSAGES: Record<ExecutionContextDenial, string> = {
+export const NOT_SENT_MESSAGES: Record<ExecutionContextDenial, string> = {
   capability_unavailable: "Menu Manager was turned off before this review could be sent.",
   tenant_inactive: "This business is not active, so the review was not sent.",
   binding_changed: "Menu Manager's approval changed before this review could be sent.",
@@ -170,6 +172,10 @@ const NOT_SENT_MESSAGES: Record<ExecutionContextDenial, string> = {
 export const DEFINITION_UNAVAILABLE_CODE = "definition_unavailable";
 export const PINNED_INPUT_INVALID_CODE = "pinned_input_invalid";
 export const EXECUTOR_MISMATCH_CODE = "executor_mismatch";
+/** A queued_worker run no worker started before it went stale; proven never sent. */
+export const NOT_STARTED_IN_TIME_CODE = "not_started_in_time";
+export const NOT_STARTED_IN_TIME_MESSAGE = "QOS did not start this review in time. Nothing was sent to the agent service.";
+export const MENU_MANAGER_JOB_KIND = "menu_manager.run" as const;
 
 function runConfigFor(definition: MenuManagerDefinition, config: AgentConfig): AgentRunConfig {
   return {
@@ -185,12 +191,12 @@ function runConfigFor(definition: MenuManagerDefinition, config: AgentConfig): A
 }
 
 /** Pinned limits; runs created before pinning use the current configuration. */
-function runLimits(run: AgentRunRecord, config: AgentConfig) {
+export function runLimits(run: AgentRunRecord, config: AgentConfig) {
   return run.runConfig ?? runConfigFor(CURRENT_MENU_MANAGER_DEFINITION, config);
 }
 
 /** Runs created before pinning carry no identity and are accepted by any provider of their kind. */
-function executorMatches(run: AgentRunRecord, provider: AgentRuntimeProvider) {
+export function executorMatches(run: AgentRunRecord, provider: AgentRuntimeProvider) {
   const pinned: AgentExecutionIdentity | null = run.executionIdentity;
   if (!pinned) {
     return provider.kind === run.provider;
@@ -207,7 +213,7 @@ function executorMatches(run: AgentRunRecord, provider: AgentRuntimeProvider) {
 }
 
 /** Rebuilds the request from the run's pinned input and definition, never from live data. */
-async function pinnedRequest(
+export async function pinnedRequest(
   db: DbClient,
   tenantId: string,
   run: AgentRunRecord,
@@ -231,12 +237,68 @@ async function pinnedRequest(
   return { ok: true, message: definition.buildRequest(JSON.parse(input.payload) as MenuSnapshot) };
 }
 
-async function onReauthRequired(
+export async function onReauthRequired(
   db: DbClient,
   provider: AgentProviderKind,
   error: AgentProviderError,
 ) {
   await reportAgentExecutorReauthRequired(db, provider, error.code);
+}
+
+/** Reads a reply only against the definition and request facts the run was sent with. */
+export function completionInterpreter(run: AgentRunRecord, definition: MenuManagerDefinition) {
+  const summary = run.requestSummary;
+  const productPublicIds = Array.isArray(summary.productPublicIds)
+    ? summary.productPublicIds.filter((id): id is string => typeof id === "string")
+    : [];
+  const snapshotSha256 = typeof summary.snapshotSha256 === "string" ? summary.snapshotSha256 : null;
+  return (finalMessage: string) =>
+    definition.interpretReply(finalMessage, {
+      menuPublicId: run.subjectPublicId,
+      productPublicIds,
+      menuVersion: run.subjectVersion,
+      snapshotSha256,
+    });
+}
+
+/**
+ * Read-side upkeep for a queued_worker run. Never contacts a provider. A
+ * stale run whose job no worker ever claimed is cancelled and failed as
+ * never sent; once a worker has claimed it, only the worker decides. A
+ * running run is ended at its deadline like an inline run.
+ */
+async function settleQueuedWorkerRun(
+  db: DbClient,
+  tenantId: string,
+  run: AgentRunRecord,
+  limits: AgentRunConfig,
+  now: Date,
+): Promise<AgentRunRecord> {
+  if (run.status === "running") {
+    return expireAgentRunIfDue(db, tenantId, run.publicId, { queuedStaleMs: limits.queuedStaleMs, now });
+  }
+  if (run.status !== "queued" || now.getTime() - Date.parse(run.createdAt) < limits.queuedStaleMs) {
+    return run;
+  }
+  const job = await getAiJobForRun(db, tenantId, { jobKind: MENU_MANAGER_JOB_KIND, agentRunId: run.id });
+  if (!job) {
+    return run;
+  }
+  const failed = await withTenantContext(db, tenantId, async (tx) => {
+    const cancelled = await cancelUnclaimedAiJobInTx(tx, {
+      jobPublicId: job.publicId,
+      code: NOT_STARTED_IN_TIME_CODE,
+      message: NOT_STARTED_IN_TIME_MESSAGE,
+    });
+    return cancelled
+      ? failQueuedAgentRunInTx(tx, tenantId, run.publicId, {
+          code: NOT_STARTED_IN_TIME_CODE,
+          message: NOT_STARTED_IN_TIME_MESSAGE,
+          now,
+        })
+      : null;
+  });
+  return failed ?? (await getAgentRun(db, tenantId, run.publicId));
 }
 
 /**
@@ -304,12 +366,27 @@ export async function askMenuManager(
       runConfig: runConfigFor(definition, config),
       input: { schema: built.snapshot.schema, payload: JSON.stringify(built.snapshot) },
     },
+    executionMode: config.menuManagerExecutionMode,
+    onCreated:
+      config.menuManagerExecutionMode === "queued_worker"
+        ? async (tx, accepted) => {
+            await enqueueAiJobInTx(tx, {
+              tenantId: caller.tenantId,
+              jobKind: MENU_MANAGER_JOB_KIND,
+              agentRunId: accepted.id,
+              now: clock(),
+            });
+          }
+        : undefined,
     now: clock(),
   });
 
   if (!created) {
     assertMenuManagerRun(run, input.menuPublicId);
     return { run: toMenuManagerRunView(run), created: false };
+  }
+  if (run.executionMode === "queued_worker") {
+    return { run: toMenuManagerRunView(run), created: true };
   }
 
   const notSent = async (code: string, message: string) => {
@@ -392,6 +469,13 @@ export async function refreshMenuManagerRun(
   const config = options.config ?? readAgentConfig();
   const clock = options.now ?? (() => new Date());
   const limits = runLimits(found, config);
+  if (found.executionMode === "queued_worker") {
+    // The worker owns provider contact for this run; reads never poll it.
+    const settled = await settleQueuedWorkerRun(db, caller.tenantId, found, limits, clock());
+    return isActive(settled.status) && settled.status === "running"
+      ? toMenuManagerRunView(settled, await pollingBlockedBy(db, caller.tenantId, settled, config))
+      : toMenuManagerRunView(settled);
+  }
   const run = await expireAgentRunIfDue(db, caller.tenantId, found.publicId, {
     queuedStaleMs: limits.queuedStaleMs,
     now: clock(),
@@ -425,11 +509,6 @@ export async function refreshMenuManagerRun(
     return toMenuManagerRunView(run, "service_unavailable");
   }
 
-  const summary = run.requestSummary;
-  const productPublicIds = Array.isArray(summary.productPublicIds)
-    ? summary.productPublicIds.filter((id): id is string => typeof id === "string")
-    : [];
-  const snapshotSha256 = typeof summary.snapshotSha256 === "string" ? summary.snapshotSha256 : null;
   const polled = await pollAgentRunOnce(db, caller.tenantId, run.publicId, {
     provider,
     owner: `menu-manager:${randomUUID()}`,
@@ -437,13 +516,7 @@ export async function refreshMenuManagerRun(
     leaseMs: limits.pollLeaseMs,
     queuedStaleMs: limits.queuedStaleMs,
     now: clock,
-    interpretCompletion: (finalMessage) =>
-      definition.interpretReply(finalMessage, {
-        menuPublicId: run.subjectPublicId,
-        productPublicIds,
-        menuVersion: run.subjectVersion,
-        snapshotSha256,
-      }),
+    interpretCompletion: completionInterpreter(run, definition),
     onReauthRequired: (error) => onReauthRequired(db, run.provider, error),
   });
 
@@ -467,10 +540,14 @@ export async function getLatestMenuManagerRun(
     return latest ? toMenuManagerRunView(latest) : null;
   }
   const config = options.config ?? readAgentConfig();
-  const run = await expireAgentRunIfDue(db, caller.tenantId, latest.publicId, {
-    queuedStaleMs: runLimits(latest, config).queuedStaleMs,
-    now: (options.now ?? (() => new Date()))(),
-  });
+  const now = (options.now ?? (() => new Date()))();
+  const run =
+    latest.executionMode === "queued_worker"
+      ? await settleQueuedWorkerRun(db, caller.tenantId, latest, runLimits(latest, config), now)
+      : await expireAgentRunIfDue(db, caller.tenantId, latest.publicId, {
+          queuedStaleMs: runLimits(latest, config).queuedStaleMs,
+          now,
+        });
   if (!isActive(run.status)) {
     return toMenuManagerRunView(run);
   }
