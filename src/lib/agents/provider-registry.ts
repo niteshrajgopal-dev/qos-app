@@ -25,6 +25,7 @@ export function getAgentRuntimeProvider(
       throw new AgentProviderError(
         "provider_unavailable",
         `No ${kind} provider is registered.`,
+        { outcome: "not_dispatched" },
       );
     }
     return providerOverride;
@@ -47,5 +48,6 @@ export function getAgentRuntimeProvider(
   throw new AgentProviderError(
     "provider_unavailable",
     `The ${kind} provider is not available in this environment.`,
+    { outcome: "not_dispatched" },
   );
 }

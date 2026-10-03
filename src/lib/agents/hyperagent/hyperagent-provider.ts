@@ -1,9 +1,15 @@
 import { z } from "zod";
 
-import type { HyperagentToolCaller } from "@/lib/agents/hyperagent/hyperagent-mcp-client";
+import { PERSISTED_AGENT_PROVIDER_IDENTITY } from "@/lib/agents/execution-identity";
+import {
+  hyperagentFailureOutcome,
+  type HyperagentToolCaller,
+  type HyperagentToolName,
+} from "@/lib/agents/hyperagent/hyperagent-mcp-client";
 import {
   AgentProviderError,
   type AgentDescriptor,
+  type AgentExecutorCapabilities,
   type AgentRunObservation,
   type AgentRuntimeProvider,
   type StartAgentRunInput,
@@ -44,12 +50,31 @@ const getThreadResponse = z.object({
   awaitingApproval: z.boolean(),
 });
 
-function parseResponse<T>(schema: z.ZodType<T>, tool: string, payload: unknown): T {
+/**
+ * Honest capabilities: replies are prompted JSON that QOS validates, there is
+ * no QOS tool access, no cancel or continue call, no usage data, and
+ * `create_thread` takes no idempotency key.
+ */
+export const HYPERAGENT_EXECUTOR_CAPABILITIES = {
+  structuredOutput: "prompted_json",
+  toolCalls: "none",
+  cancellation: "none",
+  continuation: false,
+  usageReporting: false,
+  submitIdempotency: "none",
+} as const satisfies AgentExecutorCapabilities;
+
+function parseResponse<T>(
+  schema: z.ZodType<T>,
+  tool: HyperagentToolName,
+  payload: unknown,
+): T {
   const parsed = schema.safeParse(payload);
   if (!parsed.success) {
     throw new AgentProviderError(
       "invalid_provider_response",
       `Hyperagent ${tool} returned an unexpected shape.`,
+      { outcome: hyperagentFailureOutcome(tool), retryable: tool !== "create_thread" },
     );
   }
   return parsed.data;
@@ -101,6 +126,8 @@ export function observeHyperagentThread(
 
 export class HyperagentProvider implements AgentRuntimeProvider {
   readonly kind = "hyperagent" as const;
+  readonly identity = PERSISTED_AGENT_PROVIDER_IDENTITY.hyperagent;
+  readonly capabilities = HYPERAGENT_EXECUTOR_CAPABILITIES;
   private readonly callTool: HyperagentToolCaller;
 
   constructor(callTool: HyperagentToolCaller) {
@@ -119,10 +146,14 @@ export class HyperagentProvider implements AgentRuntimeProvider {
 
   async startRun(input: StartAgentRunInput): Promise<{ providerThreadId: string }> {
     if (!PROVIDER_ID_PATTERN.test(input.providerAgentId)) {
-      throw new AgentProviderError("invalid_agent_id", "The provider agent id is invalid.");
+      throw new AgentProviderError("invalid_agent_id", "The provider agent id is invalid.", {
+        outcome: "not_dispatched",
+      });
     }
     if (!input.message.trim() || input.message.length > MAX_START_MESSAGE_CHARS) {
-      throw new AgentProviderError("invalid_message", "The run message is empty or too large.");
+      throw new AgentProviderError("invalid_message", "The run message is empty or too large.", {
+        outcome: "not_dispatched",
+      });
     }
 
     // Hyperagent has no idempotency key; QOS's own run row prevents a second start.
@@ -138,7 +169,9 @@ export class HyperagentProvider implements AgentRuntimeProvider {
 
   async getRun(input: { providerThreadId: string }): Promise<AgentRunObservation> {
     if (!PROVIDER_ID_PATTERN.test(input.providerThreadId)) {
-      throw new AgentProviderError("invalid_thread_id", "The provider thread id is invalid.");
+      throw new AgentProviderError("invalid_thread_id", "The provider thread id is invalid.", {
+        outcome: "not_dispatched",
+      });
     }
 
     const payload = await this.callTool("get_thread", {
@@ -150,6 +183,7 @@ export class HyperagentProvider implements AgentRuntimeProvider {
       throw new AgentProviderError(
         "invalid_provider_response",
         "Hyperagent returned a different thread than requested.",
+        { outcome: "read_failed", retryable: true },
       );
     }
     return observeHyperagentThread(thread);

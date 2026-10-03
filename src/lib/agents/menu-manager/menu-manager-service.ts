@@ -17,12 +17,16 @@ import { isMenuManagerAvailable, readAgentConfig, type AgentConfig } from "@/lib
 import { interpretMenuManagerReply } from "@/lib/agents/menu-manager/menu-manager-result";
 import { buildMenuManagerRequest } from "@/lib/agents/menu-manager/menu-manager-request";
 import {
-  getAgentProviderConnectionStatus,
-  markAgentProviderConnectionStatus,
-} from "@/lib/agents/provider-connections";
+  getAgentExecutorReadiness,
+  reportAgentExecutorReauthRequired,
+} from "@/lib/agents/executor-readiness";
 import { getAgentRuntimeProvider } from "@/lib/agents/provider-registry";
 import { getTenantAgentBinding } from "@/lib/agents/tenant-agent-bindings";
-import { AgentProviderError, type AgentRuntimeProvider } from "@/lib/agents/types";
+import {
+  AgentProviderError,
+  type AgentProviderKind,
+  type AgentRuntimeProvider,
+} from "@/lib/agents/types";
 import { auditActorClassFromStaffRole } from "@/lib/audit/tenant-audit";
 import { loadMenuSnapshotForAgent } from "@/lib/catalogue/menu-snapshot";
 import { assertMenuLocationAccess } from "@/lib/catalogue/menus";
@@ -76,9 +80,9 @@ async function requireEnabledBinding(db: DbClient, tenantId: string) {
   return binding;
 }
 
-async function requireConnectedProvider(db: DbClient) {
-  const connection = await getAgentProviderConnectionStatus(db, "hyperagent");
-  if (connection.status !== "connected") {
+async function requireReadyExecutor(db: DbClient, provider: AgentProviderKind) {
+  const readiness = await getAgentExecutorReadiness(db, provider);
+  if (!readiness.ready) {
     throw new AgentRunError(
       "provider_not_connected",
       "The QOS agent service is not connected right now.",
@@ -103,11 +107,12 @@ function assertMenuManagerRun(run: AgentRunRecord, menuPublicId?: string) {
   }
 }
 
-async function onReauthRequired(db: DbClient, error: AgentProviderError) {
-  await markAgentProviderConnectionStatus(db, "hyperagent", {
-    status: "needs_reauth",
-    errorCode: error.code,
-  });
+async function onReauthRequired(
+  db: DbClient,
+  provider: AgentProviderKind,
+  error: AgentProviderError,
+) {
+  await reportAgentExecutorReauthRequired(db, provider, error.code);
 }
 
 /**
@@ -130,7 +135,7 @@ export async function askMenuManager(
   const clock = options.now ?? (() => new Date());
   requireAvailable(config);
   const binding = await requireEnabledBinding(db, caller.tenantId);
-  await requireConnectedProvider(db);
+  await requireReadyExecutor(db, binding.provider);
 
   const built = await loadMenuSnapshotForAgent(
     db,
@@ -192,7 +197,7 @@ export async function askMenuManager(
       throw error;
     }
     if (error.requiresReauth) {
-      await onReauthRequired(db, error);
+      await onReauthRequired(db, binding.provider, error);
     }
     const failed = await markAgentRunFailed(db, caller.tenantId, run.publicId, {
       code: error.code,
@@ -255,7 +260,7 @@ export async function refreshMenuManagerRun(
         menuVersion: run.subjectVersion,
         snapshotSha256,
       }),
-    onReauthRequired: (error) => onReauthRequired(db, error),
+    onReauthRequired: (error) => onReauthRequired(db, run.provider, error),
   });
 
   return toAgentRunView(polled.run);

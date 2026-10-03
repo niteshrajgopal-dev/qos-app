@@ -26,7 +26,7 @@ async function loadConnection(db: DbClient, credentialKey: AgentCredentialKey) {
       throw new AgentProviderError(
         error.code === "needs_reauth" ? "provider_reauth_required" : "provider_not_connected",
         error.message,
-        { requiresReauth: error.code === "needs_reauth" },
+        { requiresReauth: error.code === "needs_reauth", outcome: "not_dispatched" },
       );
     }
     throw error;
@@ -52,6 +52,7 @@ export function createPersistedHyperagentToolCaller(options: {
       throw new AgentProviderError(
         "provider_misconfigured",
         "HYPERAGENT_MCP_URL does not match the server the platform connection was authorized for.",
+        { outcome: "not_dispatched" },
       );
     }
     const initialState = readHyperagentOAuthState(loaded.credentials);
@@ -59,7 +60,7 @@ export function createPersistedHyperagentToolCaller(options: {
       throw new AgentProviderError(
         "provider_reauth_required",
         "The platform Hyperagent connection has no usable OAuth session.",
-        { requiresReauth: true },
+        { requiresReauth: true, outcome: "not_dispatched" },
       );
     }
 
