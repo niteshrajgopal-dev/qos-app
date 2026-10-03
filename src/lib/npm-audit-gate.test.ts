@@ -72,11 +72,19 @@ function linesFor(lines: string[], label: string) {
 }
 
 describe("committed policy files", () => {
-  it("ship an empty, valid active list", () => {
-    expect(parseAuditExceptionPolicy(committed("npm-audit-exceptions.json"), NOW)).toEqual({
-      kind: "policy",
-      policy: { exceptions: [] },
-    });
+  it("ship a valid active list whose entries are exactly an approved proposal", () => {
+    const parsed = parseAuditExceptionPolicy(committed("npm-audit-exceptions.json"), new Date());
+    expect(parsed.kind).toBe("policy");
+    if (parsed.kind !== "policy") return;
+    const proposals = committed("npm-audit-exception-proposals.json").proposals;
+    for (const { status, approval, ...scope } of parsed.policy.exceptions) {
+      expect(status).toBe("approved");
+      expect(approval.reference).toMatch(/^https:\/\/github\.com\/niteshrajgopal-dev\/qos-app\//);
+      const { status: _proposed, approval: _none, ...proposedScope } = proposals.find((p: any) => p.id === scope.id);
+      void _proposed;
+      void _none;
+      expect(scope).toEqual(proposedScope);
+    }
   });
 
   it("keep the braces record proposed, without approval evidence, and unusable as an active exception", () => {

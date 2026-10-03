@@ -1,4 +1,39 @@
 {
   "schemaVersion": 1,
-  "exceptions": []
+  "exceptions": [
+    {
+      "id": "npm-audit-2026-001",
+      "status": "approved",
+      "advisory": "GHSA-vfj7-8cjw-p6xm",
+      "cve": "CVE-2026-93687",
+      "package": {
+        "name": "braces",
+        "version": "3.0.3"
+      },
+      "scope": "development",
+      "path": [
+        "eslint-config-next@16.3.8",
+        "@next/eslint-plugin-next@16.3.8",
+        "fast-glob@3.3.1",
+        "micromatch@4.0.8",
+        "braces@3.0.3"
+      ],
+      "rationale": "braces <=3.0.3 has no patched release (advisory checked 2026-10-03). The only installed path is the ESLint config for Next.js; the latest and canary @next/eslint-plugin-next releases still pin fast-glob@3.3.1, and npm's only suggested fix is a semver-major downgrade to eslint-config-next@14.2.35.",
+      "exposureEvidence": "Development-only (lockfile dev: true on every package in the path, root devDependency edge). @next/eslint-plugin-next calls fast-glob only from getRootDirs when settings.next.rootDir is set; eslint.config.mjs does not set it. braces/micromatch/fast-glob are absent from the Next standalone output, the esbuild video-worker bundle and next/dist/compiled. No catalogue, menu or customer input reaches it. Residual risk: a change to the lint configuration could crash the lint process (denial of service of a CI step).",
+      "owner": "niteshrajgopal-dev",
+      "expiresAt": "2026-11-03T23:59:59Z",
+      "reviewBy": "2026-10-17",
+      "removalConditions": [
+        "The resolved braces version is verified as not affected by GHSA-vfj7-8cjw-p6xm.",
+        "The eslint-config-next > @next/eslint-plugin-next > fast-glob > micromatch > braces path is removed from package-lock.json.",
+        "GHSA-vfj7-8cjw-p6xm is withdrawn.",
+        "The exception reaches expiresAt (it then stops applying automatically)."
+      ],
+      "approval": {
+        "approvedBy": "niteshrajgopal-dev",
+        "approvedAt": "2026-10-03T09:40:56Z",
+        "reference": "https://github.com/niteshrajgopal-dev/qos-app/pull/35#issuecomment-5967874603"
+      }
+    }
+  ]
 }
