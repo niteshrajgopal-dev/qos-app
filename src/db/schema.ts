@@ -3068,6 +3068,8 @@ export const agentRuns = qos.table(
     definitionVersion: text("definition_version"),
     executionIdentity: jsonb("execution_identity").$type<AgentRunExecutionIdentity>(),
     runConfig: jsonb("run_config").$type<Record<string, unknown>>(),
+    /** 'inline' or 'queued_worker'; NULL only on rows created before 0042 (inline). Immutable. */
+    executionMode: text("execution_mode").$type<"inline" | "queued_worker">(),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -3224,6 +3226,80 @@ export const aiSpendPlatformCounters = qos.table(
   ],
 );
 
+/**
+ * Durable AI work. One job per run and kind; a lease token fences every
+ * worker write. Claims happen only through qos.claim_next_ai_job.
+ */
+export const aiJobs = qos.table(
+  "ai_jobs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    jobKind: text("job_kind").notNull(),
+    agentRunId: uuid("agent_run_id").notNull(),
+    status: text("status")
+      .$type<"queued" | "leased" | "completed" | "failed" | "cancelled" | "operator_review">()
+      .notNull()
+      .default("queued"),
+    attemptCount: integer("attempt_count").notNull().default(0),
+    nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+    leaseToken: uuid("lease_token"),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    lastClaimedAt: timestamp("last_claimed_at", { withTimezone: true }),
+    lastErrorCode: text("last_error_code"),
+    lastErrorMessage: text("last_error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+  },
+  (table) => [
+    unique("ai_jobs_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("ai_jobs_public_id_unique").on(table.tenantId, table.publicId),
+    unique("ai_jobs_run_kind_unique").on(table.tenantId, table.jobKind, table.agentRunId),
+    foreignKey({
+      name: "ai_jobs_run_fk",
+      columns: [table.tenantId, table.agentRunId],
+      foreignColumns: [agentRuns.tenantId, agentRuns.id],
+    }).onDelete("restrict"),
+    index("ai_jobs_due_idx").on(table.status, table.nextAttemptAt),
+    index("ai_jobs_tenant_status_idx").on(table.tenantId, table.status),
+  ],
+);
+
+/** Evidence per lease: dispatch time, outcome and what the provider outcome proved. */
+export const aiJobAttempts = qos.table(
+  "ai_job_attempts",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    jobId: uuid("job_id").notNull(),
+    attemptNumber: integer("attempt_number").notNull(),
+    leaseToken: uuid("lease_token").notNull(),
+    workerId: text("worker_id").notNull(),
+    claimedAt: timestamp("claimed_at", { withTimezone: true }).notNull().defaultNow(),
+    dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    outcome: text("outcome").$type<
+      "completed" | "rescheduled" | "failed" | "operator_review" | "lease_expired"
+    >(),
+    providerOutcome: text("provider_outcome"),
+    errorCode: text("error_code"),
+  },
+  (table) => [
+    unique("ai_job_attempts_lease_token_unique").on(table.leaseToken),
+    unique("ai_job_attempts_number_unique").on(table.jobId, table.attemptNumber),
+    foreignKey({
+      name: "ai_job_attempts_job_fk",
+      columns: [table.tenantId, table.jobId],
+      foreignColumns: [aiJobs.tenantId, aiJobs.id],
+    }).onDelete("restrict"),
+  ],
+);
+
 export const schema = {
   tenants,
   organizations,
@@ -3303,6 +3379,8 @@ export const schema = {
   aiSpendReservations,
   aiSpendTenantCounters,
   aiSpendPlatformCounters,
+  aiJobs,
+  aiJobAttempts,
 };
 
 export type TenantRecord = typeof tenants.$inferSelect;

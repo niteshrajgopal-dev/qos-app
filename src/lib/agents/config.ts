@@ -12,6 +12,11 @@ export type AgentConfig = {
   runTimeoutMs: number;
   /** A queued run that never received a provider thread is failed after this. */
   queuedStaleMs: number;
+  /**
+   * How newly accepted Menu Manager runs execute. Inline by default; existing
+   * runs keep the mode they were accepted with.
+   */
+  menuManagerExecutionMode: "inline" | "queued_worker";
 };
 
 export type AgentConfigDescription = {
@@ -21,6 +26,7 @@ export type AgentConfigDescription = {
   credentialKeyConfigured: boolean;
   pollIntervalMs: number;
   runTimeoutMs: number;
+  menuManagerExecutionMode: AgentConfig["menuManagerExecutionMode"];
 };
 
 const MIN_POLL_INTERVAL_MS = 2_000;
@@ -91,7 +97,19 @@ export function readAgentConfig(source: EnvSource = process.env): AgentConfig {
       min: 30_000,
       max: 30 * 60_000,
     }),
+    menuManagerExecutionMode: parseExecutionMode(source.AGENT_MENU_MANAGER_EXECUTION_MODE),
   };
+}
+
+function parseExecutionMode(value: string | undefined): AgentConfig["menuManagerExecutionMode"] {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || normalized === "inline") {
+    return "inline";
+  }
+  if (normalized === "queued_worker") {
+    return "queued_worker";
+  }
+  throw new Error("AGENT_MENU_MANAGER_EXECUTION_MODE must be inline or queued_worker.");
 }
 
 export function isMenuManagerAvailable(config: AgentConfig) {
@@ -107,5 +125,6 @@ export function describeAgentConfig(config: AgentConfig): AgentConfigDescription
     credentialKeyConfigured: config.credentialEncryptionKey !== null,
     pollIntervalMs: config.pollIntervalMs,
     runTimeoutMs: config.runTimeoutMs,
+    menuManagerExecutionMode: config.menuManagerExecutionMode,
   };
 }

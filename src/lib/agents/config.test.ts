@@ -43,6 +43,16 @@ describe("agent config", () => {
     expect(config.runTimeoutMs).toBe(60 * 60_000);
   });
 
+  it("runs Menu Manager inline unless the worker mode is chosen explicitly", () => {
+    expect(readAgentConfig({}).menuManagerExecutionMode).toBe("inline");
+    expect(
+      readAgentConfig({ AGENT_MENU_MANAGER_EXECUTION_MODE: " Queued_Worker " }).menuManagerExecutionMode,
+    ).toBe("queued_worker");
+    expect(() => readAgentConfig({ AGENT_MENU_MANAGER_EXECUTION_MODE: "worker" })).toThrow(
+      "must be inline or queued_worker",
+    );
+  });
+
   it("requires an https MCP URL", () => {
     expect(() => readAgentConfig({ HYPERAGENT_MCP_URL: "http://example.com/mcp" })).toThrow(
       "must use https",

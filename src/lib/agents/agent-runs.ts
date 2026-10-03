@@ -19,7 +19,7 @@ import {
   recordTenantAuditEventInTx,
   type AuditActorClass,
 } from "@/lib/audit/tenant-audit";
-import { withTenantContext, type TenantDbExecutor } from "@/lib/tenant/context";
+import { withTenantContext, type DbTransaction, type TenantDbExecutor } from "@/lib/tenant/context";
 
 export const RAW_RESULT_EXCERPT_MAX_CHARS = 16_384;
 const FAILURE_MESSAGE_MAX_CHARS = 2_000;
@@ -120,7 +120,11 @@ export type AgentRunRecord = AgentRunView & {
   definitionVersion: string | null;
   executionIdentity: AgentExecutionIdentity | null;
   runConfig: AgentRunConfig | null;
+  /** Fixed at acceptance; runs created before 0042 ran inline. */
+  executionMode: AgentRunExecutionMode;
 };
+
+export type AgentRunExecutionMode = "inline" | "queued_worker";
 
 export class AgentRunError extends Error {
   readonly statusCode: number;
@@ -176,6 +180,7 @@ function toRecord(row: AgentRunRow): AgentRunRecord {
     definitionVersion: row.definitionVersion,
     executionIdentity: (row.executionIdentity as AgentExecutionIdentity | null) ?? null,
     runConfig: parseRunConfig(row.runConfig),
+    executionMode: row.executionMode ?? "inline",
   };
 }
 
@@ -334,6 +339,10 @@ export type CreateAgentRunInput = {
    */
   acknowledgedUnresolvedRunPublicId?: string;
   pin: AgentRunPin;
+  /** Defaults to inline. */
+  executionMode?: AgentRunExecutionMode;
+  /** Runs in the creating transaction, e.g. to enqueue the run's job atomically. */
+  onCreated?: (tx: DbTransaction, run: AgentRunRecord) => Promise<void>;
   now?: Date;
 };
 
@@ -431,6 +440,7 @@ export async function createAgentRun(
         definitionVersion: pin.definition.version,
         executionIdentity: pin.executionIdentity,
         runConfig,
+        executionMode: input.executionMode ?? "inline",
         deadlineAt: new Date(now.getTime() + runConfig.runTimeoutMs),
         createdAt: now,
         updatedAt: now,
@@ -455,7 +465,9 @@ export async function createAgentRun(
         request: input.auditRequestSummary ?? input.requestSummary,
         ...(acknowledged !== null ? { acknowledgedUnresolvedRunPublicId: acknowledged } : {}),
       });
-      return { run: toRecord(inserted), created: true };
+      const run = toRecord(inserted);
+      await input.onCreated?.(tx, run);
+      return { run, created: true };
     }
 
     const concurrentReplay = await findRunByIdempotencyKey(tx, input.tenantId, key);
@@ -621,6 +633,23 @@ export async function expireAgentRunIfDue(
     await applyRunDeadlinesInTx(tx, tenantId, runPublicId, { queuedStaleMs: input.queuedStaleMs, now });
     return toRecord(await requireRunRow(tx, tenantId, runPublicId));
   });
+}
+
+/**
+ * Fails a run that is still queued, inside the caller's transaction; null when
+ * it is no longer queued. For work proven never sent to a provider.
+ */
+export async function failQueuedAgentRunInTx(
+  tx: DbTransaction,
+  tenantId: string,
+  runPublicId: string,
+  input: { code: string; message: string; now: Date },
+) {
+  const row = await failRunInTx(tx, tenantId, runPublicId, {
+    ...input,
+    extraWhere: eq(agentRuns.status, "queued"),
+  });
+  return row ? toRecord(row) : null;
 }
 
 /** Fails a queued or running run. No-op for runs that already finished. */
@@ -879,6 +908,21 @@ export async function getAgentRun(
   return withTenantContext(db, tenantId, async (tx) =>
     toRecord(await requireRunRow(tx, tenantId, runPublicId)),
   );
+}
+
+export async function getAgentRunById(
+  db: DbClient,
+  tenantId: string,
+  runId: string,
+): Promise<AgentRunRecord | null> {
+  return withTenantContext(db, tenantId, async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(agentRuns)
+      .where(and(eq(agentRuns.tenantId, tenantId), eq(agentRuns.id, runId)))
+      .limit(1);
+    return row ? toRecord(row) : null;
+  });
 }
 
 export type PinnedRunInput =
