@@ -18,6 +18,10 @@ import {
   type AgentRunView,
 } from "@/lib/agents/agent-runs";
 import { isMenuManagerAvailable, readAgentConfig, type AgentConfig } from "@/lib/agents/config";
+import {
+  buildAgentExecutionContext,
+  type ExecutionContextDenial,
+} from "@/lib/agents/execution-context";
 import { executionIdentityForPersistedProvider } from "@/lib/agents/execution-identity";
 import {
   CURRENT_MENU_MANAGER_DEFINITION,
@@ -43,6 +47,7 @@ import { loadMenuSnapshotForAgent, type MenuSnapshot } from "@/lib/catalogue/men
 import { assertMenuLocationAccess } from "@/lib/catalogue/menus";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
+import { assertTenantActive } from "@/lib/tenant/tenant-status";
 
 const CAPABILITY = "menu_manager" as const;
 const SUBJECT_TYPE = "menu";
@@ -61,7 +66,7 @@ type Caller = {
 };
 
 /** Why QOS is not polling an active run right now. */
-export type MenuManagerWaitReason = "agent_connection" | "service_unavailable";
+export type MenuManagerWaitReason = "agent_connection" | "service_unavailable" | "access_changed";
 
 export type MenuManagerRunView = AgentRunView & { waitingOn: MenuManagerWaitReason | null };
 
@@ -76,14 +81,20 @@ function toMenuManagerRunView(
   return { ...toAgentRunView(run), waitingOn: isActive(run.status) ? waitingOn : null };
 }
 
-/** Decided from local state only: no provider construction or credential read. */
+/**
+ * Decided from local state only: no provider construction or credential read.
+ * Rebuilds the run's execution context, so a suspended business, a changed
+ * binding or the requester losing access stops collection of the reply.
+ */
 async function pollingBlockedBy(
   db: DbClient,
+  tenantId: string,
   run: AgentRunRecord,
   config: AgentConfig,
 ): Promise<MenuManagerWaitReason | null> {
-  if (!isMenuManagerAvailable(config)) {
-    return "service_unavailable";
+  const context = await buildAgentExecutionContext(db, tenantId, run, { config });
+  if (!context.ok) {
+    return context.reason === "capability_unavailable" ? "service_unavailable" : "access_changed";
   }
   const readiness = await getAgentExecutorReadiness(db, run.provider);
   return readiness.ready ? null : "agent_connection";
@@ -100,9 +111,10 @@ function requireAvailable(config: AgentConfig) {
 }
 
 async function requireEnabledBinding(db: DbClient, tenantId: string) {
-  const binding = await withTenantContext(db, tenantId, (tx) =>
-    getTenantAgentBinding(tx, tenantId, CAPABILITY),
-  );
+  const binding = await withTenantContext(db, tenantId, async (tx) => {
+    await assertTenantActive(tx, tenantId);
+    return getTenantAgentBinding(tx, tenantId, CAPABILITY);
+  });
   if (!binding) {
     throw new AgentRunError(
       "capability_not_configured",
@@ -146,6 +158,14 @@ function assertMenuManagerRun(run: AgentRunRecord, menuPublicId?: string) {
     throw new AgentRunError("run_not_found", "Agent run not found.", 404);
   }
 }
+
+const NOT_SENT_MESSAGES: Record<ExecutionContextDenial, string> = {
+  capability_unavailable: "Menu Manager was turned off before this review could be sent.",
+  tenant_inactive: "This business is not active, so the review was not sent.",
+  binding_changed: "Menu Manager's approval changed before this review could be sent.",
+  requester_access_revoked: "The requester's access changed before this review could be sent.",
+  subject_unavailable: "The menu is no longer available, so the review was not sent.",
+};
 
 export const DEFINITION_UNAVAILABLE_CODE = "definition_unavailable";
 export const PINNED_INPUT_INVALID_CODE = "pinned_input_invalid";
@@ -305,6 +325,10 @@ export async function askMenuManager(
   if (!request.ok) {
     return notSent(request.code, request.message);
   }
+  const context = await buildAgentExecutionContext(db, caller.tenantId, run, { config });
+  if (!context.ok) {
+    return notSent(context.reason, NOT_SENT_MESSAGES[context.reason]);
+  }
 
   try {
     const provider = options.provider ?? getAgentRuntimeProvider(binding.provider);
@@ -376,7 +400,7 @@ export async function refreshMenuManagerRun(
     return toMenuManagerRunView(run);
   }
 
-  const blocked = await pollingBlockedBy(db, run, config);
+  const blocked = await pollingBlockedBy(db, caller.tenantId, run, config);
   if (blocked) {
     return toMenuManagerRunView(run, blocked);
   }
@@ -450,5 +474,5 @@ export async function getLatestMenuManagerRun(
   if (!isActive(run.status)) {
     return toMenuManagerRunView(run);
   }
-  return toMenuManagerRunView(run, await pollingBlockedBy(db, run, config));
+  return toMenuManagerRunView(run, await pollingBlockedBy(db, caller.tenantId, run, config));
 }

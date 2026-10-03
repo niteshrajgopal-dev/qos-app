@@ -72,6 +72,8 @@ describe("runStatusCopy", () => {
   it("explains why an active run is on hold", () => {
     expect(runStatusCopy(run({ waitingOn: "agent_connection" })).title).toContain("agent connection");
     expect(runStatusCopy(run({ waitingOn: "service_unavailable" })).title).toBe("Review on hold");
+    expect(runStatusCopy(run({ waitingOn: "access_changed" })).title).toContain("access changed");
+    expect(failureCopy("requester_access_revoked")).toContain("not sent");
     expect(runStatusCopy(run())).toBe(RUN_STATUS_COPY.running);
     expect(runStatusCopy(run({ status: "failed", failureCode: "invalid_result_json" }))).toBe(RUN_STATUS_COPY.failed);
   });
