@@ -1,34 +1,31 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
-import {
-  classifyNpmAuditPayload,
-  describeNpmAuditClassification,
-} from "../src/lib/npm-audit-report";
+import { runAuditGate, type AuditRun } from "../src/lib/npm-audit-gate";
 
-const MAX_ATTEMPTS = 3;
+const AUDIT_TIMEOUT_MS = 120_000;
+const ROOT = path.resolve(__dirname, "..");
 
-function runNpmAuditJson() {
+function runNpmAuditJson(): AuditRun {
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   const result = spawnSync(npm, ["audit", "--json", "--audit-level=high"], {
+    cwd: ROOT,
     encoding: "utf8",
     env: process.env,
     shell: process.platform === "win32",
+    timeout: AUDIT_TIMEOUT_MS,
+    maxBuffer: 64 * 1024 * 1024,
   });
 
-  const stdout = result.stdout?.trim() || "";
-  const stderr = result.stderr?.trim() || "";
-
-  try {
-    return JSON.parse(stdout || stderr);
-  } catch {
-    return {
-      error:
-        stderr ||
-        stdout ||
-        result.error?.message ||
-        `npm audit exited ${result.status ?? "unknown"}`,
-    };
+  if (result.error) {
+    const code = (result.error as NodeJS.ErrnoException).code;
+    return { stdout: "", exitCode: null, failure: code === "ETIMEDOUT" ? "timeout" : "spawn_error" };
   }
+  if (result.signal) {
+    return { stdout: "", exitCode: null, failure: "timeout" };
+  }
+  return { stdout: result.stdout ?? "", exitCode: result.status };
 }
 
 function sleepSync(ms: number) {
@@ -36,38 +33,22 @@ function sleepSync(ms: number) {
 }
 
 function main() {
-  let payload: unknown;
-  let classification = "unreadable" as ReturnType<
-    typeof classifyNpmAuditPayload
-  >;
+  const result = runAuditGate({
+    runAudit: runNpmAuditJson,
+    readActivePolicy: () => readFileSync(path.join(ROOT, "security", "npm-audit-exceptions.json"), "utf8"),
+    readLockfile: () => readFileSync(path.join(ROOT, "package-lock.json"), "utf8"),
+    sleep: sleepSync,
+    now: () => new Date(),
+  });
 
-  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-    payload = runNpmAuditJson();
-    classification = classifyNpmAuditPayload(payload);
-
-    if (classification !== "unreachable" || attempt === MAX_ATTEMPTS) {
-      break;
-    }
-
-    console.warn(
-      `npm audit attempt ${attempt}/${MAX_ATTEMPTS} could not reach the advisory API; retrying...`,
-    );
-    sleepSync(5_000 * attempt);
+  for (const warning of result.warnings) {
+    console.warn(`::warning::${warning}`);
   }
-
-  const message = describeNpmAuditClassification(classification, payload);
-  if (classification === "clean") {
-    console.log(message);
-    return;
+  const print = result.exitCode === 0 ? console.log : console.error;
+  for (const line of result.lines) {
+    print(line);
   }
-
-  if (classification === "unreachable") {
-    console.warn(`::warning::${message} High/critical findings were not audited this run.`);
-    return;
-  }
-
-  console.error(message);
-  process.exitCode = 1;
+  process.exitCode = result.exitCode;
 }
 
 main();
