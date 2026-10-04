@@ -58,6 +58,8 @@ const config: AiPhotoConfig = {
   quality: "low",
   dailyLimitPerTenant: 5,
   requestTimeoutMs: 30_000,
+  executionMode: "sync",
+  queuedStaleMs: 600_000,
 };
 
 async function jpeg(color: { r: number; g: number; b: number }, size = 96) {

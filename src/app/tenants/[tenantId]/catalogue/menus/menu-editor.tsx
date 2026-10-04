@@ -5,8 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AiPhotoGenerator } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-generator";
 import {
+  AI_PHOTO_POLL_INTERVAL_MS,
+  hasWorkInFlight,
   itemsNeedPhotosLabel,
   menuPhotoSummary,
+  mergeServerProgress,
   progressFromCandidates,
   thumbnailsByProduct,
   type ItemProgress,
@@ -289,7 +292,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         const view = payload.aiPhotos;
         setAiPhotos(view);
         setAiPhotosError(null);
-        setPhotoProgress((current) => ({ ...progressFromCandidates(view.candidates), ...current }));
+        setPhotoProgress((current) => mergeServerProgress(current, progressFromCandidates(view.candidates)));
       } else {
         setAiPhotosError(
           `AI photos could not be loaded (HTTP ${response.status}${payload.error ? `: ${payload.error}` : ""}).`,
@@ -305,6 +308,16 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
     const timer = window.setTimeout(() => void loadAiPhotos(), 0);
     return () => window.clearTimeout(timer);
   }, [loadAiPhotos]);
+
+  const queuedWorkInFlight =
+    aiPhotos?.availability.executionMode === "queued_worker" && hasWorkInFlight(photoProgress);
+  useEffect(() => {
+    if (!queuedWorkInFlight) {
+      return;
+    }
+    const timer = window.setInterval(() => void loadAiPhotos(), AI_PHOTO_POLL_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, [loadAiPhotos, queuedWorkInFlight]);
 
   const refreshPhotos = useCallback(() => {
     setHealthRefreshKey((key) => key + 1);

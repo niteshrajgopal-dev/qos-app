@@ -17,6 +17,7 @@ import {
 } from "@/lib/ai/jobs/ai-job-queue";
 import { createAiWorker, type AiJobHandler } from "@/lib/ai/jobs/ai-worker";
 import { aiWorkerReadiness, readAiWorkerConfig } from "@/lib/ai/jobs/ai-worker-config";
+import { createAiPhotoJobHandler } from "@/lib/media/ai-photos/ai-photo-job";
 
 function log(event: Record<string, unknown>) {
   console.log(JSON.stringify({ ts: new Date().toISOString(), ...event }));
@@ -36,6 +37,9 @@ async function main() {
   const handlers = new Map<AiJobKind, AiJobHandler>();
   const menuManager = createMenuManagerJobHandler(db);
   handlers.set(menuManager.kind, menuManager);
+  // Needs the AI photo provider settings and media storage settings of the web app.
+  const aiPhotos = createAiPhotoJobHandler(db);
+  handlers.set(aiPhotos.kind, aiPhotos);
 
   const worker = createAiWorker(
     {

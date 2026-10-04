@@ -134,8 +134,14 @@ integrationDescribe("0042 AI job queue migration", () => {
       agent_runs: "SELECT,UPDATE",
       ai_job_attempts: "SELECT,UPDATE",
       ai_jobs: "SELECT,UPDATE",
+      ai_spend_platform_counters: "SELECT,UPDATE",
+      ai_spend_reservations: "SELECT,UPDATE",
+      ai_spend_tenant_counters: "SELECT,UPDATE",
+      catalogue_media_assets: "SELECT,UPDATE",
+      catalogue_media_upload_grants: "SELECT,UPDATE",
       catalogue_menu_locations: "SELECT",
       catalogue_menus: "SELECT",
+      catalogue_products: "SELECT",
       locations: "SELECT",
       staff_identities: "SELECT",
       staff_location_scopes: "SELECT",
@@ -144,6 +150,25 @@ integrationDescribe("0042 AI job queue migration", () => {
       tenant_audit_events: "INSERT,SELECT",
       tenants: "SELECT",
     });
+  });
+
+  it("0043: every job has exactly one subject, and its link to a media asset is immutable", async () => {
+    const insert = (agentRunId: string | null, mediaAssetId: string | null) =>
+      connection.sql`
+        INSERT INTO qos.ai_jobs (tenant_id, public_id, job_kind, agent_run_id, media_asset_id)
+        VALUES (gen_random_uuid(), 'job_check', 'ai_photo.generate', ${agentRunId}::uuid, ${mediaAssetId}::uuid)`;
+    await expect(insert(null, null)).rejects.toMatchObject({ code: "23514" });
+    await expect(insert(randomBytes(16).toString("hex"), randomBytes(16).toString("hex"))).rejects.toMatchObject({
+      code: "23514",
+    });
+
+    const [guard] = await connection.sql<{ source: string }[]>`
+      SELECT pg_get_functiondef('qos.guard_ai_job()'::regprocedure) AS source`;
+    expect(guard!.source).toContain("NEW.media_asset_id IS DISTINCT FROM OLD.media_asset_id");
+
+    const [fk] = await connection.sql<{ definition: string }[]>`
+      SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = 'ai_jobs_media_asset_fk'`;
+    expect(fk!.definition).toMatch(/REFERENCES (qos\.)?catalogue_media_assets\(tenant_id, id\) ON DELETE RESTRICT/);
   });
 
   it("applies every migration as a non-superuser admin with CREATEROLE, as on Azure", async () => {

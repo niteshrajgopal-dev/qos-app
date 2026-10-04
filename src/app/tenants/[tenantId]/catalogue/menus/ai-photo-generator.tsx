@@ -8,6 +8,7 @@ import {
   failureMessage,
   generateActionState,
   missingPhotoItems,
+  progressFromBatchItem,
   readyCandidates,
   runBounded,
   selectAllState,
@@ -21,6 +22,7 @@ import { publicProductThumbnailUrl } from "@/components/platform/catalogue-produ
 import { Checkbox } from "@/design-system/components/primitives/Checkbox";
 import type { MenuHealthReport } from "@/lib/catalogue/menu-health";
 import type {
+  AiPhotoBatchItem,
   AiPhotoCandidateView,
   MenuAiPhotosView,
 } from "@/lib/media/ai-photos/ai-photo-candidates";
@@ -30,6 +32,7 @@ import { staffApiFetch } from "@/lib/staff/dev-fetch";
 const GENERATION_CONCURRENCY = 2;
 
 type CandidatePayload = { candidate?: AiPhotoCandidateView; error?: string; code?: string };
+type BatchPayload = { items?: AiPhotoBatchItem[]; error?: string; code?: string };
 
 type AiPhotoGeneratorProps = {
   tenantId: string;
@@ -133,6 +136,29 @@ export function AiPhotoGenerator({
     }
   }
 
+  async function queueBatch(queue: readonly string[]) {
+    try {
+      const response = await staffApiFetch(`${basePath}/batch`, {
+        method: "POST",
+        body: JSON.stringify({ productPublicIds: queue }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as BatchPayload;
+      if (!response.ok || !payload.items) {
+        for (const id of queue) {
+          onProgress(id, { state: "failed", message: payload.error ?? "These photos could not be queued." });
+        }
+        return;
+      }
+      for (const item of payload.items) {
+        onProgress(item.productPublicId, progressFromBatchItem(item));
+      }
+    } catch {
+      for (const id of queue) {
+        onProgress(id, { state: "failed", message: "Network error. Try again." });
+      }
+    }
+  }
+
   async function generateSelected() {
     const queue = [...chosen];
     if (queue.length === 0) {
@@ -145,7 +171,11 @@ export function AiPhotoGenerator({
       onProgress(id, { state: "queued" });
     }
     try {
-      await runBounded(queue, GENERATION_CONCURRENCY, generateOne);
+      if (availability?.executionMode === "queued_worker") {
+        await queueBatch(queue);
+      } else {
+        await runBounded(queue, GENERATION_CONCURRENCY, generateOne);
+      }
     } finally {
       setGenerating(false);
       onChanged();

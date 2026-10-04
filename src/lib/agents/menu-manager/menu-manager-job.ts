@@ -206,7 +206,7 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
     kind: MENU_MANAGER_JOB_KIND,
     async step(job, context) {
       const config = options.config ?? readAgentConfig();
-      const run = await getAgentRunById(db, job.tenantId, job.agentRunId);
+      const run = job.agentRunId ? await getAgentRunById(db, job.tenantId, job.agentRunId) : null;
       if (!run) {
         return { type: "failed", code: "run_missing", message: "The run for this job no longer exists." };
       }

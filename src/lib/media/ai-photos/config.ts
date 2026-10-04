@@ -16,9 +16,20 @@ export type AiPhotoConfig = {
   /** Generation attempts (including failures) allowed per tenant per rolling 24 hours. */
   dailyLimitPerTenant: number;
   requestTimeoutMs: number;
+  /**
+   * `sync` (default) generates inside the request. `queued_worker` admits the
+   * request against the ai_photo.async spend policy and leaves generation to
+   * the AI worker; it never falls back to `sync`.
+   */
+  executionMode: AiPhotoExecutionMode;
+  /** A queued request no worker has claimed by then is cancelled and released. */
+  queuedStaleMs: number;
 };
 
-export type AiPhotoUnavailableReason = "disabled" | "not_configured";
+export const AI_PHOTO_EXECUTION_MODES = ["sync", "queued_worker"] as const;
+export type AiPhotoExecutionMode = (typeof AI_PHOTO_EXECUTION_MODES)[number];
+
+export type AiPhotoUnavailableReason = "disabled" | "not_configured" | "spend_policy_unset";
 
 const DEFAULT_MODEL = "gpt-image-1";
 /** Only the GPT Image family is supported: its request/response shape is what the adapter speaks. */
@@ -63,6 +74,11 @@ export function readAiPhotoConfig(source: EnvSource = process.env): AiPhotoConfi
     throw new Error("AI_PHOTO_PROVIDER=mock is for local development only.");
   }
 
+  const executionMode = (source.AI_PHOTO_EXECUTION_MODE?.trim().toLowerCase() || "sync") as AiPhotoExecutionMode;
+  if (!AI_PHOTO_EXECUTION_MODES.includes(executionMode)) {
+    throw new Error(`AI_PHOTO_EXECUTION_MODE must be one of ${AI_PHOTO_EXECUTION_MODES.join(", ")}.`);
+  }
+
   return {
     enabled: parseFlag(source.AI_PHOTOS_ENABLED),
     provider,
@@ -77,15 +93,24 @@ export function readAiPhotoConfig(source: EnvSource = process.env): AiPhotoConfi
       min: 10_000,
       max: 180_000,
     }),
+    executionMode,
+    queuedStaleMs: parseBoundedInt(source.AI_PHOTO_QUEUED_STALE_MS, 600_000, {
+      min: 60_000,
+      max: 3_600_000,
+    }),
   };
 }
 
 export function aiPhotoUnavailableReason(
   config: AiPhotoConfig,
-  options: { providerOverride?: boolean } = {},
+  options: { providerOverride?: boolean; spendAdmissible?: boolean } = {},
 ): AiPhotoUnavailableReason | null {
   if (!config.enabled) {
     return "disabled";
+  }
+  if (config.executionMode === "queued_worker") {
+    // Only the AI worker calls the provider, so only the worker holds the key.
+    return options.spendAdmissible ? null : "spend_policy_unset";
   }
   if (config.provider === "openai" && !config.openAiApiKey && !options.providerOverride) {
     return "not_configured";
