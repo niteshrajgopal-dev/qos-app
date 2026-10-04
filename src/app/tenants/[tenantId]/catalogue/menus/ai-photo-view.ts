@@ -1,6 +1,7 @@
 import type { MenuHealthReport } from "@/lib/catalogue/menu-health";
 import type {
   AiPhotoAvailabilityView,
+  AiPhotoBatchItem,
   AiPhotoCandidateView,
 } from "@/lib/media/ai-photos/ai-photo-candidates";
 
@@ -57,6 +58,7 @@ export const AI_PHOTO_UNAVAILABLE_COPY: Record<
 > = {
   disabled: "AI photos are turned off for this environment. Ask your QOS operator to enable them.",
   not_configured: "AI photos are not set up yet. Ask your QOS operator to finish configuration.",
+  spend_policy_unset: "AI photos are waiting for a spend limit. Ask your QOS operator to set one.",
 };
 
 export type GenerateActionState = {
@@ -139,6 +141,12 @@ export const AI_PHOTO_FAILURE_COPY: Record<string, string> = {
   provider_unreachable: "The image service could not be reached.",
   storage_failed: "The image could not be stored.",
   abandoned: "Generation did not finish.",
+  outcome_unknown: "QOS could not confirm whether this image was generated. Your QOS operator will check it.",
+  not_started_in_time: "This photo was not started in time. Nothing was charged. Try again.",
+  requester_access_revoked: "The person who asked for this photo no longer has access.",
+  product_unavailable: "This item was archived before its photo was generated.",
+  ai_photos_unavailable: "AI photos were switched off before this photo was generated.",
+  tenant_inactive: "This business is not active.",
 };
 
 export function failureMessage(code: string | null | undefined, fallback?: string) {
@@ -172,6 +180,46 @@ export function progressFromCandidates(candidates: readonly AiPhotoCandidateView
     }
   }
   return progress;
+}
+
+/**
+ * Server state replaces items still waiting or generating locally (queued
+ * work finishes on the worker); anything the user has acted on stays local.
+ */
+export function mergeServerProgress(
+  current: Record<string, ItemProgress>,
+  server: Record<string, ItemProgress>,
+) {
+  const merged = { ...server, ...current };
+  for (const [productPublicId, entry] of Object.entries(server)) {
+    const local = current[productPublicId]?.state;
+    if (local === "queued" || local === "generating") {
+      merged[productPublicId] = entry;
+    }
+  }
+  return merged;
+}
+
+/** Queued photos finish on the AI worker; the editor re-reads their state this often. */
+export const AI_PHOTO_POLL_INTERVAL_MS = 5_000;
+
+export function hasWorkInFlight(progress: Record<string, ItemProgress>) {
+  return Object.values(progress).some((entry) => entry.state === "queued" || entry.state === "generating");
+}
+
+/** Progress for one item of a queued batch admission. */
+export function progressFromBatchItem(item: AiPhotoBatchItem): ItemProgress {
+  switch (item.outcome) {
+    case "queued":
+    case "in_progress":
+      return { state: "generating" };
+    case "existing_candidate":
+      return item.candidate?.status === "pending_review"
+        ? { state: "ready", candidate: item.candidate }
+        : { state: "generating" };
+    default:
+      return { state: "failed", message: item.message ?? "This photo could not be queued." };
+  }
 }
 
 export function readyCandidates(progress: Record<string, ItemProgress>) {

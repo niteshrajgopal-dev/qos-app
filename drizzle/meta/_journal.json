@@ -302,6 +302,13 @@
       "when": 1791500000000,
       "tag": "0042_ai_job_queue",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1791600000000,
+      "tag": "0043_ai_photo_jobs",
+      "breakpoints": true
     }
   ]
 }

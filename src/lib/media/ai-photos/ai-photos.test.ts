@@ -28,6 +28,18 @@ describe("readAiPhotoConfig", () => {
     expect(() => readAiPhotoConfig({ AI_PHOTO_PROVIDER: "other" })).toThrow(/AI_PHOTO_PROVIDER/);
   });
 
+  it("defaults to sync and needs an ai_photo.async spend policy before queued mode is available", () => {
+    const keyed = { AI_PHOTOS_ENABLED: "true", OPENAI_API_KEY: "sk-test" };
+    expect(readAiPhotoConfig(keyed)).toMatchObject({ executionMode: "sync", queuedStaleMs: 600_000 });
+    const queued = readAiPhotoConfig({ AI_PHOTOS_ENABLED: "true", AI_PHOTO_EXECUTION_MODE: "queued_worker" });
+    expect(aiPhotoUnavailableReason(queued)).toBe("spend_policy_unset");
+    // The web app admits without the provider key; only the worker needs it.
+    expect(aiPhotoUnavailableReason(queued, { spendAdmissible: true })).toBeNull();
+    expect(aiPhotoUnavailableReason({ ...queued, enabled: false }, { spendAdmissible: true })).toBe("disabled");
+    expect(() => readAiPhotoConfig({ AI_PHOTO_EXECUTION_MODE: "inline" })).toThrow(/AI_PHOTO_EXECUTION_MODE/);
+    expect(readAiPhotoConfig({ AI_PHOTO_QUEUED_STALE_MS: "5" }).queuedStaleMs).toBe(60_000);
+  });
+
   it("bounds the daily limit and rejects unapproved models", () => {
     expect(readAiPhotoConfig({ AI_PHOTO_DAILY_LIMIT_PER_TENANT: "100000" }).dailyLimitPerTenant).toBe(500);
     expect(readAiPhotoConfig({ AI_PHOTO_DAILY_LIMIT_PER_TENANT: "-3" }).dailyLimitPerTenant).toBe(20);

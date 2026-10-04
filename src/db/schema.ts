@@ -3239,7 +3239,8 @@ export const aiJobs = qos.table(
       .references(() => tenants.id, { onDelete: "restrict" }),
     publicId: text("public_id").notNull(),
     jobKind: text("job_kind").notNull(),
-    agentRunId: uuid("agent_run_id").notNull(),
+    agentRunId: uuid("agent_run_id"),
+    mediaAssetId: uuid("media_asset_id"),
     status: text("status")
       .$type<"queued" | "leased" | "completed" | "failed" | "cancelled" | "operator_review">()
       .notNull()
@@ -3265,6 +3266,13 @@ export const aiJobs = qos.table(
       columns: [table.tenantId, table.agentRunId],
       foreignColumns: [agentRuns.tenantId, agentRuns.id],
     }).onDelete("restrict"),
+    unique("ai_jobs_asset_kind_unique").on(table.tenantId, table.jobKind, table.mediaAssetId),
+    foreignKey({
+      name: "ai_jobs_media_asset_fk",
+      columns: [table.tenantId, table.mediaAssetId],
+      foreignColumns: [catalogueMediaAssets.tenantId, catalogueMediaAssets.id],
+    }).onDelete("restrict"),
+    check("ai_jobs_one_subject", sql`num_nonnulls(${table.agentRunId}, ${table.mediaAssetId}) = 1`),
     index("ai_jobs_due_idx").on(table.status, table.nextAttemptAt),
     index("ai_jobs_tenant_status_idx").on(table.tenantId, table.status),
   ],

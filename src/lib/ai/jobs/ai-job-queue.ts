@@ -15,14 +15,15 @@ import { withTenantContext, type DbTransaction } from "@/lib/tenant/context";
  * No transaction is held across a provider call.
  */
 
-export type AiJobKind = "menu_manager.run";
+export type AiJobKind = "menu_manager.run" | "ai_photo.generate";
 
 export type ClaimedAiJob = {
   jobId: string;
   tenantId: string;
   jobPublicId: string;
   jobKind: AiJobKind;
-  agentRunId: string;
+  /** Null for jobs whose subject is not an agent run (AI photos point at a media asset). */
+  agentRunId: string | null;
   leaseToken: string;
   leaseExpiresAt: Date;
   attemptNumber: number;
@@ -58,7 +59,10 @@ function leaseSeconds(leaseMs: number) {
 /** Enqueues inside the transaction that accepts the work (decision 14: atomic admission). */
 export async function enqueueAiJobInTx(
   tx: DbTransaction,
-  input: { tenantId: string; jobKind: AiJobKind; agentRunId: string; now?: Date },
+  input: { tenantId: string; jobKind: AiJobKind; now?: Date } & (
+    | { agentRunId: string; mediaAssetId?: never }
+    | { mediaAssetId: string; agentRunId?: never }
+  ),
 ) {
   const now = input.now ?? new Date();
   const [job] = await tx
@@ -67,7 +71,8 @@ export async function enqueueAiJobInTx(
       tenantId: input.tenantId,
       publicId: `job_${randomBytes(12).toString("hex")}`,
       jobKind: input.jobKind,
-      agentRunId: input.agentRunId,
+      agentRunId: input.agentRunId ?? null,
+      mediaAssetId: input.mediaAssetId ?? null,
       nextAttemptAt: now,
       createdAt: now,
       updatedAt: now,
@@ -102,7 +107,7 @@ type ClaimRow = {
   tenant_id: string;
   job_public_id: string;
   job_kind: AiJobKind;
-  agent_run_id: string;
+  agent_run_id: string | null;
   lease_token: string;
   lease_expires_at: string | Date;
   attempt_number: number;
@@ -157,12 +162,23 @@ function leaseHeld(job: ClaimedAiJob) {
   );
 }
 
-async function lockLeasedJob(tx: DbTransaction, job: ClaimedAiJob) {
-  const [row] = await tx.select({ id: aiJobs.id }).from(aiJobs).where(leaseHeld(job)).limit(1).for("update");
+/**
+ * Fences a write: inside the caller's tenant transaction, holds the job row
+ * until commit and throws if this worker no longer has the lease.
+ */
+export async function lockLeasedAiJobInTx(tx: DbTransaction, job: ClaimedAiJob) {
+  const [row] = await tx
+    .select({ id: aiJobs.id, mediaAssetId: aiJobs.mediaAssetId })
+    .from(aiJobs)
+    .where(leaseHeld(job))
+    .limit(1)
+    .for("update");
   if (!row) {
     throw new AiJobLeaseLostError(job.jobPublicId);
   }
+  return row;
 }
+
 
 /**
  * Records that this attempt is about to contact the provider. Must commit
@@ -170,7 +186,7 @@ async function lockLeasedJob(tx: DbTransaction, job: ClaimedAiJob) {
  */
 export async function markAiJobDispatched(db: DbClient, job: ClaimedAiJob, now: Date = new Date()) {
   await withTenantContext(db, job.tenantId, async (tx) => {
-    await lockLeasedJob(tx, job);
+    await lockLeasedAiJobInTx(tx, job);
     await tx
       .update(aiJobAttempts)
       .set({ dispatchedAt: now })
@@ -192,7 +208,7 @@ export async function finishAiJobStep(
   now: Date = new Date(),
 ) {
   return withTenantContext(db, job.tenantId, async (tx) => {
-    await lockLeasedJob(tx, job);
+    await lockLeasedAiJobInTx(tx, job);
     const attemptOutcome = result.type === "reschedule" ? "rescheduled" : result.type;
     await tx
       .update(aiJobAttempts)

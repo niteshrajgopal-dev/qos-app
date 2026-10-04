@@ -5,11 +5,15 @@ import {
   generateActionState,
   itemsNeedPhotosLabel,
   menuPhotoSummary,
+  hasWorkInFlight,
+  mergeServerProgress,
   missingPhotoItems,
+  progressFromBatchItem,
   progressFromCandidates,
   readyCandidates,
   runBounded,
   selectAllState,
+  type ItemProgress,
 } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-view";
 import type { MenuHealthReport } from "@/lib/catalogue/menu-health";
 import type {
@@ -44,6 +48,7 @@ const available: AiPhotoAvailabilityView = {
   dailyLimit: 20,
   usedToday: 17,
   remainingToday: 3,
+  executionMode: "sync",
 };
 
 function candidate(productPublicId: string, status: AiPhotoCandidateView["status"]): AiPhotoCandidateView {
@@ -135,5 +140,32 @@ describe("progress", () => {
     });
     expect(peak).toBe(2);
     expect(done.sort()).toEqual([1, 3, 4, 5]);
+  });
+
+  it("lets server state replace only items still waiting or generating locally", () => {
+    const ready = candidate("a", "pending_review");
+    const current: Record<string, ItemProgress> = {
+      a: { state: "generating" },
+      b: { state: "queued" },
+      c: { state: "accepted" },
+    };
+    const server = progressFromCandidates([ready, candidate("c", "pending_review")]);
+    const merged = mergeServerProgress(current, server);
+    expect(merged.a).toEqual({ state: "ready", candidate: ready });
+    expect(merged.b).toEqual({ state: "queued" });
+    expect(merged.c).toEqual({ state: "accepted" });
+    expect(hasWorkInFlight(merged)).toBe(true);
+    expect(hasWorkInFlight({ c: { state: "accepted" } })).toBe(false);
+  });
+
+  it("maps batch outcomes to item progress", () => {
+    const item = (outcome: Parameters<typeof progressFromBatchItem>[0]["outcome"], extra = {}) =>
+      progressFromBatchItem({ productPublicId: "a", outcome, candidate: null, message: null, ...extra });
+    expect(item("queued")).toEqual({ state: "generating" });
+    expect(item("in_progress")).toEqual({ state: "generating" });
+    const ready = candidate("a", "pending_review");
+    expect(item("existing_candidate", { candidate: ready })).toEqual({ state: "ready", candidate: ready });
+    expect(item("daily_limit_reached", { message: "No more today." })).toEqual({ state: "failed", message: "No more today." });
+    expect(item("tenant_concurrency_limit")).toEqual({ state: "failed", message: "This photo could not be queued." });
   });
 });

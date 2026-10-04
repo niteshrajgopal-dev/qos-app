@@ -115,9 +115,11 @@ export async function createProductImageUploadGrant(
   input: CreateUploadGrantInput,
 ) {
   try {
-    return await withTenantContext(db, tenantId, (tx) =>
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- internal ids never leave the server
+    const { assetId, ...grant } = await withTenantContext(db, tenantId, (tx) =>
       createProductImageUploadGrantInTx(tx, tenantId, productPublicId, input),
     );
+    return grant;
   } catch (error) {
     mapMediaError(error);
   }
@@ -189,6 +191,7 @@ export async function createProductImageUploadGrantInTx(
     .returning();
 
   return {
+    assetId: asset.id,
     assetPublicId: asset.publicId,
     grantToken: grant.grantToken,
     expiresAt: grant.expiresAt.toISOString(),

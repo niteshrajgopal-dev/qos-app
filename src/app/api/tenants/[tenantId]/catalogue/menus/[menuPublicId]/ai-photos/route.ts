@@ -53,13 +53,13 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: "Send a productPublicId." }, { status: 400 });
     }
 
-    const { candidate, created } = await generateMenuAiPhoto(
+    const { candidate, created, queued } = await generateMenuAiPhoto(
       db,
       { tenantId, subject: identity.subject, membership },
       { menuPublicId, productPublicId: parsed.data.productPublicId },
     );
 
-    const status = candidate.status === "failed" ? 502 : created ? 201 : 200;
+    const status = candidate.status === "failed" ? 502 : queued ? 202 : created ? 201 : 200;
     return NextResponse.json({ candidate }, { status, headers: staffPrivateCacheControl() });
   } catch (error) {
     return aiPhotoErrorResponse(error);
