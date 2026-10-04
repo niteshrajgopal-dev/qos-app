@@ -55,5 +55,8 @@ jobs:
       - name: Build video worker
         run: npm run build:worker
 
+      - name: Build AI worker
+        run: npm run build:ai-worker
+
       - name: Audit dependencies
         run: npm run audit:ci

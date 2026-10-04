@@ -1,7 +1,8 @@
 /**
- * Dedicated AI worker (ADR-AI-02 decision 14). Not deployed by this change.
- * Connects with DATABASE_URL, which must be a login granted only qos_ai_worker.
- * Refuses to start unless AI_WORKER_ENABLED and every concurrency cap are set.
+ * Dedicated AI worker (ADR-AI-02 decision 14). Packaged as Dockerfile target
+ * `ai-worker`. Connects with DATABASE_URL or DB_*, which must be a login
+ * granted only qos_ai_worker. Refuses to start unless AI_WORKER_ENABLED and
+ * every concurrency cap are set.
  */
 
 import { hostname } from "node:os";
