@@ -39,6 +39,11 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build:ai-worker
 
+# Production modules only. Sharp also needs detect-libc (and whatever else
+# npm hoists); a partial copy of sharp + @img crashes on boot.
+FROM deps AS ai-worker-modules
+RUN npm prune --omit=dev
+
 # AI worker: build with `--target ai-worker`. Kept before `runner` so the
 # default (last-stage) build remains the API image.
 FROM base AS ai-worker
@@ -48,8 +53,7 @@ ENV NODE_ENV=production
 RUN addgroup --system --gid 1001 nodejs
 RUN adduser --system --uid 1001 worker
 COPY --from=ai-worker-builder --chown=worker:nodejs /app/dist/ai-worker.cjs ./ai-worker.cjs
-COPY --from=deps --chown=worker:nodejs /app/node_modules/sharp ./node_modules/sharp
-COPY --from=deps --chown=worker:nodejs /app/node_modules/@img ./node_modules/@img
+COPY --from=ai-worker-modules --chown=worker:nodejs /app/node_modules ./node_modules
 USER worker
 CMD ["node", "ai-worker.cjs"]
 

@@ -47,7 +47,10 @@ describe("AI worker packaging", () => {
       dockerfile.indexOf("FROM base AS runner"),
     );
     expect(dockerfile).toMatch(/CMD \["node", "ai-worker\.cjs"\]/);
-    expect(dockerfile).toMatch(/node_modules\/sharp/);
+    expect(dockerfile).toMatch(/FROM deps AS ai-worker-modules/);
+    expect(dockerfile).toMatch(/npm prune --omit=dev/);
+    expect(dockerfile).toMatch(/COPY --from=ai-worker-modules[^\n]+node_modules \.\/node_modules/);
+    expect(dockerfile).not.toMatch(/node_modules\/sharp/);
     expect(dockerfile.lastIndexOf("FROM base AS")).toBe(dockerfile.indexOf("FROM base AS runner"));
   });
 
