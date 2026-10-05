@@ -29,7 +29,16 @@ export type AiWorkerLogEvent =
   | { event: "ai_worker.lease_lost"; workerId: string; jobPublicId: string; tenantId: string }
   | { event: "ai_worker.step_crashed"; workerId: string; jobPublicId: string; tenantId: string; message: string }
   | { event: "ai_worker.stopping"; workerId: string; inFlight: number }
-  | { event: "ai_worker.stopped"; workerId: string };
+  | { event: "ai_worker.stopped"; workerId: string }
+  | {
+      event: "ai_spend.usage_snapshot";
+      tenantId: string;
+      path: string;
+      reservations: { reserved: number; consumed: number; released: number; uncertain: number };
+      units: { reserved: number; consumed: number; released: number; uncertain: number };
+      uncertain: number;
+      quotaKind: "application_quota";
+    };
 
 export type AiWorkerDeps = {
   claim: () => Promise<ClaimedAiJob | null>;
@@ -38,6 +47,9 @@ export type AiWorkerDeps = {
   finish: (job: ClaimedAiJob, result: AiJobStepResult) => Promise<unknown>;
   handlers: ReadonlyMap<AiJobKind, AiJobHandler>;
   log: (event: AiWorkerLogEvent) => void;
+  summarizeSpend?: (
+    tenantId: string,
+  ) => Promise<Extract<AiWorkerLogEvent, { event: "ai_spend.usage_snapshot" }> | null>;
 };
 
 export type AiWorkerOptions = {
@@ -110,6 +122,19 @@ export function createAiWorker(deps: AiWorkerDeps, options: AiWorkerOptions): Ai
         : { type: "failed", code: "unknown_job_kind", message: `No handler for ${job.jobKind}.` };
       await deps.finish(job, result);
       deps.log({ event: "ai_worker.job_stepped", ...base, result: result.type, durationMs: Date.now() - startedAt });
+      if (
+        deps.summarizeSpend &&
+        (result.type === "completed" || result.type === "failed" || result.type === "operator_review")
+      ) {
+        try {
+          const snapshot = await deps.summarizeSpend(job.tenantId);
+          if (snapshot) {
+            deps.log(snapshot);
+          }
+        } catch {
+          // Metrics must not fail a settled job.
+        }
+      }
     } catch (error) {
       if (error instanceof AiJobLeaseLostError) {
         deps.log({ event: "ai_worker.lease_lost", ...base });

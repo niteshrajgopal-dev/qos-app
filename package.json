@@ -31,7 +31,8 @@
     "approve-publish:quotes-hbz-finedine": "tsx scripts/approve-publish-quotes-hbz-finedine-menu.ts",
     "audit:ci": "tsx scripts/ci-npm-audit.ts",
     "agents:connect-hyperagent": "tsx scripts/connect-hyperagent.ts",
-    "agents:approve-binding": "tsx scripts/approve-agent-binding.ts"
+    "agents:approve-binding": "tsx scripts/approve-agent-binding.ts",
+    "ai:spend": "tsx scripts/ai-spend-operator-cli.ts"
   },
   "dependencies": {
     "@azure/identity": "^4.13.3",
