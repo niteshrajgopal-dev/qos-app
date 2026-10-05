@@ -34,12 +34,23 @@ function deferred<T = void>() {
   return { promise, resolve };
 }
 
+const SNAPSHOT: Extract<AiWorkerLogEvent, { event: "ai_spend.usage_snapshot" }> = {
+  event: "ai_spend.usage_snapshot",
+  tenantId: "tenant-1",
+  path: "ai_photo.async",
+  reservations: { reserved: 0, consumed: 1, released: 0, uncertain: 0 },
+  units: { reserved: 0, consumed: 1, released: 0, uncertain: 0 },
+  uncertain: 0,
+  quotaKind: "application_quota",
+};
+
 function setup(options: {
   claims: (ClaimedAiJob | null | Error)[];
   step?: AiJobHandler["step"];
   finish?: AiWorkerDeps["finish"];
   heartbeat?: AiWorkerDeps["heartbeat"];
   concurrency?: number;
+  summarizeSpend?: AiWorkerDeps["summarizeSpend"];
 }) {
   const logs: AiWorkerLogEvent[] = [];
   const queue = [...options.claims];
@@ -59,6 +70,7 @@ function setup(options: {
       ],
     ]),
     log: (event) => logs.push(event),
+    summarizeSpend: options.summarizeSpend,
   };
   const worker = createAiWorker(deps, {
     workerId: "w-1",
@@ -197,5 +209,83 @@ describe("AI worker loop", () => {
     gate.resolve();
     await vi.advanceTimersByTimeAsync(10);
     await running;
+  });
+
+  it("logs a spend snapshot after a settled completed, failed, or operator_review step", async () => {
+    const summarizeSpend = vi.fn(async () => SNAPSHOT);
+    for (const result of [
+      { type: "completed" as const },
+      { type: "failed" as const, code: "x", message: "no" },
+      { type: "operator_review" as const, code: "x", message: "review" },
+    ]) {
+      const { worker, logs, deps } = setup({
+        claims: [job()],
+        step: async () => result,
+        summarizeSpend,
+      });
+      const running = worker.run();
+      await vi.waitFor(() => expect(logs.map((l) => l.event)).toContain("ai_spend.usage_snapshot"));
+      worker.stop();
+      await running;
+      expect(deps.summarizeSpend).toHaveBeenCalledWith("tenant-1");
+      expect(logs).toContainEqual(SNAPSHOT);
+    }
+  });
+
+  it("does not snapshot reschedule, crash, or lost-lease steps", async () => {
+    const summarizeSpend = vi.fn(async () => SNAPSHOT);
+    const reschedule = setup({
+      claims: [job()],
+      step: async () => ({ type: "reschedule", delayMs: 10 }),
+      summarizeSpend,
+    });
+    const runningReschedule = reschedule.worker.run();
+    await vi.waitFor(() => expect(reschedule.deps.finish).toHaveBeenCalled());
+    reschedule.worker.stop();
+    await runningReschedule;
+    expect(summarizeSpend).not.toHaveBeenCalled();
+
+    const crashed = setup({
+      claims: [job()],
+      step: async () => {
+        throw new Error("boom");
+      },
+      summarizeSpend,
+    });
+    const runningCrash = crashed.worker.run();
+    await vi.waitFor(() => expect(crashed.events()).toContain("ai_worker.step_crashed"));
+    crashed.worker.stop();
+    await runningCrash;
+    expect(summarizeSpend).not.toHaveBeenCalled();
+
+    const claimed = job();
+    const lost = setup({
+      claims: [claimed],
+      finish: async () => {
+        throw new AiJobLeaseLostError(claimed.jobPublicId);
+      },
+      summarizeSpend,
+    });
+    const runningLost = lost.worker.run();
+    await vi.waitFor(() => expect(lost.events()).toContain("ai_worker.lease_lost"));
+    lost.worker.stop();
+    await runningLost;
+    expect(summarizeSpend).not.toHaveBeenCalled();
+  });
+
+  it("does not fail a settled job when spend snapshot throws", async () => {
+    const { worker, events, deps } = setup({
+      claims: [job()],
+      summarizeSpend: async () => {
+        throw new Error("metrics down");
+      },
+    });
+    const running = worker.run();
+    await vi.waitFor(() => expect(events()).toContain("ai_worker.job_stepped"));
+    worker.stop();
+    await running;
+    expect(events()).not.toContain("ai_worker.step_crashed");
+    expect(events()).not.toContain("ai_spend.usage_snapshot");
+    expect(deps.finish).toHaveBeenCalled();
   });
 });

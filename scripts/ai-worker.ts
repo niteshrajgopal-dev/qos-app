@@ -18,7 +18,9 @@ import {
 } from "@/lib/ai/jobs/ai-job-queue";
 import { createAiWorker, type AiJobHandler } from "@/lib/ai/jobs/ai-worker";
 import { aiWorkerReadiness, readAiWorkerConfig } from "@/lib/ai/jobs/ai-worker-config";
+import { summarizeAiSpendUsage, usageSnapshotEvent } from "@/lib/ai/spend/spend-reconciliation";
 import { createAiPhotoJobHandler } from "@/lib/media/ai-photos/ai-photo-job";
+import { withTenantContext } from "@/lib/tenant/context";
 
 function log(event: Record<string, unknown>) {
   console.log(JSON.stringify({ ts: new Date().toISOString(), ...event }));
@@ -60,6 +62,11 @@ async function main() {
       finish: (job, result) => finishAiJobStep(db, job, result),
       handlers,
       log,
+      summarizeSpend: async (tenantId) =>
+        withTenantContext(db, tenantId, async (tx) => {
+          const summary = await summarizeAiSpendUsage(tx, { path: "ai_photo.async", tenantId });
+          return usageSnapshotEvent(summary);
+        }),
     },
     {
       workerId,
