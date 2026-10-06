@@ -17,6 +17,11 @@ export type AgentConfig = {
    * runs keep the mode they were accepted with.
    */
   menuManagerExecutionMode: "inline" | "queued_worker";
+  /**
+   * Which executor new Menu Manager runs are admitted with. Hyperagent by
+   * default; existing runs keep the executor they were accepted with.
+   */
+  menuManagerExecutor: "hyperagent" | "native";
 };
 
 export type AgentConfigDescription = {
@@ -27,6 +32,7 @@ export type AgentConfigDescription = {
   pollIntervalMs: number;
   runTimeoutMs: number;
   menuManagerExecutionMode: AgentConfig["menuManagerExecutionMode"];
+  menuManagerExecutor: AgentConfig["menuManagerExecutor"];
 };
 
 const MIN_POLL_INTERVAL_MS = 2_000;
@@ -98,6 +104,7 @@ export function readAgentConfig(source: EnvSource = process.env): AgentConfig {
       max: 30 * 60_000,
     }),
     menuManagerExecutionMode: parseExecutionMode(source.AGENT_MENU_MANAGER_EXECUTION_MODE),
+    menuManagerExecutor: parseExecutor(source.AGENT_MENU_MANAGER_EXECUTOR),
   };
 }
 
@@ -110,6 +117,17 @@ function parseExecutionMode(value: string | undefined): AgentConfig["menuManager
     return "queued_worker";
   }
   throw new Error("AGENT_MENU_MANAGER_EXECUTION_MODE must be inline or queued_worker.");
+}
+
+function parseExecutor(value: string | undefined): AgentConfig["menuManagerExecutor"] {
+  const normalized = value?.trim().toLowerCase();
+  if (!normalized || normalized === "hyperagent") {
+    return "hyperagent";
+  }
+  if (normalized === "native") {
+    return "native";
+  }
+  throw new Error("AGENT_MENU_MANAGER_EXECUTOR must be hyperagent or native.");
 }
 
 export function isMenuManagerAvailable(config: AgentConfig) {
@@ -126,5 +144,6 @@ export function describeAgentConfig(config: AgentConfig): AgentConfigDescription
     pollIntervalMs: config.pollIntervalMs,
     runTimeoutMs: config.runTimeoutMs,
     menuManagerExecutionMode: config.menuManagerExecutionMode,
+    menuManagerExecutor: config.menuManagerExecutor,
   };
 }

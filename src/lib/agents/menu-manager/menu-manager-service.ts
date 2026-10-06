@@ -23,12 +23,18 @@ import {
   buildAgentExecutionContext,
   type ExecutionContextDenial,
 } from "@/lib/agents/execution-context";
-import { executionIdentityForPersistedProvider } from "@/lib/agents/execution-identity";
+import {
+  executionIdentityForNative,
+  executionIdentityForPersistedProvider,
+} from "@/lib/agents/execution-identity";
 import {
   CURRENT_MENU_MANAGER_DEFINITION,
+  NATIVE_MENU_MANAGER_DEFINITION,
   getMenuManagerDefinition,
   type MenuManagerDefinition,
 } from "@/lib/agents/menu-manager/menu-manager-definition";
+import { isNativeModelConfigured, readNativeModelConfig } from "@/lib/agents/native/native-model-config";
+import { AGENT_TOOLS } from "@/lib/agents/tools/menu-tools";
 import {
   getAgentExecutorReadiness,
   reportAgentExecutorReauthRequired,
@@ -43,12 +49,15 @@ import {
   type AgentRuntimeProvider,
 } from "@/lib/agents/types";
 import type { AgentExecutionIdentity } from "@/lib/ai/execution-identity";
+import { reserveAiSpend } from "@/lib/ai/spend/spend-admission";
+import { readAiSpendPolicy, type AiSpendPolicy } from "@/lib/ai/spend/spend-policy";
 import { cancelUnclaimedAiJobInTx, enqueueAiJobInTx, getAiJobForRun } from "@/lib/ai/jobs/ai-job-queue";
 import { auditActorClassFromStaffRole } from "@/lib/audit/tenant-audit";
 import { loadMenuSnapshotForAgent, type MenuSnapshot } from "@/lib/catalogue/menu-snapshot";
 import { assertMenuLocationAccess } from "@/lib/catalogue/menus";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
+import type { EnvSource } from "@/lib/env";
 import { assertTenantActive } from "@/lib/tenant/tenant-status";
 
 const CAPABILITY = "menu_manager" as const;
@@ -59,6 +68,8 @@ type ServiceOptions = {
   /** Tests inject a fake; production resolves the registered provider. */
   provider?: AgentRuntimeProvider;
   now?: () => Date;
+  spendPolicy?: AiSpendPolicy;
+  env?: EnvSource;
 };
 
 type Caller = {
@@ -178,6 +189,13 @@ export const NOT_STARTED_IN_TIME_MESSAGE = "QOS did not start this review in tim
 export const MENU_MANAGER_JOB_KIND = "menu_manager.run" as const;
 
 function runConfigFor(definition: MenuManagerDefinition, config: AgentConfig): AgentRunConfig {
+  const toolSchemaVersions: Record<string, string> = {};
+  for (const name of definition.allowedTools) {
+    const tool = AGENT_TOOLS.get(name);
+    if (tool) {
+      toolSchemaVersions[name] = tool.version;
+    }
+  }
   return {
     schema: "qos.agent_run_config.v1",
     runTimeoutMs: config.runTimeoutMs,
@@ -186,7 +204,7 @@ function runConfigFor(definition: MenuManagerDefinition, config: AgentConfig): A
     queuedStaleMs: config.queuedStaleMs,
     outputSchema: definition.outputSchema,
     allowedTools: [...definition.allowedTools],
-    toolSchemaVersions: {},
+    toolSchemaVersions,
   };
 }
 
@@ -301,6 +319,103 @@ async function settleQueuedWorkerRun(
   return failed ?? (await getAgentRun(db, tenantId, run.publicId));
 }
 
+async function askNativeMenuManager(
+  db: DbClient,
+  caller: Caller,
+  input: {
+    menuPublicId: string;
+    idempotencyKey: string;
+    selectedProductPublicIds?: readonly string[];
+    acknowledgeUnresolvedRunPublicId?: string;
+  },
+  options: ServiceOptions & { config: AgentConfig; now: () => Date },
+): Promise<{ run: MenuManagerRunView; created: boolean }> {
+  const { config, now: clock } = options;
+  if (config.menuManagerExecutionMode !== "queued_worker") {
+    throw new AgentRunError(
+      "native_requires_queued_worker",
+      "Native Menu Manager only admits queued_worker runs.",
+      409,
+    );
+  }
+  const env = options.env ?? process.env;
+  if (!isNativeModelConfigured(env)) {
+    throw new AgentRunError(
+      "provider_not_connected",
+      "The QOS agent service is not connected right now.",
+      503,
+    );
+  }
+  const definition = NATIVE_MENU_MANAGER_DEFINITION;
+  const model = readNativeModelConfig(env);
+  const spendPolicy = options.spendPolicy ?? readAiSpendPolicy(env);
+
+  const built = await loadMenuSnapshotForAgent(
+    db,
+    caller.tenantId,
+    caller.membership,
+    input.menuPublicId,
+    { selectedProductPublicIds: input.selectedProductPublicIds, at: clock() },
+  );
+
+  const requestedBy = {
+    subject: caller.subject,
+    actorClass: auditActorClassFromStaffRole(caller.membership.role),
+  };
+  const auditRequestSummary = {
+    snapshotSchema: built.snapshot.schema,
+    snapshotSha256: built.sha256,
+    scope: built.snapshot.scope.mode,
+    productCount: built.productPublicIds.length,
+    truncated: built.snapshot.scope.truncated,
+  };
+
+  const { run, created } = await createAgentRun(db, {
+    tenantId: caller.tenantId,
+    subject: {
+      type: SUBJECT_TYPE,
+      publicId: built.snapshot.menu.menuPublicId,
+      version: built.snapshot.menu.version,
+    },
+    requestedBy,
+    idempotencyKey: input.idempotencyKey,
+    requestSummary: { ...auditRequestSummary, productPublicIds: built.productPublicIds },
+    auditRequestSummary,
+    acknowledgedUnresolvedRunPublicId: input.acknowledgeUnresolvedRunPublicId,
+    pin: {
+      definition: { key: definition.key, version: definition.version },
+      executionIdentity: executionIdentityForNative({ provider: model.provider, modelId: model.modelId }),
+      runConfig: runConfigFor(definition, config),
+      input: { schema: built.snapshot.schema, payload: JSON.stringify(built.snapshot) },
+    },
+    executionMode: "queued_worker",
+    onCreated: async (tx, accepted) => {
+      await reserveAiSpend(
+        tx,
+        {
+          tenantId: caller.tenantId,
+          path: "menu_manager.native",
+          provider: "openai",
+          subjectType: "agent_run",
+          subjectPublicId: accepted.publicId,
+          units: 1,
+          requestedBy,
+        },
+        { policy: spendPolicy, now: clock() },
+      );
+      await enqueueAiJobInTx(tx, {
+        tenantId: caller.tenantId,
+        jobKind: MENU_MANAGER_JOB_KIND,
+        agentRunId: accepted.id,
+        now: clock(),
+      });
+    },
+    now: clock(),
+  });
+
+  return { run: toMenuManagerRunView(run), created };
+}
+
 /**
  * Asks the tenant's approved Menu Manager to review a draft menu. Requires the
  * feature, an enabled binding, a connected provider and menu/location access
@@ -323,6 +438,9 @@ export async function askMenuManager(
   const config = options.config ?? readAgentConfig();
   const clock = options.now ?? (() => new Date());
   requireAvailable(config);
+  if (config.menuManagerExecutor === "native") {
+    return askNativeMenuManager(db, caller, input, { ...options, config, now: clock });
+  }
   const binding = await requireEnabledBinding(db, caller.tenantId);
   await requireReadyExecutor(db, binding.provider);
   const definition = CURRENT_MENU_MANAGER_DEFINITION;

@@ -45,12 +45,26 @@ const MENU_MANAGER_V1: MenuManagerDefinition = Object.freeze({
   interpretReply: interpretMenuManagerReply,
 });
 
+const MENU_MANAGER_V2: MenuManagerDefinition = Object.freeze({
+  key: MENU_MANAGER_DEFINITION_KEY,
+  version: "menu_manager.v2",
+  inputSchema: MENU_SNAPSHOT_SCHEMA,
+  outputSchema: MENU_MANAGER_RESULT_SCHEMA,
+  allowedTools: Object.freeze(["menu.get_health", "menu.get_items"]),
+  limits: Object.freeze({ maxProducts: MENU_SNAPSHOT_MAX_PRODUCTS, reply: MENU_MANAGER_LIMITS }),
+  buildRequest: buildMenuManagerRequest,
+  interpretReply: interpretMenuManagerReply,
+});
+
 const DEFINITIONS: ReadonlyMap<string, MenuManagerDefinition> = new Map([
   [MENU_MANAGER_V1.version, MENU_MANAGER_V1],
+  [MENU_MANAGER_V2.version, MENU_MANAGER_V2],
 ]);
 
-/** Pinned on every new run. */
+/** Pinned on every new Hyperagent run. Native admissions pin v2. */
 export const CURRENT_MENU_MANAGER_DEFINITION = MENU_MANAGER_V1;
+export const NATIVE_MENU_MANAGER_DEFINITION = MENU_MANAGER_V2;
+export const NATIVE_MENU_MANAGER_DEFINITION_VERSION = MENU_MANAGER_V2.version;
 
 /**
  * Resolves a run's pinned definition. Runs created before pinning (version

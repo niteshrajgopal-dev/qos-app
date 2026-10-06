@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { AgentRunError } from "@/lib/agents/agent-runs";
 import { TenantAgentBindingError } from "@/lib/agents/tenant-agent-bindings";
 import { AgentProviderError } from "@/lib/agents/types";
+import { AiSpendAdmissionError } from "@/lib/ai/spend/spend-admission";
 import { catalogueErrorResponse } from "@/lib/catalogue/http";
 import { TenantInactiveError } from "@/lib/tenant/tenant-status";
 
@@ -28,6 +29,10 @@ export function agentErrorResponse(error: unknown) {
 
   if (error instanceof TenantAgentBindingError) {
     return NextResponse.json({ error: error.message }, { status: error.statusCode });
+  }
+
+  if (error instanceof AiSpendAdmissionError) {
+    return NextResponse.json({ error: error.message, code: error.code }, { status: error.status });
   }
 
   if (error instanceof AgentProviderError) {

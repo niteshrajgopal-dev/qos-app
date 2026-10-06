@@ -107,12 +107,14 @@ export async function buildAgentExecutionContext(
       await assertTenantActive(tx, tenantId);
       return getTenantAgentBinding(tx, tenantId, run.capability);
     });
+    const native = run.bindingId === null && run.provider === "agents_sdk";
     if (
-      !binding ||
-      !binding.enabled ||
-      binding.id !== run.bindingId ||
-      binding.provider !== run.provider ||
-      binding.providerAgentId !== run.providerAgentId
+      !native &&
+      (!binding ||
+        !binding.enabled ||
+        binding.id !== run.bindingId ||
+        binding.provider !== run.provider ||
+        binding.providerAgentId !== run.providerAgentId)
     ) {
       return { ok: false, reason: "binding_changed" };
     }

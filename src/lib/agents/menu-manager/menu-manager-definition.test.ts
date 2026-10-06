@@ -119,6 +119,10 @@ describe("Menu Manager definition", () => {
   it("resolves pinned versions and never substitutes an unknown one", () => {
     expect(getMenuManagerDefinition("menu_manager.v1")).toBe(CURRENT_MENU_MANAGER_DEFINITION);
     expect(getMenuManagerDefinition(null)).toBe(CURRENT_MENU_MANAGER_DEFINITION);
+    expect(getMenuManagerDefinition("menu_manager.v2")?.allowedTools).toEqual([
+      "menu.get_health",
+      "menu.get_items",
+    ]);
     expect(getMenuManagerDefinition("menu_manager.v999")).toBeNull();
   });
 

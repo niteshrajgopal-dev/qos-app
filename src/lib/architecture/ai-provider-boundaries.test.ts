@@ -33,8 +33,7 @@ const SDK_RULES: Array<{ name: string; matches: (specifier: string) => boolean; 
       s === "@google/generative-ai" ||
       s.startsWith("@ai-sdk/") ||
       s === "ai",
-    // No model SDK is approved yet; the native executor PR adds its adapter here.
-    allowed: [],
+    allowed: ["src/lib/agents/native/"],
   },
 ];
 
@@ -48,7 +47,7 @@ const ENDPOINT_RULES: Array<{ pattern: RegExp; allowed: string[] }> = [
 const CREDENTIAL_RULES: Array<{ pattern: RegExp; allowed: string[] }> = [
   {
     pattern: /\b(OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|GOOGLE_API_KEY)\b/,
-    allowed: ["src/lib/media/ai-photos/config.ts"],
+    allowed: ["src/lib/media/ai-photos/config.ts", "src/lib/agents/native/native-model-config.ts"],
   },
 ];
 
@@ -68,6 +67,11 @@ const ADAPTER_RULES: Array<{ name: string; target: (resolved: string) => boolean
     name: "OpenAI image adapter",
     target: (r) => r === "src/lib/media/ai-photos/openai-photo-provider",
     allowed: ["src/lib/media/ai-photos/provider.ts"],
+  },
+  {
+    name: "native Agents SDK adapter",
+    target: (r) => r === "src/lib/agents/native/agents-sdk-model",
+    allowed: ["src/lib/agents/native/", "scripts/ai-worker.ts"],
   },
 ];
 
@@ -230,6 +234,8 @@ describe("AI provider boundaries", () => {
           { path: "src/lib/media/ai-photos/config.ts", source: "source.OPENAI_API_KEY" },
           { path: "src/lib/agents/provider-registry.ts", source: 'import { x } from "@/lib/agents/hyperagent/hyperagent-runtime";' },
           { path: "src/lib/media/ai-photos/provider.ts", source: 'import { x } from "@/lib/media/ai-photos/openai-photo-provider";' },
+          { path: "src/lib/agents/native/agents-sdk-model.ts", source: 'import { Agent } from "@openai/agents";' },
+          { path: "src/lib/agents/native/native-model-config.ts", source: "source.OPENAI_API_KEY" },
           { path: "src/app/api/x/route.ts", source: 'import type { AgentRunView } from "@/lib/agents/agent-runs";' },
         ]),
       ).toEqual([]);
