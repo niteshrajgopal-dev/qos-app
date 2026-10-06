@@ -7,8 +7,8 @@ import { isNativeModelConfigured } from "@/lib/agents/native/native-model-config
 import type { AgentConnectionStatus, AgentProviderKind } from "@/lib/agents/types";
 
 /**
- * Executor used when no tenant binding names one. Selection is unchanged from
- * the Hyperagent-only release; changing it is a later, explicit decision.
+ * Executor used when no tenant binding names one. This is the Hyperagent
+ * connection lookup, not the Menu Manager admission default (that is native).
  */
 export const DEFAULT_AGENT_PROVIDER: AgentProviderKind = "hyperagent";
 

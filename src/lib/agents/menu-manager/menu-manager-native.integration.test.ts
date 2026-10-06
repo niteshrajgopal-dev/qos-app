@@ -9,6 +9,10 @@ import { AgentRunError } from "@/lib/agents/agent-runs";
 import { readAgentConfig, type AgentConfig } from "@/lib/agents/config";
 import { createMenuManagerJobHandler } from "@/lib/agents/menu-manager/menu-manager-job";
 import { askMenuManager } from "@/lib/agents/menu-manager/menu-manager-service";
+import {
+  approveTenantAgentBinding,
+  setTenantAgentBindingEnabled,
+} from "@/lib/agents/tenant-agent-bindings";
 import { FakeQosModel } from "@/lib/ai/model/fake-qos-model";
 import {
   claimNextAiJob,
@@ -31,13 +35,22 @@ const NATIVE_ENV = {
   AGENT_NATIVE_MODEL: "fake-model",
   NODE_ENV: "test",
 };
+const DEFAULT_SWITCH = readAgentConfig(BASE);
 const NATIVE = readAgentConfig({
   ...BASE,
   AGENT_MENU_MANAGER_EXECUTION_MODE: "queued_worker",
   AGENT_MENU_MANAGER_EXECUTOR: "native",
 });
-const HYPERAGENT = readAgentConfig({ ...BASE, AGENT_MENU_MANAGER_EXECUTION_MODE: "queued_worker" });
-const INLINE_NATIVE = readAgentConfig({ ...BASE, AGENT_MENU_MANAGER_EXECUTOR: "native" });
+const HYPERAGENT = readAgentConfig({
+  ...BASE,
+  AGENT_MENU_MANAGER_EXECUTOR: "hyperagent",
+  AGENT_MENU_MANAGER_EXECUTION_MODE: "queued_worker",
+});
+const INLINE_NATIVE = readAgentConfig({
+  ...BASE,
+  AGENT_MENU_MANAGER_EXECUTOR: "native",
+  AGENT_MENU_MANAGER_EXECUTION_MODE: "inline",
+});
 const REQUESTER = "admin.quotes@test";
 const LIMITS = { leaseMs: 60_000, maxActiveGlobal: 5, maxActivePerTenant: 5, maxActivePerKind: 5 };
 
@@ -67,9 +80,10 @@ function validReply(menuPublicId: string) {
 }
 
 /**
- * PR 7: native Menu Manager. Admission does not use a Hyperagent binding or
+ * PR 7/8: native Menu Manager. Admission does not use a Hyperagent binding or
  * connection; the worker runs a QOS-owned loop against an injected model and
- * settles menu_manager.native spend. Hyperagent stays the default.
+ * settles menu_manager.native spend. Unset executor is native; Hyperagent is
+ * opt-in and never an automatic fallback.
  */
 integrationDescribe("native Menu Manager", () => {
   let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
@@ -146,8 +160,8 @@ integrationDescribe("native Menu Manager", () => {
     );
   }
 
-  async function workerStep(model: FakeQosModel) {
-    const handler = createMenuManagerJobHandler(db, { config: NATIVE, model });
+  async function workerStep(model: FakeQosModel, config: AgentConfig = NATIVE) {
+    const handler = createMenuManagerJobHandler(db, { config, model });
     return runAsRole(sqlClient, "qos_ai_worker", async () => {
       const job = await claimNextAiJob(db, { workerId: "worker-test", jobKinds: ["menu_manager.run"], limits: LIMITS });
       if (!job) {
@@ -291,6 +305,72 @@ integrationDescribe("native Menu Manager", () => {
     expect(spent).toMatchObject({ state: "uncertain", outcome: "submission_unknown" });
     const attempts = await db.select().from(aiJobAttempts).orderBy(aiJobAttempts.attemptNumber);
     expect(attempts.map((attempt) => attempt.outcome)).toEqual(["lease_expired", "operator_review"]);
+  });
+
+  it("admits through native when the executor flag is unset", async () => {
+    const { menu, caller } = await seed();
+    expect(DEFAULT_SWITCH).toMatchObject({
+      menuManagerExecutor: "native",
+      menuManagerExecutionMode: "queued_worker",
+    });
+
+    const { run, created } = await ask(caller, menu.publicId, { config: DEFAULT_SWITCH });
+    expect(created).toBe(true);
+    const [runRow] = await db.select().from(agentRuns);
+    expect(runRow).toMatchObject({
+      bindingId: null,
+      provider: "agents_sdk",
+      providerAgentId: "qos.menu_manager",
+      definitionVersion: "menu_manager.v2",
+      executionMode: "queued_worker",
+      status: "queued",
+    });
+    expect(runRow!.executionIdentity).toMatchObject({
+      executorKind: "native",
+      executorAdapter: "agents_sdk",
+    });
+    expect(run.publicId).toBe(runRow!.publicId);
+  });
+
+  it("does not fall back to Hyperagent when the native default cannot admit", async () => {
+    const { tenantId, menu, caller } = await seed();
+    const approved = await approveTenantAgentBinding(db, {
+      tenantId,
+      capability: "menu_manager",
+      provider: "hyperagent",
+      providerAgentId: "cmun4w730017807adjrkbep1t",
+      approvedBySubject: "operator:platform",
+    });
+    await setTenantAgentBindingEnabled(db, tenantId, REQUESTER, "menu_manager", {
+      enabled: true,
+      expectedVersion: approved.version,
+    });
+
+    await expect(
+      ask(caller, menu.publicId, { config: DEFAULT_SWITCH, env: { NODE_ENV: "test" } }),
+    ).rejects.toMatchObject({
+      code: "provider_not_connected",
+    });
+    expect(await db.select().from(agentRuns)).toEqual([]);
+    expect(await db.select().from(aiSpendReservations)).toEqual([]);
+  });
+
+  it("keeps a native run on the native worker after the process default becomes Hyperagent", async () => {
+    const { menu, caller } = await seed();
+    const model = new FakeQosModel().script({ type: "completed", text: validReply(menu.publicId), usage: null });
+    const { run } = await ask(caller, menu.publicId);
+
+    const step = await workerStep(model, HYPERAGENT);
+    expect(step!.result).toEqual({ type: "completed" });
+    expect(model.requests).toHaveLength(1);
+
+    const [done] = await db.select().from(agentRuns);
+    expect(done).toMatchObject({
+      publicId: run.publicId,
+      provider: "agents_sdk",
+      status: "completed",
+    });
+    expect(done!.executionIdentity).toMatchObject({ executorKind: "native" });
   });
 
   it("keeps Hyperagent admission dependent on a tenant binding", async () => {

@@ -44,7 +44,11 @@ vi.mock("@/lib/agents/execution-context", async (importOriginal) => {
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
-const ENABLED = readAgentConfig({ AGENTS_ENABLED: "true", AGENT_MENU_MANAGER_ENABLED: "true" });
+const ENABLED = readAgentConfig({
+  AGENTS_ENABLED: "true",
+  AGENT_MENU_MANAGER_ENABLED: "true",
+  AGENT_MENU_MANAGER_EXECUTOR: "hyperagent",
+});
 const AGENT_ID = "cmun4w730017807adjrkbep1t";
 const REQUESTER = "admin.quotes@test";
 const VIEWER = "second.admin.quotes@test";

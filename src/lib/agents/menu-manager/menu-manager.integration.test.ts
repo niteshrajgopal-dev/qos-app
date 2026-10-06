@@ -49,7 +49,11 @@ import { createTenantHierarchy } from "@/lib/tenant/repository";
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
 const APPROVED_AGENT_ID = "cmun4w730017807adjrkbep1t";
-const ENABLED = readAgentConfig({ AGENTS_ENABLED: "true", AGENT_MENU_MANAGER_ENABLED: "true" });
+const ENABLED = readAgentConfig({
+  AGENTS_ENABLED: "true",
+  AGENT_MENU_MANAGER_ENABLED: "true",
+  AGENT_MENU_MANAGER_EXECUTOR: "hyperagent",
+});
 const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
 
 integrationDescribe("Menu Manager service", () => {
