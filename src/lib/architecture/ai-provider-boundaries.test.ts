@@ -20,7 +20,7 @@ const SDK_RULES: Array<{ name: string; matches: (specifier: string) => boolean; 
   {
     name: "MCP SDK",
     matches: (s) => s === "@modelcontextprotocol/sdk" || s.startsWith("@modelcontextprotocol/sdk/"),
-    allowed: ["src/lib/agents/hyperagent/", "scripts/connect-hyperagent.ts"],
+    allowed: ["src/lib/agents/hyperagent/", "src/lib/agents/mcp/", "scripts/connect-hyperagent.ts"],
   },
   {
     name: "model provider SDK",
@@ -72,6 +72,11 @@ const ADAPTER_RULES: Array<{ name: string; target: (resolved: string) => boolean
     name: "native Agents SDK adapter",
     target: (r) => r === "src/lib/agents/native/agents-sdk-model",
     allowed: ["src/lib/agents/native/", "scripts/ai-worker.ts"],
+  },
+  {
+    name: "QOS MCP adapter",
+    target: (r) => r.startsWith("src/lib/agents/mcp/"),
+    allowed: ["src/lib/agents/mcp/"],
   },
 ];
 
@@ -230,6 +235,7 @@ describe("AI provider boundaries", () => {
       expect(
         findBoundaryViolations([
           { path: "src/lib/agents/hyperagent/x.ts", source: 'import { Client } from "@modelcontextprotocol/sdk/client/index.js";' },
+          { path: "src/lib/agents/mcp/qos-mcp-adapter.ts", source: 'import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";' },
           { path: "src/lib/media/ai-photos/openai-photo-provider.ts", source: 'const URL = "https://api.openai.com/v1/images/generations";' },
           { path: "src/lib/media/ai-photos/config.ts", source: "source.OPENAI_API_KEY" },
           { path: "src/lib/agents/provider-registry.ts", source: 'import { x } from "@/lib/agents/hyperagent/hyperagent-runtime";' },
