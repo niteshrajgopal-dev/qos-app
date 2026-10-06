@@ -267,7 +267,10 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
       });
     }
 
-    async function settleSpend(outcome: Parameters<typeof recordAiSpendOutcome>[1]["outcome"]) {
+    async function settleSpend(
+      outcome: Parameters<typeof recordAiSpendOutcome>[1]["outcome"],
+      reportedUsage?: Record<string, number> | null,
+    ) {
       const reservationPublicId = await nativeSpendReservationPublicId();
       if (!reservationPublicId) {
         return;
@@ -280,6 +283,7 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
           tenantId: job.tenantId,
           reservationPublicId,
           outcome,
+          reportedUsage,
           actor: WORKER_ACTOR,
           now: clock(),
         });
@@ -385,7 +389,7 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
         result: result.output,
         now: clock(),
       });
-      await settleSpend("completed");
+      await settleSpend("completed", result.usage);
       return { type: "completed" };
     }
 

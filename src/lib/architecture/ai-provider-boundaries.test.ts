@@ -71,7 +71,7 @@ const ADAPTER_RULES: Array<{ name: string; target: (resolved: string) => boolean
   {
     name: "native Agents SDK adapter",
     target: (r) => r === "src/lib/agents/native/agents-sdk-model",
-    allowed: ["src/lib/agents/native/", "scripts/ai-worker.ts"],
+    allowed: ["src/lib/agents/native/", "scripts/ai-worker.ts", "scripts/native-menu-manager-smoke.ts"],
   },
   {
     name: "QOS MCP adapter",
