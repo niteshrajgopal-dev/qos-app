@@ -32,6 +32,7 @@
     "audit:ci": "tsx scripts/ci-npm-audit.ts",
     "agents:connect-hyperagent": "tsx scripts/connect-hyperagent.ts",
     "agents:approve-binding": "tsx scripts/approve-agent-binding.ts",
+    "agents:native-smoke": "tsx scripts/native-menu-manager-smoke.ts",
     "ai:spend": "tsx scripts/ai-spend-operator-cli.ts"
   },
   "dependencies": {

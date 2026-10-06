@@ -182,7 +182,11 @@ integrationDescribe("native Menu Manager", () => {
 
   it("admits without a Hyperagent binding, then completes on the worker and consumes spend", async () => {
     const { tenantId, menu, caller } = await seed();
-    const model = new FakeQosModel().script({ type: "completed", text: validReply(menu.publicId), usage: null });
+    const model = new FakeQosModel().script({
+      type: "completed",
+      text: validReply(menu.publicId),
+      usage: { input_tokens: 3, output_tokens: 5, total_tokens: 8 },
+    });
 
     const connections = await sqlClient`SELECT id FROM qos.agent_provider_connections`;
     const bindings = await sqlClient`SELECT id FROM qos.tenant_agent_bindings`;
@@ -235,7 +239,11 @@ integrationDescribe("native Menu Manager", () => {
       result: expect.objectContaining({ schema: "qos.menu_manager_result.v1", summary: "Looks fine." }),
     });
     const [spent] = await db.select().from(aiSpendReservations);
-    expect(spent).toMatchObject({ state: "consumed", outcome: "completed" });
+    expect(spent).toMatchObject({
+      state: "consumed",
+      outcome: "completed",
+      reportedUsage: { input_tokens: 3, output_tokens: 5, total_tokens: 8 },
+    });
     const [job] = await db.select().from(aiJobs);
     expect(job).toMatchObject({ status: "completed", attemptCount: 1 });
   });

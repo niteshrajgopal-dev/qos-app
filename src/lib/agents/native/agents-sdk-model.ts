@@ -2,6 +2,7 @@ import { setTracingDisabled } from "@openai/agents";
 import OpenAI from "openai";
 
 import type { NativeModelConfig } from "@/lib/agents/native/native-model-config";
+import { aliasOpenAiToolNames, qosToolNameFromOpenAi } from "@/lib/agents/native/openai-tool-names";
 import type { QosModel, QosModelRequest, QosModelResult } from "@/lib/ai/model/qos-model";
 
 setTracingDisabled(true);
@@ -24,6 +25,7 @@ export function createAgentsSdkModel(config: NativeModelConfig): QosModel {
       const userContent = request.toolResults?.length
         ? `${request.input}\n\nTool results:\n${JSON.stringify(request.toolResults)}`
         : request.input;
+      const aliases = aliasOpenAiToolNames(request.tools.map((tool) => tool.name));
 
       const response = await client.chat.completions.create({
         model: request.modelId,
@@ -36,7 +38,7 @@ export function createAgentsSdkModel(config: NativeModelConfig): QosModel {
               tools: request.tools.map((tool) => ({
                 type: "function" as const,
                 function: {
-                  name: tool.name,
+                  name: aliases.toProvider.get(tool.name) ?? tool.name,
                   description: tool.description,
                   parameters: tool.inputSchema,
                 },
@@ -62,7 +64,7 @@ export function createAgentsSdkModel(config: NativeModelConfig): QosModel {
           usage,
           calls: toolCalls.map((call) => ({
             callId: call.id,
-            name: call.function.name,
+            name: qosToolNameFromOpenAi(call.function.name, aliases),
             input: parseToolInput(call.function.arguments),
           })),
         };
