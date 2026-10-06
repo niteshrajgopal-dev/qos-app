@@ -6,7 +6,7 @@ import {
 } from "@/lib/ai/provider-outcome";
 
 /** Persisted `agent_provider` value. See `execution-identity.ts` for what it means. */
-export type AgentProviderKind = "hyperagent";
+export type AgentProviderKind = "hyperagent" | "agents_sdk";
 
 export type AgentCapability = "menu_manager";
 

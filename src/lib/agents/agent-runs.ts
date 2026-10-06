@@ -108,7 +108,7 @@ export type AgentRunView = {
 
 export type AgentRunRecord = AgentRunView & {
   id: string;
-  bindingId: string;
+  bindingId: string | null;
   provider: AgentProviderKind;
   requestSummary: Record<string, unknown>;
   providerAgentId: string;
@@ -325,7 +325,8 @@ async function findLatestRunForSubject(
 
 export type CreateAgentRunInput = {
   tenantId: string;
-  binding: TenantAgentBinding;
+  /** Required for Hyperagent. Native admissions omit it. */
+  binding?: TenantAgentBinding | null;
   subject: { type: string; publicId: string; version: number | null };
   requestedBy: { subject: string; actorClass: AuditActorClass };
   idempotencyKey: string;
@@ -365,7 +366,16 @@ export async function createAgentRun(
     );
   }
 
-  if (!input.binding.enabled) {
+  const binding = input.binding ?? null;
+  const native = input.pin.executionIdentity.executorKind === "native";
+  if (!binding && !native) {
+    throw new AgentRunError(
+      "capability_disabled",
+      "This agent capability is disabled for the business.",
+      409,
+    );
+  }
+  if (binding && !binding.enabled) {
     throw new AgentRunError(
       "capability_disabled",
       "This agent capability is disabled for the business.",
@@ -374,6 +384,9 @@ export async function createAgentRun(
   }
 
   const pin = input.pin;
+  const capability = binding?.capability ?? "menu_manager";
+  const provider = binding?.provider ?? "agents_sdk";
+  const providerAgentId = binding?.providerAgentId ?? "qos.menu_manager";
   const runConfig = agentRunConfigSchema.parse(pin.runConfig);
   if (Buffer.byteLength(pin.input.payload, "utf8") > MAX_RUN_INPUT_BYTES || pin.input.payload.length === 0) {
     throw new AgentRunError("run_input_too_large", "The request is too large to send to the agent.", 413);
@@ -383,7 +396,7 @@ export async function createAgentRun(
 
   const replayOf = (replay: AgentRunRow) => {
     if (
-      replay.capability !== input.binding.capability ||
+      replay.capability !== capability ||
       replay.subjectType !== input.subject.type ||
       replay.subjectPublicId !== input.subject.publicId ||
       replay.requestedBySubject !== input.requestedBy.subject
@@ -404,7 +417,7 @@ export async function createAgentRun(
     }
 
     const latest = await findLatestRunForSubject(tx, input.tenantId, {
-      capability: input.binding.capability,
+      capability,
       subjectType: input.subject.type,
       subjectPublicId: input.subject.publicId,
     });
@@ -423,10 +436,10 @@ export async function createAgentRun(
       .values({
         tenantId: input.tenantId,
         publicId: `run_${randomBytes(12).toString("hex")}`,
-        bindingId: input.binding.id,
-        capability: input.binding.capability,
-        provider: input.binding.provider,
-        providerAgentId: input.binding.providerAgentId,
+        bindingId: binding?.id ?? null,
+        capability,
+        provider,
+        providerAgentId,
         status: "queued",
         subjectType: input.subject.type,
         subjectPublicId: input.subject.publicId,
@@ -481,7 +494,7 @@ export async function createAgentRun(
       .where(
         and(
           eq(agentRuns.tenantId, input.tenantId),
-          eq(agentRuns.capability, input.binding.capability),
+          eq(agentRuns.capability, capability),
           eq(agentRuns.subjectType, input.subject.type),
           eq(agentRuns.subjectPublicId, input.subject.publicId),
           inArray(agentRuns.status, ["queued", "running"]),
@@ -650,6 +663,42 @@ export async function failQueuedAgentRunInTx(
     extraWhere: eq(agentRuns.status, "queued"),
   });
   return row ? toRecord(row) : null;
+}
+
+/** Completes a queued or running run with a validated result. */
+export async function completeAgentRun(
+  db: DbClient,
+  tenantId: string,
+  runPublicId: string,
+  input: { result: Record<string, unknown>; auditSummary?: Record<string, unknown>; now?: Date },
+): Promise<AgentRunRecord> {
+  const now = input.now ?? new Date();
+  return withTenantContext(db, tenantId, async (tx) => {
+    const [row] = await tx
+      .update(agentRuns)
+      .set({
+        status: "completed",
+        result: input.result,
+        pollLeaseOwner: null,
+        pollLeaseExpiresAt: null,
+        nextPollAt: null,
+        finishedAt: now,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(agentRuns.tenantId, tenantId),
+          eq(agentRuns.publicId, runPublicId),
+          inArray(agentRuns.status, ["queued", "running"]),
+        ),
+      )
+      .returning();
+    if (row) {
+      await auditRun(tx, row, "agent_run.completed", SYSTEM_ACTOR, input.auditSummary ?? {});
+      return toRecord(row);
+    }
+    return toRecord(await requireRunRow(tx, tenantId, runPublicId));
+  });
 }
 
 /** Fails a queued or running run. No-op for runs that already finished. */

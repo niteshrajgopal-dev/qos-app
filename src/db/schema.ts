@@ -2890,7 +2890,7 @@ export const locationsRelations = relations(locations, ({ one, many }) => ({
   externalMenuSources: many(locationExternalMenuSources),
 }));
 
-export const agentProviderEnum = qos.enum("agent_provider", ["hyperagent"]);
+export const agentProviderEnum = qos.enum("agent_provider", ["hyperagent", "agents_sdk"]);
 
 export const agentProviderConnectionStatusEnum = qos.enum(
   "agent_provider_connection_status",
@@ -3035,7 +3035,7 @@ export const agentRuns = qos.table(
       .notNull()
       .references(() => tenants.id, { onDelete: "restrict" }),
     publicId: text("public_id").notNull(),
-    bindingId: uuid("binding_id").notNull(),
+    bindingId: uuid("binding_id"),
     capability: agentCapabilityEnum("capability").notNull(),
     provider: agentProviderEnum("provider").notNull(),
     providerAgentId: text("provider_agent_id").notNull(),
@@ -3085,6 +3085,10 @@ export const agentRuns = qos.table(
     check(
       "agent_runs_pin_complete",
       sql`(${table.definitionKey} IS NULL AND ${table.definitionVersion} IS NULL AND ${table.executionIdentity} IS NULL AND ${table.runConfig} IS NULL) OR (${table.definitionKey} IS NOT NULL AND ${table.definitionVersion} IS NOT NULL AND ${table.executionIdentity} IS NOT NULL AND ${table.runConfig} IS NOT NULL)`,
+    ),
+    check(
+      "agent_runs_binding_for_provider",
+      sql`(${table.provider} = 'hyperagent' AND ${table.bindingId} IS NOT NULL) OR (${table.provider} <> 'hyperagent')`,
     ),
     unique("agent_runs_tenant_id_id_unique").on(table.tenantId, table.id),
     unique("agent_runs_public_id_unique").on(table.tenantId, table.publicId),

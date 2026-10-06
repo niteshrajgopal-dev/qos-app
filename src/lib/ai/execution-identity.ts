@@ -8,10 +8,10 @@
 export type ExecutorKind = "native" | "external";
 
 /**
- * The adapter that drives execution. The native Agents SDK adapter is added
- * with the native executor, not before it exists.
+ * The adapter that drives execution. `agents_sdk` is the native Menu Manager
+ * adapter; Hyperagent remains the default admission choice until PR 8.
  */
-export type ExecutorAdapter = "hyperagent";
+export type ExecutorAdapter = "hyperagent" | "agents_sdk";
 
 export type ModelProvider = "openai" | "mock";
 

@@ -12,8 +12,12 @@ const connections = vi.hoisted(() => ({
   getAgentProviderConnectionStatus: vi.fn(),
   markAgentProviderConnectionStatus: vi.fn(),
 }));
+const nativeModel = vi.hoisted(() => ({
+  isNativeModelConfigured: vi.fn(() => false),
+}));
 
 vi.mock("@/lib/agents/provider-connections", () => connections);
+vi.mock("@/lib/agents/native/native-model-config", () => nativeModel);
 
 const db = {} as DbClient;
 
@@ -32,6 +36,8 @@ describe("agent executor readiness", () => {
   beforeEach(() => {
     connections.getAgentProviderConnectionStatus.mockReset();
     connections.markAgentProviderConnectionStatus.mockReset();
+    nativeModel.isNativeModelConfigured.mockReset();
+    nativeModel.isNativeModelConfigured.mockReturnValue(false);
   });
 
   it("keeps Hyperagent as the default executor", () => {
@@ -58,6 +64,15 @@ describe("agent executor readiness", () => {
     connections.getAgentProviderConnectionStatus.mockResolvedValue(connectionRow("connected"));
     const readiness = await getAgentExecutorReadiness(db, "hyperagent");
     expect(JSON.stringify(readiness)).not.toContain("ops@example.com");
+  });
+
+  it("treats native as ready only when a model is configured, without reading Hyperagent connections", async () => {
+    await expect(getAgentExecutorReadiness(db, "agents_sdk")).resolves.toEqual({
+      provider: "agents_sdk",
+      ready: false,
+      connection: { status: "disconnected", lastCheckedAt: null },
+    });
+    expect(connections.getAgentProviderConnectionStatus).not.toHaveBeenCalled();
   });
 
   it("records reauth on the executor's own connection", async () => {

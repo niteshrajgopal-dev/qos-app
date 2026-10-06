@@ -3,6 +3,7 @@ import {
   getAgentProviderConnectionStatus,
   markAgentProviderConnectionStatus,
 } from "@/lib/agents/provider-connections";
+import { isNativeModelConfigured } from "@/lib/agents/native/native-model-config";
 import type { AgentConnectionStatus, AgentProviderKind } from "@/lib/agents/types";
 
 /**
@@ -43,6 +44,19 @@ const READINESS: Record<AgentProviderKind, ReadinessAdapter> = {
         status: "needs_reauth",
         errorCode,
       });
+    },
+  },
+  agents_sdk: {
+    async check() {
+      const ready = isNativeModelConfigured();
+      return {
+        provider: "agents_sdk",
+        ready,
+        connection: { status: ready ? "connected" : "disconnected", lastCheckedAt: null },
+      };
+    },
+    async reportReauthRequired() {
+      // Native uses an operator-owned API key, not a reconnectable OAuth connection.
     },
   },
 };

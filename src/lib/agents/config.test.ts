@@ -43,6 +43,16 @@ describe("agent config", () => {
     expect(config.runTimeoutMs).toBe(60 * 60_000);
   });
 
+  it("admits Menu Manager through Hyperagent unless native is chosen explicitly", () => {
+    expect(readAgentConfig({}).menuManagerExecutor).toBe("hyperagent");
+    expect(readAgentConfig({ AGENT_MENU_MANAGER_EXECUTOR: " Native " }).menuManagerExecutor).toBe(
+      "native",
+    );
+    expect(() => readAgentConfig({ AGENT_MENU_MANAGER_EXECUTOR: "openai" })).toThrow(
+      "must be hyperagent or native",
+    );
+  });
+
   it("runs Menu Manager inline unless the worker mode is chosen explicitly", () => {
     expect(readAgentConfig({}).menuManagerExecutionMode).toBe("inline");
     expect(
