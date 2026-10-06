@@ -13,13 +13,15 @@ export type AgentConfig = {
   /** A queued run that never received a provider thread is failed after this. */
   queuedStaleMs: number;
   /**
-   * How newly accepted Menu Manager runs execute. Inline by default; existing
-   * runs keep the mode they were accepted with.
+   * How newly accepted Menu Manager runs execute. Unset follows the executor:
+   * queued_worker for native, inline for Hyperagent. Existing runs keep the
+   * mode they were accepted with.
    */
   menuManagerExecutionMode: "inline" | "queued_worker";
   /**
-   * Which executor new Menu Manager runs are admitted with. Hyperagent by
-   * default; existing runs keep the executor they were accepted with.
+   * Which executor new Menu Manager runs are admitted with. Native by default;
+   * Hyperagent is opt-in. Existing runs keep the executor they were accepted
+   * with.
    */
   menuManagerExecutor: "hyperagent" | "native";
 };
@@ -82,6 +84,7 @@ function parseHttpsUrl(value: string | undefined, name: string) {
 }
 
 export function readAgentConfig(source: EnvSource = process.env): AgentConfig {
+  const menuManagerExecutor = parseExecutor(source.AGENT_MENU_MANAGER_EXECUTOR);
   return {
     enabled: parseFlag(source.AGENTS_ENABLED),
     menuManagerEnabled: parseFlag(source.AGENT_MENU_MANAGER_ENABLED),
@@ -103,14 +106,23 @@ export function readAgentConfig(source: EnvSource = process.env): AgentConfig {
       min: 30_000,
       max: 30 * 60_000,
     }),
-    menuManagerExecutionMode: parseExecutionMode(source.AGENT_MENU_MANAGER_EXECUTION_MODE),
-    menuManagerExecutor: parseExecutor(source.AGENT_MENU_MANAGER_EXECUTOR),
+    menuManagerExecutionMode: parseExecutionMode(
+      source.AGENT_MENU_MANAGER_EXECUTION_MODE,
+      menuManagerExecutor,
+    ),
+    menuManagerExecutor,
   };
 }
 
-function parseExecutionMode(value: string | undefined): AgentConfig["menuManagerExecutionMode"] {
+function parseExecutionMode(
+  value: string | undefined,
+  executor: AgentConfig["menuManagerExecutor"],
+): AgentConfig["menuManagerExecutionMode"] {
   const normalized = value?.trim().toLowerCase();
-  if (!normalized || normalized === "inline") {
+  if (!normalized) {
+    return executor === "native" ? "queued_worker" : "inline";
+  }
+  if (normalized === "inline") {
     return "inline";
   }
   if (normalized === "queued_worker") {
@@ -121,11 +133,11 @@ function parseExecutionMode(value: string | undefined): AgentConfig["menuManager
 
 function parseExecutor(value: string | undefined): AgentConfig["menuManagerExecutor"] {
   const normalized = value?.trim().toLowerCase();
-  if (!normalized || normalized === "hyperagent") {
-    return "hyperagent";
-  }
-  if (normalized === "native") {
+  if (!normalized || normalized === "native") {
     return "native";
+  }
+  if (normalized === "hyperagent") {
+    return "hyperagent";
   }
   throw new Error("AGENT_MENU_MANAGER_EXECUTOR must be hyperagent or native.");
 }

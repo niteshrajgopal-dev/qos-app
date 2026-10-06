@@ -24,7 +24,11 @@ const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
 const AGENT_ID = "cmun4w730017807adjrkbep1t";
 const SERVER_URL = "https://hyperagent.example/api/mcp";
-const ENABLED = readAgentConfig({ AGENTS_ENABLED: "true", AGENT_MENU_MANAGER_ENABLED: "true" });
+const ENABLED = readAgentConfig({
+  AGENTS_ENABLED: "true",
+  AGENT_MENU_MANAGER_ENABLED: "true",
+  AGENT_MENU_MANAGER_EXECUTOR: "hyperagent",
+});
 
 integrationDescribe("tenant agent settings", () => {
   let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];

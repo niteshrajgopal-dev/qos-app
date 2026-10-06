@@ -31,7 +31,11 @@ import { createTenantHierarchy } from "@/lib/tenant/repository";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
-const BASE = { AGENTS_ENABLED: "true", AGENT_MENU_MANAGER_ENABLED: "true" };
+const BASE = {
+  AGENTS_ENABLED: "true",
+  AGENT_MENU_MANAGER_ENABLED: "true",
+  AGENT_MENU_MANAGER_EXECUTOR: "hyperagent",
+};
 const QUEUED = readAgentConfig({ ...BASE, AGENT_MENU_MANAGER_EXECUTION_MODE: "queued_worker" });
 const INLINE = readAgentConfig(BASE);
 const AGENT_ID = "cmun4w730017807adjrkbep1t";

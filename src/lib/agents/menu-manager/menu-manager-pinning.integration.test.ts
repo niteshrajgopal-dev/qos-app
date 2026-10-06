@@ -59,7 +59,11 @@ vi.mock("@/lib/agents/menu-manager/menu-manager-definition", async (importOrigin
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
-const ENABLED = readAgentConfig({ AGENTS_ENABLED: "true", AGENT_MENU_MANAGER_ENABLED: "true" });
+const ENABLED = readAgentConfig({
+  AGENTS_ENABLED: "true",
+  AGENT_MENU_MANAGER_ENABLED: "true",
+  AGENT_MENU_MANAGER_EXECUTOR: "hyperagent",
+});
 const AGENT_ID = "cmun4w730017807adjrkbep1t";
 const ADMIN = "admin.quotes@test";
 const PRODUCT_NAME = "Pinned Latte Name";
@@ -373,6 +377,30 @@ integrationDescribe("Menu Manager run pinning", () => {
       waitingOn: "service_unavailable",
     });
     expect(pollDrifted.getRunCalls).toHaveLength(0);
+  });
+
+  it("keeps a Hyperagent run on Hyperagent after the process default becomes native", async () => {
+    const { tenantId, menu } = await seed();
+    const provider = new FakeAgentProvider();
+    const { run } = await ask(tenantId, menu.publicId, provider);
+    expect(run.status).toBe("running");
+
+    const nativeDefault = readAgentConfig({
+      AGENTS_ENABLED: "true",
+      AGENT_MENU_MANAGER_ENABLED: "true",
+    });
+    expect(nativeDefault.menuManagerExecutor).toBe("native");
+    provider.script({ state: "completed", finalMessage: validReply(menu.publicId) });
+
+    await expect(refresh(tenantId, menu.publicId, run.publicId, provider, nativeDefault)).resolves.toMatchObject({
+      status: "completed",
+    });
+    const [row] = await db.select().from(agentRuns);
+    expect(row).toMatchObject({
+      provider: "hyperagent",
+      executionIdentity: executionIdentityForPersistedProvider("hyperagent"),
+    });
+    expect(provider.getRunCalls).toHaveLength(1);
   });
 
   it("polls on the pinned schedule after the configuration changes", async () => {

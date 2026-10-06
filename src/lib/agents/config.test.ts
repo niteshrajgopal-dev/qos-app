@@ -43,9 +43,12 @@ describe("agent config", () => {
     expect(config.runTimeoutMs).toBe(60 * 60_000);
   });
 
-  it("admits Menu Manager through Hyperagent unless native is chosen explicitly", () => {
-    expect(readAgentConfig({}).menuManagerExecutor).toBe("hyperagent");
-    expect(readAgentConfig({ AGENT_MENU_MANAGER_EXECUTOR: " Native " }).menuManagerExecutor).toBe(
+  it("admits Menu Manager through the native executor unless Hyperagent is chosen explicitly", () => {
+    expect(readAgentConfig({}).menuManagerExecutor).toBe("native");
+    expect(
+      readAgentConfig({ AGENT_MENU_MANAGER_EXECUTOR: " Hyperagent " }).menuManagerExecutor,
+    ).toBe("hyperagent");
+    expect(readAgentConfig({ AGENT_MENU_MANAGER_EXECUTOR: "native" }).menuManagerExecutor).toBe(
       "native",
     );
     expect(() => readAgentConfig({ AGENT_MENU_MANAGER_EXECUTOR: "openai" })).toThrow(
@@ -53,8 +56,17 @@ describe("agent config", () => {
     );
   });
 
-  it("runs Menu Manager inline unless the worker mode is chosen explicitly", () => {
-    expect(readAgentConfig({}).menuManagerExecutionMode).toBe("inline");
+  it("queues native Menu Manager unless the mode is chosen explicitly", () => {
+    expect(readAgentConfig({}).menuManagerExecutionMode).toBe("queued_worker");
+    expect(
+      readAgentConfig({ AGENT_MENU_MANAGER_EXECUTOR: "hyperagent" }).menuManagerExecutionMode,
+    ).toBe("inline");
+    expect(
+      readAgentConfig({
+        AGENT_MENU_MANAGER_EXECUTOR: "native",
+        AGENT_MENU_MANAGER_EXECUTION_MODE: "inline",
+      }).menuManagerExecutionMode,
+    ).toBe("inline");
     expect(
       readAgentConfig({ AGENT_MENU_MANAGER_EXECUTION_MODE: " Queued_Worker " }).menuManagerExecutionMode,
     ).toBe("queued_worker");

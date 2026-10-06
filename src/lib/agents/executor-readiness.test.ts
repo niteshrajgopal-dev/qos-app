@@ -40,7 +40,7 @@ describe("agent executor readiness", () => {
     nativeModel.isNativeModelConfigured.mockReturnValue(false);
   });
 
-  it("keeps Hyperagent as the default executor", () => {
+  it("keeps Hyperagent as the binding-less readiness lookup", () => {
     expect(DEFAULT_AGENT_PROVIDER).toBe("hyperagent");
   });
 
