@@ -6,6 +6,7 @@ import { staffIdentities, staffMemberships } from "@/db/schema";
 import { ensureStaffIdentityRecord } from "@/lib/staff/identity-sync";
 import { requireVerifiedStaffSession } from "@/lib/staff/session";
 import { withTenantContext } from "@/lib/tenant/context";
+import { requireActiveTenant } from "@/lib/tenant/tenant-status";
 
 export type StaffIdentity = {
   subject: string;
@@ -43,6 +44,8 @@ export async function requireActiveStaffMembership(
   tenantId: string,
   subject: string,
 ): Promise<ActiveStaffMembership> {
+  await requireActiveTenant(db, tenantId);
+
   return withTenantContext(db, tenantId, async (tx) => {
     const [membership] = await tx
       .select({

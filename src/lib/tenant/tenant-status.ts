@@ -1,7 +1,8 @@
 import { and, eq } from "drizzle-orm";
 
+import type { DbClient } from "@/db/client";
 import { tenants } from "@/db/schema";
-import type { TenantDbExecutor } from "@/lib/tenant/context";
+import { type TenantDbExecutor, withTenantContext } from "@/lib/tenant/context";
 
 export class TenantInactiveError extends Error {
   readonly statusCode = 403;
@@ -26,4 +27,20 @@ export async function assertTenantActive(tx: TenantDbExecutor, tenantId: string)
   if (!row) {
     throw new TenantInactiveError();
   }
+}
+
+/** Platform guard: live tenant status using the same check as the AI path. */
+export async function requireActiveTenant(db: DbClient, tenantId: string) {
+  await withTenantContext(db, tenantId, (tx) => assertTenantActive(tx, tenantId));
+}
+
+export function mapTenantInactiveRouteError(error: unknown) {
+  if (error instanceof TenantInactiveError) {
+    return {
+      statusCode: error.statusCode,
+      body: { error: error.message, code: error.code },
+    };
+  }
+
+  return null;
 }

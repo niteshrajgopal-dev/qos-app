@@ -13,8 +13,14 @@ import { CheckoutPricingError } from "@/lib/checkout/pricing-arithmetic";
 import { CheckoutPaymentConfigError } from "@/lib/checkout/payment-config";
 import { BasketMenuEligibilityError } from "@/lib/basket/menu-eligibility";
 import { StorefrontDeploymentBindingError } from "@/lib/storefront/storefront-deployment-binding";
+import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 
 export function mapCheckoutRouteError(error: unknown) {
+  const tenantInactive = mapTenantInactiveRouteError(error);
+  if (tenantInactive) {
+    return tenantInactive;
+  }
+
   if (error instanceof CheckoutPaymentContractError) {
     return {
       statusCode: error.statusCode,

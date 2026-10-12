@@ -14,6 +14,7 @@ import {
 } from "@/lib/storefront/storefront-edge-config";
 import { normalizeStorefrontHostname } from "@/lib/storefront/storefronts";
 import { withTenantContext } from "@/lib/tenant/context";
+import { assertTenantActive } from "@/lib/tenant/tenant-status";
 
 export const STOREFRONT_HOST_CONTEXT_CONTRACT_VERSION = 1;
 
@@ -209,6 +210,8 @@ export async function resolveStorefrontHostContext(
   }
 
   return withTenantContext(db, domain.tenantId, async (tx) => {
+    await assertTenantActive(tx, domain.tenantId);
+
     const [storefront] = await tx
       .select({
         publicId: storefronts.publicId,

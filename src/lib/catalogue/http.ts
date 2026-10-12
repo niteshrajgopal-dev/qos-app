@@ -30,8 +30,14 @@ import {
 } from "@/lib/catalogue/translation-approval";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { StaffAuthError } from "@/lib/staff/session";
+import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 
 export function catalogueErrorResponse(error: unknown) {
+  const tenantInactive = mapTenantInactiveRouteError(error);
+  if (tenantInactive) {
+    return NextResponse.json(tenantInactive.body, { status: tenantInactive.statusCode });
+  }
+
   if (error instanceof StaffAuthError) {
     return NextResponse.json(
       { error: error.message, field: error.field },

@@ -19,6 +19,10 @@ import {
 import { resolveProductEligibilityMap } from "@/lib/catalogue/item-eligibility";
 import { findTenantByPublicId } from "@/lib/tenant/repository";
 import { withTenantContext } from "@/lib/tenant/context";
+import {
+  assertTenantActive,
+  mapTenantInactiveRouteError,
+} from "@/lib/tenant/tenant-status";
 
 export class PublicMenuResolverError extends Error {
   readonly statusCode: number;
@@ -197,6 +201,8 @@ export async function resolvePublicMenuByReference(
   }
 
   return withTenantContext(db, tenant.id, async (tx) => {
+    await assertTenantActive(tx, tenant.id);
+
     const [menu] = await tx
       .select({ id: catalogueMenus.id, status: catalogueMenus.status })
       .from(catalogueMenus)
@@ -273,6 +279,11 @@ export async function resolvePublicMenuByReference(
 }
 
 export function mapPublicMenuRouteError(error: unknown) {
+  const tenantInactive = mapTenantInactiveRouteError(error);
+  if (tenantInactive) {
+    return tenantInactive;
+  }
+
   if (error instanceof PublicMenuContractError) {
     return {
       statusCode: error.statusCode,

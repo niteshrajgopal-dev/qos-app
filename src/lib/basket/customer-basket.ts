@@ -28,6 +28,7 @@ import {
 import { requireVerifiedCustomerSession } from "@/lib/customer/session";
 import { enforceDeploymentBoundaryFromRequest } from "@/lib/storefront/storefront-deployment-binding";
 import { withTenantContext } from "@/lib/tenant/context";
+import { assertTenantActive } from "@/lib/tenant/tenant-status";
 
 export class CustomerBasketError extends Error {
   readonly statusCode: number;
@@ -452,6 +453,8 @@ export async function resolveCustomerAccountBasketContext(
   }
 
   return withTenantContext(db, storefrontRow.tenantId, async (tx) => {
+    await assertTenantActive(tx, storefrontRow.tenantId);
+
     const binding = await resolveStorefrontBinding(
       tx,
       storefrontRow.tenantId,

@@ -14,6 +14,7 @@ import {
   resolveStorefrontHostContext,
   resolveTrustedHost,
 } from "@/lib/storefront/host-resolution";
+import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 import {
   isStorefrontDeploymentBound,
   readStorefrontDeploymentRuntimeConfig,
@@ -256,6 +257,11 @@ export async function enforceDeploymentBoundaryFromRequest(
 }
 
 export function mapStorefrontDeploymentBindingRouteError(error: unknown) {
+  const tenantInactive = mapTenantInactiveRouteError(error);
+  if (tenantInactive) {
+    return tenantInactive;
+  }
+
   if (error instanceof StorefrontDeploymentBindingError) {
     return {
       statusCode: error.statusCode,
