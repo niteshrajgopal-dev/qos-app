@@ -348,7 +348,10 @@ export function MenuManagerSection({
             {result.suggestions.map((suggestion, index) => {
               const id = `suggestion-${index}`;
               const key = suggestionIdentityKey(suggestion);
-              const applied = accepted?.runPublicId === run?.publicId && accepted.keys.has(key);
+              const applied =
+                accepted != null &&
+                accepted.runPublicId === run?.publicId &&
+                accepted.keys.has(key);
               return (
                 <IntelligenceCard
                   key={id}
