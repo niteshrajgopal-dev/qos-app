@@ -61,6 +61,19 @@ export type StoredMenuManagerResult = MenuManagerResult & {
   snapshot: { menuVersion: number | null; sha256: string | null };
 };
 
+/** Menu draft version the review answered; only `snapshot.menuVersion` is authoritative. */
+export function reviewedMenuVersionFromStoredResult(storedResult: unknown): number | null {
+  if (!storedResult || typeof storedResult !== "object") {
+    return null;
+  }
+  const snapshot = (storedResult as { snapshot?: { menuVersion?: unknown } }).snapshot;
+  if (!snapshot || typeof snapshot !== "object") {
+    return null;
+  }
+  const menuVersion = snapshot.menuVersion;
+  return typeof menuVersion === "number" ? menuVersion : null;
+}
+
 const FENCED_JSON = /```(?:json)?\s*\n([\s\S]*?)\n?```/g;
 
 /** Takes the last fenced JSON block, or the whole message when it is bare JSON. */

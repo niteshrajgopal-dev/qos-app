@@ -27,6 +27,7 @@ import {
   executionIdentityForNative,
   executionIdentityForPersistedProvider,
 } from "@/lib/agents/execution-identity";
+import { listAcceptedSuggestionKeysForRun } from "@/lib/agents/menu-manager/accept-menu-manager-suggestion";
 import {
   CURRENT_MENU_MANAGER_DEFINITION,
   NATIVE_MENU_MANAGER_DEFINITION,
@@ -81,17 +82,30 @@ type Caller = {
 /** Why QOS is not polling an active run right now. */
 export type MenuManagerWaitReason = "agent_connection" | "service_unavailable" | "access_changed";
 
-export type MenuManagerRunView = AgentRunView & { waitingOn: MenuManagerWaitReason | null };
+export type MenuManagerRunView = AgentRunView & {
+  waitingOn: MenuManagerWaitReason | null;
+  acceptedSuggestionKeys: string[];
+};
 
 export function isActive(status: AgentRunStatus) {
   return (ACTIVE_AGENT_RUN_STATUSES as readonly AgentRunStatus[]).includes(status);
 }
 
-function toMenuManagerRunView(
+async function toMenuManagerRunView(
+  db: DbClient,
+  tenantId: string,
   run: AgentRunRecord,
   waitingOn: MenuManagerWaitReason | null = null,
-): MenuManagerRunView {
-  return { ...toAgentRunView(run), waitingOn: isActive(run.status) ? waitingOn : null };
+): Promise<MenuManagerRunView> {
+  const acceptedSuggestionKeys =
+    run.status === "completed"
+      ? await listAcceptedSuggestionKeysForRun(db, tenantId, run.id)
+      : [];
+  return {
+    ...toAgentRunView(run),
+    waitingOn: isActive(run.status) ? waitingOn : null,
+    acceptedSuggestionKeys,
+  };
 }
 
 /**
@@ -413,7 +427,7 @@ async function askNativeMenuManager(
     now: clock(),
   });
 
-  return { run: toMenuManagerRunView(run), created };
+  return { run: await toMenuManagerRunView(db, caller.tenantId, run), created };
 }
 
 /**
@@ -501,10 +515,10 @@ export async function askMenuManager(
 
   if (!created) {
     assertMenuManagerRun(run, input.menuPublicId);
-    return { run: toMenuManagerRunView(run), created: false };
+    return { run: await toMenuManagerRunView(db, caller.tenantId, run), created: false };
   }
   if (run.executionMode === "queued_worker") {
-    return { run: toMenuManagerRunView(run), created: true };
+    return { run: await toMenuManagerRunView(db, caller.tenantId, run), created: true };
   }
 
   const notSent = async (code: string, message: string) => {
@@ -513,7 +527,7 @@ export async function askMenuManager(
       message,
       now: clock(),
     });
-    return { run: toMenuManagerRunView(failed), created: true };
+    return { run: await toMenuManagerRunView(db, caller.tenantId, failed), created: true };
   };
 
   const request = await pinnedRequest(db, caller.tenantId, run);
@@ -544,7 +558,7 @@ export async function askMenuManager(
       pollIntervalMs: runLimits(run, config).pollIntervalMs,
       now: clock(),
     });
-    return { run: toMenuManagerRunView(running), created: true };
+    return { run: await toMenuManagerRunView(db, caller.tenantId, running), created: true };
   } catch (error) {
     if (!(error instanceof AgentProviderError)) {
       throw error;
@@ -560,7 +574,7 @@ export async function askMenuManager(
         : "The agent service could not start this review.",
       now: clock(),
     });
-    return { run: toMenuManagerRunView(failed), created: true };
+    return { run: await toMenuManagerRunView(db, caller.tenantId, failed), created: true };
   }
 }
 
@@ -581,7 +595,7 @@ export async function refreshMenuManagerRun(
   assertMenuManagerRun(found, input.menuPublicId);
 
   if (!isActive(found.status)) {
-    return toMenuManagerRunView(found);
+    return await toMenuManagerRunView(db, caller.tenantId, found);
   }
 
   const config = options.config ?? readAgentConfig();
@@ -591,27 +605,27 @@ export async function refreshMenuManagerRun(
     // The worker owns provider contact for this run; reads never poll it.
     const settled = await settleQueuedWorkerRun(db, caller.tenantId, found, limits, clock());
     return isActive(settled.status) && settled.status === "running"
-      ? toMenuManagerRunView(settled, await pollingBlockedBy(db, caller.tenantId, settled, config))
-      : toMenuManagerRunView(settled);
+      ? await toMenuManagerRunView(db, caller.tenantId, settled, await pollingBlockedBy(db, caller.tenantId, settled, config))
+      : await toMenuManagerRunView(db, caller.tenantId, settled);
   }
   const run = await expireAgentRunIfDue(db, caller.tenantId, found.publicId, {
     queuedStaleMs: limits.queuedStaleMs,
     now: clock(),
   });
   if (!isActive(run.status)) {
-    return toMenuManagerRunView(run);
+    return await toMenuManagerRunView(db, caller.tenantId, run);
   }
 
   const blocked = await pollingBlockedBy(db, caller.tenantId, run, config);
   if (blocked) {
-    return toMenuManagerRunView(run, blocked);
+    return await toMenuManagerRunView(db, caller.tenantId, run, blocked);
   }
 
   // A reply is only read with the definition the run was sent with. Until a
   // build that has it is deployed, the run waits and its deadline ends it.
   const definition = getMenuManagerDefinition(run.definitionVersion);
   if (!definition) {
-    return toMenuManagerRunView(run, "service_unavailable");
+    return await toMenuManagerRunView(db, caller.tenantId, run, "service_unavailable");
   }
 
   let provider: AgentRuntimeProvider;
@@ -619,12 +633,12 @@ export async function refreshMenuManagerRun(
     provider = options.provider ?? getAgentRuntimeProvider(run.provider);
   } catch (error) {
     if (error instanceof AgentProviderError) {
-      return toMenuManagerRunView(run, "service_unavailable");
+      return await toMenuManagerRunView(db, caller.tenantId, run, "service_unavailable");
     }
     throw error;
   }
   if (!executorMatches(run, provider)) {
-    return toMenuManagerRunView(run, "service_unavailable");
+    return await toMenuManagerRunView(db, caller.tenantId, run, "service_unavailable");
   }
 
   const polled = await pollAgentRunOnce(db, caller.tenantId, run.publicId, {
@@ -638,7 +652,7 @@ export async function refreshMenuManagerRun(
     onReauthRequired: (error) => onReauthRequired(db, run.provider, error),
   });
 
-  return toMenuManagerRunView(polled.run, polled.reauthRequired ? "agent_connection" : null);
+  return await toMenuManagerRunView(db, caller.tenantId, polled.run, polled.reauthRequired ? "agent_connection" : null);
 }
 
 /** Latest run for the menu; an active run past its deadline is ended first. Never polls. */
@@ -655,7 +669,7 @@ export async function getLatestMenuManagerRun(
     subjectPublicId: menuPublicId,
   });
   if (!latest || !isActive(latest.status)) {
-    return latest ? toMenuManagerRunView(latest) : null;
+    return latest ? await toMenuManagerRunView(db, caller.tenantId, latest) : null;
   }
   const config = options.config ?? readAgentConfig();
   const now = (options.now ?? (() => new Date()))();
@@ -667,7 +681,7 @@ export async function getLatestMenuManagerRun(
           now,
         });
   if (!isActive(run.status)) {
-    return toMenuManagerRunView(run);
+    return await toMenuManagerRunView(db, caller.tenantId, run);
   }
-  return toMenuManagerRunView(run, await pollingBlockedBy(db, caller.tenantId, run, config));
+  return await toMenuManagerRunView(db, caller.tenantId, run, await pollingBlockedBy(db, caller.tenantId, run, config));
 }

@@ -84,6 +84,12 @@ export function MenuManagerSection({
         throw new Error(payload.error ?? "Unable to load the review.");
       }
       setRun(payload.run);
+      if (payload.run.acceptedSuggestionKeys?.length) {
+        setAccepted({
+          runPublicId: payload.run.publicId,
+          keys: new Set(payload.run.acceptedSuggestionKeys),
+        });
+      }
       setError(null);
     },
     [runsPath],
@@ -186,14 +192,17 @@ export function MenuManagerSection({
           proposedText: suggestion.proposedText,
         }),
       });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        acceptedSuggestionKeys?: string[];
+      };
       if (!response.ok) {
         throw new Error(payload.error ?? "Unable to apply the suggestion.");
       }
-      setAccepted((current) => ({
+      setAccepted({
         runPublicId: run.publicId,
-        keys: new Set(current?.runPublicId === run.publicId ? current.keys : []).add(key),
-      }));
+        keys: new Set(payload.acceptedSuggestionKeys ?? [key]),
+      });
     } catch (acceptError: unknown) {
       setError(acceptError instanceof Error ? acceptError.message : "Unable to apply the suggestion.");
     } finally {

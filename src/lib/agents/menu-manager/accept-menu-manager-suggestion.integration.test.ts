@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   catalogueMenuLiveRevisions,
+  catalogueMenus,
   catalogueProductTranslations,
   staffIdentities,
   staffLocationScopes,
@@ -17,7 +18,10 @@ import {
   resetAndMigrate,
   runAsRole,
 } from "@/db/test-utils";
-import { acceptMenuManagerSuggestion } from "@/lib/agents/menu-manager/accept-menu-manager-suggestion";
+import {
+  acceptMenuManagerSuggestion,
+  suggestionIdentityKey,
+} from "@/lib/agents/menu-manager/accept-menu-manager-suggestion";
 import { readAgentConfig } from "@/lib/agents/config";
 import { parseAgentCredentialKey } from "@/lib/agents/credential-crypto";
 import { MENU_MANAGER_RESULT_SCHEMA } from "@/lib/agents/menu-manager/menu-manager-result";
@@ -58,7 +62,7 @@ integrationDescribe("acceptMenuManagerSuggestion", () => {
   });
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.agent_runs, qos.tenant_agent_bindings, qos.agent_provider_credentials, qos.agent_provider_connections, qos.tenant_audit_events, qos.catalogue_menu_publish_operations, qos.catalogue_menu_live_revisions, qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.agent_run_menu_manager_suggestion_acceptances, qos.agent_runs, qos.tenant_agent_bindings, qos.agent_provider_credentials, qos.agent_provider_connections, qos.tenant_audit_events, qos.catalogue_menu_publish_operations, qos.catalogue_menu_live_revisions, qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
   });
 
   async function seedMember(
@@ -194,12 +198,13 @@ integrationDescribe("acceptMenuManagerSuggestion", () => {
   }
 
   it("writes one accepted suggestion onto the product draft and does not publish", async () => {
-    const { quotes, menu, product, staff } = await seed();
+    const { quotes, menu, product, admin } = await seed();
     const proposedText = "A smooth espresso with steamed milk.";
-    const run = await completeReview(staff, menu.publicId, product.publicId, proposedText);
+    const run = await completeReview(admin, menu.publicId, product.publicId, proposedText);
+    const menuVersionBefore = menu.version;
 
     const accepted = await runAsRole(sqlClient, "qos_app", () =>
-      acceptMenuManagerSuggestion(db, staff, {
+      acceptMenuManagerSuggestion(db, admin, {
         menuPublicId: menu.publicId,
         runPublicId: run.publicId,
         productPublicId: product.publicId,
@@ -215,6 +220,20 @@ integrationDescribe("acceptMenuManagerSuggestion", () => {
       field: "description_en",
       proposedText,
     });
+    expect(accepted.idempotentReplay).toBe(false);
+    expect(accepted.acceptedSuggestionKeys).toEqual([
+      suggestionIdentityKey({
+        productPublicId: product.publicId,
+        field: "description_en",
+        proposedText,
+      }),
+    ]);
+
+    const [draftMenu] = await db
+      .select({ version: catalogueMenus.version })
+      .from(catalogueMenus)
+      .where(eq(catalogueMenus.tenantId, quotes.tenant.id));
+    expect(draftMenu?.version).toBe(menuVersionBefore);
 
     const live = await db
       .select({ id: catalogueMenuLiveRevisions.id })
@@ -240,16 +259,16 @@ integrationDescribe("acceptMenuManagerSuggestion", () => {
   });
 
   it("rejects a review after the menu draft version moves on", async () => {
-    const { menu, product, staff, adminMembership, quotes } = await seed();
+    const { menu, product, admin, adminMembership, quotes } = await seed();
     const proposedText = "A smooth espresso with steamed milk.";
-    const run = await completeReview(staff, menu.publicId, product.publicId, proposedText);
+    const run = await completeReview(admin, menu.publicId, product.publicId, proposedText);
     await updateDraftMenu(db, quotes.tenant.id, adminMembership, menu.publicId, {
       expectedVersion: menu.version,
       internalName: "breakfast-and-brunch",
     });
 
     await expect(
-      acceptMenuManagerSuggestion(db, staff, {
+      acceptMenuManagerSuggestion(db, admin, {
         menuPublicId: menu.publicId,
         runPublicId: run.publicId,
         productPublicId: product.publicId,
@@ -258,7 +277,7 @@ integrationDescribe("acceptMenuManagerSuggestion", () => {
       }),
     ).rejects.toMatchObject({ code: "review_outdated", statusCode: 409 });
 
-    const current = await getDraftProduct(db, quotes.tenant.id, staff.membership, product.publicId);
+    const current = await getDraftProduct(db, quotes.tenant.id, admin.membership, product.publicId);
     expect(current.translations.en.description).toBe("latte description");
   });
 
@@ -306,8 +325,50 @@ integrationDescribe("acceptMenuManagerSuggestion", () => {
     ).rejects.toMatchObject({ statusCode: 403 });
   });
 
+  it("replays accept without a second audit row or product write", async () => {
+    const { menu, product, admin } = await seed();
+    const proposedText = "A smooth espresso with steamed milk.";
+    const run = await completeReview(admin, menu.publicId, product.publicId, proposedText);
+    const input = {
+      menuPublicId: menu.publicId,
+      runPublicId: run.publicId,
+      productPublicId: product.publicId,
+      field: "description_en" as const,
+      proposedText,
+    };
+
+    const first = await acceptMenuManagerSuggestion(db, admin, input);
+    const second = await acceptMenuManagerSuggestion(db, admin, input);
+
+    expect(first.idempotentReplay).toBe(false);
+    expect(second.idempotentReplay).toBe(true);
+    expect(second.acceptedSuggestionKeys).toEqual(first.acceptedSuggestionKeys);
+
+    const audit = await db
+      .select({ id: tenantAuditEvents.id })
+      .from(tenantAuditEvents)
+      .where(eq(tenantAuditEvents.action, "catalogue.menu_manager.suggestion_accepted"));
+    expect(audit).toHaveLength(1);
+  });
+
+  it("returns 403 for a read-only staff role", async () => {
+    const { menu, product, staff, admin } = await seed();
+    const proposedText = "A smooth espresso with steamed milk.";
+    const run = await completeReview(admin, menu.publicId, product.publicId, proposedText);
+
+    await expect(
+      acceptMenuManagerSuggestion(db, staff, {
+        menuPublicId: menu.publicId,
+        runPublicId: run.publicId,
+        productPublicId: product.publicId,
+        field: "description_en",
+        proposedText,
+      }),
+    ).rejects.toMatchObject({ statusCode: 403 });
+  });
+
   it("leaves other translation fields untouched", async () => {
-    const { quotes, menu, product, staff } = await seed();
+    const { quotes, menu, product, admin } = await seed();
     const translations = await db
       .select({
         locale: catalogueProductTranslations.locale,
@@ -317,8 +378,8 @@ integrationDescribe("acceptMenuManagerSuggestion", () => {
       .from(catalogueProductTranslations)
       .where(eq(catalogueProductTranslations.tenantId, quotes.tenant.id));
 
-    const run = await completeReview(staff, menu.publicId, product.publicId, "House latte copy.");
-    await acceptMenuManagerSuggestion(db, staff, {
+    const run = await completeReview(admin, menu.publicId, product.publicId, "House latte copy.");
+    await acceptMenuManagerSuggestion(db, admin, {
       menuPublicId: menu.publicId,
       runPublicId: run.publicId,
       productPublicId: product.publicId,
