@@ -39,12 +39,24 @@ export type ActiveStaffMembership = {
   staffIdentityId: string;
 };
 
+export type StaffMembershipAccessOptions = {
+  /**
+   * When false, membership is checked without enforcing tenant status. Used by
+   * read-only AI polling so live execution-context rechecks can surface
+   * `tenant_inactive` without failing caller resolution.
+   */
+  requireActiveTenant?: boolean;
+};
+
 export async function requireActiveStaffMembership(
   db: DbClient,
   tenantId: string,
   subject: string,
+  options: StaffMembershipAccessOptions = {},
 ): Promise<ActiveStaffMembership> {
-  await requireActiveTenant(db, tenantId);
+  if (options.requireActiveTenant ?? true) {
+    await requireActiveTenant(db, tenantId);
+  }
 
   return withTenantContext(db, tenantId, async (tx) => {
     const [membership] = await tx
