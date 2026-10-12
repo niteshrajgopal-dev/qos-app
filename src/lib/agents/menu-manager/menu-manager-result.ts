@@ -8,7 +8,7 @@ export const MENU_MANAGER_RESULT_SCHEMA = "qos.menu_manager_result.v1";
 
 export const MENU_MANAGER_FINDING_TYPES = [...MENU_HEALTH_ISSUE_TYPES, "other"] as const;
 export const MENU_MANAGER_SEVERITIES = ["info", "warning", "blocking"] as const;
-/** Fields a suggestion may target. Suggestions are text for review only; QOS never applies them. */
+/** Fields a suggestion may target. QOS never applies them unless a person accepts one onto the product draft. */
 export const MENU_MANAGER_SUGGESTION_FIELDS = [
   "name_en",
   "description_en",
