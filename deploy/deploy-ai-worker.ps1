@@ -95,7 +95,10 @@ $copiedPlainEnv = @(
     "AI_PHOTO_QUALITY",
     "AI_PHOTO_DAILY_LIMIT_PER_TENANT",
     "AI_PHOTO_REQUEST_TIMEOUT_MS",
-    "AI_PHOTO_QUEUED_STALE_MS"
+    "AI_PHOTO_QUEUED_STALE_MS",
+    # The worker rechecks these before sending a review. Unset reads as off.
+    "AGENTS_ENABLED",
+    "AGENT_MENU_MANAGER_ENABLED"
 )
 
 function Invoke-Az {

@@ -126,6 +126,7 @@ describe("findingClaims", () => {
 
 describe("menu manager copy", () => {
   it("explains failures without exposing codes", () => {
+    expect(failureCopy("capability_unavailable")).toContain("turned off");
     expect(failureCopy("unknown_product_reference")).toContain("not on this menu");
     expect(failureCopy("something_new")).toBe("The agent service could not complete this review.");
     expect(failureCopy(null)).toBe("The agent service could not complete this review.");

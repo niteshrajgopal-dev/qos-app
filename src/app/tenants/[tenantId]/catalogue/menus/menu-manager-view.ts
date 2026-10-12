@@ -141,6 +141,7 @@ export function runStatusCopy(run: MenuManagerRunLike) {
 }
 
 const FAILURE_COPY: Record<string, string> = {
+  capability_unavailable: "Menu Manager was turned off before this review was sent.",
   qos_wait_deadline: "The review did not finish within QOS's time limit.",
   timeout: "The review did not finish within QOS's time limit.",
   start_outcome_unknown: "QOS could not confirm whether the agent service received the review.",
