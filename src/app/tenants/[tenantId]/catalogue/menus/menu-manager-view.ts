@@ -1,5 +1,5 @@
 import type { MenuManagerWaitReason } from "@/lib/agents/menu-manager/menu-manager-service";
-import { reviewedMenuVersionFromStoredResult } from "@/lib/agents/menu-manager/menu-manager-result";
+import { reviewedMenuVersionFromStoredResult } from "@/lib/agents/menu-manager/menu-manager-reviewed-version";
 import type { AgentRunStatus } from "@/lib/agents/types";
 import type { MenuManagerUnavailableReason } from "@/lib/agents/tenant-agent-settings";
 import { MENU_HEALTH_ISSUE_COPY } from "@/app/tenants/[tenantId]/catalogue/menus/menu-health-view";

@@ -5,10 +5,8 @@ import {
   draftPatchForSuggestion,
   matchStoredSuggestion,
 } from "@/lib/agents/menu-manager/accept-menu-manager-suggestion";
-import {
-  MENU_MANAGER_RESULT_SCHEMA,
-  reviewedMenuVersionFromStoredResult,
-} from "@/lib/agents/menu-manager/menu-manager-result";
+import { MENU_MANAGER_RESULT_SCHEMA } from "@/lib/agents/menu-manager/menu-manager-result";
+import { reviewedMenuVersionFromStoredResult } from "@/lib/agents/menu-manager/menu-manager-reviewed-version";
 import { readMenuManagerResult } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-view";
 import { AgentRunError } from "@/lib/agents/agent-runs";
 import type { DraftProductEditorView } from "@/lib/catalogue/products";

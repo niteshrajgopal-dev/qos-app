@@ -8,8 +8,8 @@ import { AgentRunError, getAgentRun, type AgentRunRecord } from "@/lib/agents/ag
 import {
   MENU_MANAGER_LIMITS,
   MENU_MANAGER_SUGGESTION_FIELDS,
-  reviewedMenuVersionFromStoredResult,
 } from "@/lib/agents/menu-manager/menu-manager-result";
+import { reviewedMenuVersionFromStoredResult } from "@/lib/agents/menu-manager/menu-manager-reviewed-version";
 import type { AgentRunStatus } from "@/lib/agents/types";
 import {
   auditActorClassFromStaffRole,
