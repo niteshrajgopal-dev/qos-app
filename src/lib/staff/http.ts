@@ -8,8 +8,14 @@ import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { StaffInvitationError } from "@/lib/staff/invitations";
 import { StaffMembershipError } from "@/lib/staff/memberships";
 import { StaffAuthError } from "@/lib/staff/session";
+import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 
 export function staffErrorResponse(error: unknown) {
+  const tenantInactive = mapTenantInactiveRouteError(error);
+  if (tenantInactive) {
+    return NextResponse.json(tenantInactive.body, { status: tenantInactive.statusCode });
+  }
+
   if (error instanceof StaffAuthError) {
     return NextResponse.json(
       { error: error.message, field: error.field },

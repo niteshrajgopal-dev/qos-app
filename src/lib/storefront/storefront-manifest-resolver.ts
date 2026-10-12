@@ -27,6 +27,10 @@ import {
   StorefrontDeploymentBindingError,
 } from "@/lib/storefront/storefront-deployment-binding";
 import { withTenantContext } from "@/lib/tenant/context";
+import {
+  assertTenantActive,
+  mapTenantInactiveRouteError,
+} from "@/lib/tenant/tenant-status";
 
 export class StorefrontManifestResolverError extends Error {
   readonly statusCode: number;
@@ -188,6 +192,8 @@ export async function resolveStorefrontManifestByHostname(
   }
 
   return withTenantContext(db, domain.tenantId, async (tx) => {
+    await assertTenantActive(tx, domain.tenantId);
+
     const [storefront] = await tx
       .select({
         id: storefronts.id,
@@ -253,6 +259,8 @@ export async function resolveStorefrontManifestByPublicId(
   const activeReleaseId = storefront.activeReleaseId;
 
   return withTenantContext(db, storefront.tenantId, async (tx) => {
+    await assertTenantActive(tx, storefront.tenantId);
+
     const [primaryDomain] = await tx
       .select({ hostname: storefrontDomains.hostname })
       .from(storefrontDomains)
@@ -283,6 +291,11 @@ export async function resolveStorefrontManifestByPublicId(
 }
 
 export function mapStorefrontManifestRouteError(error: unknown) {
+  const tenantInactive = mapTenantInactiveRouteError(error);
+  if (tenantInactive) {
+    return tenantInactive;
+  }
+
   if (error instanceof StorefrontManifestContractError) {
     return {
       statusCode: error.statusCode,

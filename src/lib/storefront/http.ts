@@ -9,8 +9,14 @@ import {
 import { StorefrontPublishError } from "@/lib/storefront/storefront-publish";
 import { StorefrontContentBlockValidationError } from "@/lib/storefront/storefront-content-blocks-schema";
 import { StorefrontThemeValidationError } from "@/lib/storefront/storefront-theme-schema";
+import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 
 export function storefrontErrorResponse(error: unknown) {
+  const tenantInactive = mapTenantInactiveRouteError(error);
+  if (tenantInactive) {
+    return NextResponse.json(tenantInactive.body, { status: tenantInactive.statusCode });
+  }
+
   if (error instanceof StaffAuthError) {
     return NextResponse.json(
       { error: error.message, field: error.field },

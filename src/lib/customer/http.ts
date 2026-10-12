@@ -3,8 +3,14 @@ import { NextResponse } from "next/server";
 import { CustomerContractError } from "@/lib/customer/customer-contract";
 import { CustomerAssociationError } from "@/lib/customer/association";
 import { CustomerAuthError } from "@/lib/customer/session";
+import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 
 export function mapCustomerRouteError(error: unknown) {
+  const tenantInactive = mapTenantInactiveRouteError(error);
+  if (tenantInactive) {
+    return tenantInactive;
+  }
+
   if (error instanceof CustomerContractError) {
     return {
       statusCode: error.statusCode,

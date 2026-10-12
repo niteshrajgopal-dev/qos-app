@@ -33,6 +33,7 @@ import {
   resolveBoundStorefrontDeployment,
 } from "@/lib/storefront/storefront-deployment-binding";
 import { withTenantContext } from "@/lib/tenant/context";
+import { assertTenantActive } from "@/lib/tenant/tenant-status";
 
 export class AnonymousBasketError extends Error {
   readonly statusCode: number;
@@ -356,6 +357,8 @@ async function authenticateSession(
   }
 
   return withTenantContext(db, session.tenantId, async (tx) => {
+    await assertTenantActive(tx, session.tenantId);
+
     await tx
       .update(storefrontAnonymousSessions)
       .set({ lastActiveAt: new Date() })
@@ -490,6 +493,8 @@ export async function createAnonymousBasket(
   }
 
   return withTenantContext(db, storefrontRow.tenantId, async (tx) => {
+    await assertTenantActive(tx, storefrontRow.tenantId);
+
     const [tenant] = await tx
       .select({ publicId: tenants.publicId, baseCurrency: tenants.baseCurrency })
       .from(tenants)

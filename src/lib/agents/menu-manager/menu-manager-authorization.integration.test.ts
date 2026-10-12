@@ -135,7 +135,9 @@ integrationDescribe("Menu Manager live authorization", () => {
 
   async function callerFor(tenantId: string, subject: string) {
     const membership = await runAsRole(sqlClient, "qos_app", () =>
-      requireActiveStaffMembership(db, tenantId, subject),
+      requireActiveStaffMembership(db, tenantId, subject, {
+        requireActiveTenant: false,
+      }),
     );
     return { tenantId, subject, membership };
   }

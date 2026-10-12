@@ -10,8 +10,14 @@ import { CustomerBasketError } from "@/lib/basket/customer-basket";
 import { BasketMergeError } from "@/lib/basket/basket-merge";
 import { CustomerAuthError } from "@/lib/customer/session";
 import { StorefrontDeploymentBindingError } from "@/lib/storefront/storefront-deployment-binding";
+import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 
 export function mapBasketRouteError(error: unknown) {
+  const tenantInactive = mapTenantInactiveRouteError(error);
+  if (tenantInactive) {
+    return tenantInactive;
+  }
+
   if (error instanceof BasketContractError) {
     return {
       statusCode: error.statusCode,
