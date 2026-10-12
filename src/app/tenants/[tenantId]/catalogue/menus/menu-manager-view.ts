@@ -87,7 +87,7 @@ export const RUN_STATUS_COPY: Record<
   completed: {
     tone: "success",
     title: "Review ready",
-    description: "Suggestions are drafts. Nothing has been changed; apply anything you agree with in the product editor.",
+    description: "Suggestions are drafts. Accept writes one field onto the product draft; nothing goes live until you publish the menu.",
   },
   failed: {
     tone: "error",
@@ -273,6 +273,15 @@ export function productNameLookup(report: MenuHealthReport | null) {
 /** True when the draft was saved again after the snapshot the review used. */
 export function isReviewOutdated(result: MenuManagerResultView, currentMenuVersion: number) {
   return result.menuVersion !== null && result.menuVersion !== currentMenuVersion;
+}
+
+/** Accept is only offered when the review is known to match the current menu draft. */
+export function canAcceptSuggestions(result: MenuManagerResultView, currentMenuVersion: number) {
+  return result.menuVersion === currentMenuVersion;
+}
+
+export function suggestionIdentityKey(suggestion: MenuManagerSuggestion) {
+  return `${suggestion.productPublicId}:${suggestion.field}:${suggestion.proposedText}`;
 }
 
 export function newIdempotencyKey() {

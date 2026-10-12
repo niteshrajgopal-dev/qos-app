@@ -12,15 +12,18 @@ import {
   failureCopy,
   findingClaims,
   isActiveRunStatus,
+  canAcceptSuggestions,
   isReviewOutdated,
   newIdempotencyKey,
   nextPollDelayMs,
   productNameLookup,
   readMenuManagerResult,
   runStatusCopy,
+  suggestionIdentityKey,
   SUGGESTION_FIELD_LABEL,
   UNRESOLVED_RESTART_COPY,
   type MenuManagerRunLike,
+  type MenuManagerSuggestion,
 } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-view";
 import { Alert } from "@/components/Alert";
 import { Badge } from "@/components/Badge";
@@ -65,6 +68,8 @@ export function MenuManagerSection({
   /** Kept until QOS answers, so a retried request after a network drop replays instead of duplicating. */
   const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [accepted, setAccepted] = useState<{ runPublicId: string; keys: Set<string> } | null>(null);
+  const [acceptingKey, setAcceptingKey] = useState<string | null>(null);
   const [visible, setVisible] = useState(true);
   /** Set when QOS refused a new review until the user confirms this unresolved one. */
   const [unresolvedRunPublicId, setUnresolvedRunPublicId] = useState<string | null>(null);
@@ -164,6 +169,38 @@ export function MenuManagerSection({
     }
   }
 
+  async function acceptSuggestion(suggestion: MenuManagerSuggestion) {
+    if (!run) {
+      return;
+    }
+    const key = suggestionIdentityKey(suggestion);
+    setAcceptingKey(key);
+    setError(null);
+    try {
+      const response = await staffApiFetch(`${runsPath}/${run.publicId}/suggestions/accept`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          productPublicId: suggestion.productPublicId,
+          field: suggestion.field,
+          proposedText: suggestion.proposedText,
+        }),
+      });
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to apply the suggestion.");
+      }
+      setAccepted((current) => ({
+        runPublicId: run.publicId,
+        keys: new Set(current?.runPublicId === run.publicId ? current.keys : []).add(key),
+      }));
+    } catch (acceptError: unknown) {
+      setError(acceptError instanceof Error ? acceptError.message : "Unable to apply the suggestion.");
+    } finally {
+      setAcceptingKey(null);
+    }
+  }
+
   async function copy(text: string, id: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -177,6 +214,7 @@ export function MenuManagerSection({
   const active = run ? isActiveRunStatus(run.status) : false;
   const status = run ? runStatusCopy(run) : null;
   const result = run?.status === "completed" ? readMenuManagerResult(run.result) : null;
+  const acceptEnabled = result ? canAcceptSuggestions(result, menuVersion) : false;
   const productName = productNameLookup(report);
   const selectedCount = selectedProductPublicIds.length;
 
@@ -309,6 +347,8 @@ export function MenuManagerSection({
 
             {result.suggestions.map((suggestion, index) => {
               const id = `suggestion-${index}`;
+              const key = suggestionIdentityKey(suggestion);
+              const applied = accepted?.runPublicId === run?.publicId && accepted.keys.has(key);
               return (
                 <IntelligenceCard
                   key={id}
@@ -320,6 +360,15 @@ export function MenuManagerSection({
                   ]}
                   actions={
                     <>
+                      <Button
+                        variant="intelligence"
+                        size="sm"
+                        loading={acceptingKey === key}
+                        disabled={!acceptEnabled || applied || acceptingKey !== null}
+                        onClick={() => void acceptSuggestion(suggestion)}
+                      >
+                        {applied ? "Applied to draft" : "Accept"}
+                      </Button>
                       <Button variant="secondary" size="sm" onClick={() => void copy(suggestion.proposedText, id)}>
                         {copied === id ? "Copied" : "Copy text"}
                       </Button>

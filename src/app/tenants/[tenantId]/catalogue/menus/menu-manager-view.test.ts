@@ -4,6 +4,7 @@ import {
   askButtonLabel,
   failureCopy,
   findingClaims,
+  canAcceptSuggestions,
   isReviewOutdated,
   newIdempotencyKey,
   nextPollDelayMs,
@@ -137,6 +138,10 @@ describe("menu manager copy", () => {
     const result = { summary: "", findings: [], suggestions: [], menuVersion: 4 };
     expect(isReviewOutdated(result, 4)).toBe(false);
     expect(isReviewOutdated(result, 5)).toBe(true);
+    expect(canAcceptSuggestions(result, 4)).toBe(true);
+    expect(canAcceptSuggestions(result, 5)).toBe(false);
+    expect(canAcceptSuggestions({ ...result, menuVersion: null }, 4)).toBe(false);
+    expect(RUN_STATUS_COPY.completed.description).toContain("product draft");
     expect(productNameLookup(report)("prd_latte")).toBe("Latte");
     expect(productNameLookup(report)("prd_gone")).toBe("prd_gone");
     expect(newIdempotencyKey()).toMatch(/^menu-review-[0-9a-f-]{36}$/);
