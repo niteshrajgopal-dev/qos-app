@@ -441,6 +441,28 @@ export async function createDraftProduct(
   }
 }
 
+export async function getDraftProductInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  productPublicId: string,
+): Promise<DraftProductEditorView> {
+  const businessProfile = await getTenantBusinessProfile(tx, tenantId);
+  const view = await loadDraftProductEditorView(
+    tx,
+    tenantId,
+    productPublicId,
+    membership,
+    businessProfile,
+  );
+
+  if (!view) {
+    throw new CatalogueProductError("Product not found.", 404);
+  }
+
+  return view;
+}
+
 export async function getDraftProduct(
   db: DbClient,
   tenantId: string,
@@ -448,22 +470,9 @@ export async function getDraftProduct(
   productPublicId: string,
 ): Promise<DraftProductEditorView> {
   try {
-    return await withTenantContext(db, tenantId, async (tx) => {
-      const businessProfile = await getTenantBusinessProfile(tx, tenantId);
-      const view = await loadDraftProductEditorView(
-        tx,
-        tenantId,
-        productPublicId,
-        membership,
-        businessProfile,
-      );
-
-      if (!view) {
-        throw new CatalogueProductError("Product not found.", 404);
-      }
-
-      return view;
-    });
+    return await withTenantContext(db, tenantId, async (tx) =>
+      getDraftProductInTx(tx, tenantId, membership, productPublicId),
+    );
   } catch (error) {
     return mapCatalogueError(error);
   }

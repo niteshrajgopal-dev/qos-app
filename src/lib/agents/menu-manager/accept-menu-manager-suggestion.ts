@@ -17,7 +17,7 @@ import {
 } from "@/lib/audit/tenant-audit";
 import { assertMenuLocationAccess } from "@/lib/catalogue/menus";
 import {
-  getDraftProduct,
+  getDraftProductInTx,
   updateDraftProductInTx,
   type DraftProductEditorView,
 } from "@/lib/catalogue/products";
@@ -231,12 +231,13 @@ export async function acceptMenuManagerSuggestion(
     field: input.field,
     proposedText: input.proposedText,
   };
+
+  const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
+  assertMenuManagerRun(run, input.menuPublicId);
+
   return withTenantContext(db, caller.tenantId, async (tx) => {
     await assertTenantActive(tx, caller.tenantId);
     await assertMenuLocationAccess(tx, caller.tenantId, caller.membership, input.menuPublicId);
-
-    const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
-    assertMenuManagerRun(run, input.menuPublicId);
 
     const [lockedMenu] = await tx
       .select({ version: catalogueMenus.version })
@@ -285,8 +286,8 @@ export async function acceptMenuManagerSuggestion(
     const acceptedKeys = await listAcceptedSuggestionKeysInTx(tx, caller.tenantId, run.id);
 
     if (!reserved) {
-      const product = await getDraftProduct(
-        db,
+      const product = await getDraftProductInTx(
+        tx,
         caller.tenantId,
         caller.membership,
         input.productPublicId,
@@ -303,8 +304,8 @@ export async function acceptMenuManagerSuggestion(
       };
     }
 
-    const product = await getDraftProduct(
-      db,
+    const product = await getDraftProductInTx(
+      tx,
       caller.tenantId,
       caller.membership,
       input.productPublicId,
