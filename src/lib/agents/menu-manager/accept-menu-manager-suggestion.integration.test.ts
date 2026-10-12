@@ -282,7 +282,7 @@ integrationDescribe("acceptMenuManagerSuggestion", () => {
   });
 
   it("rejects callers without menu location access and unfinished reviews", async () => {
-    const { menu, product, staff, unscoped } = await seed();
+    const { menu, product, staff, admin, unscoped } = await seed();
     const proposedText = "A smooth espresso with steamed milk.";
     const provider = new FakeAgentProvider().script({ state: "running" });
     const asked = await askMenuManager(
@@ -293,7 +293,7 @@ integrationDescribe("acceptMenuManagerSuggestion", () => {
     );
 
     await expect(
-      acceptMenuManagerSuggestion(db, staff, {
+      acceptMenuManagerSuggestion(db, admin, {
         menuPublicId: menu.publicId,
         runPublicId: asked.run.publicId,
         productPublicId: product.publicId,
