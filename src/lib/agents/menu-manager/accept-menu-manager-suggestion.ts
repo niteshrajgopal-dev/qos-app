@@ -1,24 +1,31 @@
+import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 
 import type { DbClient } from "@/db/client";
+import type { TenantDbExecutor } from "@/lib/tenant/context";
+import { agentRunMenuManagerSuggestionAcceptances, catalogueMenus } from "@/db/schema";
 import { AgentRunError, getAgentRun, type AgentRunRecord } from "@/lib/agents/agent-runs";
 import {
   MENU_MANAGER_LIMITS,
   MENU_MANAGER_SUGGESTION_FIELDS,
 } from "@/lib/agents/menu-manager/menu-manager-result";
+import { reviewedMenuVersionFromStoredResult } from "@/lib/agents/menu-manager/menu-manager-reviewed-version";
 import type { AgentRunStatus } from "@/lib/agents/types";
 import {
   auditActorClassFromStaffRole,
   recordTenantAuditEventInTx,
 } from "@/lib/audit/tenant-audit";
-import { getDraftMenu, assertMenuLocationAccess } from "@/lib/catalogue/menus";
+import { assertMenuLocationAccess } from "@/lib/catalogue/menus";
 import {
-  getDraftProduct,
-  updateDraftProduct,
+  getDraftProductInTx,
+  updateDraftProductInTx,
   type DraftProductEditorView,
 } from "@/lib/catalogue/products";
 import type { UpdateDraftProductInput } from "@/lib/catalogue/validation";
-import type { ActiveStaffMembership } from "@/lib/staff/auth";
+import {
+  requireAdministratorMembership,
+  type ActiveStaffMembership,
+} from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
 import { assertTenantActive } from "@/lib/tenant/tenant-status";
 
@@ -57,6 +64,10 @@ const FIELD_PATCH = {
   name_ar: { locale: "ar", key: "displayName" },
   description_ar: { locale: "ar", key: "description" },
 } as const;
+
+export function suggestionIdentityKey(identity: SuggestionIdentity) {
+  return `${identity.productPublicId}:${identity.field}:${identity.proposedText}`;
+}
 
 export function matchStoredSuggestion(
   result: unknown,
@@ -116,12 +127,7 @@ export function assertSuggestionAcceptable(input: {
     );
   }
 
-  const snapshot =
-    input.storedResult && typeof input.storedResult === "object"
-      ? (input.storedResult as { snapshot?: { menuVersion?: unknown } }).snapshot
-      : undefined;
-  const reviewedVersion =
-    typeof snapshot?.menuVersion === "number" ? snapshot.menuVersion : null;
+  const reviewedVersion = reviewedMenuVersionFromStoredResult(input.storedResult);
   if (reviewedVersion === null || reviewedVersion !== input.currentMenuVersion) {
     throw new AgentRunError(
       "review_outdated",
@@ -160,6 +166,50 @@ function assertMenuManagerRun(run: AgentRunRecord, menuPublicId: string) {
   }
 }
 
+async function listAcceptedSuggestionKeysInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  agentRunId: string,
+): Promise<string[]> {
+  const rows = await tx
+    .select({
+      productPublicId: agentRunMenuManagerSuggestionAcceptances.productPublicId,
+      field: agentRunMenuManagerSuggestionAcceptances.field,
+      proposedText: agentRunMenuManagerSuggestionAcceptances.proposedText,
+    })
+    .from(agentRunMenuManagerSuggestionAcceptances)
+    .where(
+      and(
+        eq(agentRunMenuManagerSuggestionAcceptances.tenantId, tenantId),
+        eq(agentRunMenuManagerSuggestionAcceptances.agentRunId, agentRunId),
+      ),
+    );
+  return rows.map((row) =>
+    suggestionIdentityKey({
+      productPublicId: row.productPublicId,
+      field: row.field as SuggestionIdentity["field"],
+      proposedText: row.proposedText,
+    }),
+  );
+}
+
+export async function listAcceptedSuggestionKeysForRun(
+  db: DbClient,
+  tenantId: string,
+  agentRunId: string,
+): Promise<string[]> {
+  return withTenantContext(db, tenantId, async (tx) =>
+    listAcceptedSuggestionKeysInTx(tx, tenantId, agentRunId),
+  );
+}
+
+export type AcceptMenuManagerSuggestionResult = {
+  product: DraftProductEditorView;
+  applied: SuggestionIdentity;
+  acceptedSuggestionKeys: string[];
+  idempotentReplay: boolean;
+};
+
 /**
  * Writes one stored suggestion onto the product draft. Never publishes.
  */
@@ -173,45 +223,103 @@ export async function acceptMenuManagerSuggestion(
     field: SuggestionIdentity["field"];
     proposedText: string;
   },
-): Promise<{ product: DraftProductEditorView; applied: SuggestionIdentity }> {
-  await withTenantContext(db, caller.tenantId, async (tx) => {
-    await assertTenantActive(tx, caller.tenantId);
-    await assertMenuLocationAccess(tx, caller.tenantId, caller.membership, input.menuPublicId);
-  });
+): Promise<AcceptMenuManagerSuggestionResult> {
+  await requireAdministratorMembership(db, caller.tenantId, caller.subject);
 
-  const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
-  assertMenuManagerRun(run, input.menuPublicId);
-
-  const menu = await getDraftMenu(db, caller.tenantId, input.menuPublicId);
   const identity: SuggestionIdentity = {
     productPublicId: input.productPublicId,
     field: input.field,
     proposedText: input.proposedText,
   };
-  const matched = assertSuggestionAcceptable({
-    runStatus: run.status,
-    storedResult: run.result,
-    currentMenuVersion: menu.version,
-    identity,
-  });
 
-  const product = await getDraftProduct(
-    db,
-    caller.tenantId,
-    caller.membership,
-    input.productPublicId,
-  );
-  const updated = await updateDraftProduct(
-    db,
-    caller.tenantId,
-    caller.membership,
-    input.productPublicId,
-    draftPatchForSuggestion(matched.field, matched.proposedText, product),
-    caller.subject,
-  );
+  const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
+  assertMenuManagerRun(run, input.menuPublicId);
 
-  const mapping = FIELD_PATCH[matched.field];
-  await withTenantContext(db, caller.tenantId, async (tx) => {
+  return withTenantContext(db, caller.tenantId, async (tx) => {
+    await assertTenantActive(tx, caller.tenantId);
+    await assertMenuLocationAccess(tx, caller.tenantId, caller.membership, input.menuPublicId);
+
+    const [lockedMenu] = await tx
+      .select({ version: catalogueMenus.version })
+      .from(catalogueMenus)
+      .where(
+        and(
+          eq(catalogueMenus.tenantId, caller.tenantId),
+          eq(catalogueMenus.publicId, input.menuPublicId),
+        ),
+      )
+      .for("update")
+      .limit(1);
+
+    if (!lockedMenu) {
+      throw new AgentRunError("run_not_found", "Menu not found.", 404);
+    }
+
+    const matched = assertSuggestionAcceptable({
+      runStatus: run.status,
+      storedResult: run.result,
+      currentMenuVersion: lockedMenu.version,
+      identity,
+    });
+
+    const [reserved] = await tx
+      .insert(agentRunMenuManagerSuggestionAcceptances)
+      .values({
+        tenantId: caller.tenantId,
+        agentRunId: run.id,
+        productPublicId: matched.productPublicId,
+        field: matched.field,
+        proposedText: matched.proposedText,
+        acceptedBySubject: caller.subject,
+      })
+      .onConflictDoNothing({
+        target: [
+          agentRunMenuManagerSuggestionAcceptances.tenantId,
+          agentRunMenuManagerSuggestionAcceptances.agentRunId,
+          agentRunMenuManagerSuggestionAcceptances.productPublicId,
+          agentRunMenuManagerSuggestionAcceptances.field,
+          agentRunMenuManagerSuggestionAcceptances.proposedText,
+        ],
+      })
+      .returning({ id: agentRunMenuManagerSuggestionAcceptances.id });
+
+    const acceptedKeys = await listAcceptedSuggestionKeysInTx(tx, caller.tenantId, run.id);
+
+    if (!reserved) {
+      const product = await getDraftProductInTx(
+        tx,
+        caller.tenantId,
+        caller.membership,
+        input.productPublicId,
+      );
+      return {
+        product,
+        applied: {
+          productPublicId: matched.productPublicId,
+          field: matched.field,
+          proposedText: matched.proposedText,
+        },
+        acceptedSuggestionKeys: acceptedKeys,
+        idempotentReplay: true,
+      };
+    }
+
+    const product = await getDraftProductInTx(
+      tx,
+      caller.tenantId,
+      caller.membership,
+      input.productPublicId,
+    );
+    const updated = await updateDraftProductInTx(
+      tx,
+      caller.tenantId,
+      caller.membership,
+      input.productPublicId,
+      draftPatchForSuggestion(matched.field, matched.proposedText, product),
+      caller.subject,
+    );
+
+    const mapping = FIELD_PATCH[matched.field];
     await recordTenantAuditEventInTx(tx, {
       tenantId: caller.tenantId,
       actorSubject: caller.subject,
@@ -227,14 +335,16 @@ export async function acceptMenuManagerSuggestion(
         locale: mapping.locale,
       },
     });
-  });
 
-  return {
-    product: updated,
-    applied: {
-      productPublicId: matched.productPublicId,
-      field: matched.field,
-      proposedText: matched.proposedText,
-    },
-  };
+    return {
+      product: updated,
+      applied: {
+        productPublicId: matched.productPublicId,
+        field: matched.field,
+        proposedText: matched.proposedText,
+      },
+      acceptedSuggestionKeys: acceptedKeys,
+      idempotentReplay: false,
+    };
+  });
 }

@@ -6,6 +6,8 @@ import {
   matchStoredSuggestion,
 } from "@/lib/agents/menu-manager/accept-menu-manager-suggestion";
 import { MENU_MANAGER_RESULT_SCHEMA } from "@/lib/agents/menu-manager/menu-manager-result";
+import { reviewedMenuVersionFromStoredResult } from "@/lib/agents/menu-manager/menu-manager-reviewed-version";
+import { readMenuManagerResult } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-view";
 import { AgentRunError } from "@/lib/agents/agent-runs";
 import type { DraftProductEditorView } from "@/lib/catalogue/products";
 
@@ -69,6 +71,30 @@ describe("matchStoredSuggestion", () => {
     expect(matchStoredSuggestion(STORED, { ...IDENTITY, field: "description_ar" })).toBeNull();
     expect(matchStoredSuggestion(STORED, { ...IDENTITY, productPublicId: "prd_gone" })).toBeNull();
     expect(matchStoredSuggestion({ suggestions: "nope" }, IDENTITY)).toBeNull();
+  });
+});
+
+describe("reviewedMenuVersionFromStoredResult", () => {
+  it("uses snapshot.menuVersion as the single source of truth for UI and server checks", () => {
+    const stored = { ...STORED, menuVersion: 99 };
+    expect(reviewedMenuVersionFromStoredResult(stored)).toBe(4);
+    expect(readMenuManagerResult(stored)?.menuVersion).toBe(4);
+    expect(
+      assertSuggestionAcceptable({
+        runStatus: "completed",
+        storedResult: stored,
+        currentMenuVersion: 4,
+        identity: IDENTITY,
+      }),
+    ).toEqual(STORED.suggestions[0]);
+    expect(() =>
+      assertSuggestionAcceptable({
+        runStatus: "completed",
+        storedResult: stored,
+        currentMenuVersion: 99,
+        identity: IDENTITY,
+      }),
+    ).toThrow(expect.objectContaining({ code: "review_outdated" }));
   });
 });
 

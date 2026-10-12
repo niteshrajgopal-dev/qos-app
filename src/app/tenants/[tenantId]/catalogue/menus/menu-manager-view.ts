@@ -1,4 +1,5 @@
 import type { MenuManagerWaitReason } from "@/lib/agents/menu-manager/menu-manager-service";
+import { reviewedMenuVersionFromStoredResult } from "@/lib/agents/menu-manager/menu-manager-reviewed-version";
 import type { AgentRunStatus } from "@/lib/agents/types";
 import type { MenuManagerUnavailableReason } from "@/lib/agents/tenant-agent-settings";
 import { MENU_HEALTH_ISSUE_COPY } from "@/app/tenants/[tenantId]/catalogue/menus/menu-health-view";
@@ -18,6 +19,8 @@ export type MenuManagerRunLike = {
   /** The run ended before QOS learned whether the agent service finished it. */
   remoteOutcomeUnknown?: boolean;
   waitingOn?: MenuManagerWaitReason | null;
+  /** Server-persisted accepts for this run (`product:field:text` keys). */
+  acceptedSuggestionKeys?: string[];
   nextPollAt: string | null;
   createdAt: string;
   finishedAt: string | null;
@@ -229,13 +232,11 @@ export function readMenuManagerResult(result: unknown): MenuManagerResultView | 
       isString((entry as MenuManagerSuggestion).proposedText) &&
       isString((entry as MenuManagerSuggestion).rationale),
   );
-  const snapshot = value.snapshot as { menuVersion?: unknown } | undefined;
-
   return {
     summary: value.summary,
     findings,
     suggestions,
-    menuVersion: typeof snapshot?.menuVersion === "number" ? snapshot.menuVersion : null,
+    menuVersion: reviewedMenuVersionFromStoredResult(value),
   };
 }
 

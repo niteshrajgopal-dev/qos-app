@@ -3113,6 +3113,39 @@ export const agentRuns = qos.table(
   ],
 );
 
+/** One person-applied Menu Manager suggestion; immutable for idempotent replay. */
+export const agentRunMenuManagerSuggestionAcceptances = qos.table(
+  "agent_run_menu_manager_suggestion_acceptances",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    agentRunId: uuid("agent_run_id").notNull(),
+    productPublicId: text("product_public_id").notNull(),
+    field: text("field").notNull(),
+    proposedText: text("proposed_text").notNull(),
+    acceptedBySubject: text("accepted_by_subject").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "agent_run_menu_manager_suggestion_acceptances_run_fk",
+      columns: [table.tenantId, table.agentRunId],
+      foreignColumns: [agentRuns.tenantId, agentRuns.id],
+    }).onDelete("restrict"),
+    uniqueIndex("agent_run_menu_manager_suggestion_acceptances_identity_unique").on(
+      table.tenantId,
+      table.agentRunId,
+      table.productPublicId,
+      table.field,
+      table.proposedText,
+    ),
+  ],
+);
+
 /**
  * The exact bounded input text a run was accepted with. Immutable; never
  * copied into audit metadata. Text rather than jsonb so the checksum can be
@@ -3387,6 +3420,7 @@ export const schema = {
   agentProviderCredentials,
   tenantAgentBindings,
   agentRuns,
+  agentRunMenuManagerSuggestionAcceptances,
   agentRunInputs,
   aiSpendReservations,
   aiSpendTenantCounters,

@@ -27,10 +27,7 @@ import {
   auditActorClassFromStaffRole,
   recordTenantAuditEventInTx,
 } from "@/lib/audit/tenant-audit";
-import {
-  type TenantDbExecutor,
-  withTenantContext,
-} from "@/lib/tenant/context";
+import { type TenantDbExecutor, withTenantContext } from "@/lib/tenant/context";
 
 export class CatalogueProductError extends Error {
   readonly statusCode: number;
@@ -161,7 +158,10 @@ async function resolveBrandId(
     .limit(1);
 
   if (!brand) {
-    throw new CatalogueProductError("No brand is configured for this tenant.", 404);
+    throw new CatalogueProductError(
+      "No brand is configured for this tenant.",
+      404,
+    );
   }
 
   return brand.id;
@@ -199,10 +199,7 @@ async function loadDraftProductEditorView(
       ),
     );
 
-  const translations: Record<
-    ProductLocale,
-    DraftProductTranslationView
-  > = {
+  const translations: Record<ProductLocale, DraftProductTranslationView> = {
     en: {
       displayName: "",
       description: null,
@@ -320,7 +317,11 @@ async function loadDraftProductEditorView(
 
   const defaultVariant = variants.find((variant) => variant.isDefault);
 
-  if (!defaultVariant || defaultVariant.amountMinor == null || !defaultVariant.currency) {
+  if (
+    !defaultVariant ||
+    defaultVariant.amountMinor == null ||
+    !defaultVariant.currency
+  ) {
     throw new CatalogueProductError(
       "Default variant is missing for this product.",
       500,
@@ -440,6 +441,28 @@ export async function createDraftProduct(
   }
 }
 
+export async function getDraftProductInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  productPublicId: string,
+): Promise<DraftProductEditorView> {
+  const businessProfile = await getTenantBusinessProfile(tx, tenantId);
+  const view = await loadDraftProductEditorView(
+    tx,
+    tenantId,
+    productPublicId,
+    membership,
+    businessProfile,
+  );
+
+  if (!view) {
+    throw new CatalogueProductError("Product not found.", 404);
+  }
+
+  return view;
+}
+
 export async function getDraftProduct(
   db: DbClient,
   tenantId: string,
@@ -447,25 +470,253 @@ export async function getDraftProduct(
   productPublicId: string,
 ): Promise<DraftProductEditorView> {
   try {
-    return await withTenantContext(db, tenantId, async (tx) => {
-      const businessProfile = await getTenantBusinessProfile(tx, tenantId);
-      const view = await loadDraftProductEditorView(
-        tx,
-        tenantId,
-        productPublicId,
-        membership,
-        businessProfile,
-      );
-
-      if (!view) {
-        throw new CatalogueProductError("Product not found.", 404);
-      }
-
-      return view;
-    });
+    return await withTenantContext(db, tenantId, async (tx) =>
+      getDraftProductInTx(tx, tenantId, membership, productPublicId),
+    );
   } catch (error) {
     return mapCatalogueError(error);
   }
+}
+
+export async function updateDraftProductInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  productPublicId: string,
+  input: UpdateDraftProductInput,
+  staffSubject: string,
+): Promise<DraftProductEditorView> {
+  const businessProfile = await getTenantBusinessProfile(tx, tenantId);
+  const validated = validateUpdateDraftProductInput(input, businessProfile);
+  const [product] = await tx
+    .select()
+    .from(catalogueProducts)
+    .where(
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        eq(catalogueProducts.publicId, productPublicId),
+      ),
+    )
+    .limit(1);
+
+  if (!product) {
+    throw new CatalogueProductError("Product not found.", 404);
+  }
+
+  if (product.version !== validated.expectedVersion) {
+    throw new CatalogueProductConflictError(
+      "Product was updated elsewhere. Reload and try again.",
+      "expectedVersion",
+    );
+  }
+
+  const productUpdates: Partial<typeof catalogueProducts.$inferInsert> = {
+    updatedAt: new Date(),
+    version: product.version + 1,
+  };
+
+  if (validated.internalName != null) {
+    productUpdates.internalName = validated.internalName;
+  }
+  if (validated.sku !== undefined) {
+    productUpdates.sku = validated.sku;
+  }
+  if (validated.barcode !== undefined) {
+    productUpdates.barcode = validated.barcode;
+  }
+  if (validated.primaryMediaAssetId !== undefined) {
+    productUpdates.primaryMediaAssetId = validated.primaryMediaAssetId;
+  }
+  if (validated.nutritionCalories !== undefined) {
+    productUpdates.nutritionCalories = validated.nutritionCalories;
+  }
+
+  const [updatedProduct] = await tx
+    .update(catalogueProducts)
+    .set(productUpdates)
+    .where(
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        eq(catalogueProducts.id, product.id),
+        eq(catalogueProducts.version, validated.expectedVersion),
+      ),
+    )
+    .returning({ id: catalogueProducts.id });
+
+  if (!updatedProduct) {
+    throw new CatalogueProductConflictError(
+      "Product was updated elsewhere. Reload and try again.",
+      "expectedVersion",
+    );
+  }
+
+  for (const locale of ["en", "ar"] as const) {
+    const patch = validated.translations?.[locale];
+    if (!patch) {
+      continue;
+    }
+
+    const [existingTranslation] = await tx
+      .select()
+      .from(catalogueProductTranslations)
+      .where(
+        and(
+          eq(catalogueProductTranslations.tenantId, tenantId),
+          eq(catalogueProductTranslations.productId, product.id),
+          eq(catalogueProductTranslations.locale, locale),
+        ),
+      )
+      .limit(1);
+
+    if (!existingTranslation) {
+      throw new CatalogueProductError(
+        `Missing ${locale} translation for product.`,
+        500,
+      );
+    }
+
+    if (
+      patch.expectedTranslationVersion != null &&
+      existingTranslation.translationVersion !==
+        patch.expectedTranslationVersion
+    ) {
+      throw new CatalogueProductConflictError(
+        `${locale.toUpperCase()} translation was updated elsewhere. Reload and try again.`,
+        `translations.${locale}.expectedTranslationVersion`,
+      );
+    }
+
+    const nextDisplayName =
+      patch.displayName?.trim() ?? existingTranslation.displayName;
+    const nextDescription =
+      patch.description === undefined
+        ? existingTranslation.description
+        : patch.description?.trim() || null;
+
+    const translationChanged =
+      nextDisplayName !== existingTranslation.displayName ||
+      nextDescription !== existingTranslation.description;
+
+    if (translationChanged) {
+      await tx
+        .update(catalogueProductTranslations)
+        .set({
+          displayName: nextDisplayName,
+          description: nextDescription,
+          translationVersion: existingTranslation.translationVersion + 1,
+          approvalStatus: "draft",
+          approvedBySubject: null,
+          approvedAt: null,
+          approvedTranslationVersion: null,
+          approvedSourceTranslationVersion: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(catalogueProductTranslations.tenantId, tenantId),
+            eq(catalogueProductTranslations.id, existingTranslation.id),
+            eq(
+              catalogueProductTranslations.translationVersion,
+              existingTranslation.translationVersion,
+            ),
+          ),
+        );
+
+      if (locale === "en") {
+        await invalidateArabicApprovalAfterEnglishChange(
+          tx,
+          tenantId,
+          product.id,
+        );
+      }
+    }
+  }
+
+  if (validated.defaultVariant != null) {
+    const [defaultVariant] = await tx
+      .select({ id: catalogueVariants.id })
+      .from(catalogueVariants)
+      .where(
+        and(
+          eq(catalogueVariants.tenantId, tenantId),
+          eq(catalogueVariants.productId, product.id),
+          eq(catalogueVariants.isDefault, true),
+        ),
+      )
+      .limit(1);
+
+    if (!defaultVariant) {
+      throw new CatalogueProductError(
+        "Default variant is missing for this product.",
+        500,
+      );
+    }
+
+    const [currentPrice] = await tx
+      .select({
+        version: catalogueVariantPrices.version,
+        amountMinor: catalogueVariantPrices.amountMinor,
+        currency: catalogueVariantPrices.currency,
+      })
+      .from(catalogueVariantPrices)
+      .where(
+        and(
+          eq(catalogueVariantPrices.tenantId, tenantId),
+          eq(catalogueVariantPrices.variantId, defaultVariant.id),
+        ),
+      )
+      .limit(1);
+
+    if (!currentPrice) {
+      throw new CatalogueProductError(
+        "Default variant price is missing for this product.",
+        500,
+      );
+    }
+
+    await tx
+      .update(catalogueVariantPrices)
+      .set({
+        amountMinor: validated.defaultVariant.amountMinor,
+        version: currentPrice.version + 1,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(catalogueVariantPrices.tenantId, tenantId),
+          eq(catalogueVariantPrices.variantId, defaultVariant.id),
+        ),
+      );
+
+    await recordTenantAuditEventInTx(tx, {
+      tenantId,
+      actorSubject: staffSubject,
+      actorClass: auditActorClassFromStaffRole(membership.role),
+      action: "catalogue.central_price.update",
+      entityType: "catalogue_product",
+      entityPublicId: productPublicId,
+      entityVersion: currentPrice.version + 1,
+      changeSummary: {
+        currency: currentPrice.currency.trim(),
+        before: { amountMinor: currentPrice.amountMinor },
+        after: { amountMinor: validated.defaultVariant.amountMinor },
+      },
+    });
+  }
+
+  const view = await loadDraftProductEditorView(
+    tx,
+    tenantId,
+    productPublicId,
+    membership,
+    businessProfile,
+  );
+
+  if (!view) {
+    throw new CatalogueProductError("Unable to load updated product.", 500);
+  }
+
+  return view;
 }
 
 export async function updateDraftProduct(
@@ -477,248 +728,22 @@ export async function updateDraftProduct(
   staffSubject: string,
 ): Promise<DraftProductEditorView> {
   try {
-    if (
-      input.defaultVariant != null &&
-      membership.role !== "administrator"
-    ) {
+    if (input.defaultVariant != null && membership.role !== "administrator") {
       throw new StaffAuthorizationError(
         "Administrator membership is required to change product prices.",
       );
     }
 
-    return await withTenantContext(db, tenantId, async (tx) => {
-      const businessProfile = await getTenantBusinessProfile(tx, tenantId);
-      const validated = validateUpdateDraftProductInput(input, businessProfile);
-      const [product] = await tx
-        .select()
-        .from(catalogueProducts)
-        .where(
-          and(
-            eq(catalogueProducts.tenantId, tenantId),
-            eq(catalogueProducts.publicId, productPublicId),
-          ),
-        )
-        .limit(1);
-
-      if (!product) {
-        throw new CatalogueProductError("Product not found.", 404);
-      }
-
-      if (product.version !== validated.expectedVersion) {
-        throw new CatalogueProductConflictError(
-          "Product was updated elsewhere. Reload and try again.",
-          "expectedVersion",
-        );
-      }
-
-      const productUpdates: Partial<typeof catalogueProducts.$inferInsert> = {
-        updatedAt: new Date(),
-        version: product.version + 1,
-      };
-
-      if (validated.internalName != null) {
-        productUpdates.internalName = validated.internalName;
-      }
-      if (validated.sku !== undefined) {
-        productUpdates.sku = validated.sku;
-      }
-      if (validated.barcode !== undefined) {
-        productUpdates.barcode = validated.barcode;
-      }
-      if (validated.primaryMediaAssetId !== undefined) {
-        productUpdates.primaryMediaAssetId = validated.primaryMediaAssetId;
-      }
-      if (validated.nutritionCalories !== undefined) {
-        productUpdates.nutritionCalories = validated.nutritionCalories;
-      }
-
-      const [updatedProduct] = await tx
-        .update(catalogueProducts)
-        .set(productUpdates)
-        .where(
-          and(
-            eq(catalogueProducts.tenantId, tenantId),
-            eq(catalogueProducts.id, product.id),
-            eq(catalogueProducts.version, validated.expectedVersion),
-          ),
-        )
-        .returning({ id: catalogueProducts.id });
-
-      if (!updatedProduct) {
-        throw new CatalogueProductConflictError(
-          "Product was updated elsewhere. Reload and try again.",
-          "expectedVersion",
-        );
-      }
-
-      for (const locale of ["en", "ar"] as const) {
-        const patch = validated.translations?.[locale];
-        if (!patch) {
-          continue;
-        }
-
-        const [existingTranslation] = await tx
-          .select()
-          .from(catalogueProductTranslations)
-          .where(
-            and(
-              eq(catalogueProductTranslations.tenantId, tenantId),
-              eq(catalogueProductTranslations.productId, product.id),
-              eq(catalogueProductTranslations.locale, locale),
-            ),
-          )
-          .limit(1);
-
-        if (!existingTranslation) {
-          throw new CatalogueProductError(
-            `Missing ${locale} translation for product.`,
-            500,
-          );
-        }
-
-        if (
-          patch.expectedTranslationVersion != null &&
-          existingTranslation.translationVersion !==
-            patch.expectedTranslationVersion
-        ) {
-          throw new CatalogueProductConflictError(
-            `${locale.toUpperCase()} translation was updated elsewhere. Reload and try again.`,
-            `translations.${locale}.expectedTranslationVersion`,
-          );
-        }
-
-        const nextDisplayName =
-          patch.displayName?.trim() ?? existingTranslation.displayName;
-        const nextDescription =
-          patch.description === undefined
-            ? existingTranslation.description
-            : patch.description?.trim() || null;
-
-        const translationChanged =
-          nextDisplayName !== existingTranslation.displayName ||
-          nextDescription !== existingTranslation.description;
-
-        if (translationChanged) {
-          await tx
-            .update(catalogueProductTranslations)
-            .set({
-              displayName: nextDisplayName,
-              description: nextDescription,
-              translationVersion: existingTranslation.translationVersion + 1,
-              approvalStatus: "draft",
-              approvedBySubject: null,
-              approvedAt: null,
-              approvedTranslationVersion: null,
-              approvedSourceTranslationVersion: null,
-              updatedAt: new Date(),
-            })
-            .where(
-              and(
-                eq(catalogueProductTranslations.tenantId, tenantId),
-                eq(catalogueProductTranslations.id, existingTranslation.id),
-                eq(
-                  catalogueProductTranslations.translationVersion,
-                  existingTranslation.translationVersion,
-                ),
-              ),
-            );
-
-          if (locale === "en") {
-            await invalidateArabicApprovalAfterEnglishChange(
-              tx,
-              tenantId,
-              product.id,
-            );
-          }
-        }
-      }
-
-      if (validated.defaultVariant != null) {
-        const [defaultVariant] = await tx
-          .select({ id: catalogueVariants.id })
-          .from(catalogueVariants)
-          .where(
-            and(
-              eq(catalogueVariants.tenantId, tenantId),
-              eq(catalogueVariants.productId, product.id),
-              eq(catalogueVariants.isDefault, true),
-            ),
-          )
-          .limit(1);
-
-        if (!defaultVariant) {
-          throw new CatalogueProductError(
-            "Default variant is missing for this product.",
-            500,
-          );
-        }
-
-        const [currentPrice] = await tx
-          .select({
-            version: catalogueVariantPrices.version,
-            amountMinor: catalogueVariantPrices.amountMinor,
-            currency: catalogueVariantPrices.currency,
-          })
-          .from(catalogueVariantPrices)
-          .where(
-            and(
-              eq(catalogueVariantPrices.tenantId, tenantId),
-              eq(catalogueVariantPrices.variantId, defaultVariant.id),
-            ),
-          )
-          .limit(1);
-
-        if (!currentPrice) {
-          throw new CatalogueProductError(
-            "Default variant price is missing for this product.",
-            500,
-          );
-        }
-
-        await tx
-          .update(catalogueVariantPrices)
-          .set({
-            amountMinor: validated.defaultVariant.amountMinor,
-            version: currentPrice.version + 1,
-            updatedAt: new Date(),
-          })
-          .where(
-            and(
-              eq(catalogueVariantPrices.tenantId, tenantId),
-              eq(catalogueVariantPrices.variantId, defaultVariant.id),
-            ),
-          );
-
-        await recordTenantAuditEventInTx(tx, {
-          tenantId,
-          actorSubject: staffSubject,
-          actorClass: auditActorClassFromStaffRole(membership.role),
-          action: "catalogue.central_price.update",
-          entityType: "catalogue_product",
-          entityPublicId: productPublicId,
-          entityVersion: currentPrice.version + 1,
-          changeSummary: {
-            currency: currentPrice.currency.trim(),
-            before: { amountMinor: currentPrice.amountMinor },
-            after: { amountMinor: validated.defaultVariant.amountMinor },
-          },
-        });
-      }
-
-      const view = await loadDraftProductEditorView(
+    return await withTenantContext(db, tenantId, async (tx) =>
+      updateDraftProductInTx(
         tx,
         tenantId,
-        productPublicId,
         membership,
-        businessProfile,
-      );
-
-      if (!view) {
-        throw new CatalogueProductError("Unable to load updated product.", 500);
-      }
-
-      return view;
-    });
+        productPublicId,
+        input,
+        staffSubject,
+      ),
+    );
   } catch (error) {
     return mapCatalogueError(error);
   }
