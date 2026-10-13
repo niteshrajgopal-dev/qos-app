@@ -436,56 +436,58 @@ export async function createAgentRun(
       );
     }
 
-    const [inserted] = await tx
-      .insert(agentRuns)
-      .values({
-        tenantId: input.tenantId,
-        publicId: `run_${randomBytes(12).toString("hex")}`,
-        bindingId: binding?.id ?? null,
-        capability,
-        provider,
-        providerAgentId,
-        status: "queued",
-        subjectType: input.subject.type,
-        subjectPublicId: input.subject.publicId,
-        subjectVersion: input.subject.version,
-        requestedBySubject: input.requestedBy.subject,
-        requestedByActorClass: input.requestedBy.actorClass,
-        idempotencyKey: key,
-        correlationId: randomUUID(),
-        requestSummary: input.requestSummary,
-        definitionKey: pin.definition.key,
-        definitionVersion: pin.definition.version,
-        executionIdentity: pin.executionIdentity,
-        runConfig,
-        executionMode: input.executionMode ?? "inline",
-        deadlineAt: new Date(now.getTime() + runConfig.runTimeoutMs),
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoNothing()
-      .returning();
+    const runValues = {
+      tenantId: input.tenantId,
+      publicId: `run_${randomBytes(12).toString("hex")}`,
+      bindingId: binding?.id ?? null,
+      capability,
+      provider,
+      providerAgentId,
+      status: "queued" as const,
+      subjectType: input.subject.type,
+      subjectPublicId: input.subject.publicId,
+      subjectVersion: input.subject.version,
+      requestedBySubject: input.requestedBy.subject,
+      requestedByActorClass: input.requestedBy.actorClass,
+      idempotencyKey: key,
+      correlationId: randomUUID(),
+      requestSummary: input.requestSummary,
+      definitionKey: pin.definition.key,
+      definitionVersion: pin.definition.version,
+      executionIdentity: pin.executionIdentity,
+      runConfig,
+      executionMode: input.executionMode ?? "inline",
+      deadlineAt: new Date(now.getTime() + runConfig.runTimeoutMs),
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    if (inserted) {
+    async function persistCreatedRun(row: AgentRunRow) {
       await tx.insert(agentRunInputs).values({
-        runId: inserted.id,
+        runId: row.id,
         tenantId: input.tenantId,
         inputSchema: pin.input.schema,
         payload: pin.input.payload,
         payloadSha256: inputSha256,
         createdAt: now,
       });
-      await auditRun(tx, inserted, "agent_run.requested", input.requestedBy, {
-        providerAgentId: inserted.providerAgentId,
+      await auditRun(tx, row, "agent_run.requested", input.requestedBy, {
+        providerAgentId: row.providerAgentId,
         definitionVersion: pin.definition.version,
         adapterVersion: pin.executionIdentity.adapterVersion,
         input: { schema: pin.input.schema, sha256: inputSha256 },
         request: input.auditRequestSummary ?? input.requestSummary,
         ...(acknowledged !== null ? { acknowledgedUnresolvedRunPublicId: acknowledged } : {}),
       });
-      const run = toRecord(inserted);
+      const run = toRecord(row);
       await input.onCreated?.(tx, run);
-      return { run, created: true };
+      return { run, created: true as const };
+    }
+
+    const [inserted] = await tx.insert(agentRuns).values(runValues).onConflictDoNothing().returning();
+
+    if (inserted) {
+      return persistCreatedRun(inserted);
     }
 
     const concurrentReplay = await findRunByIdempotencyKey(tx, input.tenantId, key);
@@ -518,11 +520,29 @@ export async function createAgentRun(
       )
       .limit(1);
 
+    if (active) {
+      throw new AgentRunError(
+        "run_in_progress",
+        "An agent run is already in progress for this item.",
+        409,
+        { activeRunPublicId: active.publicId },
+      );
+    }
+
+    const [retried] = await tx.insert(agentRuns).values(runValues).returning();
+    if (retried) {
+      return persistCreatedRun(retried);
+    }
+
+    const racedReplay = await findRunByIdempotencyKey(tx, input.tenantId, key);
+    if (racedReplay) {
+      return replayOf(racedReplay);
+    }
+
     throw new AgentRunError(
       "run_in_progress",
       "An agent run is already in progress for this item.",
       409,
-      { activeRunPublicId: active?.publicId },
     );
   });
 }

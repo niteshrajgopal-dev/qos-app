@@ -322,19 +322,18 @@ export async function acceptMenuManagerSuggestion(
       })
       .returning({ id: agentRunMenuManagerSuggestionAcceptances.id });
 
-    const acceptedKeys = await acceptedKeysMatchingDraftInTx(
-      tx,
-      caller.tenantId,
-      caller.membership,
-      run.id,
-    );
-
     if (!reserved) {
       const product = await getDraftProductInTx(
         tx,
         caller.tenantId,
         caller.membership,
         input.productPublicId,
+      );
+      const acceptedKeys = await acceptedKeysMatchingDraftInTx(
+        tx,
+        caller.tenantId,
+        caller.membership,
+        run.id,
       );
       return {
         product,
@@ -379,6 +378,13 @@ export async function acceptMenuManagerSuggestion(
         locale: mapping.locale,
       },
     });
+
+    const acceptedKeys = await acceptedKeysMatchingDraftInTx(
+      tx,
+      caller.tenantId,
+      caller.membership,
+      run.id,
+    );
 
     return {
       product: updated,
