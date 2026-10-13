@@ -664,11 +664,18 @@ integrationDescribe("Menu Manager service", () => {
       config: ENABLED,
       provider: successProvider,
     });
+    const pollDue = () => new Date(Date.now() + ENABLED.pollIntervalMs + 1);
     await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: first.run.publicId }, {
       config: ENABLED,
       provider: successProvider,
-      now: () => new Date(Date.now() + ENABLED.pollIntervalMs + 1),
+      now: pollDue,
     });
+    const completedFirst = await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: first.run.publicId }, {
+      config: ENABLED,
+      provider: successProvider,
+      now: pollDue,
+    });
+    expect(completedFirst.status).toBe("completed");
 
     const failProvider = new FakeAgentProvider().script(
       { state: "running" },
@@ -681,7 +688,12 @@ integrationDescribe("Menu Manager service", () => {
     await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: second.run.publicId }, {
       config: ENABLED,
       provider: failProvider,
-      now: () => new Date(Date.now() + ENABLED.pollIntervalMs + 1),
+      now: pollDue,
+    });
+    await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: second.run.publicId }, {
+      config: ENABLED,
+      provider: failProvider,
+      now: pollDue,
     });
 
     const view = await getMenuManagerRunsView(db, admin, menu.publicId, { config: ENABLED });
