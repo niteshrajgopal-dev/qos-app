@@ -664,16 +664,17 @@ integrationDescribe("Menu Manager service", () => {
       config: ENABLED,
       provider: successProvider,
     });
-    const pollDue = () => new Date(Date.now() + ENABLED.pollIntervalMs + 1);
+    const t0 = Date.now();
+    const at = (ms: number) => () => new Date(t0 + ms);
     await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: first.run.publicId }, {
       config: ENABLED,
       provider: successProvider,
-      now: pollDue,
+      now: at(ENABLED.pollIntervalMs + 1),
     });
     const completedFirst = await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: first.run.publicId }, {
       config: ENABLED,
       provider: successProvider,
-      now: pollDue,
+      now: at(2 * ENABLED.pollIntervalMs + 2),
     });
     expect(completedFirst.status).toBe("completed");
 
@@ -685,15 +686,17 @@ integrationDescribe("Menu Manager service", () => {
       config: ENABLED,
       provider: failProvider,
     });
+    const t1 = Date.now();
+    const atSecond = (ms: number) => () => new Date(t1 + ms);
     await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: second.run.publicId }, {
       config: ENABLED,
       provider: failProvider,
-      now: pollDue,
+      now: atSecond(ENABLED.pollIntervalMs + 1),
     });
     await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: second.run.publicId }, {
       config: ENABLED,
       provider: failProvider,
-      now: pollDue,
+      now: atSecond(2 * ENABLED.pollIntervalMs + 2),
     });
 
     const view = await getMenuManagerRunsView(db, admin, menu.publicId, { config: ENABLED });
