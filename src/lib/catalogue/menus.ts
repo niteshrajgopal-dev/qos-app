@@ -956,10 +956,50 @@ export async function updateDraftMenu(
         );
       }
 
+      const currentView = await loadDraftMenuEditorView(tx, tenantId, menuPublicId);
+      if (!currentView) {
+        throw new MenuError("Menu not found.", 404);
+      }
+
+      const nextInternalName = input.internalName?.trim() ?? menu.internalName;
+      const nextTranslations = {
+        en: {
+          displayName:
+            input.translations?.en?.displayName?.trim() ?? currentView.translations.en.displayName,
+          description:
+            input.translations?.en?.description === undefined
+              ? currentView.translations.en.description
+              : input.translations.en.description?.trim() || null,
+        },
+        ar: {
+          displayName:
+            input.translations?.ar?.displayName?.trim() ?? currentView.translations.ar.displayName,
+          description:
+            input.translations?.ar?.description === undefined
+              ? currentView.translations.ar.description
+              : input.translations.ar.description?.trim() || null,
+        },
+      };
+
+      const translationsUnchanged =
+        nextTranslations.en.displayName === currentView.translations.en.displayName &&
+        nextTranslations.en.description === currentView.translations.en.description &&
+        nextTranslations.ar.displayName === currentView.translations.ar.displayName &&
+        nextTranslations.ar.description === currentView.translations.ar.description;
+
+      if (
+        !input.locationIds &&
+        !input.sections &&
+        nextInternalName === menu.internalName &&
+        translationsUnchanged
+      ) {
+        return currentView;
+      }
+
       const [updatedMenu] = await tx
         .update(catalogueMenus)
         .set({
-          internalName: input.internalName?.trim() ?? menu.internalName,
+          internalName: nextInternalName,
           version: menu.version + 1,
           updatedAt: new Date(),
         })
@@ -980,31 +1020,7 @@ export async function updateDraftMenu(
       }
 
       if (input.translations) {
-        const currentView = await loadDraftMenuEditorView(tx, tenantId, menuPublicId);
-        if (!currentView) {
-          throw new MenuError("Menu not found.", 404);
-        }
-
-        await upsertMenuTranslations(tx, tenantId, menu.id, {
-          en: {
-            displayName:
-              input.translations.en?.displayName?.trim() ??
-              currentView.translations.en.displayName,
-            description:
-              input.translations.en?.description === undefined
-                ? currentView.translations.en.description
-                : input.translations.en.description?.trim() || null,
-          },
-          ar: {
-            displayName:
-              input.translations.ar?.displayName?.trim() ??
-              currentView.translations.ar.displayName,
-            description:
-              input.translations.ar?.description === undefined
-                ? currentView.translations.ar.description
-                : input.translations.ar.description?.trim() || null,
-          },
-        });
+        await upsertMenuTranslations(tx, tenantId, menu.id, nextTranslations);
       }
 
       if (input.locationIds) {

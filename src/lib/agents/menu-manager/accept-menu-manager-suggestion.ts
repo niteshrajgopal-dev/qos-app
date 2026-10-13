@@ -166,12 +166,12 @@ function assertMenuManagerRun(run: AgentRunRecord, menuPublicId: string) {
   }
 }
 
-async function listAcceptedSuggestionKeysInTx(
+async function listAcceptedSuggestionsInTx(
   tx: TenantDbExecutor,
   tenantId: string,
   agentRunId: string,
-): Promise<string[]> {
-  const rows = await tx
+) {
+  return tx
     .select({
       productPublicId: agentRunMenuManagerSuggestionAcceptances.productPublicId,
       field: agentRunMenuManagerSuggestionAcceptances.field,
@@ -184,23 +184,62 @@ async function listAcceptedSuggestionKeysInTx(
         eq(agentRunMenuManagerSuggestionAcceptances.agentRunId, agentRunId),
       ),
     );
-  return rows.map((row) =>
-    suggestionIdentityKey({
-      productPublicId: row.productPublicId,
-      field: row.field as SuggestionIdentity["field"],
-      proposedText: row.proposedText,
-    }),
-  );
+}
+
+function currentDraftTextForField(
+  product: Pick<DraftProductEditorView, "translations">,
+  field: SuggestionIdentity["field"],
+) {
+  const mapping = FIELD_PATCH[field];
+  const value = product.translations[mapping.locale][mapping.key];
+  return typeof value === "string" ? value.trim() : "";
+}
+
+async function acceptedKeysMatchingDraftInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  agentRunId: string,
+): Promise<string[]> {
+  const rows = await listAcceptedSuggestionsInTx(tx, tenantId, agentRunId);
+  const keys: string[] = [];
+  for (const row of rows) {
+    const field = row.field as SuggestionIdentity["field"];
+    const proposedText = row.proposedText.trim();
+    const product = await getDraftProductInTx(tx, tenantId, membership, row.productPublicId);
+    if (currentDraftTextForField(product, field) !== proposedText) {
+      continue;
+    }
+    keys.push(
+      suggestionIdentityKey({
+        productPublicId: row.productPublicId,
+        field,
+        proposedText,
+      }),
+    );
+  }
+  return keys;
 }
 
 export async function listAcceptedSuggestionKeysForRun(
   db: DbClient,
   tenantId: string,
   agentRunId: string,
+  options?: { membership: ActiveStaffMembership },
 ): Promise<string[]> {
-  return withTenantContext(db, tenantId, async (tx) =>
-    listAcceptedSuggestionKeysInTx(tx, tenantId, agentRunId),
-  );
+  return withTenantContext(db, tenantId, async (tx) => {
+    if (!options?.membership) {
+      const rows = await listAcceptedSuggestionsInTx(tx, tenantId, agentRunId);
+      return rows.map((row) =>
+        suggestionIdentityKey({
+          productPublicId: row.productPublicId,
+          field: row.field as SuggestionIdentity["field"],
+          proposedText: row.proposedText,
+        }),
+      );
+    }
+    return acceptedKeysMatchingDraftInTx(tx, tenantId, options.membership, agentRunId);
+  });
 }
 
 export type AcceptMenuManagerSuggestionResult = {
@@ -283,7 +322,12 @@ export async function acceptMenuManagerSuggestion(
       })
       .returning({ id: agentRunMenuManagerSuggestionAcceptances.id });
 
-    const acceptedKeys = await listAcceptedSuggestionKeysInTx(tx, caller.tenantId, run.id);
+    const acceptedKeys = await acceptedKeysMatchingDraftInTx(
+      tx,
+      caller.tenantId,
+      caller.membership,
+      run.id,
+    );
 
     if (!reserved) {
       const product = await getDraftProductInTx(

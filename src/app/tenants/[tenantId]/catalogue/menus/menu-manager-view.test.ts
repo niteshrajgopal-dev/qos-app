@@ -68,6 +68,12 @@ describe("runStatusCopy", () => {
     expect(`${stopped.title} ${stopped.description}`).not.toMatch(/failed|cancel/i);
     expect(failureCopy("qos_wait_deadline")).toContain("time limit");
     expect(failureCopy("start_outcome_unknown")).toContain("could not confirm");
+    expect(
+      runStatusCopy(run({ status: "failed", failureCode: "start_outcome_unknown", remoteOutcomeUnknown: true })).title,
+    ).toContain("Could not confirm");
+    expect(
+      runStatusCopy(run({ status: "failed", failureCode: "not_started_in_time", remoteOutcomeUnknown: false })).title,
+    ).toContain("did not start");
   });
 
   it("explains why an active run is on hold", () => {

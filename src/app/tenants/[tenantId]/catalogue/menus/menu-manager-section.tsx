@@ -173,6 +173,9 @@ export function MenuManagerSection({
         return;
       }
       if (payload.code === "run_in_progress" && payload.activeRunPublicId) {
+        setError(
+          "A review is already in progress for this menu. QOS reconnected to it; wait for it to finish or fail before starting another.",
+        );
         await loadRun(payload.activeRunPublicId);
         return;
       }
@@ -254,7 +257,9 @@ export function MenuManagerSection({
           icon="sparkles"
           loading={asking}
           disabled={active || unresolvedRunPublicId !== null}
-          onClick={() => void ask()}
+          onClick={() =>
+            void ask(run?.status === "failed" && run.remoteOutcomeUnknown ? run.publicId : undefined)
+          }
         >
           {run && !active
             ? selectedCount > 0

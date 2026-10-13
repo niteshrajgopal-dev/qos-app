@@ -120,10 +120,47 @@ const STATUS_COPY_WHILE_WAITING: Record<
   },
 };
 
-const UNRESOLVED_STATUS_COPY = {
+const UNRESOLVED_STATUS_BY_CODE: Record<
+  string,
+  { tone: AlertTone; title: string; description: string }
+> = {
+  qos_wait_deadline: {
+    tone: "warning",
+    title: "QOS stopped waiting",
+    description:
+      "The review did not finish before QOS's time limit. The agent service may still finish it, but QOS will not use its reply. Nothing on the menu was changed.",
+  },
+  timeout: {
+    tone: "warning",
+    title: "QOS stopped waiting",
+    description:
+      "The review did not finish before QOS's time limit. The agent service may still finish it, but QOS will not use its reply. Nothing on the menu was changed.",
+  },
+  start_outcome_unknown: {
+    tone: "warning",
+    title: "Could not confirm the review was received",
+    description:
+      "QOS could not confirm whether the agent service received this review. It may still process it, but QOS will not use its reply. Nothing on the menu was changed.",
+  },
+  model_submission_unknown: {
+    tone: "warning",
+    title: "Could not confirm the review was received",
+    description:
+      "QOS could not confirm whether the model received this review. It may still process it, but QOS will not use its reply. Nothing on the menu was changed.",
+  },
+  provider_reauth_required: {
+    tone: "warning",
+    title: "QOS stopped waiting",
+    description:
+      "QOS lost its agent connection before learning the outcome. The agent service may still finish this review, but QOS will not use its reply. Nothing on the menu was changed.",
+  },
+};
+
+const UNRESOLVED_STATUS_FALLBACK = {
   tone: "warning" as const,
   title: "QOS stopped waiting",
-  description: "The agent service may still finish this review, but QOS will not use its reply. Nothing on the menu was changed.",
+  description:
+    "The agent service may still finish this review, but QOS will not use its reply. Nothing on the menu was changed.",
 };
 
 export const UNRESOLVED_RESTART_COPY =
@@ -132,7 +169,15 @@ export const UNRESOLVED_RESTART_COPY =
 /** Status copy that never presents QOS stopping as the agent service failing. */
 export function runStatusCopy(run: MenuManagerRunLike) {
   if (run.status === "failed" && run.remoteOutcomeUnknown) {
-    return UNRESOLVED_STATUS_COPY;
+    const code = run.failureCode ?? "";
+    return UNRESOLVED_STATUS_BY_CODE[code] ?? UNRESOLVED_STATUS_FALLBACK;
+  }
+  if (run.status === "failed" && run.failureCode === "not_started_in_time") {
+    return {
+      tone: "error" as const,
+      title: "Review did not start in time",
+      description: FAILURE_COPY.not_started_in_time,
+    };
   }
   if (isActiveRunStatus(run.status) && run.waitingOn) {
     return STATUS_COPY_WHILE_WAITING[run.waitingOn];

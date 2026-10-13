@@ -400,6 +400,63 @@ integrationDescribe("agent platform foundation", () => {
       ).rejects.toMatchObject({ code: "run_in_progress", activeRunPublicId: run.publicId });
     });
 
+    it("reaps an expired running run before admitting a new key", async () => {
+      const { quotes, binding } = await seedTenantWithBinding();
+      const t0 = new Date("2026-09-30T08:00:00.000Z");
+      const first = await createAgentRun(db, { ...runInput(quotes.tenant.id, binding), now: t0 });
+      await markAgentRunStarted(db, quotes.tenant.id, first.run.publicId, {
+        providerThreadId: "thread_stale",
+        actor: { subject: "admin.quotes@test", actorClass: "staff_administrator" },
+        pollIntervalMs: POLL.pollIntervalMs,
+        now: t0,
+      });
+      const pastDeadline = new Date(t0.getTime() + TIMEOUT_MS + 1);
+
+      const second = await createAgentRun(
+        db,
+        runInput(quotes.tenant.id, binding, {
+          idempotencyKey: `idem-${randomBytes(4).toString("hex")}`,
+          now: pastDeadline,
+        }),
+      );
+      expect(second.created).toBe(true);
+      expect(second.run.publicId).not.toBe(first.run.publicId);
+
+      const ended = await getAgentRun(db, quotes.tenant.id, first.run.publicId);
+      expect(ended).toMatchObject({ status: "failed", failureCode: QOS_WAIT_DEADLINE_CODE });
+    });
+
+    it("reaps a queued run past its acceptance deadline before admitting a new key", async () => {
+      const { quotes, binding } = await seedTenantWithBinding();
+      const shortTimeoutMs = 60_000;
+      const t0 = new Date("2026-09-30T08:00:00.000Z");
+      const pin = {
+        ...testPin(),
+        runConfig: {
+          ...testPin().runConfig,
+          runTimeoutMs: shortTimeoutMs,
+        },
+      };
+      const first = await createAgentRun(db, {
+        ...runInput(quotes.tenant.id, binding),
+        pin,
+        now: t0,
+      });
+      const pastDeadline = new Date(t0.getTime() + shortTimeoutMs + 1);
+
+      const second = await createAgentRun(
+        db,
+        runInput(quotes.tenant.id, binding, {
+          idempotencyKey: `idem-${randomBytes(4).toString("hex")}`,
+          now: pastDeadline,
+        }),
+      );
+      expect(second.created).toBe(true);
+
+      const ended = await getAgentRun(db, quotes.tenant.id, first.run.publicId);
+      expect(ended).toMatchObject({ status: "failed", failureCode: "not_started_in_time" });
+    });
+
     it("refuses to run a disabled capability", async () => {
       const { quotes, binding } = await seedTenantWithBinding(false);
 
