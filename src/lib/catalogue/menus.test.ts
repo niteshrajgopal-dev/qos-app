@@ -276,6 +276,28 @@ integrationDescribe("catalogue draft menus", () => {
     expect(liveAfter?.translations.en.displayName).toBe("HBZ Lunch");
   });
 
+  it("does not bump version when a whitespace-only label edit normalizes to the same value", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const admin = await seedAdministrator(quotes.tenant.id, quotes.location.id);
+
+    const menu = await createDraftMenu(db, quotes.tenant.id, admin, {
+      internalName: "hbz-snacks",
+      locationIds: [quotes.location.id],
+      translations: {
+        en: { displayName: "Snacks" },
+        ar: { displayName: "وجبات خفيفة" },
+      },
+    });
+
+    const updated = await updateDraftMenu(db, quotes.tenant.id, admin, menu.publicId, {
+      expectedVersion: menu.version,
+      translations: { en: { displayName: "Snacks " } },
+    });
+
+    expect(updated.version).toBe(menu.version);
+    expect(updated.translations.en.displayName).toBe("Snacks");
+  });
+
   it("returns a conflict on stale menu version updates", async () => {
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
     const admin = await seedAdministrator(quotes.tenant.id, quotes.location.id);

@@ -29,6 +29,12 @@ const SYSTEM_ACTOR = { subject: "qos.agent-runtime", actorClass: "system" as con
 export const QOS_WAIT_DEADLINE_CODE = "qos_wait_deadline";
 /** The start request may have reached the provider, but QOS holds no reference. */
 export const START_OUTCOME_UNKNOWN_CODE = "start_outcome_unknown";
+/** A queued run reached its acceptance deadline before QOS recorded a provider start. */
+export const NOT_STARTED_IN_TIME_CODE = "not_started_in_time";
+export const NOT_STARTED_IN_TIME_MESSAGE =
+  "QOS did not start this review in time. Nothing was sent to the agent service.";
+
+const DEFAULT_QUEUED_STALE_MS = 120_000;
 
 const UNRESOLVED_FAILURE_CODES = new Set<string>([
   QOS_WAIT_DEADLINE_CODE,
@@ -430,62 +436,75 @@ export async function createAgentRun(
       );
     }
 
-    const [inserted] = await tx
-      .insert(agentRuns)
-      .values({
-        tenantId: input.tenantId,
-        publicId: `run_${randomBytes(12).toString("hex")}`,
-        bindingId: binding?.id ?? null,
-        capability,
-        provider,
-        providerAgentId,
-        status: "queued",
-        subjectType: input.subject.type,
-        subjectPublicId: input.subject.publicId,
-        subjectVersion: input.subject.version,
-        requestedBySubject: input.requestedBy.subject,
-        requestedByActorClass: input.requestedBy.actorClass,
-        idempotencyKey: key,
-        correlationId: randomUUID(),
-        requestSummary: input.requestSummary,
-        definitionKey: pin.definition.key,
-        definitionVersion: pin.definition.version,
-        executionIdentity: pin.executionIdentity,
-        runConfig,
-        executionMode: input.executionMode ?? "inline",
-        deadlineAt: new Date(now.getTime() + runConfig.runTimeoutMs),
-        createdAt: now,
-        updatedAt: now,
-      })
-      .onConflictDoNothing()
-      .returning();
+    const runValues = {
+      tenantId: input.tenantId,
+      publicId: `run_${randomBytes(12).toString("hex")}`,
+      bindingId: binding?.id ?? null,
+      capability,
+      provider,
+      providerAgentId,
+      status: "queued" as const,
+      subjectType: input.subject.type,
+      subjectPublicId: input.subject.publicId,
+      subjectVersion: input.subject.version,
+      requestedBySubject: input.requestedBy.subject,
+      requestedByActorClass: input.requestedBy.actorClass,
+      idempotencyKey: key,
+      correlationId: randomUUID(),
+      requestSummary: input.requestSummary,
+      definitionKey: pin.definition.key,
+      definitionVersion: pin.definition.version,
+      executionIdentity: pin.executionIdentity,
+      runConfig,
+      executionMode: input.executionMode ?? "inline",
+      deadlineAt: new Date(now.getTime() + runConfig.runTimeoutMs),
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    if (inserted) {
+    async function persistCreatedRun(row: AgentRunRow) {
       await tx.insert(agentRunInputs).values({
-        runId: inserted.id,
+        runId: row.id,
         tenantId: input.tenantId,
         inputSchema: pin.input.schema,
         payload: pin.input.payload,
         payloadSha256: inputSha256,
         createdAt: now,
       });
-      await auditRun(tx, inserted, "agent_run.requested", input.requestedBy, {
-        providerAgentId: inserted.providerAgentId,
+      await auditRun(tx, row, "agent_run.requested", input.requestedBy, {
+        providerAgentId: row.providerAgentId,
         definitionVersion: pin.definition.version,
         adapterVersion: pin.executionIdentity.adapterVersion,
         input: { schema: pin.input.schema, sha256: inputSha256 },
         request: input.auditRequestSummary ?? input.requestSummary,
         ...(acknowledged !== null ? { acknowledgedUnresolvedRunPublicId: acknowledged } : {}),
       });
-      const run = toRecord(inserted);
+      const run = toRecord(row);
       await input.onCreated?.(tx, run);
-      return { run, created: true };
+      return { run, created: true as const };
+    }
+
+    const [inserted] = await tx.insert(agentRuns).values(runValues).onConflictDoNothing().returning();
+
+    if (inserted) {
+      return persistCreatedRun(inserted);
     }
 
     const concurrentReplay = await findRunByIdempotencyKey(tx, input.tenantId, key);
     if (concurrentReplay) {
       return replayOf(concurrentReplay);
     }
+
+    await reapStaleActiveAgentRunsForSubjectInTx(
+      tx,
+      input.tenantId,
+      {
+        capability,
+        subjectType: input.subject.type,
+        subjectPublicId: input.subject.publicId,
+      },
+      now,
+    );
 
     const [active] = await tx
       .select({ publicId: agentRuns.publicId })
@@ -501,11 +520,29 @@ export async function createAgentRun(
       )
       .limit(1);
 
+    if (active) {
+      throw new AgentRunError(
+        "run_in_progress",
+        "An agent run is already in progress for this item.",
+        409,
+        { activeRunPublicId: active.publicId },
+      );
+    }
+
+    const [retried] = await tx.insert(agentRuns).values(runValues).returning();
+    if (retried) {
+      return persistCreatedRun(retried);
+    }
+
+    const racedReplay = await findRunByIdempotencyKey(tx, input.tenantId, key);
+    if (racedReplay) {
+      return replayOf(racedReplay);
+    }
+
     throw new AgentRunError(
       "run_in_progress",
       "An agent run is already in progress for this item.",
       409,
-      { activeRunPublicId: active?.publicId },
     );
   });
 }
@@ -630,6 +667,17 @@ async function applyRunDeadlinesInTx(
   });
 
   await failRunInTx(tx, tenantId, runPublicId, {
+    code: NOT_STARTED_IN_TIME_CODE,
+    message: NOT_STARTED_IN_TIME_MESSAGE,
+    now: input.now,
+    extraWhere: and(
+      eq(agentRuns.status, "queued"),
+      isNull(agentRuns.providerThreadId),
+      lte(agentRuns.deadlineAt, input.now),
+    ),
+  });
+
+  await failRunInTx(tx, tenantId, runPublicId, {
     code: "start_not_recorded",
     message: "The agent run was not started with the provider in time.",
     now: input.now,
@@ -638,6 +686,41 @@ async function applyRunDeadlinesInTx(
       lte(agentRuns.createdAt, new Date(input.now.getTime() - input.queuedStaleMs)),
     ),
   });
+}
+
+function queuedStaleMsForRow(row: AgentRunRow) {
+  return parseRunConfig(row.runConfig)?.queuedStaleMs ?? DEFAULT_QUEUED_STALE_MS;
+}
+
+/**
+ * Ends queued/running runs for one subject that are past their local deadlines,
+ * so a stale row cannot block a new admission.
+ */
+async function reapStaleActiveAgentRunsForSubjectInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  input: { capability: AgentCapability; subjectType: string; subjectPublicId: string },
+  now: Date,
+) {
+  const activeRows = await tx
+    .select()
+    .from(agentRuns)
+    .where(
+      and(
+        eq(agentRuns.tenantId, tenantId),
+        eq(agentRuns.capability, input.capability),
+        eq(agentRuns.subjectType, input.subjectType),
+        eq(agentRuns.subjectPublicId, input.subjectPublicId),
+        inArray(agentRuns.status, ["queued", "running"]),
+      ),
+    );
+
+  for (const row of activeRows) {
+    await applyRunDeadlinesInTx(tx, tenantId, row.publicId, {
+      queuedStaleMs: queuedStaleMsForRow(row),
+      now,
+    });
+  }
 }
 
 /**
