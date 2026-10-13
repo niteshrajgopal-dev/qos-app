@@ -28,6 +28,7 @@ import { MENU_MANAGER_RESULT_SCHEMA } from "@/lib/agents/menu-manager/menu-manag
 import {
   askMenuManager,
   getLatestMenuManagerRun,
+  getMenuManagerRunsView,
   refreshMenuManagerRun,
 } from "@/lib/agents/menu-manager/menu-manager-service";
 import {
@@ -651,5 +652,44 @@ integrationDescribe("Menu Manager service", () => {
       internalName: "breakfast-and-brunch",
     });
     expect(updated.version).toBe(menu.version + 1);
+  });
+
+  it("returns the last ready review alongside a failed later attempt", async () => {
+    const { menu, products, admin } = await seed();
+    const successProvider = new FakeAgentProvider().script(
+      { state: "running" },
+      { state: "completed", finalMessage: validReply(menu.publicId, products[0]!.publicId) },
+    );
+    const first = await askMenuManager(db, admin, { menuPublicId: menu.publicId, idempotencyKey: key() }, {
+      config: ENABLED,
+      provider: successProvider,
+    });
+    await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: first.run.publicId }, {
+      config: ENABLED,
+      provider: successProvider,
+      now: () => new Date(Date.now() + ENABLED.pollIntervalMs + 1),
+    });
+
+    const failProvider = new FakeAgentProvider().script(
+      { state: "running" },
+      { state: "completed", finalMessage: "not valid menu manager json" },
+    );
+    const second = await askMenuManager(db, admin, { menuPublicId: menu.publicId, idempotencyKey: key() }, {
+      config: ENABLED,
+      provider: failProvider,
+    });
+    await refreshMenuManagerRun(db, admin, { menuPublicId: menu.publicId, runPublicId: second.run.publicId }, {
+      config: ENABLED,
+      provider: failProvider,
+      now: () => new Date(Date.now() + ENABLED.pollIntervalMs + 1),
+    });
+
+    const view = await getMenuManagerRunsView(db, admin, menu.publicId, { config: ENABLED });
+    expect(view.run).toMatchObject({ publicId: second.run.publicId, status: "failed", failureCode: "invalid_result_json" });
+    expect(view.readyRun).toMatchObject({
+      publicId: first.run.publicId,
+      status: "completed",
+      result: expect.objectContaining({ summary: "Both items are missing photos." }),
+    });
   });
 });

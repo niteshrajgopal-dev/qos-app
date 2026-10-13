@@ -1,3 +1,4 @@
+import { nativeModelErrorDiagnostics, type NativeModelErrorDiagnostics } from "@/lib/agents/native/native-model-error";
 import type { QosModel, QosModelRequest, QosModelResult } from "@/lib/ai/model/qos-model";
 import type { ProviderOutcome } from "@/lib/ai/provider-outcome";
 
@@ -28,6 +29,7 @@ export type NativeExecutorStepResult =
       code: string;
       message: string;
       billedPossible: boolean;
+      failureDiagnostics?: NativeModelErrorDiagnostics;
     };
 
 export type NativeExecutorInput = {
@@ -73,13 +75,16 @@ export async function runNativeExecutor(input: NativeExecutorInput): Promise<Nat
         tools: input.tools,
         ...(toolResults ? { toolResults } : {}),
       });
-    } catch {
+    } catch (error) {
+      const failureDiagnostics = nativeModelErrorDiagnostics(error, input.model.modelId);
+      console.error("Native Menu Manager model call failed", failureDiagnostics);
       return {
         kind: "failed",
         outcome: "submission_unknown",
         code: "model_submission_unknown",
         message: "QOS could not confirm whether the model accepted this review.",
         billedPossible: true,
+        failureDiagnostics,
       };
     }
 

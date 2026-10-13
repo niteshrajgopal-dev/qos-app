@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 
 import { db } from "@/db";
 import { agentErrorResponse } from "@/lib/agents/http";
-import { refreshMenuManagerRun } from "@/lib/agents/menu-manager/menu-manager-service";
+import {
+  refreshMenuManagerRun,
+  resolveMenuManagerRunsView,
+} from "@/lib/agents/menu-manager/menu-manager-service";
 import {
   requireActiveStaffMembership,
   requireStaffIdentity,
@@ -21,13 +24,11 @@ export async function GET(request: Request, context: RouteContext) {
     const { tenantId, menuPublicId, runPublicId } = await context.params;
     const identity = await requireStaffIdentity(request);
     const membership = await requireActiveStaffMembership(db, tenantId, identity.subject);
-    const run = await refreshMenuManagerRun(
-      db,
-      { tenantId, subject: identity.subject, membership },
-      { menuPublicId, runPublicId },
-    );
+    const caller = { tenantId, subject: identity.subject, membership };
+    const run = await refreshMenuManagerRun(db, caller, { menuPublicId, runPublicId });
+    const view = await resolveMenuManagerRunsView(db, caller, menuPublicId, run);
 
-    return NextResponse.json({ run }, { headers: staffPrivateCacheControl() });
+    return NextResponse.json(view, { headers: staffPrivateCacheControl() });
   } catch (error) {
     return agentErrorResponse(error);
   }

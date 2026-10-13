@@ -5,7 +5,8 @@ import { db } from "@/db";
 import { agentErrorResponse } from "@/lib/agents/http";
 import {
   askMenuManager,
-  getLatestMenuManagerRun,
+  getMenuManagerRunsView,
+  resolveMenuManagerRunsView,
 } from "@/lib/agents/menu-manager/menu-manager-service";
 import { MENU_SNAPSHOT_MAX_PRODUCTS } from "@/lib/catalogue/menu-snapshot";
 import {
@@ -34,13 +35,13 @@ export async function GET(request: Request, context: RouteContext) {
     const { tenantId, menuPublicId } = await context.params;
     const identity = await requireStaffIdentity(request);
     const membership = await requireActiveStaffMembership(db, tenantId, identity.subject);
-    const run = await getLatestMenuManagerRun(
+    const view = await getMenuManagerRunsView(
       db,
       { tenantId, subject: identity.subject, membership },
       menuPublicId,
     );
 
-    return NextResponse.json({ run }, { headers: staffPrivateCacheControl() });
+    return NextResponse.json(view, { headers: staffPrivateCacheControl() });
   } catch (error) {
     return agentErrorResponse(error);
   }
@@ -71,8 +72,15 @@ export async function POST(request: Request, context: RouteContext) {
       },
     );
 
+    const view = await resolveMenuManagerRunsView(
+      db,
+      { tenantId, subject: identity.subject, membership },
+      menuPublicId,
+      run,
+    );
+
     return NextResponse.json(
-      { run },
+      view,
       { status: created ? 201 : 200, headers: staffPrivateCacheControl() },
     );
   } catch (error) {
