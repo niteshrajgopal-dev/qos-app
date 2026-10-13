@@ -95,6 +95,7 @@ describe("runNativeExecutor", () => {
 
   it("classifies a thrown model call as submission_unknown", async () => {
     const model = new FakeQosModel().script(new Error("socket reset"));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await expect(
       runNativeExecutor({
@@ -110,7 +111,13 @@ describe("runNativeExecutor", () => {
       outcome: "submission_unknown",
       code: "model_submission_unknown",
       billedPossible: true,
+      failureDiagnostics: { modelId: "fake-model", errorName: "Error" },
     });
+    expect(errorSpy).toHaveBeenCalledWith(
+      "Native Menu Manager model call failed",
+      expect.objectContaining({ modelId: "fake-model" }),
+    );
+    errorSpy.mockRestore();
   });
 
   it(`stops after ${NATIVE_MAX_TOOL_ROUNDS} tool rounds`, async () => {

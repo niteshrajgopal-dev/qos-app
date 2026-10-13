@@ -396,6 +396,7 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
     await markAgentRunFailed(db, job.tenantId, run.publicId, {
       code: result.code,
       message: result.message,
+      failureDiagnostics: result.failureDiagnostics ?? undefined,
       now: clock(),
     });
     await settleSpend(result.outcome === "submission_unknown" ? "submission_unknown" : "failed_after_processing");

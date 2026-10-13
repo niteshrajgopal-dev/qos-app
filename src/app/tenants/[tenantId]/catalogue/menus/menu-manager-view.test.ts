@@ -128,6 +128,10 @@ describe("menu manager copy", () => {
   it("explains failures without exposing codes", () => {
     expect(failureCopy("capability_unavailable")).toContain("turned off");
     expect(failureCopy("unknown_product_reference")).toContain("not on this menu");
+    expect(failureCopy("model_submission_unknown")).toContain("could not confirm");
+    expect(failureCopy("too_many_tool_rounds")).toContain("tool calls");
+    expect(failureCopy("not_started_in_time")).toContain("did not start");
+    expect(failureCopy("invalid_result_json")).toContain("could not be read");
     expect(failureCopy("something_new")).toBe("The agent service could not complete this review.");
     expect(failureCopy(null)).toBe("The agent service could not complete this review.");
   });

@@ -33,8 +33,7 @@ export const START_OUTCOME_UNKNOWN_CODE = "start_outcome_unknown";
 const UNRESOLVED_FAILURE_CODES = new Set<string>([
   QOS_WAIT_DEADLINE_CODE,
   START_OUTCOME_UNKNOWN_CODE,
-  "start_not_recorded",
-  // Written before qos_wait_deadline existed; same meaning.
+  // Written before qos_wait_deadline existed; same meaning as qos_wait_deadline.
   "timeout",
 ]);
 
@@ -561,10 +560,20 @@ async function failRunInTx(
     code: string;
     message: string;
     rawResultExcerpt?: string | null;
+    failureDiagnostics?: Record<string, unknown>;
     now: Date;
     extraWhere?: ReturnType<typeof and>;
   },
 ) {
+  let requestSummaryPatch: Record<string, unknown> | undefined;
+  if (input.failureDiagnostics) {
+    const existing = await requireRunRow(tx, tenantId, runPublicId);
+    requestSummaryPatch = {
+      ...(existing.requestSummary ?? {}),
+      failureDiagnostics: input.failureDiagnostics,
+    };
+  }
+
   const [row] = await tx
     .update(agentRuns)
     .set({
@@ -572,6 +581,7 @@ async function failRunInTx(
       failureCode: input.code.slice(0, 100),
       failureMessage: boundFailureMessage(input.message),
       rawResultExcerpt: boundRawResultExcerpt(input.rawResultExcerpt),
+      ...(requestSummaryPatch ? { requestSummary: requestSummaryPatch } : {}),
       pollLeaseOwner: null,
       pollLeaseExpiresAt: null,
       nextPollAt: null,
@@ -706,7 +716,13 @@ export async function markAgentRunFailed(
   db: DbClient,
   tenantId: string,
   runPublicId: string,
-  input: { code: string; message: string; rawResultExcerpt?: string | null; now?: Date },
+  input: {
+    code: string;
+    message: string;
+    rawResultExcerpt?: string | null;
+    failureDiagnostics?: Record<string, unknown>;
+    now?: Date;
+  },
 ): Promise<AgentRunRecord> {
   const now = input.now ?? new Date();
   return withTenantContext(db, tenantId, async (tx) => {
@@ -1010,6 +1026,31 @@ export async function getLatestAgentRunForSubject(
 ): Promise<AgentRunRecord | null> {
   return withTenantContext(db, tenantId, async (tx) => {
     const row = await findLatestRunForSubject(tx, tenantId, input);
+    return row ? toRecord(row) : null;
+  });
+}
+
+/** Latest completed run for a subject, if any. */
+export async function getLatestCompletedAgentRunForSubject(
+  db: DbClient,
+  tenantId: string,
+  input: { capability: AgentCapability; subjectType: string; subjectPublicId: string },
+): Promise<AgentRunRecord | null> {
+  return withTenantContext(db, tenantId, async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(agentRuns)
+      .where(
+        and(
+          eq(agentRuns.tenantId, tenantId),
+          eq(agentRuns.capability, input.capability),
+          eq(agentRuns.subjectType, input.subjectType),
+          eq(agentRuns.subjectPublicId, input.subjectPublicId),
+          eq(agentRuns.status, "completed"),
+        ),
+      )
+      .orderBy(desc(agentRuns.createdAt))
+      .limit(1);
     return row ? toRecord(row) : null;
   });
 }

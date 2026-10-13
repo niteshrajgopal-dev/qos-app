@@ -686,7 +686,11 @@ integrationDescribe("agent platform foundation", () => {
         queuedStaleMs: POLL.queuedStaleMs,
         now: new Date(t0.getTime() + POLL.queuedStaleMs),
       });
-      expect(stale.run).toMatchObject({ status: "failed", failureCode: "start_not_recorded" });
+      expect(stale.run).toMatchObject({
+        status: "failed",
+        failureCode: "start_not_recorded",
+        remoteOutcomeUnknown: false,
+      });
 
       const latest = await getLatestAgentRunForSubject(db, quotes.tenant.id, {
         capability: "menu_manager",

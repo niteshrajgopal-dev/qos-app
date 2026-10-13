@@ -8,6 +8,7 @@ import {
   failQueuedAgentRunInTx,
   getAgentRun,
   getLatestAgentRunForSubject,
+  getLatestCompletedAgentRunForSubject,
   loadPinnedRunInput,
   markAgentRunFailed,
   markAgentRunStarted,
@@ -85,6 +86,12 @@ export type MenuManagerWaitReason = "agent_connection" | "service_unavailable" |
 export type MenuManagerRunView = AgentRunView & {
   waitingOn: MenuManagerWaitReason | null;
   acceptedSuggestionKeys: string[];
+};
+
+/** Latest attempt plus the last successful review when a new failure must not hide it. */
+export type MenuManagerRunsView = {
+  run: MenuManagerRunView | null;
+  readyRun: MenuManagerRunView | null;
 };
 
 export function isActive(status: AgentRunStatus) {
@@ -655,6 +662,35 @@ export async function refreshMenuManagerRun(
   return await toMenuManagerRunView(db, caller.tenantId, polled.run, polled.reauthRequired ? "agent_connection" : null);
 }
 
+const MENU_MANAGER_SUBJECT = {
+  capability: CAPABILITY,
+  subjectType: SUBJECT_TYPE,
+} as const;
+
+/**
+ * When the latest run failed, returns the most recent completed run for display
+ * (suggestions and Accept) alongside the failed attempt.
+ */
+export async function resolveMenuManagerRunsView(
+  db: DbClient,
+  caller: Caller,
+  menuPublicId: string,
+  latest: MenuManagerRunView | null,
+): Promise<MenuManagerRunsView> {
+  if (!latest || latest.status !== "failed") {
+    return { run: latest, readyRun: null };
+  }
+  const completed = await getLatestCompletedAgentRunForSubject(db, caller.tenantId, {
+    ...MENU_MANAGER_SUBJECT,
+    subjectPublicId: menuPublicId,
+  });
+  if (!completed || completed.publicId === latest.publicId) {
+    return { run: latest, readyRun: null };
+  }
+  const readyRun = await toMenuManagerRunView(db, caller.tenantId, completed);
+  return { run: latest, readyRun };
+}
+
 /** Latest run for the menu; an active run past its deadline is ended first. Never polls. */
 export async function getLatestMenuManagerRun(
   db: DbClient,
@@ -684,4 +720,15 @@ export async function getLatestMenuManagerRun(
     return await toMenuManagerRunView(db, caller.tenantId, run);
   }
   return await toMenuManagerRunView(db, caller.tenantId, run, await pollingBlockedBy(db, caller.tenantId, run, config));
+}
+
+/** Like `getLatestMenuManagerRun`, but keeps the last ready review visible when the latest attempt failed. */
+export async function getMenuManagerRunsView(
+  db: DbClient,
+  caller: Caller,
+  menuPublicId: string,
+  options: Omit<ServiceOptions, "provider"> = {},
+): Promise<MenuManagerRunsView> {
+  const latest = await getLatestMenuManagerRun(db, caller, menuPublicId, options);
+  return resolveMenuManagerRunsView(db, caller, menuPublicId, latest);
 }

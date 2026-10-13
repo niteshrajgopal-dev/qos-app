@@ -161,6 +161,10 @@ const FAILURE_COPY: Record<string, string> = {
   unknown_product_reference: "The agent referred to items that are not on this menu, so the reply was discarded.",
   empty_final_message: "The agent finished without a reply.",
   final_message_too_large: "The agent's reply was too large to accept.",
+  model_submission_unknown:
+    "QOS could not confirm whether the model received this review. Nothing on the menu was changed.",
+  too_many_tool_rounds: "The review needed more tool calls than QOS allows, so it was stopped.",
+  not_started_in_time: "QOS did not start this review in time. Nothing was sent to the agent service.",
 };
 
 export function failureCopy(code: string | null) {

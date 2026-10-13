@@ -44,11 +44,29 @@ type MenuManagerSectionProps = {
 
 type RunPayload = {
   run?: MenuManagerRunLike | null;
+  readyRun?: MenuManagerRunLike | null;
   error?: string;
   code?: string;
   activeRunPublicId?: string;
   unresolvedRunPublicId?: string;
 };
+
+function applyRunsPayload(
+  payload: RunPayload,
+  setRun: (run: MenuManagerRunLike | null) => void,
+  setReadyRun: (run: MenuManagerRunLike | null) => void,
+  setAccepted: (value: { runPublicId: string; keys: Set<string> } | null) => void,
+) {
+  setRun(payload.run ?? null);
+  setReadyRun(payload.readyRun ?? null);
+  const display = payload.readyRun ?? payload.run;
+  if (display?.acceptedSuggestionKeys?.length) {
+    setAccepted({
+      runPublicId: display.publicId,
+      keys: new Set(display.acceptedSuggestionKeys),
+    });
+  }
+}
 
 async function readPayload(response: Response) {
   return (await response.json().catch(() => ({}))) as RunPayload;
@@ -63,6 +81,7 @@ export function MenuManagerSection({
   onClearSelection,
 }: MenuManagerSectionProps) {
   const [run, setRun] = useState<MenuManagerRunLike | null>(null);
+  const [readyRun, setReadyRun] = useState<MenuManagerRunLike | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   /** Kept until QOS answers, so a retried request after a network drop replays instead of duplicating. */
@@ -83,13 +102,7 @@ export function MenuManagerSection({
       if (!response.ok || !payload.run) {
         throw new Error(payload.error ?? "Unable to load the review.");
       }
-      setRun(payload.run);
-      if (payload.run.acceptedSuggestionKeys?.length) {
-        setAccepted({
-          runPublicId: payload.run.publicId,
-          keys: new Set(payload.run.acceptedSuggestionKeys),
-        });
-      }
+      applyRunsPayload(payload, setRun, setReadyRun, setAccepted);
       setError(null);
     },
     [runsPath],
@@ -102,7 +115,7 @@ export function MenuManagerSection({
         const response = await staffApiFetch(runsPath);
         const payload = await readPayload(response);
         if (!cancelled && response.ok) {
-          setRun(payload.run ?? null);
+          applyRunsPayload(payload, setRun, setReadyRun, setAccepted);
         }
       } catch {
         // The latest review is optional context; asking still works.
@@ -154,7 +167,7 @@ export function MenuManagerSection({
       setPendingKey(null);
 
       if (response.ok && payload.run) {
-        setRun(payload.run);
+        applyRunsPayload(payload, setRun, setReadyRun, setAccepted);
         setUnresolvedRunPublicId(null);
         onClearSelection();
         return;
@@ -176,14 +189,15 @@ export function MenuManagerSection({
   }
 
   async function acceptSuggestion(suggestion: MenuManagerSuggestion) {
-    if (!run) {
+    const acceptRun = readyRun ?? run;
+    if (!acceptRun) {
       return;
     }
     const key = suggestionIdentityKey(suggestion);
     setAcceptingKey(key);
     setError(null);
     try {
-      const response = await staffApiFetch(`${runsPath}/${run.publicId}/suggestions/accept`, {
+      const response = await staffApiFetch(`${runsPath}/${acceptRun.publicId}/suggestions/accept`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -200,7 +214,7 @@ export function MenuManagerSection({
         throw new Error(payload.error ?? "Unable to apply the suggestion.");
       }
       setAccepted({
-        runPublicId: run.publicId,
+        runPublicId: acceptRun.publicId,
         keys: new Set(payload.acceptedSuggestionKeys ?? [key]),
       });
     } catch (acceptError: unknown) {
@@ -222,7 +236,9 @@ export function MenuManagerSection({
 
   const active = run ? isActiveRunStatus(run.status) : false;
   const status = run ? runStatusCopy(run) : null;
-  const result = run?.status === "completed" ? readMenuManagerResult(run.result) : null;
+  const reviewRun = readyRun ?? (run?.status === "completed" ? run : null);
+  const result = reviewRun ? readMenuManagerResult(reviewRun.result) : null;
+  const showingReadyAfterFailure = readyRun !== null && run?.status === "failed";
   const acceptEnabled = result ? canAcceptSuggestions(result, menuVersion) : false;
   const productName = productNameLookup(report);
   const selectedCount = selectedProductPublicIds.length;
@@ -296,6 +312,13 @@ export function MenuManagerSection({
           </Alert>
         ) : null}
 
+        {showingReadyAfterFailure ? (
+          <Alert tone="info" title="Showing your last successful review">
+            The latest attempt failed (above). Suggestions below are from your last ready review and can still be
+            accepted when they match the current draft.
+          </Alert>
+        ) : null}
+
         {!run && !error ? (
           <p className="qos-card-sub">
             Ask QOS for a second opinion on missing photos, descriptions, translations, pricing,
@@ -359,7 +382,7 @@ export function MenuManagerSection({
               const key = suggestionIdentityKey(suggestion);
               const applied =
                 accepted != null &&
-                accepted.runPublicId === run?.publicId &&
+                accepted.runPublicId === (readyRun ?? run)?.publicId &&
                 accepted.keys.has(key);
               return (
                 <IntelligenceCard
@@ -404,7 +427,7 @@ export function MenuManagerSection({
           </div>
         ) : null}
 
-        {run?.status === "completed" && !result ? (
+        {reviewRun?.status === "completed" && !result ? (
           <Alert tone="warning" title="Review could not be shown">
             The stored review is not in a format this screen can display.
           </Alert>
