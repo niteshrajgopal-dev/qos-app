@@ -39,7 +39,8 @@ import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
 import { createDraftProduct, getDraftProduct, updateDraftProduct } from "@/lib/catalogue/products";
 import { approveProductTranslation } from "@/lib/catalogue/translation-approval";
 import { requireActiveStaffMembership, StaffAuthorizationError } from "@/lib/staff/auth";
-import { quotesTenantFixture } from "@/lib/tenant/fixtures";
+import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
+import type { CreateTenantHierarchyInput } from "@/lib/tenant/types";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
@@ -133,8 +134,11 @@ integrationDescribe("catalogue translation review (DB)", () => {
     };
   }
 
-  async function seedTenant(adminSubject = ADMIN_SUBJECT) {
-    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+  async function seedTenant(
+    adminSubject = ADMIN_SUBJECT,
+    fixture: CreateTenantHierarchyInput = quotesTenantFixture(),
+  ) {
+    const quotes = await createTenantHierarchy(db, fixture);
     const adminMembership = await seedMember(
       quotes.tenant.id,
       quotes.location.id,
@@ -584,7 +588,7 @@ integrationDescribe("catalogue translation review (DB)", () => {
     "tenant B cannot read or accept tenant A translation runs",
     async () => {
       const tenantA = await seedTenant();
-      const tenantB = await seedTenant("admin.other@test");
+      const tenantB = await seedTenant("admin.other@test", flowerTenantFixture());
 
       const { run } = await completeRun(
         tenantA.adminCaller,
@@ -667,15 +671,23 @@ integrationDescribe("catalogue translation review (DB)", () => {
   it(
     "quota exhaustion rejects a second concurrent request",
     async () => {
-      const { product, adminCaller } = await seedTenant();
+      const { quotes, product, adminCaller, adminMembership } = await seedTenant();
       const policy = translationSpendPolicy({
         AI_SPEND_CATALOGUE_TRANSLATION_TENANT_CONCURRENCY: "1",
+      });
+      const secondProduct = await createDraftProduct(db, quotes.tenant.id, adminMembership, {
+        internalName: "cappuccino",
+        translations: {
+          en: { displayName: "Cappuccino", description: "Foamy." },
+          ar: { displayName: "كابتشينو", description: "رغوة." },
+        },
+        defaultVariant: { amountMinor: 2000, currency: "AED" },
       });
 
       await request(adminCaller, product.publicId, "en", "ar", { spendPolicy: policy });
 
       await expect(
-        request(adminCaller, product.publicId, "en", "ar", { spendPolicy: policy }),
+        request(adminCaller, secondProduct.publicId, "en", "ar", { spendPolicy: policy }),
       ).rejects.toMatchObject({ code: "tenant_concurrency_limit" });
 
       const reservations = await db.select().from(aiSpendReservations);
