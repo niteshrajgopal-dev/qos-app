@@ -29,21 +29,26 @@ const READY = {
   AGENT_MENU_MANAGER_ENABLED: "true",
   AGENT_NATIVE_MODEL_PROVIDER: "openai",
   AGENT_NATIVE_MODEL: "gpt-4.1-mini",
+  AGENT_OPENAI_TASK_MODEL_ALLOWLIST: "menu_manager.native=gpt-4.1-mini",
   OPENAI_API_KEY: "sk-test",
 };
 
 describe("native Menu Manager smoke readiness", () => {
   it("is not ready until the owner flag, agents, OpenAI, and native spend are all set", () => {
-    expect(nativeSmokeReadiness({})).toEqual({
-      ready: false,
-      missing: expect.arrayContaining([
+    const readiness = nativeSmokeReadiness({});
+    expect(readiness.ready).toBe(false);
+    if (readiness.ready) {
+      throw new Error("expected smoke readiness to be false");
+    }
+    expect(readiness.missing).toEqual(
+      expect.arrayContaining([
         "AGENT_NATIVE_SMOKE",
         "AGENTS_ENABLED",
         "AGENT_MENU_MANAGER_ENABLED",
-        "native_openai_key",
+        "AGENT_OPENAI_TASK_MODEL_ALLOWLIST",
         "AI_SPEND_MENU_MANAGER_NATIVE_ENABLED",
       ]),
-    });
+    );
     expect(JSON.stringify(nativeSmokeReadiness({}))).not.toContain("OPENAI_API_KEY");
   });
 

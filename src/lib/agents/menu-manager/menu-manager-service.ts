@@ -37,7 +37,8 @@ import {
   getMenuManagerDefinition,
   type MenuManagerDefinition,
 } from "@/lib/agents/menu-manager/menu-manager-definition";
-import { isNativeModelConfigured, readNativeModelConfig } from "@/lib/agents/native/native-model-config";
+import { readNativeModelConfig } from "@/lib/agents/native/native-model-config";
+import { evaluateNativeOpenAiGate } from "@/lib/agents/native/openai-runtime-gate";
 import { AGENT_TOOLS } from "@/lib/agents/tools/menu-tools";
 import {
   getAgentExecutorReadiness,
@@ -53,7 +54,7 @@ import {
   type AgentRuntimeProvider,
 } from "@/lib/agents/types";
 import type { AgentExecutionIdentity } from "@/lib/ai/execution-identity";
-import { reserveAiSpend } from "@/lib/ai/spend/spend-admission";
+import { AiSpendAdmissionError, reserveAiSpend } from "@/lib/ai/spend/spend-admission";
 import { readAiSpendPolicy, type AiSpendPolicy } from "@/lib/ai/spend/spend-policy";
 import { cancelUnclaimedAiJobInTx, enqueueAiJobInTx, getAiJobForRun } from "@/lib/ai/jobs/ai-job-queue";
 import { auditActorClassFromStaffRole } from "@/lib/audit/tenant-audit";
@@ -361,7 +362,16 @@ async function askNativeMenuManager(
     );
   }
   const env = options.env ?? process.env;
-  if (!isNativeModelConfigured(env)) {
+  const spendPolicy = options.spendPolicy ?? readAiSpendPolicy(env);
+  const gate = evaluateNativeOpenAiGate("menu_manager.native", env, spendPolicy);
+  if (!gate.ready) {
+    if (gate.reason === "spend_policy_unset") {
+      throw new AiSpendAdmissionError(
+        "spend_policy_unset",
+        "This AI feature is not enabled because its spend policy has not been configured.",
+        503,
+      );
+    }
     throw new AgentRunError(
       "provider_not_connected",
       "The QOS agent service is not connected right now.",
@@ -370,7 +380,6 @@ async function askNativeMenuManager(
   }
   const definition = NATIVE_MENU_MANAGER_DEFINITION;
   const model = readNativeModelConfig(env);
-  const spendPolicy = options.spendPolicy ?? readAiSpendPolicy(env);
 
   const built = await loadMenuSnapshotForAgent(
     db,

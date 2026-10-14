@@ -344,8 +344,14 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
       };
     }
 
+    const correlatedModel: QosModel = {
+      provider: model.provider,
+      modelId: model.modelId,
+      complete: (request) => model.complete({ ...request, correlationId: run.publicId }),
+    };
+
     const result = await runNativeExecutor({
-      model,
+      model: correlatedModel,
       instructions: definition.version,
       input: request.message,
       tools: definition.allowedTools.map((name) => ({
