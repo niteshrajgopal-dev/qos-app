@@ -5,6 +5,7 @@ import type { DbClient } from "@/db/client";
 import {
   agentRunCatalogueTranslationDecisions,
   agentRuns,
+  aiJobs,
   aiSpendReservations,
   catalogueProductTranslations,
   catalogueProducts,
@@ -20,11 +21,7 @@ import {
 import { readAgentConfig, type AgentConfig } from "@/lib/agents/config";
 import { evaluateNativeOpenAiGate } from "@/lib/agents/native/openai-runtime-gate";
 import { executionIdentityForNative } from "@/lib/agents/execution-identity";
-import {
-  cancelUnclaimedAiJobInTx,
-  enqueueAiJobInTx,
-  getAiJobForRun,
-} from "@/lib/ai/jobs/ai-job-queue";
+import { cancelUnclaimedAiJobInTx, enqueueAiJobInTx } from "@/lib/ai/jobs/ai-job-queue";
 import {
   AiSpendAdmissionError,
   releaseUnstartedAiSpend,
@@ -554,7 +551,7 @@ export async function acceptCatalogueTranslation(
     throw new AgentRunError("run_not_completed", "This translation is not ready to accept.", 409);
   }
 
-  return withTenantContext(db, caller.tenantId, async (tx) => {
+  const idempotentReplay = await withTenantContext(db, caller.tenantId, async (tx) => {
     await assertTenantActive(tx, caller.tenantId);
     const loaded = await loadProductTranslations(tx, caller.tenantId, productPublicId);
     if (!loaded) {
@@ -626,8 +623,7 @@ export async function acceptCatalogueTranslation(
       .returning({ id: agentRunCatalogueTranslationDecisions.id });
 
     if (!reserved) {
-      const review = await buildTranslationReviewView(db, caller.tenantId, productPublicId, run);
-      return { review, idempotentReplay: true };
+      return true;
     }
 
     const [applied] = await tx
@@ -677,9 +673,11 @@ export async function acceptCatalogueTranslation(
       },
     });
 
-    const review = await buildTranslationReviewView(db, caller.tenantId, productPublicId, run);
-    return { review, idempotentReplay: false };
+    return false;
   });
+
+  const review = await buildTranslationReviewView(db, caller.tenantId, productPublicId, run);
+  return { review, idempotentReplay };
 }
 
 export async function rejectCatalogueTranslation(
@@ -693,7 +691,7 @@ export async function rejectCatalogueTranslation(
   const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
   assertTranslationRun(run, productPublicId);
 
-  return withTenantContext(db, caller.tenantId, async (tx) => {
+  await withTenantContext(db, caller.tenantId, async (tx) => {
     await assertTenantActive(tx, caller.tenantId);
     const loaded = await loadProductTranslations(tx, caller.tenantId, productPublicId);
     if (!loaded) {
@@ -731,10 +729,10 @@ export async function rejectCatalogueTranslation(
       entityVersion: loaded.product.version,
       changeSummary: { runPublicId: run.publicId },
     });
-
-    const review = await buildTranslationReviewView(db, caller.tenantId, productPublicId, run);
-    return { review };
   });
+
+  const review = await buildTranslationReviewView(db, caller.tenantId, productPublicId, run);
+  return { review };
 }
 
 export async function cancelCatalogueTranslation(
@@ -757,17 +755,24 @@ export async function cancelCatalogueTranslation(
   }
 
   const now = new Date();
-  return withTenantContext(db, caller.tenantId, async (tx) => {
+  const failedRun = await withTenantContext(db, caller.tenantId, async (tx) => {
     await assertTenantActive(tx, caller.tenantId);
     const loaded = await loadProductTranslations(tx, caller.tenantId, productPublicId);
     if (!loaded) {
       throw new AgentRunError("product_not_found", "Product not found.", 404);
     }
 
-    const job = await getAiJobForRun(db, caller.tenantId, {
-      jobKind: CATALOGUE_TRANSLATION_JOB_KIND,
-      agentRunId: run.id,
-    });
+    const [job] = await tx
+      .select({ publicId: aiJobs.publicId })
+      .from(aiJobs)
+      .where(
+        and(
+          eq(aiJobs.tenantId, caller.tenantId),
+          eq(aiJobs.jobKind, CATALOGUE_TRANSLATION_JOB_KIND),
+          eq(aiJobs.agentRunId, run.id),
+        ),
+      )
+      .limit(1);
     if (!job) {
       throw new AgentRunError("run_not_cancellable", "Translation job not found.", 409);
     }
@@ -831,9 +836,11 @@ export async function cancelCatalogueTranslation(
       changeSummary: { runPublicId: run.publicId },
     });
 
-    const review = await buildTranslationReviewView(db, caller.tenantId, productPublicId, failed);
-    return { review };
+    return failed!;
   });
+
+  const review = await buildTranslationReviewView(db, caller.tenantId, productPublicId, failedRun);
+  return { review };
 }
 
 export async function resolveCaller(
