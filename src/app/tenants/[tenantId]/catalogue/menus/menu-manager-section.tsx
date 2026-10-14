@@ -313,7 +313,11 @@ export function MenuManagerSection({
 
         {run && status ? (
           <Alert tone={status.tone} title={status.title}>
-            {run.status === "failed" ? `${failureCopy(run.failureCode)} ${status.description}` : status.description}
+            {run.status === "failed" && run.remoteOutcomeUnknown
+              ? status.description
+              : run.status === "failed"
+                ? failureCopy(run.failureCode)
+                : status.description}
           </Alert>
         ) : null}
 

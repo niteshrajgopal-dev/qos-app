@@ -106,6 +106,69 @@ function generateMenuPublicId(internalName: string) {
   return `men_${slugify(internalName)}_${randomUUID().slice(0, 8)}`;
 }
 
+function normalizeMenuSectionInput(section: MenuSectionInput) {
+  return {
+    publicId: section.publicId?.trim() ?? "",
+    internalName: section.internalName.trim(),
+    sortOrder: section.sortOrder,
+    archived: section.archived ?? false,
+    translations: {
+      en: {
+        displayName: section.translations.en.displayName.trim(),
+        description: section.translations.en.description?.trim() || null,
+      },
+      ar: {
+        displayName: section.translations.ar.displayName.trim(),
+        description: section.translations.ar.description?.trim() || null,
+      },
+    },
+    products: section.products.map((product) => ({
+      productPublicId: product.productPublicId.trim(),
+      sortOrder: product.sortOrder,
+      archived: product.archived ?? false,
+    })),
+  };
+}
+
+function normalizeMenuSectionView(section: MenuSectionView) {
+  return normalizeMenuSectionInput({
+    publicId: section.publicId,
+    internalName: section.internalName,
+    sortOrder: section.sortOrder,
+    archived: section.archived,
+    translations: {
+      en: {
+        displayName: section.translations.en.displayName,
+        description: section.translations.en.description,
+      },
+      ar: {
+        displayName: section.translations.ar.displayName,
+        description: section.translations.ar.description,
+      },
+    },
+    products: section.products.map((product) => ({
+      productPublicId: product.productPublicId,
+      sortOrder: product.sortOrder,
+      archived: product.archived,
+    })),
+  });
+}
+
+/** True when a PATCH sections payload matches the saved draft (UI always sends sections). */
+export function menuDraftSectionsMatch(
+  current: MenuSectionView[],
+  incoming: MenuSectionInput[] | undefined,
+) {
+  if (incoming === undefined) {
+    return true;
+  }
+  const sortKey = (left: ReturnType<typeof normalizeMenuSectionInput>, right: ReturnType<typeof normalizeMenuSectionInput>) =>
+    left.sortOrder - right.sortOrder || left.publicId.localeCompare(right.publicId);
+  const left = current.map(normalizeMenuSectionView).sort(sortKey);
+  const right = incoming.map(normalizeMenuSectionInput).sort(sortKey);
+  return JSON.stringify(left) === JSON.stringify(right);
+}
+
 function generateSectionPublicId(internalName: string) {
   return `sec_${slugify(internalName)}_${randomUUID().slice(0, 8)}`;
 }
@@ -987,9 +1050,14 @@ export async function updateDraftMenu(
         nextTranslations.ar.displayName === currentView.translations.ar.displayName &&
         nextTranslations.ar.description === currentView.translations.ar.description;
 
+      const locationIdsUnchanged =
+        !input.locationIds ||
+        (input.locationIds.length === currentView.locationIds.length &&
+          [...input.locationIds].sort().every((id, index) => id === [...currentView.locationIds].sort()[index]));
+
       if (
-        !input.locationIds &&
-        !input.sections &&
+        locationIdsUnchanged &&
+        menuDraftSectionsMatch(currentView.sections, input.sections) &&
         nextInternalName === menu.internalName &&
         translationsUnchanged
       ) {

@@ -274,6 +274,28 @@ integrationDescribe("native Menu Manager", () => {
     ]);
   });
 
+  it("fails the run when the worker has no model (OpenAI gate closed on the worker)", async () => {
+    const { menu, caller } = await seed();
+    const { run } = await ask(caller, menu.publicId);
+    const handler = createMenuManagerJobHandler(db, { config: NATIVE });
+    const result = await runAsRole(sqlClient, "qos_ai_worker", async () => {
+      const job = (await claimNextAiJob(db, {
+        workerId: "worker-no-model",
+        jobKinds: ["menu_manager.run"],
+        limits: LIMITS,
+      })) as ClaimedAiJob;
+      const step = await handler.step(job, {
+        markDispatched: () => markAiJobDispatched(db, job),
+        leaseLost: () => false,
+      });
+      await finishAiJobStep(db, job, step);
+      return step;
+    });
+    expect(result).toMatchObject({ type: "failed", code: "worker_native_model_unavailable" });
+    const [row] = await db.select().from(agentRuns).where(eq(agentRuns.publicId, run.publicId));
+    expect(row).toMatchObject({ status: "failed", failureCode: "worker_native_model_unavailable" });
+  });
+
   it("routes a crash after dispatch to operator review and does not call the model again", async () => {
     const { menu, caller } = await seed();
     const model = new FakeQosModel().script({ type: "completed", text: validReply(menu.publicId), usage: null });

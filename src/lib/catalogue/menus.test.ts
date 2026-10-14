@@ -298,6 +298,64 @@ integrationDescribe("catalogue draft menus", () => {
     expect(updated.translations.en.displayName).toBe("Snacks");
   });
 
+  it("does not bump version when the menu editor PATCH includes unchanged sections", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const admin = await seedAdministrator(quotes.tenant.id, quotes.location.id);
+    const product = await createDraftProduct(db, quotes.tenant.id, admin, {
+      internalName: "latte",
+      translations: { en: { displayName: "Latte", description: "d" }, ar: { displayName: "l", description: "w" } },
+      defaultVariant: { amountMinor: 1800, currency: "AED" },
+    });
+    const menu = await createDraftMenu(db, quotes.tenant.id, admin, {
+      internalName: "hbz-stadium",
+      locationIds: [quotes.location.id],
+      translations: {
+        en: { displayName: "HBZ Stadium Menu" },
+        ar: { displayName: "قائمة" },
+      },
+      sections: [
+        {
+          internalName: "coffee",
+          sortOrder: 0,
+          translations: { en: { displayName: "Coffee" }, ar: { displayName: "قهوة" } },
+          products: [{ productPublicId: product.publicId, sortOrder: 0 }],
+        },
+      ],
+    });
+
+    const view = await getDraftMenu(db, quotes.tenant.id, menu.publicId);
+    if (!view) {
+      throw new Error("menu missing");
+    }
+
+    const sectionsPayload = view.sections.map((section) => ({
+      publicId: section.publicId,
+      internalName: section.internalName,
+      sortOrder: section.sortOrder,
+      archived: section.archived,
+      translations: section.translations,
+      products: section.products.map((item) => ({
+        productPublicId: item.productPublicId,
+        sortOrder: item.sortOrder,
+        archived: item.archived,
+      })),
+    }));
+
+    const updated = await updateDraftMenu(db, quotes.tenant.id, admin, menu.publicId, {
+      expectedVersion: view.version,
+      internalName: view.internalName,
+      locationIds: view.locationIds,
+      translations: {
+        en: { displayName: "HBZ Stadium Menu " },
+        ar: view.translations.ar,
+      },
+      sections: sectionsPayload,
+    });
+
+    expect(updated.version).toBe(menu.version);
+    expect(updated.translations.en.displayName).toBe("HBZ Stadium Menu");
+  });
+
   it("returns a conflict on stale menu version updates", async () => {
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
     const admin = await seedAdministrator(quotes.tenant.id, quotes.location.id);
