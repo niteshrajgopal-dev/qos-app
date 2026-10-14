@@ -3,7 +3,7 @@ import {
   getAgentProviderConnectionStatus,
   markAgentProviderConnectionStatus,
 } from "@/lib/agents/provider-connections";
-import { isNativeModelConfigured } from "@/lib/agents/native/native-model-config";
+import { isNativeModelConfigured } from "@/lib/agents/native/openai-runtime-gate";
 import type { AgentConnectionStatus, AgentProviderKind } from "@/lib/agents/types";
 
 /**

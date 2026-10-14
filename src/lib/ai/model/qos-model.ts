@@ -1,5 +1,7 @@
 export type QosModelRequest = {
   modelId: string;
+  /** Correlation id sent to the provider; never logged with prompt text. */
+  correlationId?: string;
   instructions: string;
   input: string;
   tools: ReadonlyArray<{

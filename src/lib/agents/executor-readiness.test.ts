@@ -17,7 +17,7 @@ const nativeModel = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/agents/provider-connections", () => connections);
-vi.mock("@/lib/agents/native/native-model-config", () => nativeModel);
+vi.mock("@/lib/agents/native/openai-runtime-gate", () => nativeModel);
 
 const db = {} as DbClient;
 

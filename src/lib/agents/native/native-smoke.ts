@@ -1,6 +1,7 @@
 import type { EnvSource } from "@/lib/env";
-import { isNativeModelConfigured, readNativeModelConfig } from "@/lib/agents/native/native-model-config";
-import { aiSpendReadiness, readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
+import { readNativeModelConfig } from "@/lib/agents/native/native-model-config";
+import { evaluateNativeOpenAiGate } from "@/lib/agents/native/openai-runtime-gate";
+import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
 
 export const NATIVE_SMOKE_EVENT = "native_menu_manager.smoke";
 
@@ -65,23 +66,17 @@ export function nativeSmokeReadiness(source: EnvSource): NativeSmokeReadiness {
     missing.push("AGENT_MENU_MANAGER_ENABLED");
   }
 
-  try {
-    const model = readNativeModelConfig(source);
-    if (model.provider !== "openai") {
-      missing.push("AGENT_NATIVE_MODEL_PROVIDER");
-    } else if (!isNativeModelConfigured(source)) {
+  const gate = evaluateNativeOpenAiGate("menu_manager.native", source, readAiSpendPolicy(source));
+  if (!gate.ready) {
+    missing.push(...gate.missing);
+    if (gate.reason === "missing_api_key") {
       missing.push("native_openai_key");
     }
-  } catch {
-    missing.push("AGENT_NATIVE_MODEL");
+    return { ready: false, missing };
   }
 
-  const spend = aiSpendReadiness(readAiSpendPolicy(source), "menu_manager.native", "openai");
-  if (!spend.admissible) {
-    missing.push(...spend.missing);
-  }
-
-  if (missing.length > 0) {
+  if (gate.provider !== "openai") {
+    missing.push("AGENT_NATIVE_MODEL_PROVIDER");
     return { ready: false, missing };
   }
 

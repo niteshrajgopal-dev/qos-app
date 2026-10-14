@@ -49,8 +49,7 @@ async function main() {
     "@/lib/agents/menu-manager/menu-manager-definition"
   );
   const { askMenuManager } = await import("@/lib/agents/menu-manager/menu-manager-service");
-  const { createAgentsSdkModel } = await import("@/lib/agents/native/agents-sdk-model");
-  const { readNativeModelConfig } = await import("@/lib/agents/native/native-model-config");
+  const { createMenuManagerNativeQosModel } = await import("@/lib/agents/native/openai-runtime-gate");
   const { claimNextAiJob, finishAiJobStep, markAiJobDispatched } = await import(
     "@/lib/ai/jobs/ai-job-queue"
   );
@@ -77,7 +76,11 @@ async function main() {
     const startedAt = Date.now();
     let jobResult = "not_claimed";
     try {
-      const handler = createMenuManagerJobHandler(db, { model: createAgentsSdkModel(readNativeModelConfig()) });
+      const model = createMenuManagerNativeQosModel();
+      if (!model) {
+        throw new Error("Native OpenAI model is not configured for the worker.");
+      }
+      const handler = createMenuManagerJobHandler(db, { model });
       const job = await claimNextAiJob(db, {
         workerId: `native-smoke:${process.pid}`,
         jobKinds: ["menu_manager.run"],
