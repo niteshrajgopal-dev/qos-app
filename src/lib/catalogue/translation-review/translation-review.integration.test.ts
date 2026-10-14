@@ -70,10 +70,7 @@ function validTranslationJson(displayName: string, description: string | null) {
   });
 }
 
-integrationDescribe(
-  "catalogue translation review (FIXTURE)",
-  { timeout: 120_000, hookTimeout: 120_000 },
-  () => {
+integrationDescribe("catalogue translation review (FIXTURE)", () => {
   let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
   let sqlClient: Awaited<ReturnType<typeof resetAndMigrate>>["sql"];
 
@@ -91,7 +88,7 @@ integrationDescribe(
 
   beforeEach(async () => {
     await sqlClient`TRUNCATE TABLE qos.agent_run_catalogue_translation_decisions, qos.ai_job_attempts, qos.ai_jobs, qos.ai_spend_reservations, qos.ai_spend_tenant_counters, qos.ai_spend_platform_counters, qos.agent_run_inputs, qos.agent_runs, qos.tenant_audit_events, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
-  });
+  }, 120_000);
 
   async function seedProduct() {
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
@@ -225,7 +222,7 @@ integrationDescribe(
       }),
     );
     expect(replay.idempotentReplay).toBe(true);
-  });
+  }, 120_000);
 
   it("reject leaves product translations unchanged", async () => {
     const { tenantId, product, caller } = await seedProduct();
@@ -266,7 +263,7 @@ integrationDescribe(
     expect(after).toEqual(before);
     const [decision] = await db.select().from(agentRunCatalogueTranslationDecisions);
     expect(decision?.decision).toBe("rejected");
-  });
+  }, 120_000);
 
   it("gate disabled creates no spend reservation or provider job", async () => {
     const { product, caller } = await seedProduct();
@@ -288,7 +285,7 @@ integrationDescribe(
 
     expect(await db.select().from(aiSpendReservations)).toEqual([]);
     expect(await db.select().from(aiJobs)).toEqual([]);
-  });
+  }, 120_000);
 
   it("rejects fabricated nutrition in model output", async () => {
     const { product, caller } = await seedProduct();
@@ -314,6 +311,5 @@ integrationDescribe(
     await runWorker(model);
     const [failed] = await db.select().from(agentRuns).where(eq(agentRuns.publicId, run.publicId));
     expect(failed?.status).toBe("failed");
-  });
-  },
-);
+  }, 120_000);
+});
