@@ -2899,6 +2899,7 @@ export const agentProviderConnectionStatusEnum = qos.enum(
 
 export const agentCapabilityEnum = qos.enum("agent_capability", [
   "menu_manager",
+  "catalogue_translation",
 ]);
 
 export const agentRunStatusEnum = qos.enum("agent_run_status", [
@@ -3109,6 +3110,36 @@ export const agentRuns = qos.table(
       table.subjectType,
       table.subjectPublicId,
       table.createdAt,
+    ),
+  ],
+);
+
+/** One person-applied Menu Manager suggestion; immutable for idempotent replay. */
+export const agentRunCatalogueTranslationDecisions = qos.table(
+  "agent_run_catalogue_translation_decisions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    agentRunId: uuid("agent_run_id").notNull(),
+    decision: text("decision").notNull(),
+    displayName: text("display_name").notNull(),
+    description: text("description"),
+    decidedBySubject: text("decided_by_subject").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "agent_run_catalogue_translation_decisions_run_fk",
+      columns: [table.tenantId, table.agentRunId],
+      foreignColumns: [agentRuns.tenantId, agentRuns.id],
+    }).onDelete("restrict"),
+    uniqueIndex("agent_run_catalogue_translation_decisions_run_unique").on(
+      table.tenantId,
+      table.agentRunId,
     ),
   ],
 );

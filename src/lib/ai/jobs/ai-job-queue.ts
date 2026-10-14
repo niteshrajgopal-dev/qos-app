@@ -15,7 +15,7 @@ import { withTenantContext, type DbTransaction } from "@/lib/tenant/context";
  * No transaction is held across a provider call.
  */
 
-export type AiJobKind = "menu_manager.run" | "ai_photo.generate";
+export type AiJobKind = "menu_manager.run" | "ai_photo.generate" | "catalogue.translation.run";
 
 export type ClaimedAiJob = {
   jobId: string;

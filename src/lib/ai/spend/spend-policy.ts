@@ -10,7 +10,11 @@ import { readAiPhotoConfig } from "@/lib/media/ai-photos/config";
  * concurrency bounds, never an external invoice ceiling.
  */
 
-export const AI_SPEND_PATHS = ["ai_photo.async", "menu_manager.native"] as const;
+export const AI_SPEND_PATHS = [
+  "ai_photo.async",
+  "menu_manager.native",
+  "catalogue.translation",
+] as const;
 export type AiSpendPath = (typeof AI_SPEND_PATHS)[number];
 
 export const AI_SPEND_PROVIDERS = ["openai"] as const;

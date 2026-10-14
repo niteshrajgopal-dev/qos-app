@@ -332,6 +332,8 @@ export type CreateAgentRunInput = {
   tenantId: string;
   /** Required for Hyperagent. Native admissions omit it. */
   binding?: TenantAgentBinding | null;
+  /** Required for native admissions that are not menu_manager (no binding). */
+  capability?: AgentCapability;
   subject: { type: string; publicId: string; version: number | null };
   requestedBy: { subject: string; actorClass: AuditActorClass };
   idempotencyKey: string;
@@ -389,9 +391,11 @@ export async function createAgentRun(
   }
 
   const pin = input.pin;
-  const capability = binding?.capability ?? "menu_manager";
+  const capability = binding?.capability ?? input.capability ?? "menu_manager";
   const provider = binding?.provider ?? "agents_sdk";
-  const providerAgentId = binding?.providerAgentId ?? "qos.menu_manager";
+  const providerAgentId =
+    binding?.providerAgentId ??
+    (capability === "catalogue_translation" ? "qos.catalogue.translation" : "qos.menu_manager");
   const runConfig = agentRunConfigSchema.parse(pin.runConfig);
   if (Buffer.byteLength(pin.input.payload, "utf8") > MAX_RUN_INPUT_BYTES || pin.input.payload.length === 0) {
     throw new AgentRunError("run_input_too_large", "The request is too large to send to the agent.", 413);
