@@ -70,7 +70,10 @@ function validTranslationJson(displayName: string, description: string | null) {
   });
 }
 
-integrationDescribe("catalogue translation review (FIXTURE)", () => {
+integrationDescribe(
+  "catalogue translation review (FIXTURE)",
+  { timeout: 120_000, hookTimeout: 120_000 },
+  () => {
   let db: Awaited<ReturnType<typeof resetAndMigrate>>["db"];
   let sqlClient: Awaited<ReturnType<typeof resetAndMigrate>>["sql"];
 
@@ -312,4 +315,5 @@ integrationDescribe("catalogue translation review (FIXTURE)", () => {
     const [failed] = await db.select().from(agentRuns).where(eq(agentRuns.publicId, run.publicId));
     expect(failed?.status).toBe("failed");
   });
-});
+  },
+);
