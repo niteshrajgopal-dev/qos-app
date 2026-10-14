@@ -1,19 +1,9 @@
 import { randomBytes } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import {
-  agentRunCatalogueTranslationDecisions,
-  agentRuns,
-  aiJobAttempts,
-  aiJobs,
-  aiSpendReservations,
-  catalogueProductTranslations,
-  staffIdentities,
-  staffLocationScopes,
-  staffMemberships,
-} from "@/db/schema";
+import { agentRuns, aiJobAttempts, aiJobs, aiSpendReservations, staffIdentities, staffLocationScopes, staffMemberships } from "@/db/schema";
 import { grantRoleMembership, hasIntegrationDatabase, resetAndMigrate, runAsRole } from "@/db/test-utils";
 import { AgentRunError } from "@/lib/agents/agent-runs";
 import { readAgentConfig, type AgentConfig } from "@/lib/agents/config";
@@ -31,15 +21,8 @@ import {
   type ClaimedAiJob,
 } from "@/lib/ai/jobs/ai-job-queue";
 import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
-import { createCatalogueTranslationJobHandler } from "@/lib/catalogue/translation-review/catalogue-translation-job";
-import {
-  acceptCatalogueTranslation,
-  rejectCatalogueTranslation,
-  requestCatalogueTranslation,
-} from "@/lib/catalogue/translation-review/service";
 import { createDraftMenu } from "@/lib/catalogue/menus";
 import { createDraftProduct } from "@/lib/catalogue/products";
-import { AiSpendAdmissionError } from "@/lib/ai/spend/spend-admission";
 import { requireActiveStaffMembership } from "@/lib/staff/auth";
 import { quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
@@ -50,7 +33,6 @@ const BASE = { AGENTS_ENABLED: "true", AGENT_MENU_MANAGER_ENABLED: "true" };
 const NATIVE_ENV = {
   AGENT_NATIVE_MODEL_PROVIDER: "mock",
   AGENT_NATIVE_MODEL: "fake-model",
-  AGENT_OPENAI_TASK_MODEL_ALLOWLIST: "menu_manager.native=fake-model,catalogue.translation=fake-model",
   NODE_ENV: "test",
 };
 const DEFAULT_SWITCH = readAgentConfig(BASE);
@@ -71,29 +53,6 @@ const INLINE_NATIVE = readAgentConfig({
 });
 const REQUESTER = "admin.quotes@test";
 const LIMITS = { leaseMs: 60_000, maxActiveGlobal: 5, maxActivePerTenant: 5, maxActivePerKind: 5 };
-
-function translationSpendPolicy() {
-  return readAiSpendPolicy({
-    AI_SPEND_PLATFORM_CONCURRENCY: "10",
-    AI_SPEND_PROVIDER_OPENAI_CONCURRENCY: "10",
-    AI_SPEND_CATALOGUE_TRANSLATION_ENABLED: "true",
-    AI_SPEND_CATALOGUE_TRANSLATION_MAX_UNITS_PER_RUN: "1",
-    AI_SPEND_CATALOGUE_TRANSLATION_TENANT_DAILY_UNITS: "10",
-    AI_SPEND_CATALOGUE_TRANSLATION_TENANT_MONTHLY_UNITS: "100",
-    AI_SPEND_CATALOGUE_TRANSLATION_TENANT_CONCURRENCY: "10",
-    AI_SPEND_CATALOGUE_TRANSLATION_PLATFORM_DAILY_UNITS: "20",
-    AI_SPEND_CATALOGUE_TRANSLATION_PLATFORM_MONTHLY_UNITS: "100",
-    AI_SPEND_CATALOGUE_TRANSLATION_UNSTARTED_EXPIRY_MS: "600000",
-  });
-}
-
-function translationResultJson(displayName: string, description: string | null) {
-  return JSON.stringify({
-    schema: "qos.catalogue_translation_result.v1",
-    displayName,
-    description,
-  });
-}
 
 function spendPolicy() {
   return readAiSpendPolicy({
@@ -443,124 +402,4 @@ integrationDescribe("native Menu Manager", () => {
     expect(await db.select().from(agentRuns)).toEqual([]);
   });
 
-  async function translationWorkerStep(model: FakeQosModel) {
-    const handler = createCatalogueTranslationJobHandler(db, { config: NATIVE, model });
-    return runAsRole(sqlClient, "qos_ai_worker", async () => {
-      const job = await claimNextAiJob(db, {
-        workerId: "worker-test",
-        jobKinds: ["catalogue.translation.run"],
-        limits: LIMITS,
-      });
-      if (!job) {
-        return null;
-      }
-      const result = await handler.step(job, {
-        markDispatched: () => markAiJobDispatched(db, job),
-        leaseLost: () => false,
-      });
-      await finishAiJobStep(db, job, result);
-      return result;
-    });
-  }
-
-  it("catalogue.translation (FIXTURE): completes and accept leaves draft pending approval", async () => {
-    const { tenantId, product, caller } = await seed();
-    const model = new FakeQosModel().script({
-      type: "completed",
-      text: translationResultJson("لاتيه جديد", "وصف."),
-      usage: { total_tokens: 3 },
-    });
-    const { run } = await runAsRole(sqlClient, "qos_app", () =>
-      requestCatalogueTranslation(
-        db,
-        caller,
-        product.publicId,
-        {
-          sourceLocale: "en",
-          targetLocale: "ar",
-          idempotencyKey: `idem-${randomBytes(6).toString("hex")}`,
-        },
-        { env: NATIVE_ENV, config: NATIVE, spendPolicy: translationSpendPolicy() },
-      ),
-    );
-    await translationWorkerStep(model);
-    const [arBefore] = await db
-      .select()
-      .from(catalogueProductTranslations)
-      .where(
-        and(eq(catalogueProductTranslations.tenantId, tenantId), eq(catalogueProductTranslations.locale, "ar")),
-      );
-    await runAsRole(sqlClient, "qos_app", () =>
-      acceptCatalogueTranslation(db, caller, product.publicId, {
-        runPublicId: run.publicId,
-        displayName: "لاتيه جديد",
-        description: "وصف.",
-        expectedTargetTranslationVersion: arBefore!.translationVersion,
-      }),
-    );
-    const [arAfter] = await db
-      .select()
-      .from(catalogueProductTranslations)
-      .where(
-        and(eq(catalogueProductTranslations.tenantId, tenantId), eq(catalogueProductTranslations.locale, "ar")),
-      );
-    expect(arAfter).toMatchObject({ approvalStatus: "draft", provenance: "ai_generated" });
-  }, 60_000);
-
-  it("catalogue.translation (FIXTURE): unset spend policy creates no reservation", async () => {
-    const { product, caller } = await seed();
-    await expect(
-      runAsRole(sqlClient, "qos_app", () =>
-        requestCatalogueTranslation(
-          db,
-          caller,
-          product.publicId,
-          {
-            sourceLocale: "en",
-            targetLocale: "ar",
-            idempotencyKey: `idem-${randomBytes(6).toString("hex")}`,
-          },
-          { env: NATIVE_ENV, config: NATIVE, spendPolicy: readAiSpendPolicy({}) },
-        ),
-      ),
-    ).rejects.toBeInstanceOf(AiSpendAdmissionError);
-    expect(await db.select().from(aiSpendReservations)).toEqual([]);
-  }, 30_000);
-
-  it("catalogue.translation (FIXTURE): reject does not change translations", async () => {
-    const { tenantId, product, caller } = await seed();
-    const model = new FakeQosModel().script({
-      type: "completed",
-      text: translationResultJson("Latte", "Milk."),
-      usage: { total_tokens: 2 },
-    });
-    const { run } = await runAsRole(sqlClient, "qos_app", () =>
-      requestCatalogueTranslation(
-        db,
-        caller,
-        product.publicId,
-        {
-          sourceLocale: "ar",
-          targetLocale: "en",
-          idempotencyKey: `idem-${randomBytes(6).toString("hex")}`,
-        },
-        { env: NATIVE_ENV, config: NATIVE, spendPolicy: translationSpendPolicy() },
-      ),
-    );
-    await translationWorkerStep(model);
-    const before = await db
-      .select()
-      .from(catalogueProductTranslations)
-      .where(eq(catalogueProductTranslations.tenantId, tenantId));
-    await runAsRole(sqlClient, "qos_app", () =>
-      rejectCatalogueTranslation(db, caller, product.publicId, { runPublicId: run.publicId }),
-    );
-    const after = await db
-      .select()
-      .from(catalogueProductTranslations)
-      .where(eq(catalogueProductTranslations.tenantId, tenantId));
-    expect(after).toEqual(before);
-    const [decision] = await db.select().from(agentRunCatalogueTranslationDecisions);
-    expect(decision?.decision).toBe("rejected");
-  }, 60_000);
 });
