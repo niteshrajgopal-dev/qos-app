@@ -1,16 +1,18 @@
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import { z } from "zod";
 
 import type { DbClient } from "@/db/client";
 import {
   agentRunCatalogueTranslationDecisions,
   agentRuns,
+  aiSpendReservations,
   catalogueProductTranslations,
   catalogueProducts,
 } from "@/db/schema";
 import {
   AgentRunError,
   createAgentRun,
+  failQueuedAgentRunInTx,
   getAgentRun,
   type AgentRunConfig,
   type AgentRunRecord,
@@ -18,8 +20,16 @@ import {
 import { readAgentConfig, type AgentConfig } from "@/lib/agents/config";
 import { evaluateNativeOpenAiGate } from "@/lib/agents/native/openai-runtime-gate";
 import { executionIdentityForNative } from "@/lib/agents/execution-identity";
-import { enqueueAiJobInTx } from "@/lib/ai/jobs/ai-job-queue";
-import { AiSpendAdmissionError, reserveAiSpend } from "@/lib/ai/spend/spend-admission";
+import {
+  cancelUnclaimedAiJobInTx,
+  enqueueAiJobInTx,
+  getAiJobForRun,
+} from "@/lib/ai/jobs/ai-job-queue";
+import {
+  AiSpendAdmissionError,
+  releaseUnstartedAiSpend,
+  reserveAiSpend,
+} from "@/lib/ai/spend/spend-admission";
 import { readAiSpendPolicy, type AiSpendPolicy } from "@/lib/ai/spend/spend-policy";
 import {
   auditActorClassFromStaffRole,
@@ -36,6 +46,7 @@ import type { ProductLocale } from "@/lib/catalogue/validation";
 import { readNativeModelConfig } from "@/lib/agents/native/native-model-config";
 import {
   requireActiveStaffMembership,
+  requireAdministratorMembership,
   type ActiveStaffMembership,
 } from "@/lib/staff/auth";
 import { withTenantContext, type TenantDbExecutor } from "@/lib/tenant/context";
@@ -106,6 +117,10 @@ export const acceptTranslationBodySchema = z.strictObject({
 });
 
 export const rejectTranslationBodySchema = z.strictObject({
+  runPublicId: z.string().regex(/^run_[a-f0-9]{24}$/),
+});
+
+export const cancelTranslationBodySchema = z.strictObject({
   runPublicId: z.string().regex(/^run_[a-f0-9]{24}$/),
 });
 
@@ -346,6 +361,9 @@ export async function getLatestTranslationReview(
   });
 }
 
+const TRANSLATION_CANCEL_CODE = "translation_cancelled";
+const TRANSLATION_CANCEL_MESSAGE = "Translation request was cancelled.";
+
 export async function requestCatalogueTranslation(
   db: DbClient,
   caller: Caller,
@@ -358,6 +376,8 @@ export async function requestCatalogueTranslation(
     now?: () => Date;
   } = {},
 ) {
+  await requireAdministratorMembership(db, caller.tenantId, caller.subject);
+
   if (input.sourceLocale === input.targetLocale) {
     throw new AgentRunError(
       "invalid_locales",
@@ -522,6 +542,8 @@ export async function acceptCatalogueTranslation(
   productPublicId: string,
   input: z.infer<typeof acceptTranslationBodySchema>,
 ) {
+  await requireAdministratorMembership(db, caller.tenantId, caller.subject);
+
   const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
   assertTranslationRun(run, productPublicId);
   const summary = parseRequestSummary(run);
@@ -608,7 +630,7 @@ export async function acceptCatalogueTranslation(
       return { review, idempotentReplay: true };
     }
 
-    await tx
+    const [applied] = await tx
       .update(catalogueProductTranslations)
       .set({
         displayName: claimSanitized.value.displayName,
@@ -628,7 +650,16 @@ export async function acceptCatalogueTranslation(
           eq(catalogueProductTranslations.id, targetRow.id),
           eq(catalogueProductTranslations.translationVersion, targetRow.translationVersion),
         ),
+      )
+      .returning({ id: catalogueProductTranslations.id });
+
+    if (!applied) {
+      throw new AgentRunError(
+        "version_conflict",
+        "The target translation was updated elsewhere. Reload and try again.",
+        409,
       );
+    }
 
     await recordTenantAuditEventInTx(tx, {
       tenantId: caller.tenantId,
@@ -657,6 +688,8 @@ export async function rejectCatalogueTranslation(
   productPublicId: string,
   input: z.infer<typeof rejectTranslationBodySchema>,
 ) {
+  await requireAdministratorMembership(db, caller.tenantId, caller.subject);
+
   const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
   assertTranslationRun(run, productPublicId);
 
@@ -700,6 +733,105 @@ export async function rejectCatalogueTranslation(
     });
 
     const review = await buildTranslationReviewView(db, caller.tenantId, productPublicId, run);
+    return { review };
+  });
+}
+
+export async function cancelCatalogueTranslation(
+  db: DbClient,
+  caller: Caller,
+  productPublicId: string,
+  input: z.infer<typeof cancelTranslationBodySchema>,
+) {
+  await requireAdministratorMembership(db, caller.tenantId, caller.subject);
+
+  const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
+  assertTranslationRun(run, productPublicId);
+
+  if (run.status !== "queued") {
+    throw new AgentRunError(
+      "run_not_cancellable",
+      "Only queued translation requests can be cancelled.",
+      409,
+    );
+  }
+
+  const now = new Date();
+  return withTenantContext(db, caller.tenantId, async (tx) => {
+    await assertTenantActive(tx, caller.tenantId);
+    const loaded = await loadProductTranslations(tx, caller.tenantId, productPublicId);
+    if (!loaded) {
+      throw new AgentRunError("product_not_found", "Product not found.", 404);
+    }
+
+    const job = await getAiJobForRun(db, caller.tenantId, {
+      jobKind: CATALOGUE_TRANSLATION_JOB_KIND,
+      agentRunId: run.id,
+    });
+    if (!job) {
+      throw new AgentRunError("run_not_cancellable", "Translation job not found.", 409);
+    }
+
+    const cancelled = await cancelUnclaimedAiJobInTx(tx, {
+      jobPublicId: job.publicId,
+      code: TRANSLATION_CANCEL_CODE,
+      message: TRANSLATION_CANCEL_MESSAGE,
+    });
+    if (!cancelled) {
+      throw new AgentRunError(
+        "run_not_cancellable",
+        "This translation is already running and cannot be cancelled.",
+        409,
+      );
+    }
+
+    const failed = await failQueuedAgentRunInTx(tx, caller.tenantId, run.publicId, {
+      code: TRANSLATION_CANCEL_CODE,
+      message: TRANSLATION_CANCEL_MESSAGE,
+      now,
+    });
+    if (!failed) {
+      throw new AgentRunError(
+        "run_not_cancellable",
+        "Translation request is no longer queued.",
+        409,
+      );
+    }
+
+    const [reservation] = await tx
+      .select({ publicId: aiSpendReservations.publicId })
+      .from(aiSpendReservations)
+      .where(
+        and(
+          eq(aiSpendReservations.tenantId, caller.tenantId),
+          eq(aiSpendReservations.path, "catalogue.translation"),
+          eq(aiSpendReservations.subjectType, "agent_run"),
+          eq(aiSpendReservations.subjectPublicId, run.publicId),
+          eq(aiSpendReservations.state, "reserved"),
+          isNull(aiSpendReservations.dispatchedAt),
+        ),
+      )
+      .limit(1);
+    if (reservation) {
+      await releaseUnstartedAiSpend(tx, {
+        tenantId: caller.tenantId,
+        reservationPublicId: reservation.publicId,
+        now,
+      });
+    }
+
+    await recordTenantAuditEventInTx(tx, {
+      tenantId: caller.tenantId,
+      actorSubject: caller.subject,
+      actorClass: auditActorClassFromStaffRole(caller.membership.role),
+      action: "catalogue.translation.request_cancelled",
+      entityType: "catalogue_product",
+      entityPublicId: productPublicId,
+      entityVersion: loaded.product.version,
+      changeSummary: { runPublicId: run.publicId },
+    });
+
+    const review = await buildTranslationReviewView(db, caller.tenantId, productPublicId, failed);
     return { review };
   });
 }
