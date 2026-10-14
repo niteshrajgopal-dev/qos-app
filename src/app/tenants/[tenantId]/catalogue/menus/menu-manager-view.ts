@@ -210,6 +210,8 @@ const FAILURE_COPY: Record<string, string> = {
     "QOS could not confirm whether the model received this review. Nothing on the menu was changed.",
   too_many_tool_rounds: "The review needed more tool calls than QOS allows, so it was stopped.",
   not_started_in_time: "QOS did not start this review in time. Nothing was sent to the agent service.",
+  worker_native_model_unavailable:
+    "The AI worker is not configured to run Menu Manager reviews. An administrator must align the worker environment with the API.",
 };
 
 export function failureCopy(code: string | null) {

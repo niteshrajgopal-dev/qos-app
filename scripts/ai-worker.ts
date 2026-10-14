@@ -12,6 +12,7 @@ import { createMenuManagerJobHandler } from "@/lib/agents/menu-manager/menu-mana
 import {
   createCatalogueTranslationNativeQosModel,
   createMenuManagerNativeQosModel,
+  evaluateNativeOpenAiGate,
 } from "@/lib/agents/native/openai-runtime-gate";
 import { createCatalogueTranslationJobHandler } from "@/lib/catalogue/translation-review/catalogue-translation-job";
 import {
@@ -43,6 +44,14 @@ async function main() {
   const { db, sql } = createDbClient();
 
   const handlers = new Map<AiJobKind, AiJobHandler>();
+  const menuManagerGate = evaluateNativeOpenAiGate("menu_manager.native");
+  if (!menuManagerGate.ready) {
+    log({
+      event: "ai_worker.menu_manager_model_unavailable",
+      reason: menuManagerGate.reason,
+      missing: menuManagerGate.missing,
+    });
+  }
   const nativeModel = createMenuManagerNativeQosModel();
   const menuManager = createMenuManagerJobHandler(db, { model: nativeModel });
   handlers.set(menuManager.kind, menuManager);

@@ -31,7 +31,16 @@ import {
   pollingBlockedBy,
   runLimits,
 } from "@/lib/agents/menu-manager/menu-manager-service";
+import {
+  evaluateNativeOpenAiGate,
+  workerNativeModelUnavailableMessage,
+  WORKER_NATIVE_MODEL_UNAVAILABLE_CODE,
+} from "@/lib/agents/native/openai-runtime-gate";
 import { runNativeExecutor } from "@/lib/agents/native/native-executor";
+import {
+  resolveUncertainPriorDispatch,
+  UNCERTAIN_START_FAILURE,
+} from "@/lib/agents/menu-manager/menu-manager-uncertain-dispatch";
 import { getAgentRuntimeProvider } from "@/lib/agents/provider-registry";
 import { AGENT_TOOLS } from "@/lib/agents/tools/menu-tools";
 import { invokeAgentTool } from "@/lib/agents/tools/tool-gateway";
@@ -80,13 +89,24 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
   ): Promise<AiJobStepResult> {
     const limits = runLimits(run, config);
     if (job.uncertainPriorDispatch) {
-      const message = "QOS could not confirm whether the agent service accepted this review.";
+      const uncertain = await resolveUncertainPriorDispatch(db, job.tenantId, run.publicId);
+      if (uncertain.kind === "completed") {
+        return { type: "completed" };
+      }
+      if (uncertain.kind === "continue") {
+        return poll(job, uncertain.run, config);
+      }
       await markAgentRunFailed(db, job.tenantId, run.publicId, {
-        code: START_OUTCOME_UNKNOWN_CODE,
-        message,
+        code: UNCERTAIN_START_FAILURE.code,
+        message: UNCERTAIN_START_FAILURE.message,
         now: clock(),
       });
-      return { type: "operator_review", code: START_OUTCOME_UNKNOWN_CODE, message, providerOutcome: "submission_unknown" };
+      return {
+        type: "operator_review",
+        code: UNCERTAIN_START_FAILURE.code,
+        message: UNCERTAIN_START_FAILURE.message,
+        providerOutcome: "submission_unknown",
+      };
     }
     if (clock().getTime() - Date.parse(run.createdAt) >= limits.queuedStaleMs) {
       return notSent(job, run, NOT_STARTED_IN_TIME_CODE, NOT_STARTED_IN_TIME_MESSAGE);
@@ -239,9 +259,10 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
   async function nativeStep(
     job: ClaimedAiJob,
     context: AiJobStepContext,
-    run: AgentRunRecord,
+    initialRun: AgentRunRecord,
     config: AgentConfig,
   ): Promise<AiJobStepResult> {
+    let run = initialRun;
     async function nativeSpendReservationPublicId() {
       const fromSummary =
         typeof run.requestSummary.spendReservationPublicId === "string"
@@ -291,14 +312,22 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
     }
 
     if (job.uncertainPriorDispatch) {
-      const message = "QOS could not confirm whether the model accepted this review.";
-      await markAgentRunFailed(db, job.tenantId, run.publicId, {
-        code: START_OUTCOME_UNKNOWN_CODE,
-        message,
-        now: clock(),
-      });
-      await settleSpend("submission_unknown");
-      return { type: "operator_review", code: START_OUTCOME_UNKNOWN_CODE, message, providerOutcome: "submission_unknown" };
+      const uncertain = await resolveUncertainPriorDispatch(db, job.tenantId, run.publicId);
+      if (uncertain.kind === "completed") {
+        return { type: "completed" };
+      }
+      if (uncertain.kind === "continue") {
+        run = uncertain.run;
+      } else {
+        const message = "QOS could not confirm whether the model accepted this review.";
+        await markAgentRunFailed(db, job.tenantId, run.publicId, {
+          code: START_OUTCOME_UNKNOWN_CODE,
+          message,
+          now: clock(),
+        });
+        await settleSpend("submission_unknown");
+        return { type: "operator_review", code: START_OUTCOME_UNKNOWN_CODE, message, providerOutcome: "submission_unknown" };
+      }
     }
 
     const definition = getMenuManagerDefinition(run.definitionVersion);
@@ -315,33 +344,51 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
     }
     const model = options.model;
     if (!model) {
-      return { type: "reschedule", delayMs: runLimits(run, config).pollIntervalMs, code: "executor_unavailable" };
+      const gate = evaluateNativeOpenAiGate("menu_manager.native");
+      if (!gate.ready) {
+        return notSent(
+          job,
+          run,
+          WORKER_NATIVE_MODEL_UNAVAILABLE_CODE,
+          workerNativeModelUnavailableMessage(gate),
+        );
+      }
+      return notSent(
+        job,
+        run,
+        WORKER_NATIVE_MODEL_UNAVAILABLE_CODE,
+        "The AI worker has no Menu Manager model configured.",
+      );
     }
     if (context.leaseLost()) {
       throw new AiJobLeaseLostError(job.jobPublicId);
     }
 
-    await context.markDispatched();
-    const reservationPublicId = await nativeSpendReservationPublicId();
-    if (reservationPublicId) {
-      await withTenantContext(db, job.tenantId, (tx) =>
-        markAiSpendDispatched(tx, { tenantId: job.tenantId, reservationPublicId, now: clock() }),
-      );
-    }
+    const alreadyStarted = run.status === "running" && run.providerThreadId !== null;
+    if (!alreadyStarted) {
+      await context.markDispatched();
+      const reservationPublicId = await nativeSpendReservationPublicId();
+      if (reservationPublicId) {
+        await withTenantContext(db, job.tenantId, (tx) =>
+          markAiSpendDispatched(tx, { tenantId: job.tenantId, reservationPublicId, now: clock() }),
+        );
+      }
 
-    const started = await markAgentRunStarted(db, job.tenantId, run.publicId, {
-      providerThreadId: `native:${run.publicId}`,
-      actor: WORKER_ACTOR,
-      pollIntervalMs: runLimits(run, config).pollIntervalMs,
-      now: clock(),
-    });
-    if (started.status !== "running") {
-      await settleSpend("submission_unknown");
-      return {
-        type: "operator_review",
-        code: "started_after_run_ended",
-        message: "The model accepted a review QOS had already ended.",
-      };
+      const started = await markAgentRunStarted(db, job.tenantId, run.publicId, {
+        providerThreadId: `native:${run.publicId}`,
+        actor: WORKER_ACTOR,
+        pollIntervalMs: runLimits(run, config).pollIntervalMs,
+        now: clock(),
+      });
+      run = started;
+      if (started.status !== "running") {
+        await settleSpend("submission_unknown");
+        return {
+          type: "operator_review",
+          code: "started_after_run_ended",
+          message: "The model accepted a review QOS had already ended.",
+        };
+      }
     }
 
     const correlatedModel: QosModel = {

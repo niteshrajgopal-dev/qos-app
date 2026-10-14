@@ -149,6 +149,15 @@ export function createGatedNativeQosModel(
   });
 }
 
+export const WORKER_NATIVE_MODEL_UNAVAILABLE_CODE = "worker_native_model_unavailable";
+
+export function workerNativeModelUnavailableMessage(
+  gate: Extract<NativeOpenAiGateReadiness, { ready: false }>,
+) {
+  const vars = gate.missing.length > 0 ? gate.missing.join(", ") : "see AGENT_OPENAI_TASK_MODEL_ALLOWLIST and spend policy";
+  return `The AI worker cannot run Menu Manager reviews (${gate.reason}). Set on the worker container: ${vars}.`;
+}
+
 /** Worker entry: returns a model only when the menu_manager.native gate is fully satisfied. */
 export function createMenuManagerNativeQosModel(source: EnvSource = process.env): QosModel | undefined {
   const gate = evaluateNativeOpenAiGate("menu_manager.native", source);
