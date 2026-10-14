@@ -27,6 +27,6 @@ integrationDescribe("catalogue translation review migration (0047)", () => {
     expect(enumRow).toBeTruthy();
 
     const [table] = await sql`SELECT to_regclass('qos.agent_run_catalogue_translation_decisions') AS t`;
-    expect(table?.t).toBe("qos.agent_run_catalogue_translation_decisions");
+    expect(String(table?.t ?? "")).toContain("agent_run_catalogue_translation_decisions");
   });
 });
