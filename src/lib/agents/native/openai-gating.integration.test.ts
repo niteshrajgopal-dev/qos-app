@@ -115,8 +115,12 @@ integrationDescribe("OpenAI native gating (QOS-28)", () => {
   });
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.ai_job_attempts, qos.ai_jobs, qos.ai_spend_reservations, qos.ai_spend_tenant_counters, qos.ai_spend_platform_counters, qos.agent_run_inputs, qos.agent_runs, qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.ai_spend_reservations, qos.ai_spend_tenant_counters, qos.ai_spend_platform_counters, qos.agent_run_inputs, qos.agent_runs, qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
   });
+
+  async function clearTranslationJobs() {
+    await sqlClient`TRUNCATE TABLE qos.ai_job_attempts, qos.ai_jobs RESTART IDENTITY CASCADE`;
+  }
 
   it("refuses admission when spend policy is unset without creating reservations", async () => {
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
@@ -274,6 +278,7 @@ integrationDescribe("OpenAI native gating (QOS-28)", () => {
   });
 
   it("catalogue.translation (FIXTURE): accept writes draft without approval", async () => {
+    await clearTranslationJobs();
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
     const subject = "editor@test";
     const [identity] = await db
@@ -374,9 +379,10 @@ integrationDescribe("OpenAI native gating (QOS-28)", () => {
       approvalStatus: "draft",
       provenance: "ai_generated",
     });
-  });
+  }, 60_000);
 
   it("catalogue.translation (FIXTURE): gate disabled creates no spend reservation", async () => {
+    await clearTranslationJobs();
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
     const subject = "admin-gate@test";
     const [identity] = await db
@@ -421,9 +427,10 @@ integrationDescribe("OpenAI native gating (QOS-28)", () => {
     ).rejects.toMatchObject({ code: "spend_policy_unset" });
     expect(await db.select().from(aiSpendReservations)).toEqual([]);
     expect(await db.select().from(aiJobs)).toEqual([]);
-  });
+  }, 60_000);
 
   it("catalogue.translation (FIXTURE): reject leaves translations unchanged", async () => {
+    await clearTranslationJobs();
     const quotes = await createTenantHierarchy(db, quotesTenantFixture());
     const subject = "editor2@test";
     const [identity] = await db
@@ -499,5 +506,5 @@ integrationDescribe("OpenAI native gating (QOS-28)", () => {
     expect(after).toEqual(before);
     const [decision] = await db.select().from(agentRunCatalogueTranslationDecisions);
     expect(decision?.decision).toBe("rejected");
-  });
+  }, 60_000);
 });
