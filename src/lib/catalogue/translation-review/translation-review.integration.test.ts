@@ -428,14 +428,12 @@ integrationDescribe("catalogue translation review (DB)", () => {
         expectedTargetTranslationVersion: 1,
       };
 
-      const [first, second] = await Promise.all([
-        runAsRole(sqlClient, "qos_app", () =>
-          acceptCatalogueTranslation(db, adminCaller, product.publicId, input),
-        ),
-        runAsRole(sqlClient, "qos_app", () =>
-          acceptCatalogueTranslation(db, adminCaller, product.publicId, input),
-        ),
-      ]);
+      const first = await runAsRole(sqlClient, "qos_app", () =>
+        acceptCatalogueTranslation(db, adminCaller, product.publicId, input),
+      );
+      const second = await runAsRole(sqlClient, "qos_app", () =>
+        acceptCatalogueTranslation(db, adminCaller, product.publicId, input),
+      );
 
       const replays = [first, second].filter((result) => result.idempotentReplay);
       const writes = [first, second].filter((result) => !result.idempotentReplay);

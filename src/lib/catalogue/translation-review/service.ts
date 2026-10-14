@@ -336,9 +336,9 @@ export async function getLatestTranslationReview(
   productPublicId: string,
   env?: Record<string, string | undefined>,
 ) {
-  return withTenantContext(db, tenantId, async (tx) => {
+  const runPublicId = await withTenantContext(db, tenantId, async (tx) => {
     const [run] = await tx
-      .select()
+      .select({ publicId: agentRuns.publicId })
       .from(agentRuns)
       .where(
         and(
@@ -350,12 +350,13 @@ export async function getLatestTranslationReview(
       )
       .orderBy(desc(agentRuns.createdAt))
       .limit(1);
-    if (!run) {
-      return null;
-    }
-    const record = await getAgentRun(db, tenantId, run.publicId);
-    return buildTranslationReviewView(db, tenantId, productPublicId, record, env);
+    return run?.publicId ?? null;
   });
+  if (!runPublicId) {
+    return null;
+  }
+  const record = await getAgentRun(db, tenantId, runPublicId);
+  return buildTranslationReviewView(db, tenantId, productPublicId, record, env);
 }
 
 const TRANSLATION_CANCEL_CODE = "translation_cancelled";
@@ -560,6 +561,20 @@ export async function acceptCatalogueTranslation(
 
     const sourceRow = loaded.byLocale[summary.sourceLocale]!;
     const targetRow = loaded.byLocale[summary.targetLocale]!;
+
+    const [existingDecision] = await tx
+      .select({ decision: agentRunCatalogueTranslationDecisions.decision })
+      .from(agentRunCatalogueTranslationDecisions)
+      .where(
+        and(
+          eq(agentRunCatalogueTranslationDecisions.tenantId, caller.tenantId),
+          eq(agentRunCatalogueTranslationDecisions.agentRunId, run.id),
+        ),
+      )
+      .limit(1);
+    if (existingDecision?.decision === "accepted") {
+      return true;
+    }
 
     const claimSanitized = sanitizeTranslationSuggestion(
       {
