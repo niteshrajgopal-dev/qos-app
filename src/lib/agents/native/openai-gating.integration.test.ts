@@ -108,6 +108,7 @@ integrationDescribe("OpenAI native gating (QOS-28)", () => {
     db = connection.db;
     sqlClient = connection.sql;
     await grantRoleMembership(sqlClient, "qos", "qos_app");
+    await grantRoleMembership(sqlClient, "qos", "qos_ai_worker");
   }, 120_000);
 
   afterAll(async () => {
