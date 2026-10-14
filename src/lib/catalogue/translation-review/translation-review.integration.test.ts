@@ -137,6 +137,7 @@ integrationDescribe("catalogue translation review (DB)", () => {
   async function seedTenant(
     adminSubject = ADMIN_SUBJECT,
     fixture: CreateTenantHierarchyInput = quotesTenantFixture(),
+    staffSubject = STAFF_SUBJECT,
   ) {
     const quotes = await createTenantHierarchy(db, fixture);
     const adminMembership = await seedMember(
@@ -149,7 +150,7 @@ integrationDescribe("catalogue translation review (DB)", () => {
       quotes.tenant.id,
       quotes.location.id,
       "user",
-      STAFF_SUBJECT,
+      staffSubject,
     );
     const product = await createDraftProduct(db, quotes.tenant.id, adminMembership, {
       internalName: "latte",
@@ -168,7 +169,7 @@ integrationDescribe("catalogue translation review (DB)", () => {
     };
     const staffCaller = {
       tenantId: quotes.tenant.id,
-      subject: STAFF_SUBJECT,
+      subject: staffSubject,
       membership: staffMembership,
     };
     return { quotes, product, adminCaller, staffCaller, adminMembership };
@@ -588,7 +589,11 @@ integrationDescribe("catalogue translation review (DB)", () => {
     "tenant B cannot read or accept tenant A translation runs",
     async () => {
       const tenantA = await seedTenant();
-      const tenantB = await seedTenant("admin.other@test", flowerTenantFixture());
+      const tenantB = await seedTenant(
+        "admin.other@test",
+        flowerTenantFixture(),
+        "staff.flowers@test",
+      );
 
       const { run } = await completeRun(
         tenantA.adminCaller,
