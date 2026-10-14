@@ -1,3 +1,4 @@
+import { AiTranslationReview } from "@/app/tenants/[tenantId]/catalogue/products/[productPublicId]/translations/ai-translation-review";
 import { TranslationReview } from "@/app/tenants/[tenantId]/catalogue/products/[productPublicId]/translations/translation-review";
 import { ButtonLink } from "@/components/ButtonLink";
 import { StaffScreen } from "@/components/staff/StaffScreen";
@@ -24,10 +25,17 @@ export default async function ProductTranslationReviewPage({
         </ButtonLink>
       }
     >
-      <TranslationReview
-        tenantId={tenantId}
-        productPublicId={productPublicId}
-      />
+      <div className="space-y-10">
+        <AiTranslationReview
+          tenantId={tenantId}
+          productPublicId={productPublicId}
+          uiLocale="en"
+        />
+        <TranslationReview
+          tenantId={tenantId}
+          productPublicId={productPublicId}
+        />
+      </div>
     </StaffScreen>
   );
 }

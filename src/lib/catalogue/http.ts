@@ -28,6 +28,8 @@ import {
   TranslationApprovalConflictError,
   TranslationApprovalError,
 } from "@/lib/catalogue/translation-approval";
+import { AgentRunError } from "@/lib/agents/agent-runs";
+import { AiSpendAdmissionError } from "@/lib/ai/spend/spend-admission";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { StaffAuthError } from "@/lib/staff/session";
 import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
@@ -133,6 +135,25 @@ export function catalogueErrorResponse(error: unknown) {
     return NextResponse.json(
       { error: error.message, field: error.field },
       { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof AgentRunError) {
+    return NextResponse.json(
+      {
+        error: error.message,
+        code: error.code,
+        activeRunPublicId: error.activeRunPublicId,
+        unresolvedRunPublicId: error.unresolvedRunPublicId,
+      },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof AiSpendAdmissionError) {
+    return NextResponse.json(
+      { error: error.message, code: error.code },
+      { status: error.status },
     );
   }
 

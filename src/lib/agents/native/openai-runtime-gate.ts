@@ -34,6 +34,7 @@ export type NativeOpenAiGateReadiness =
 const TASK_SPEND_PATH: Record<OpenAiNativeTask, AiSpendPath> = {
   "menu_manager.native": "menu_manager.native",
   "ai_photo.async": "ai_photo.async",
+  "catalogue.translation": "catalogue.translation",
 };
 
 function missingForReason(
@@ -151,6 +152,18 @@ export function createGatedNativeQosModel(
 /** Worker entry: returns a model only when the menu_manager.native gate is fully satisfied. */
 export function createMenuManagerNativeQosModel(source: EnvSource = process.env): QosModel | undefined {
   const gate = evaluateNativeOpenAiGate("menu_manager.native", source);
+  if (!gate.ready || gate.provider !== "openai") {
+    return undefined;
+  }
+  const config = readNativeModelConfig(source);
+  return createGatedNativeQosModel(gate, config);
+}
+
+/** Worker entry: model for catalogue.translation when the gate is fully satisfied. */
+export function createCatalogueTranslationNativeQosModel(
+  source: EnvSource = process.env,
+): QosModel | undefined {
+  const gate = evaluateNativeOpenAiGate("catalogue.translation", source);
   if (!gate.ready || gate.provider !== "openai") {
     return undefined;
   }

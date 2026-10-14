@@ -1,7 +1,11 @@
 import type { EnvSource } from "@/lib/env";
 
 /** Paid OpenAI work is keyed by spend path / task id (not tenant-supplied labels). */
-export const OPENAI_NATIVE_TASKS = ["menu_manager.native", "ai_photo.async"] as const;
+export const OPENAI_NATIVE_TASKS = [
+  "menu_manager.native",
+  "ai_photo.async",
+  "catalogue.translation",
+] as const;
 export type OpenAiNativeTask = (typeof OPENAI_NATIVE_TASKS)[number];
 
 export const AGENT_OPENAI_TASK_MODEL_ALLOWLIST_ENV = "AGENT_OPENAI_TASK_MODEL_ALLOWLIST";

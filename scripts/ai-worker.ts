@@ -9,7 +9,11 @@ import { hostname } from "node:os";
 
 import { createDbClient } from "@/db/client";
 import { createMenuManagerJobHandler } from "@/lib/agents/menu-manager/menu-manager-job";
-import { createMenuManagerNativeQosModel } from "@/lib/agents/native/openai-runtime-gate";
+import {
+  createCatalogueTranslationNativeQosModel,
+  createMenuManagerNativeQosModel,
+} from "@/lib/agents/native/openai-runtime-gate";
+import { createCatalogueTranslationJobHandler } from "@/lib/catalogue/translation-review/catalogue-translation-job";
 import {
   claimNextAiJob,
   finishAiJobStep,
@@ -42,6 +46,11 @@ async function main() {
   const nativeModel = createMenuManagerNativeQosModel();
   const menuManager = createMenuManagerJobHandler(db, { model: nativeModel });
   handlers.set(menuManager.kind, menuManager);
+  const translationModel = createCatalogueTranslationNativeQosModel();
+  const catalogueTranslation = createCatalogueTranslationJobHandler(db, {
+    model: translationModel,
+  });
+  handlers.set(catalogueTranslation.kind, catalogueTranslation);
   // Needs the AI photo provider settings and media storage settings of the web app.
   const aiPhotos = createAiPhotoJobHandler(db);
   handlers.set(aiPhotos.kind, aiPhotos);
