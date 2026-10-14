@@ -1050,8 +1050,13 @@ export async function updateDraftMenu(
         nextTranslations.ar.displayName === currentView.translations.ar.displayName &&
         nextTranslations.ar.description === currentView.translations.ar.description;
 
+      const locationIdsUnchanged =
+        !input.locationIds ||
+        (input.locationIds.length === currentView.locationIds.length &&
+          [...input.locationIds].sort().every((id, index) => id === [...currentView.locationIds].sort()[index]));
+
       if (
-        !input.locationIds &&
+        locationIdsUnchanged &&
         menuDraftSectionsMatch(currentView.sections, input.sections) &&
         nextInternalName === menu.internalName &&
         translationsUnchanged
