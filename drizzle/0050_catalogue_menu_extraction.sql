@@ -97,4 +97,6 @@ CREATE POLICY "agent_run_catalogue_menu_extraction_decisions_tenant_isolation" O
   AS PERMISSIVE FOR ALL
   TO qos_app
   USING (tenant_id = nullif(current_setting('qos.current_tenant_id', true), '')::uuid)
-  WITH CHECK (tenant_id = nullif(current_setting('qos.current_tenant_id', true), '')::uuid);
+  WITH CHECK (tenant_id = nullif(current_setting('qos.current_tenant_id', true), '')::uuid);--> statement-breakpoint
+GRANT SELECT ON TABLE "qos"."catalogue_menu_extraction_sources", "qos"."catalogue_menu_extraction_pages" TO qos_ai_worker;--> statement-breakpoint
+GRANT SELECT, INSERT ON TABLE "qos"."catalogue_menu_extraction_candidates" TO qos_ai_worker;

@@ -42,7 +42,7 @@ import { requireActiveStaffMembership, StaffAuthorizationError } from "@/lib/sta
 import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
 
-const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
+const integrationDescribe = hasIntegrationDatabase() ? describe.sequential : describe.skip;
 
 const ADMIN_SUBJECT = "admin.menu-extract@test";
 const STAFF_SUBJECT = "staff.menu-extract@test";
@@ -168,6 +168,7 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
   async function seedTenant(
     adminSubject = ADMIN_SUBJECT,
     fixture = quotesTenantFixture(),
+    options: { seedStaffUser?: boolean } = { seedStaffUser: true },
   ) {
     const quotes = await createTenantHierarchy(db, fixture);
     const adminMembership = await seedMember(
@@ -176,7 +177,9 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
       "administrator",
       adminSubject,
     );
-    await seedMember(quotes.tenant.id, quotes.location.id, "user", STAFF_SUBJECT);
+    if (options.seedStaffUser) {
+      await seedMember(quotes.tenant.id, quotes.location.id, "user", STAFF_SUBJECT);
+    }
     const adminCaller = {
       tenantId: quotes.tenant.id,
       subject: adminSubject,
@@ -345,7 +348,7 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
 
   it("returns 404 for cross-tenant source on confirm path", async () => {
     const first = await seedTenant(ADMIN_SUBJECT);
-    const second = await seedTenant(OTHER_ADMIN, flowerTenantFixture());
+    const second = await seedTenant(OTHER_ADMIN, flowerTenantFixture(), { seedStaffUser: false });
     const uploaded = await uploadFixture(first.adminCaller);
     const { run } = await runAsRole(sqlClient, "qos_app", () =>
       requestMenuExtraction(
