@@ -264,6 +264,41 @@ integrationDescribe("catalogue description draft (DB)", () => {
   );
 
   it(
+    "accept persists English description to the database before any product PATCH (QOS-42)",
+    async () => {
+      const { quotes, product, adminCaller, adminMembership } = await seedTenant();
+      const suggestion = "A smoother English description for staff review.";
+      const before = await getDraftProduct(
+        db,
+        quotes.tenant.id,
+        adminMembership,
+        product.publicId,
+      );
+      expect(before.translations.en.description).not.toBe(suggestion);
+
+      const { run } = await completeRun(adminCaller, product.publicId, suggestion);
+
+      await runAsRole(sqlClient, "qos_app", () =>
+        acceptCatalogueDescription(db, adminCaller, product.publicId, {
+          runPublicId: run.publicId,
+          description: suggestion,
+          expectedSourceTranslationVersion: 1,
+        }),
+      );
+
+      const after = await getDraftProduct(
+        db,
+        quotes.tenant.id,
+        adminMembership,
+        product.publicId,
+      );
+      expect(after.translations.en.description).toBe(suggestion);
+      expect(after.translations.en.translationVersion).toBe(2);
+    },
+    60_000,
+  );
+
+  it(
     "accept writes English draft description only and does not publish the product",
     async () => {
       const { quotes, product, adminCaller, adminMembership } = await seedTenant();

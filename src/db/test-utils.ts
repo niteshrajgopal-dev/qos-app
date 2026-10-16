@@ -3,19 +3,34 @@ import path from "node:path";
 
 import { createDbClient } from "@/db/client";
 
-export const integrationDatabaseUrl =
-  process.env.INTEGRATION_DATABASE_URL ??
-  process.env.DATABASE_URL ??
-  "postgresql://qos:qos@localhost:5432/qos";
+export function getIntegrationDatabaseUrl() {
+  return (
+    process.env.TEST_DATABASE_URL ??
+    process.env.INTEGRATION_DATABASE_URL ??
+    process.env.DATABASE_URL ??
+    "postgresql://qos:qos@localhost:5432/qos"
+  );
+}
+
+/** Resolved once at module load for legacy callers; prefer getIntegrationDatabaseUrl(). */
+export const integrationDatabaseUrl = getIntegrationDatabaseUrl();
 
 export function hasIntegrationDatabase() {
-  const url = integrationDatabaseUrl;
-  return Boolean(url) && /localhost|127\.0\.0\.1|@db:/.test(url);
+  const url = getIntegrationDatabaseUrl();
+  if (!url) {
+    return false;
+  }
+
+  if (process.env.CI === "true") {
+    return true;
+  }
+
+  return /localhost|127\.0\.0\.1|@db:/.test(url);
 }
 
 export async function createIntegrationDb() {
   return createDbClient({
-    DATABASE_URL: integrationDatabaseUrl,
+    DATABASE_URL: getIntegrationDatabaseUrl(),
     DB_POOL_MAX: "1",
   });
 }

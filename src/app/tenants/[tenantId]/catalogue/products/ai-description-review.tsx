@@ -30,7 +30,8 @@ type AiDescriptionReviewProps = {
   tenantId: string;
   productPublicId: string;
   uiLocale: "en" | "ar";
-  onAccepted?: (description: string | null, translationVersion: number) => void;
+  /** Called after accept succeeds so the editor can refetch draft product state from the API. */
+  onAccepted?: () => void;
 };
 
 const COPY = {
@@ -198,10 +199,7 @@ export function AiDescriptionReview({
       }
       setReview(payload.review ?? null);
       if (payload.review?.suggestionState === "accepted") {
-        const nextDescription =
-          payload.review.editableSuggestion ??
-          (description.trim() ? description.trim() : null);
-        onAccepted?.(nextDescription, payload.review.sourceTranslationVersion);
+        onAccepted?.();
       }
     } catch (acceptError) {
       setError(acceptError instanceof Error ? acceptError.message : "Unable to accept description.");
