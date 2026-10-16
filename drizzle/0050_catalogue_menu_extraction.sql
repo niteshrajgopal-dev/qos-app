@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS "qos"."catalogue_menu_extraction_sources" (
   CONSTRAINT "catalogue_menu_extraction_sources_tenant_fk" FOREIGN KEY ("tenant_id") REFERENCES "qos"."tenants"("id") ON DELETE restrict ON UPDATE no action
 );--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "catalogue_menu_extraction_sources_public_unique" ON "qos"."catalogue_menu_extraction_sources" USING btree ("tenant_id","public_id");--> statement-breakpoint
+CREATE UNIQUE INDEX IF NOT EXISTS "catalogue_menu_extraction_sources_tenant_id_id_unique" ON "qos"."catalogue_menu_extraction_sources" USING btree ("tenant_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX IF NOT EXISTS "catalogue_menu_extraction_sources_content_hash_unique" ON "qos"."catalogue_menu_extraction_sources" USING btree ("tenant_id","content_hash");--> statement-breakpoint
 CREATE INDEX IF NOT EXISTS "catalogue_menu_extraction_sources_tenant_id_idx" ON "qos"."catalogue_menu_extraction_sources" USING btree ("tenant_id");--> statement-breakpoint
 ALTER TABLE "qos"."catalogue_menu_extraction_sources" ENABLE ROW LEVEL SECURITY;--> statement-breakpoint

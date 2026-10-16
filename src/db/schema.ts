@@ -2880,6 +2880,10 @@ export const catalogueMenuExtractionSources = qos.table(
       table.tenantId,
       table.contentHash,
     ),
+    unique("catalogue_menu_extraction_sources_tenant_id_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
     index("catalogue_menu_extraction_sources_tenant_id_idx").on(table.tenantId),
   ],
 );
