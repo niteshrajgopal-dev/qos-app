@@ -307,11 +307,15 @@ integrationDescribe("AI translation approval queue (DB)", () => {
       listPendingAiTranslationApprovals(db, flower.tenant.id, ADMIN_SUBJECT),
     ).rejects.toBeInstanceOf(StaffAuthorizationError);
 
-    await seedMember(flower.tenant.id, flower.location.id, "administrator", ADMIN_SUBJECT);
     await expect(
-      approveProductTranslation(db, flower.tenant.id, ADMIN_SUBJECT, product.publicId, "ar", {
-        expectedTranslationVersion: 1,
-      }),
+      approveProductTranslation(
+        db,
+        flower.tenant.id,
+        "admin.flower@test",
+        product.publicId,
+        "ar",
+        { expectedTranslationVersion: 1 },
+      ),
     ).rejects.toBeInstanceOf(TranslationApprovalError);
 
     await expect(
