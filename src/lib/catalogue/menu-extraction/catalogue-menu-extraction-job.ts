@@ -170,10 +170,19 @@ export function createCatalogueMenuExtractionJobHandler(
         };
       }
 
-      const nativeConfig = readNativeModelConfig();
       const vision =
         options.vision ??
-        (nativeConfig.provider === "mock" ? null : getMenuExtractionVisionProvider(nativeConfig));
+        (() => {
+          try {
+            const nativeConfig = readNativeModelConfig();
+            if (nativeConfig.provider === "mock") {
+              return null;
+            }
+            return getMenuExtractionVisionProvider(nativeConfig);
+          } catch {
+            return null;
+          }
+        })();
       if (!vision) {
         return { type: "reschedule", delayMs: config.pollIntervalMs, code: "executor_unavailable" };
       }

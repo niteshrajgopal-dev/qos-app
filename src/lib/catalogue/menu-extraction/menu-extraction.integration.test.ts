@@ -39,7 +39,7 @@ import {
 } from "@/lib/catalogue/menu-extraction/vision-provider";
 import { uploadMenuExtractionSource } from "@/lib/catalogue/menu-extraction/upload";
 import { requireActiveStaffMembership, StaffAuthorizationError } from "@/lib/staff/auth";
-import { quotesTenantFixture } from "@/lib/tenant/fixtures";
+import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
@@ -165,8 +165,11 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
     return membership!;
   }
 
-  async function seedTenant(adminSubject = ADMIN_SUBJECT) {
-    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+  async function seedTenant(
+    adminSubject = ADMIN_SUBJECT,
+    fixture = quotesTenantFixture(),
+  ) {
+    const quotes = await createTenantHierarchy(db, fixture);
     const adminMembership = await seedMember(
       quotes.tenant.id,
       quotes.location.id,
@@ -202,7 +205,12 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
   async function workerStep(provider?: MenuExtractionVisionProvider) {
     const handler = createCatalogueMenuExtractionJobHandler(db, {
       config: CONFIG,
-      vision: provider,
+      vision:
+        provider ??
+        ({
+          kind: "mock",
+          complete: visionComplete as MenuExtractionVisionProvider["complete"],
+        } satisfies MenuExtractionVisionProvider),
     });
     return runAsRole(sqlClient, "qos_ai_worker", async () => {
       const job = await claimNextAiJob(db, {
@@ -337,7 +345,7 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
 
   it("returns 404 for cross-tenant source on confirm path", async () => {
     const first = await seedTenant(ADMIN_SUBJECT);
-    const second = await seedTenant(OTHER_ADMIN);
+    const second = await seedTenant(OTHER_ADMIN, flowerTenantFixture());
     const uploaded = await uploadFixture(first.adminCaller);
     const { run } = await runAsRole(sqlClient, "qos_app", () =>
       requestMenuExtraction(
