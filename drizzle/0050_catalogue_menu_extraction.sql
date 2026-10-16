@@ -99,4 +99,20 @@ CREATE POLICY "agent_run_catalogue_menu_extraction_decisions_tenant_isolation" O
   USING (tenant_id = nullif(current_setting('qos.current_tenant_id', true), '')::uuid)
   WITH CHECK (tenant_id = nullif(current_setting('qos.current_tenant_id', true), '')::uuid);--> statement-breakpoint
 GRANT SELECT ON TABLE "qos"."catalogue_menu_extraction_sources", "qos"."catalogue_menu_extraction_pages" TO qos_ai_worker;--> statement-breakpoint
-GRANT SELECT, INSERT ON TABLE "qos"."catalogue_menu_extraction_candidates" TO qos_ai_worker;
+CREATE POLICY "catalogue_menu_extraction_sources_worker_select" ON "qos"."catalogue_menu_extraction_sources"
+  FOR SELECT
+  TO qos_ai_worker
+  USING (tenant_id = nullif(current_setting('qos.current_tenant_id', true), '')::uuid);--> statement-breakpoint
+CREATE POLICY "catalogue_menu_extraction_pages_worker_select" ON "qos"."catalogue_menu_extraction_pages"
+  FOR SELECT
+  TO qos_ai_worker
+  USING (tenant_id = nullif(current_setting('qos.current_tenant_id', true), '')::uuid);--> statement-breakpoint
+GRANT SELECT, INSERT ON TABLE "qos"."catalogue_menu_extraction_candidates" TO qos_ai_worker;--> statement-breakpoint
+CREATE POLICY "catalogue_menu_extraction_candidates_worker_select" ON "qos"."catalogue_menu_extraction_candidates"
+  FOR SELECT
+  TO qos_ai_worker
+  USING (tenant_id = nullif(current_setting('qos.current_tenant_id', true), '')::uuid);--> statement-breakpoint
+CREATE POLICY "catalogue_menu_extraction_candidates_worker_insert" ON "qos"."catalogue_menu_extraction_candidates"
+  FOR INSERT
+  TO qos_ai_worker
+  WITH CHECK (tenant_id = nullif(current_setting('qos.current_tenant_id', true), '')::uuid);
