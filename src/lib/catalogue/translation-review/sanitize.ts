@@ -1,6 +1,6 @@
 const HTML_TAG = /<[^>]+>/g;
 
-const FABRICATED_CLAIM_PATTERNS: readonly RegExp[] = [
+export const FABRICATED_CLAIM_PATTERNS: readonly RegExp[] = [
   /\b\d+\s*(kcal|calories)\b/i,
   /\bgluten[- ]free\b/i,
   /\bcontains\s+(nuts|peanuts|dairy|soy|wheat|shellfish|fish|eggs)\b/i,
@@ -36,18 +36,25 @@ function sourceContainsClaim(source: string, pattern: RegExp) {
   return pattern.test(source);
 }
 
+/** True when `suggestion` matches a claim pattern not present anywhere in `sourceCorpus`. */
+export function suggestionAddsUnauthorizedClaim(
+  sourceCorpus: string,
+  suggestion: string,
+  pattern: RegExp,
+) {
+  if (sourceContainsClaim(sourceCorpus, pattern)) {
+    return false;
+  }
+  return pattern.test(suggestion);
+}
+
 function suggestionAddsClaim(
   source: TranslationSourceFields,
   suggestion: string,
   pattern: RegExp,
 ) {
-  const inSource =
-    sourceContainsClaim(source.displayName, pattern) ||
-    (source.description ? sourceContainsClaim(source.description, pattern) : false);
-  if (inSource) {
-    return false;
-  }
-  return pattern.test(suggestion);
+  const corpus = `${source.displayName}\n${source.description ?? ""}`;
+  return suggestionAddsUnauthorizedClaim(corpus, suggestion, pattern);
 }
 
 export function sanitizeTranslationSuggestion(

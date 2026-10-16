@@ -8,7 +8,10 @@ import {
 /** Persisted `agent_provider` value. See `execution-identity.ts` for what it means. */
 export type AgentProviderKind = "hyperagent" | "agents_sdk";
 
-export type AgentCapability = "menu_manager" | "catalogue_translation";
+export type AgentCapability =
+  | "menu_manager"
+  | "catalogue_translation"
+  | "catalogue_description";
 
 export type AgentRunStatus =
   | "queued"

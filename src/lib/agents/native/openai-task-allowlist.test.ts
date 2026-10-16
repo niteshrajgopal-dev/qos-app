@@ -28,6 +28,13 @@ describe("OpenAI task model allowlist", () => {
     expect(allowlist.get("catalogue.translation")).toBe("gpt-4.1-mini");
   });
 
+  it("parses catalogue.description when configured", () => {
+    const allowlist = readOpenAiTaskModelAllowlist({
+      [AGENT_OPENAI_TASK_MODEL_ALLOWLIST_ENV]: "catalogue.description=gpt-4.1-mini",
+    });
+    expect(allowlist.get("catalogue.description")).toBe("gpt-4.1-mini");
+  });
+
   it("rejects tenant-style model ids and duplicate tasks", () => {
     expect(() =>
       readOpenAiTaskModelAllowlist({

@@ -395,7 +395,11 @@ export async function createAgentRun(
   const provider = binding?.provider ?? "agents_sdk";
   const providerAgentId =
     binding?.providerAgentId ??
-    (capability === "catalogue_translation" ? "qos.catalogue.translation" : "qos.menu_manager");
+    (capability === "catalogue_translation"
+      ? "qos.catalogue.translation"
+      : capability === "catalogue_description"
+        ? "qos.catalogue.description"
+        : "qos.menu_manager");
   const runConfig = agentRunConfigSchema.parse(pin.runConfig);
   if (Buffer.byteLength(pin.input.payload, "utf8") > MAX_RUN_INPUT_BYTES || pin.input.payload.length === 0) {
     throw new AgentRunError("run_input_too_large", "The request is too large to send to the agent.", 413);

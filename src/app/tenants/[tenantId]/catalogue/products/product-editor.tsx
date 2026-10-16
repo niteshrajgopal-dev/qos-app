@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { ConfirmDialog } from "@/components/Modal";
 import { Toast, ToastStack } from "@/components/Toast";
 import { mapVideoErrorToFriendlyMessage } from "@/lib/media/video-error-messages";
+import { AiDescriptionReview } from "@/app/tenants/[tenantId]/catalogue/products/ai-description-review";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
 
@@ -814,6 +815,26 @@ export function ProductEditor({
           <p className="text-xs text-zinc-500">
             Translation version: {form.translations.en.translationVersion}
           </p>
+          {isEditMode && productPublicId ? (
+            <AiDescriptionReview
+              tenantId={tenantId}
+              productPublicId={productPublicId}
+              uiLocale={locale}
+              onAccepted={(description, translationVersion) => {
+                setForm((current) => ({
+                  ...current,
+                  translations: {
+                    ...current.translations,
+                    en: {
+                      ...current.translations.en,
+                      description: description ?? "",
+                      translationVersion,
+                    },
+                  },
+                }));
+              }}
+            />
+          ) : null}
         </div>
       </section>
 
