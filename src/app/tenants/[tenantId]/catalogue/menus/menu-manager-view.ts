@@ -53,6 +53,17 @@ export function isActiveRunStatus(status: AgentRunStatus) {
   return status === "queued" || status === "running";
 }
 
+/** Ask stays disabled only while a run is still in flight or awaiting unresolved acknowledgement. */
+export function isMenuManagerAskDisabled(input: {
+  runStatus: AgentRunStatus | null;
+  unresolvedRunPublicId: string | null;
+}) {
+  if (input.unresolvedRunPublicId) {
+    return true;
+  }
+  return input.runStatus !== null && isActiveRunStatus(input.runStatus);
+}
+
 /** How long to wait before asking QOS for the run again; null once it has settled. */
 export function nextPollDelayMs(run: MenuManagerRunLike, now = Date.now()): number | null {
   if (!isActiveRunStatus(run.status)) {
@@ -179,6 +190,13 @@ export function runStatusCopy(run: MenuManagerRunLike) {
       description: FAILURE_COPY.not_started_in_time,
     };
   }
+  if (run.status === "failed" && run.failureCode === "worker_stopped_mid_review") {
+    return {
+      tone: "error" as const,
+      title: "Review stopped before it finished",
+      description: FAILURE_COPY.worker_stopped_mid_review,
+    };
+  }
   if (isActiveRunStatus(run.status) && run.waitingOn) {
     return STATUS_COPY_WHILE_WAITING[run.waitingOn];
   }
@@ -210,6 +228,8 @@ const FAILURE_COPY: Record<string, string> = {
     "QOS could not confirm whether the model received this review. Nothing on the menu was changed.",
   too_many_tool_rounds: "The review needed more tool calls than QOS allows, so it was stopped.",
   not_started_in_time: "QOS did not start this review in time. Nothing was sent to the agent service.",
+  worker_stopped_mid_review:
+    "The AI worker stopped before this review finished. Nothing on the menu was changed. You can ask again.",
   worker_native_model_unavailable:
     "The AI worker is not configured to run Menu Manager reviews. An administrator must align the worker environment with the API.",
 };

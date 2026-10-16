@@ -7,7 +7,10 @@
 
 import { hostname } from "node:os";
 
+import { eq } from "drizzle-orm";
+
 import { createDbClient } from "@/db/client";
+import { agentRuns } from "@/db/schema";
 import { createMenuManagerJobHandler } from "@/lib/agents/menu-manager/menu-manager-job";
 import {
   createCatalogueTranslationNativeQosModel,
@@ -80,6 +83,17 @@ async function main() {
       heartbeat: (job) => heartbeatAiJob(db, job, config.leaseMs),
       markDispatched: (job) => markAiJobDispatched(db, job),
       finish: (job, result) => finishAiJobStep(db, job, result),
+      resolveRunPublicId: (job) =>
+        job.agentRunId
+          ? withTenantContext(db, job.tenantId, async (tx) => {
+              const [row] = await tx
+                .select({ publicId: agentRuns.publicId })
+                .from(agentRuns)
+                .where(eq(agentRuns.id, job.agentRunId!))
+                .limit(1);
+              return row?.publicId ?? null;
+            })
+          : Promise.resolve(null),
       handlers,
       log,
       summarizeSpend: async (tenantId) =>

@@ -24,10 +24,66 @@ export type AiJobStepContext = {
 export type AiWorkerLogEvent =
   | { event: "ai_worker.started"; workerId: string; concurrency: number; pollIntervalMs: number }
   | { event: "ai_worker.claim_failed"; workerId: string; message: string }
-  | { event: "ai_worker.job_started"; workerId: string; jobPublicId: string; tenantId: string; jobKind: string; attempt: number }
-  | { event: "ai_worker.job_stepped"; workerId: string; jobPublicId: string; tenantId: string; result: AiJobStepResult["type"]; durationMs: number }
-  | { event: "ai_worker.lease_lost"; workerId: string; jobPublicId: string; tenantId: string }
-  | { event: "ai_worker.step_crashed"; workerId: string; jobPublicId: string; tenantId: string; message: string }
+  | {
+      event: "ai_worker.job_claimed";
+      workerId: string;
+      jobPublicId: string;
+      tenantId: string;
+      jobKind: string;
+      attempt: number;
+      runPublicId: string | null;
+      uncertainPriorDispatch: boolean;
+    }
+  | {
+      event: "ai_worker.job_started";
+      workerId: string;
+      jobPublicId: string;
+      tenantId: string;
+      jobKind: string;
+      attempt: number;
+      runPublicId: string | null;
+      uncertainPriorDispatch: boolean;
+    }
+  | {
+      event: "ai_worker.job_dispatched";
+      workerId: string;
+      jobPublicId: string;
+      tenantId: string;
+      runPublicId: string | null;
+    }
+  | {
+      event: "ai_worker.job_stepped";
+      workerId: string;
+      jobPublicId: string;
+      tenantId: string;
+      runPublicId: string | null;
+      result: AiJobStepResult["type"];
+      durationMs: number;
+      code?: string;
+    }
+  | {
+      event: "ai_worker.job_reclaimed";
+      workerId: string;
+      jobPublicId: string;
+      tenantId: string;
+      runPublicId: string | null;
+      attempt: number;
+    }
+  | {
+      event: "ai_worker.lease_lost";
+      workerId: string;
+      jobPublicId: string;
+      tenantId: string;
+      runPublicId: string | null;
+    }
+  | {
+      event: "ai_worker.step_crashed";
+      workerId: string;
+      jobPublicId: string;
+      tenantId: string;
+      runPublicId: string | null;
+      message: string;
+    }
   | { event: "ai_worker.stopping"; workerId: string; inFlight: number }
   | { event: "ai_worker.stopped"; workerId: string }
   | {
@@ -46,6 +102,7 @@ export type AiWorkerDeps = {
   markDispatched: (job: ClaimedAiJob) => Promise<void>;
   finish: (job: ClaimedAiJob, result: AiJobStepResult) => Promise<unknown>;
   handlers: ReadonlyMap<AiJobKind, AiJobHandler>;
+  resolveRunPublicId?: (job: ClaimedAiJob) => Promise<string | null>;
   log: (event: AiWorkerLogEvent) => void;
   summarizeSpend?: (
     tenantId: string,
@@ -96,9 +153,23 @@ export function createAiWorker(deps: AiWorkerDeps, options: AiWorkerOptions): Ai
   }
 
   async function runJob(job: ClaimedAiJob) {
-    const base = { workerId, jobPublicId: job.jobPublicId, tenantId: job.tenantId };
+    const runPublicId = deps.resolveRunPublicId ? await deps.resolveRunPublicId(job) : null;
+    const base = { workerId, jobPublicId: job.jobPublicId, tenantId: job.tenantId, runPublicId };
     const startedAt = Date.now();
-    deps.log({ event: "ai_worker.job_started", ...base, jobKind: job.jobKind, attempt: job.attemptNumber });
+    if (job.uncertainPriorDispatch) {
+      deps.log({
+        event: "ai_worker.job_reclaimed",
+        ...base,
+        attempt: job.attemptNumber,
+      });
+    }
+    deps.log({
+      event: "ai_worker.job_started",
+      ...base,
+      jobKind: job.jobKind,
+      attempt: job.attemptNumber,
+      uncertainPriorDispatch: job.uncertainPriorDispatch,
+    });
 
     let lost = false;
     const beat = setInterval(() => {
@@ -116,12 +187,21 @@ export function createAiWorker(deps: AiWorkerDeps, options: AiWorkerOptions): Ai
       const handler = deps.handlers.get(job.jobKind);
       const result: AiJobStepResult = handler
         ? await handler.step(job, {
-            markDispatched: () => deps.markDispatched(job),
+            markDispatched: async () => {
+              await deps.markDispatched(job);
+              deps.log({ event: "ai_worker.job_dispatched", ...base });
+            },
             leaseLost: () => lost,
           })
         : { type: "failed", code: "unknown_job_kind", message: `No handler for ${job.jobKind}.` };
       await deps.finish(job, result);
-      deps.log({ event: "ai_worker.job_stepped", ...base, result: result.type, durationMs: Date.now() - startedAt });
+      deps.log({
+        event: "ai_worker.job_stepped",
+        ...base,
+        result: result.type,
+        durationMs: Date.now() - startedAt,
+        ...("code" in result && result.code ? { code: result.code } : {}),
+      });
       if (
         deps.summarizeSpend &&
         (result.type === "completed" || result.type === "failed" || result.type === "operator_review")
@@ -168,6 +248,18 @@ export function createAiWorker(deps: AiWorkerDeps, options: AiWorkerOptions): Ai
         await idle(options.pollIntervalMs);
         continue;
       }
+
+      const claimedRunPublicId = deps.resolveRunPublicId ? await deps.resolveRunPublicId(job) : null;
+      deps.log({
+        event: "ai_worker.job_claimed",
+        workerId,
+        jobPublicId: job.jobPublicId,
+        tenantId: job.tenantId,
+        jobKind: job.jobKind,
+        attempt: job.attemptNumber,
+        runPublicId: claimedRunPublicId,
+        uncertainPriorDispatch: job.uncertainPriorDispatch,
+      });
 
       const task: Promise<void> = runJob(job).finally(() => {
         inFlight.delete(task);
