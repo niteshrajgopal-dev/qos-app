@@ -1,7 +1,9 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
 import {
+  agentRunCatalogueTranslationDecisions,
+  agentRuns,
   catalogueProducts,
   catalogueProductTranslations,
 } from "@/db/schema";
@@ -54,6 +56,36 @@ export type ProductTranslationReviewBundle = {
   internalName: string;
   sourceLocale: "en";
   translations: Record<ProductLocale, ProductTranslationReviewView>;
+};
+
+export type PendingAiTranslationApprovalItem = {
+  productPublicId: string;
+  productInternalName: string;
+  locale: ProductLocale;
+  translationVersion: number;
+  sourceTranslationVersion: number | null;
+  proposed: {
+    displayName: string;
+    description: string | null;
+  };
+  sourceCopy: {
+    locale: "en";
+    displayName: string;
+    description: string | null;
+    translationVersion: number;
+  } | null;
+  lastApproved: {
+    translationVersion: number | null;
+    approvedAt: string | null;
+    approvedBySubject: string | null;
+  };
+  acceptedBySubject: string | null;
+  acceptedAt: string | null;
+  updatedAt: string;
+};
+
+export type PendingAiTranslationApprovalList = {
+  items: PendingAiTranslationApprovalItem[];
 };
 
 export type PublishTranslationValidationIssue = {
@@ -150,6 +182,170 @@ function emptyTranslation(locale: ProductLocale): ProductTranslationReviewView {
     lastApprovedTranslationVersion: null,
     lastApprovedSourceTranslationVersion: null,
   };
+}
+
+async function loadLatestTranslationAcceptance(
+  tx: DbClient,
+  tenantId: string,
+  productPublicId: string,
+  locale: ProductLocale,
+) {
+  const [row] = await tx
+    .select({
+      decidedBySubject: agentRunCatalogueTranslationDecisions.decidedBySubject,
+      createdAt: agentRunCatalogueTranslationDecisions.createdAt,
+    })
+    .from(agentRunCatalogueTranslationDecisions)
+    .innerJoin(
+      agentRuns,
+      and(
+        eq(agentRuns.tenantId, agentRunCatalogueTranslationDecisions.tenantId),
+        eq(agentRuns.id, agentRunCatalogueTranslationDecisions.agentRunId),
+      ),
+    )
+    .where(
+      and(
+        eq(agentRunCatalogueTranslationDecisions.tenantId, tenantId),
+        eq(agentRunCatalogueTranslationDecisions.decision, "accepted"),
+        eq(agentRuns.subjectType, "product"),
+        eq(agentRuns.subjectPublicId, productPublicId),
+        sql`${agentRuns.requestSummary} ->> 'targetLocale' = ${locale}`,
+      ),
+    )
+    .orderBy(desc(agentRunCatalogueTranslationDecisions.createdAt))
+    .limit(1);
+
+  return row ?? null;
+}
+
+export async function listPendingAiTranslationApprovals(
+  db: DbClient,
+  tenantId: string,
+  adminSubject: string,
+): Promise<PendingAiTranslationApprovalList> {
+  try {
+    await requireAdministratorMembership(db, tenantId, adminSubject);
+
+    return await withTenantContext(db, tenantId, async (tx) => {
+      const pendingRows = await tx
+        .select({
+          productPublicId: catalogueProducts.publicId,
+          productInternalName: catalogueProducts.internalName,
+          productId: catalogueProducts.id,
+          locale: catalogueProductTranslations.locale,
+          displayName: catalogueProductTranslations.displayName,
+          description: catalogueProductTranslations.description,
+          translationVersion: catalogueProductTranslations.translationVersion,
+          updatedAt: catalogueProductTranslations.updatedAt,
+          lastApprovedTranslationVersion:
+            catalogueProductTranslations.lastApprovedTranslationVersion,
+          lastApprovedAt: catalogueProductTranslations.lastApprovedAt,
+          lastApprovedBySubject:
+            catalogueProductTranslations.lastApprovedBySubject,
+        })
+        .from(catalogueProductTranslations)
+        .innerJoin(
+          catalogueProducts,
+          and(
+            eq(catalogueProducts.tenantId, catalogueProductTranslations.tenantId),
+            eq(catalogueProducts.id, catalogueProductTranslations.productId),
+          ),
+        )
+        .where(
+          and(
+            eq(catalogueProductTranslations.tenantId, tenantId),
+            eq(catalogueProductTranslations.approvalStatus, "draft"),
+            eq(catalogueProductTranslations.provenance, "ai_generated"),
+          ),
+        )
+        .orderBy(desc(catalogueProductTranslations.updatedAt));
+
+      const englishByProduct = new Map<
+        string,
+        { translationVersion: number; displayName: string; description: string | null }
+      >();
+
+      if (pendingRows.length > 0) {
+        const productIds = [...new Set(pendingRows.map((row) => row.productId))];
+        const englishRows = await tx
+          .select({
+            productId: catalogueProductTranslations.productId,
+            translationVersion: catalogueProductTranslations.translationVersion,
+            displayName: catalogueProductTranslations.displayName,
+            description: catalogueProductTranslations.description,
+          })
+          .from(catalogueProductTranslations)
+          .where(
+            and(
+              eq(catalogueProductTranslations.tenantId, tenantId),
+              inArray(catalogueProductTranslations.productId, productIds),
+              eq(catalogueProductTranslations.locale, "en"),
+            ),
+          );
+
+        for (const row of englishRows) {
+          englishByProduct.set(row.productId, {
+            translationVersion: row.translationVersion,
+            displayName: row.displayName,
+            description: row.description,
+          });
+        }
+      }
+
+      const items: PendingAiTranslationApprovalItem[] = [];
+
+      for (const row of pendingRows) {
+        const locale = row.locale as ProductLocale;
+        if (locale !== "en" && locale !== "ar") {
+          continue;
+        }
+
+        const english = englishByProduct.get(row.productId);
+        const acceptance = await loadLatestTranslationAcceptance(
+          tx,
+          tenantId,
+          row.productPublicId,
+          locale,
+        );
+
+        const sourceTranslationVersion =
+          locale === "ar" ? english?.translationVersion ?? null : row.translationVersion;
+
+        items.push({
+          productPublicId: row.productPublicId,
+          productInternalName: row.productInternalName,
+          locale,
+          translationVersion: row.translationVersion,
+          sourceTranslationVersion,
+          proposed: {
+            displayName: row.displayName,
+            description: row.description,
+          },
+          sourceCopy:
+            english != null
+              ? {
+                  locale: "en",
+                  displayName: english.displayName,
+                  description: english.description,
+                  translationVersion: english.translationVersion,
+                }
+              : null,
+          lastApproved: {
+            translationVersion: row.lastApprovedTranslationVersion,
+            approvedAt: toIso(row.lastApprovedAt),
+            approvedBySubject: row.lastApprovedBySubject,
+          },
+          acceptedBySubject: acceptance?.decidedBySubject ?? null,
+          acceptedAt: acceptance ? toIso(acceptance.createdAt) : null,
+          updatedAt: toIso(row.updatedAt) ?? new Date().toISOString(),
+        });
+      }
+
+      return { items };
+    });
+  } catch (error) {
+    return mapApprovalError(error);
+  }
 }
 
 export async function getProductTranslationReview(

@@ -820,18 +820,14 @@ export function ProductEditor({
               tenantId={tenantId}
               productPublicId={productPublicId}
               uiLocale={locale}
-              onAccepted={(description, translationVersion) => {
-                setForm((current) => ({
-                  ...current,
-                  translations: {
-                    ...current.translations,
-                    en: {
-                      ...current.translations.en,
-                      description: description ?? "",
-                      translationVersion,
-                    },
-                  },
-                }));
+              onAccepted={() => {
+                void loadProduct().catch((loadError) => {
+                  setError(
+                    loadError instanceof Error
+                      ? loadError.message
+                      : "Unable to reload product after accepting the description.",
+                  );
+                });
               }}
             />
           ) : null}

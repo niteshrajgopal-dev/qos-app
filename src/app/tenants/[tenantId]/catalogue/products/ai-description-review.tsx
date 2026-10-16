@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { AI_DESCRIPTION_REVIEW_ACCEPTED_COPY } from "@/lib/catalogue/ai-description-review-copy";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type DiffLine = {
@@ -29,7 +30,8 @@ type AiDescriptionReviewProps = {
   tenantId: string;
   productPublicId: string;
   uiLocale: "en" | "ar";
-  onAccepted?: (description: string | null, translationVersion: number) => void;
+  /** Called after accept succeeds so the editor can refetch draft product state from the API. */
+  onAccepted?: () => void;
 };
 
 const COPY = {
@@ -47,7 +49,7 @@ const COPY = {
     notConfigured: "AI description help is not configured for this environment.",
     quotaExceeded: "AI description quota is exhausted. Try again later.",
     pending: "Description suggestion in progress…",
-    accepted: "Accepted into the product draft (not published).",
+    accepted: AI_DESCRIPTION_REVIEW_ACCEPTED_COPY.en,
     rejected: "Rejected. The description was not changed.",
     none: "No description review yet.",
     mock: "Mock result (development only).",
@@ -67,7 +69,7 @@ const COPY = {
     notConfigured: "مساعدة الوصف بالذكاء الاصطناعي غير مهيأة في هذه البيئة.",
     quotaExceeded: "تم استنفاد حصة الوصف بالذكاء الاصطناعي. حاول لاحقًا.",
     pending: "اقتراح الوصف قيد التنفيذ…",
-    accepted: "تم القبول في مسودة المنتج (لم يُنشر).",
+    accepted: AI_DESCRIPTION_REVIEW_ACCEPTED_COPY.ar,
     rejected: "مرفوض. لم يتغير الوصف.",
     none: "لا توجد مراجعة للوصف بعد.",
     mock: "نتيجة تجريبية (للتطوير فقط).",
@@ -197,10 +199,7 @@ export function AiDescriptionReview({
       }
       setReview(payload.review ?? null);
       if (payload.review?.suggestionState === "accepted") {
-        const nextDescription =
-          payload.review.editableSuggestion ??
-          (description.trim() ? description.trim() : null);
-        onAccepted?.(nextDescription, payload.review.sourceTranslationVersion);
+        onAccepted?.();
       }
     } catch (acceptError) {
       setError(acceptError instanceof Error ? acceptError.message : "Unable to accept description.");

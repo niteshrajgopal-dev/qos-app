@@ -24,6 +24,8 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql://qos:qos@localhost:5432/qos
+      TEST_DATABASE_URL: postgresql://qos:qos@localhost:5432/qos
+      CI: true
     steps:
       - uses: actions/checkout@v4
 

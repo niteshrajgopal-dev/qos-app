@@ -61,6 +61,7 @@ export const STAFF_UI_COPY = {
     analytics: "Analytics",
     team: "Team",
     accessRequests: "Access requests",
+    approvals: "Approvals",
     audit: "Audit",
     settings: "Settings",
     commerce: "Commerce",
@@ -122,6 +123,7 @@ export const STAFF_UI_COPY = {
     analytics: "التحليلات",
     team: "الفريق",
     accessRequests: "طلبات الوصول",
+    approvals: "الموافقات",
     audit: "التدقيق",
     settings: "الإعدادات",
     commerce: "التجارة",
@@ -186,6 +188,7 @@ const NAV_LABEL_KEYS: Record<string, StaffUiCopyKey> = {
   Analytics: "analytics",
   Team: "team",
   "Access requests": "accessRequests",
+  Approvals: "approvals",
   Audit: "audit",
   Settings: "settings",
 };
