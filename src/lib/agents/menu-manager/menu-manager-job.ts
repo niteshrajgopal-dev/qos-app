@@ -41,6 +41,11 @@ import {
   resolveUncertainPriorDispatch,
   UNCERTAIN_START_FAILURE,
 } from "@/lib/agents/menu-manager/menu-manager-uncertain-dispatch";
+import {
+  MENU_MANAGER_MAX_JOB_ATTEMPTS,
+  WORKER_STOPPED_MID_REVIEW_CODE,
+  WORKER_STOPPED_MID_REVIEW_MESSAGE,
+} from "@/lib/agents/menu-manager/menu-manager-worker-limits";
 import { getAgentRuntimeProvider } from "@/lib/agents/provider-registry";
 import { AGENT_TOOLS } from "@/lib/agents/tools/menu-tools";
 import { invokeAgentTool } from "@/lib/agents/tools/tool-gateway";
@@ -81,6 +86,35 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
     return { type: "failed", code, message, providerOutcome: "not_dispatched" };
   }
 
+  async function failWorkerStopped(job: ClaimedAiJob, run: AgentRunRecord): Promise<AiJobStepResult> {
+    await markAgentRunFailed(db, job.tenantId, run.publicId, {
+      code: WORKER_STOPPED_MID_REVIEW_CODE,
+      message: WORKER_STOPPED_MID_REVIEW_MESSAGE,
+      now: clock(),
+    });
+    return {
+      type: "failed",
+      code: WORKER_STOPPED_MID_REVIEW_CODE,
+      message: WORKER_STOPPED_MID_REVIEW_MESSAGE,
+      providerOutcome: "not_dispatched",
+    };
+  }
+
+  function uncertainResolution(
+    uncertain: Awaited<ReturnType<typeof resolveUncertainPriorDispatch>>,
+  ): "continue" | "completed" | "fail_unknown" | "fail_reclaim" {
+    if (uncertain.kind === "completed") {
+      return "completed";
+    }
+    if (uncertain.kind === "continue") {
+      return "continue";
+    }
+    if (uncertain.kind === "reclaim_exhausted") {
+      return "fail_reclaim";
+    }
+    return "fail_unknown";
+  }
+
   async function start(
     job: ClaimedAiJob,
     context: AiJobStepContext,
@@ -89,12 +123,18 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
   ): Promise<AiJobStepResult> {
     const limits = runLimits(run, config);
     if (job.uncertainPriorDispatch) {
-      const uncertain = await resolveUncertainPriorDispatch(db, job.tenantId, run.publicId);
-      if (uncertain.kind === "completed") {
+      const uncertain = await resolveUncertainPriorDispatch(db, job.tenantId, run.publicId, {
+        attemptNumber: job.attemptNumber,
+      });
+      const route = uncertainResolution(uncertain);
+      if (route === "completed") {
         return { type: "completed" };
       }
-      if (uncertain.kind === "continue") {
+      if (route === "continue" && uncertain.kind === "continue") {
         return poll(job, uncertain.run, config);
+      }
+      if (route === "fail_reclaim") {
+        return failWorkerStopped(job, run);
       }
       await markAgentRunFailed(db, job.tenantId, run.publicId, {
         code: UNCERTAIN_START_FAILURE.code,
@@ -239,13 +279,21 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
     kind: MENU_MANAGER_JOB_KIND,
     async step(job, context) {
       const config = options.config ?? readAgentConfig();
-      const run = job.agentRunId ? await getAgentRunById(db, job.tenantId, job.agentRunId) : null;
+      let run = job.agentRunId ? await getAgentRunById(db, job.tenantId, job.agentRunId) : null;
       if (!run) {
         return { type: "failed", code: "run_missing", message: "The run for this job no longer exists." };
+      }
+      if (job.attemptNumber > MENU_MANAGER_MAX_JOB_ATTEMPTS) {
+        return failWorkerStopped(job, run);
       }
       if (run.executionMode !== "queued_worker") {
         return { type: "failed", code: "execution_mode_mismatch", message: "Only queued_worker runs execute on the worker." };
       }
+      const limits = runLimits(run, config);
+      run = await expireAgentRunIfDue(db, job.tenantId, run.publicId, {
+        queuedStaleMs: limits.queuedStaleMs,
+        now: clock(),
+      });
       if (!isActive(run.status)) {
         return { type: "completed" };
       }
@@ -312,12 +360,17 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
     }
 
     if (job.uncertainPriorDispatch) {
-      const uncertain = await resolveUncertainPriorDispatch(db, job.tenantId, run.publicId);
-      if (uncertain.kind === "completed") {
+      const uncertain = await resolveUncertainPriorDispatch(db, job.tenantId, run.publicId, {
+        attemptNumber: job.attemptNumber,
+      });
+      const route = uncertainResolution(uncertain);
+      if (route === "completed") {
         return { type: "completed" };
       }
-      if (uncertain.kind === "continue") {
+      if (route === "continue" && uncertain.kind === "continue") {
         run = uncertain.run;
+      } else if (route === "fail_reclaim") {
+        return failWorkerStopped(job, run);
       } else {
         const message = "QOS could not confirm whether the model accepted this review.";
         await markAgentRunFailed(db, job.tenantId, run.publicId, {

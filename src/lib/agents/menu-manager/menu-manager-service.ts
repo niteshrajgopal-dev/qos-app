@@ -5,7 +5,6 @@ import {
   AgentRunError,
   createAgentRun,
   expireAgentRunIfDue,
-  failQueuedAgentRunInTx,
   getAgentRun,
   getLatestAgentRunForSubject,
   getLatestCompletedAgentRunForSubject,
@@ -56,7 +55,11 @@ import {
 import type { AgentExecutionIdentity } from "@/lib/ai/execution-identity";
 import { AiSpendAdmissionError, reserveAiSpend } from "@/lib/ai/spend/spend-admission";
 import { readAiSpendPolicy, type AiSpendPolicy } from "@/lib/ai/spend/spend-policy";
-import { cancelUnclaimedAiJobInTx, enqueueAiJobInTx, getAiJobForRun } from "@/lib/ai/jobs/ai-job-queue";
+import {
+  MENU_MANAGER_JOB_KIND,
+  settleQueuedWorkerMenuManagerRun,
+} from "@/lib/agents/menu-manager/menu-manager-queued-worker-settlement";
+import { enqueueAiJobInTx } from "@/lib/ai/jobs/ai-job-queue";
 import { auditActorClassFromStaffRole } from "@/lib/audit/tenant-audit";
 import { loadMenuSnapshotForAgent, type MenuSnapshot } from "@/lib/catalogue/menu-snapshot";
 import { assertMenuLocationAccess } from "@/lib/catalogue/menus";
@@ -209,7 +212,7 @@ export const DEFINITION_UNAVAILABLE_CODE = "definition_unavailable";
 export const PINNED_INPUT_INVALID_CODE = "pinned_input_invalid";
 export const EXECUTOR_MISMATCH_CODE = "executor_mismatch";
 export { NOT_STARTED_IN_TIME_CODE, NOT_STARTED_IN_TIME_MESSAGE };
-export const MENU_MANAGER_JOB_KIND = "menu_manager.run" as const;
+export { MENU_MANAGER_JOB_KIND };
 
 function runConfigFor(definition: MenuManagerDefinition, config: AgentConfig): AgentRunConfig {
   const toolSchemaVersions: Record<string, string> = {};
@@ -302,12 +305,6 @@ export function completionInterpreter(run: AgentRunRecord, definition: MenuManag
     });
 }
 
-/**
- * Read-side upkeep for a queued_worker run. Never contacts a provider. A
- * stale run whose job no worker ever claimed is cancelled and failed as
- * never sent; once a worker has claimed it, only the worker decides. A
- * running run is ended at its deadline like an inline run.
- */
 async function settleQueuedWorkerRun(
   db: DbClient,
   tenantId: string,
@@ -315,31 +312,7 @@ async function settleQueuedWorkerRun(
   limits: AgentRunConfig,
   now: Date,
 ): Promise<AgentRunRecord> {
-  if (run.status === "running") {
-    return expireAgentRunIfDue(db, tenantId, run.publicId, { queuedStaleMs: limits.queuedStaleMs, now });
-  }
-  if (run.status !== "queued" || now.getTime() - Date.parse(run.createdAt) < limits.queuedStaleMs) {
-    return run;
-  }
-  const job = await getAiJobForRun(db, tenantId, { jobKind: MENU_MANAGER_JOB_KIND, agentRunId: run.id });
-  if (!job) {
-    return run;
-  }
-  const failed = await withTenantContext(db, tenantId, async (tx) => {
-    const cancelled = await cancelUnclaimedAiJobInTx(tx, {
-      jobPublicId: job.publicId,
-      code: NOT_STARTED_IN_TIME_CODE,
-      message: NOT_STARTED_IN_TIME_MESSAGE,
-    });
-    return cancelled
-      ? failQueuedAgentRunInTx(tx, tenantId, run.publicId, {
-          code: NOT_STARTED_IN_TIME_CODE,
-          message: NOT_STARTED_IN_TIME_MESSAGE,
-          now,
-        })
-      : null;
-  });
-  return failed ?? (await getAgentRun(db, tenantId, run.publicId));
+  return settleQueuedWorkerMenuManagerRun(db, tenantId, run, limits, now);
 }
 
 async function askNativeMenuManager(

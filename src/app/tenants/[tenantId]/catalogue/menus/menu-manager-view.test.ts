@@ -5,6 +5,7 @@ import {
   failureCopy,
   findingClaims,
   canAcceptSuggestions,
+  isMenuManagerAskDisabled,
   isReviewOutdated,
   newIdempotencyKey,
   nextPollDelayMs,
@@ -41,6 +42,20 @@ const report = {
   products: [{ productPublicId: "prd_latte", displayName: "Latte", internalName: "latte", thumbnailPublicId: null, issues: [] }],
   issueGroups: [{ type: "missing_photo", severity: "warning", productCount: 3, productPublicIds: [] }],
 } as unknown as MenuHealthReport;
+
+describe("isMenuManagerAskDisabled", () => {
+  it("disables Ask only for active runs or unresolved acknowledgement", () => {
+    expect(isMenuManagerAskDisabled({ runStatus: null, unresolvedRunPublicId: null })).toBe(false);
+    expect(isMenuManagerAskDisabled({ runStatus: "running", unresolvedRunPublicId: null })).toBe(true);
+    expect(isMenuManagerAskDisabled({ runStatus: "queued", unresolvedRunPublicId: null })).toBe(true);
+    for (const status of ["completed", "failed", "awaiting_approval"] as const) {
+      expect(isMenuManagerAskDisabled({ runStatus: status, unresolvedRunPublicId: null })).toBe(false);
+    }
+    expect(
+      isMenuManagerAskDisabled({ runStatus: "failed", unresolvedRunPublicId: "run_old" }),
+    ).toBe(true);
+  });
+});
 
 describe("nextPollDelayMs", () => {
   it("follows the server's next poll time within bounds and stops once settled", () => {

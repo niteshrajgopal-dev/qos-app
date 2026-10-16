@@ -12,6 +12,7 @@ import {
   failureCopy,
   findingClaims,
   isActiveRunStatus,
+  isMenuManagerAskDisabled,
   canAcceptSuggestions,
   isReviewOutdated,
   newIdempotencyKey,
@@ -238,6 +239,10 @@ export function MenuManagerSection({
   }
 
   const active = run ? isActiveRunStatus(run.status) : false;
+  const askDisabled = isMenuManagerAskDisabled({
+    runStatus: run?.status ?? null,
+    unresolvedRunPublicId,
+  });
   const status = run ? runStatusCopy(run) : null;
   const reviewRun = readyRun ?? (run?.status === "completed" ? run : null);
   const result = reviewRun ? readMenuManagerResult(reviewRun.result) : null;
@@ -256,7 +261,7 @@ export function MenuManagerSection({
           size="sm"
           icon="sparkles"
           loading={asking}
-          disabled={active || unresolvedRunPublicId !== null}
+          disabled={askDisabled}
           onClick={() =>
             void ask(run?.status === "failed" && run.remoteOutcomeUnknown ? run.publicId : undefined)
           }
