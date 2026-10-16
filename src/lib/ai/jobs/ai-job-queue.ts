@@ -19,7 +19,8 @@ export type AiJobKind =
   | "menu_manager.run"
   | "ai_photo.generate"
   | "catalogue.translation.run"
-  | "catalogue.description.run";
+  | "catalogue.description.run"
+  | "catalogue.menu_extraction.run";
 
 export type ClaimedAiJob = {
   jobId: string;

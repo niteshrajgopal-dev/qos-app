@@ -11,7 +11,8 @@ export type AgentProviderKind = "hyperagent" | "agents_sdk";
 export type AgentCapability =
   | "menu_manager"
   | "catalogue_translation"
-  | "catalogue_description";
+  | "catalogue_description"
+  | "catalogue_menu_extraction";
 
 export type AgentRunStatus =
   | "queued"

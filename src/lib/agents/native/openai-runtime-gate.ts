@@ -36,6 +36,7 @@ const TASK_SPEND_PATH: Record<OpenAiNativeTask, AiSpendPath> = {
   "ai_photo.async": "ai_photo.async",
   "catalogue.translation": "catalogue.translation",
   "catalogue.description": "catalogue.description",
+  "catalogue.menu_extraction": "catalogue.menu_extraction",
 };
 
 function missingForReason(
@@ -186,6 +187,18 @@ export function createCatalogueDescriptionNativeQosModel(
   source: EnvSource = process.env,
 ): QosModel | undefined {
   const gate = evaluateNativeOpenAiGate("catalogue.description", source);
+  if (!gate.ready || gate.provider !== "openai") {
+    return undefined;
+  }
+  const config = readNativeModelConfig(source);
+  return createGatedNativeQosModel(gate, config);
+}
+
+/** Worker entry: vision model for catalogue.menu_extraction when the gate is fully satisfied. */
+export function createCatalogueMenuExtractionNativeQosModel(
+  source: EnvSource = process.env,
+): QosModel | undefined {
+  const gate = evaluateNativeOpenAiGate("catalogue.menu_extraction", source);
   if (!gate.ready || gate.provider !== "openai") {
     return undefined;
   }

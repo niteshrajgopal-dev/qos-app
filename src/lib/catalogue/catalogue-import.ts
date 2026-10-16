@@ -26,6 +26,7 @@ import {
 } from "@/lib/catalogue/catalogue-import-parser";
 import {
   normalizeImportRow,
+  type NormalizedImportRow,
   validateColumnMapping,
   validateConnectionKey,
 } from "@/lib/catalogue/catalogue-import-validation";
@@ -432,6 +433,200 @@ function buildPreviewPayload(
     unchangedCount: rows.filter((row) => row.status === "unchanged").length,
     duplicateCount: rows.filter((row) => row.status === "duplicate").length,
   };
+}
+
+export async function previewCatalogueImportFromNormalizedRows(
+  db: DbClient,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  staffSubject: string,
+  input: {
+    connectionKey: string;
+    fileName: string;
+    fileFingerprint: string;
+    idempotencyKey: string;
+    rows: NormalizedImportRow[];
+    forceImageReingest?: boolean;
+  },
+) {
+  const connectionKey = validateConnectionKey(input.connectionKey);
+
+  return withTenantContext(db, tenantId, async (tx) => {
+    const [existingByIdempotency] = await tx
+      .select()
+      .from(catalogueImportOperations)
+      .where(
+        and(
+          eq(catalogueImportOperations.tenantId, tenantId),
+          eq(catalogueImportOperations.idempotencyKey, input.idempotencyKey),
+        ),
+      )
+      .limit(1);
+
+    if (existingByIdempotency) {
+      return {
+        operationPublicId: existingByIdempotency.operationPublicId,
+        previewHash: existingByIdempotency.previewHash,
+        preview: existingByIdempotency.previewPayload,
+        replayed: true,
+      };
+    }
+
+    const normalizedRows = input.rows;
+    const previewRows: CatalogueImportPreviewRow[] = [];
+    const seenSourceIds = new Set<string>();
+
+    for (const normalized of normalizedRows) {
+      if (seenSourceIds.has(normalized.sourceId)) {
+        previewRows.push({
+          sourceRow: normalized.sourceRow,
+          sourceId: normalized.sourceId,
+          status: "duplicate",
+          reason: "Duplicate sourceId within the import batch.",
+          productPublicId: null,
+          expectedProductVersion: null,
+          internalName: normalized.internalName,
+          displayNameEn: normalized.displayNameEn,
+          displayNameAr: normalized.displayNameAr,
+          amountMinor: normalized.amountMinor,
+          currency: normalized.currency,
+          imageUrl: normalized.imageUrl,
+          ingestImage: false,
+        });
+        continue;
+      }
+      seenSourceIds.add(normalized.sourceId);
+    }
+
+    const uniqueRows = normalizedRows.filter(
+      (row, index, all) =>
+        all.findIndex((other) => other.sourceId === row.sourceId) === index,
+    );
+
+    const existingBySourceId = await loadExistingProductsBySourceIds(
+      tx,
+      tenantId,
+      connectionKey,
+      uniqueRows.map((row) => row.sourceId),
+    );
+
+    for (const normalized of uniqueRows) {
+      const existing = existingBySourceId.get(normalized.sourceId);
+      if (!existing) {
+        previewRows.push({
+          sourceRow: normalized.sourceRow,
+          sourceId: normalized.sourceId,
+          status: "create",
+          reason: null,
+          productPublicId: null,
+          expectedProductVersion: null,
+          internalName: normalized.internalName,
+          displayNameEn: normalized.displayNameEn,
+          displayNameAr: normalized.displayNameAr,
+          amountMinor: normalized.amountMinor,
+          currency: normalized.currency,
+          imageUrl: normalized.imageUrl,
+          ingestImage: Boolean(normalized.imageUrl),
+        });
+        continue;
+      }
+
+      const unchanged = rowsEquivalent(existing, normalized);
+      const ingestImage = needsImageIngest(
+        existing,
+        normalized,
+        Boolean(input.forceImageReingest),
+      );
+      previewRows.push({
+        sourceRow: normalized.sourceRow,
+        sourceId: normalized.sourceId,
+        status: unchanged ? "unchanged" : "update",
+        reason: unchanged ? "No draft changes detected." : null,
+        productPublicId: existing.productPublicId,
+        expectedProductVersion: existing.productVersion,
+        internalName: normalized.internalName,
+        displayNameEn: normalized.displayNameEn,
+        displayNameAr: normalized.displayNameAr,
+        amountMinor: normalized.amountMinor,
+        currency: normalized.currency,
+        imageUrl: normalized.imageUrl,
+        ingestImage,
+      });
+    }
+
+    previewRows.sort((left, right) => left.sourceRow - right.sourceRow);
+
+    const columnMapping: CatalogueImportColumnMapping = {
+      sourceId: "sourceId",
+      internalName: "internalName",
+      displayNameEn: "displayNameEn",
+      displayNameAr: "displayNameAr",
+      descriptionEn: "descriptionEn",
+      descriptionAr: "descriptionAr",
+      variantLabelEn: "variantLabelEn",
+      variantLabelAr: "variantLabelAr",
+      amountMinor: "amountMinor",
+      currency: "currency",
+      sku: "sku",
+      barcode: "barcode",
+      imageUrl: "imageUrl",
+    };
+
+    const previewPayload = buildPreviewPayload(
+      connectionKey,
+      input.fileName,
+      previewRows,
+    );
+    const previewHash = buildPreviewHash({
+      fileFingerprint: input.fileFingerprint,
+      connectionKey,
+      columnMapping,
+      rows: previewRows,
+    });
+
+    const operationPublicId = generateOperationPublicId();
+    const [operation] = await tx
+      .insert(catalogueImportOperations)
+      .values({
+        tenantId,
+        operationPublicId,
+        staffSubject,
+        connectionKey,
+        fileName: input.fileName,
+        fileFingerprint: input.fileFingerprint,
+        columnMapping,
+        previewPayload,
+        previewHash,
+        status: "preview_ready",
+        idempotencyKey: input.idempotencyKey,
+      })
+      .returning();
+
+    await recordTenantAuditEventInTx(tx, {
+      tenantId,
+      actorSubject: staffSubject,
+      actorClass: auditActorClassFromStaffRole(membership.role),
+      action: "catalogue.import.preview",
+      entityType: "catalogue_import_operation",
+      entityPublicId: operation.operationPublicId,
+      changeSummary: {
+        connectionKey,
+        fileName: input.fileName,
+        rowCount: previewPayload.rowCount,
+        createCount: previewPayload.createCount,
+        updateCount: previewPayload.updateCount,
+        errorCount: previewPayload.errorCount,
+        origin: "menu_extraction",
+      },
+    });
+
+    return {
+      operationPublicId: operation.operationPublicId,
+      previewHash,
+      preview: previewPayload,
+      replayed: false,
+    };
+  });
 }
 
 export async function previewCatalogueImport(

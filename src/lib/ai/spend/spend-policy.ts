@@ -15,6 +15,7 @@ export const AI_SPEND_PATHS = [
   "menu_manager.native",
   "catalogue.translation",
   "catalogue.description",
+  "catalogue.menu_extraction",
 ] as const;
 export type AiSpendPath = (typeof AI_SPEND_PATHS)[number];
 
