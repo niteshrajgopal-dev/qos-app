@@ -12,6 +12,7 @@ import {
 } from "@/lib/agents/menu-manager/menu-manager-service";
 import { WORKER_STOPPED_MID_REVIEW_CODE } from "@/lib/agents/menu-manager/menu-manager-worker-limits";
 import { QOS_WAIT_DEADLINE_CODE } from "@/lib/agents/agent-runs";
+import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
 import { createDraftMenu } from "@/lib/catalogue/menus";
 import { createDraftProduct } from "@/lib/catalogue/products";
 import { requireActiveStaffMembership } from "@/lib/staff/auth";
@@ -20,6 +21,11 @@ import { createTenantHierarchy } from "@/lib/tenant/repository";
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 
+const NATIVE_ENV = {
+  AGENT_NATIVE_MODEL_PROVIDER: "mock",
+  AGENT_NATIVE_MODEL: "fake-model",
+  NODE_ENV: "test",
+};
 const NATIVE_QUEUED = readAgentConfig({
   AGENTS_ENABLED: "true",
   AGENT_MENU_MANAGER_ENABLED: "true",
@@ -27,6 +33,7 @@ const NATIVE_QUEUED = readAgentConfig({
   AGENT_MENU_MANAGER_EXECUTION_MODE: "queued_worker",
   AGENT_RUN_TIMEOUT_MS: "120000",
 });
+const spendPolicy = () => readAiSpendPolicy(NATIVE_ENV);
 
 const REQUESTER = "admin.quotes@test";
 
@@ -90,6 +97,8 @@ integrationDescribe("Menu Manager queued_worker deadlines on read", () => {
     const { run } = await runAsRole(sqlClient, "qos_app", () =>
       askMenuManager(db, caller, { menuPublicId: menu.publicId, idempotencyKey: `idem-${randomBytes(6).toString("hex")}` }, {
         config: NATIVE_QUEUED,
+        spendPolicy: spendPolicy(),
+        env: NATIVE_ENV,
       }),
     );
     const pastDeadline = new Date(Date.parse(run.createdAt) + 130_000);
@@ -108,6 +117,8 @@ integrationDescribe("Menu Manager queued_worker deadlines on read", () => {
     const { run } = await runAsRole(sqlClient, "qos_app", () =>
       askMenuManager(db, caller, { menuPublicId: menu.publicId, idempotencyKey: `idem-${randomBytes(6).toString("hex")}` }, {
         config: NATIVE_QUEUED,
+        spendPolicy: spendPolicy(),
+        env: NATIVE_ENV,
       }),
     );
     const [row] = await db.select().from(agentRuns).where(eq(agentRuns.publicId, run.publicId));
@@ -135,6 +146,8 @@ integrationDescribe("Menu Manager queued_worker deadlines on read", () => {
     const { run } = await runAsRole(sqlClient, "qos_app", () =>
       askMenuManager(db, caller, { menuPublicId: menu.publicId, idempotencyKey: `idem-${randomBytes(6).toString("hex")}` }, {
         config: NATIVE_QUEUED,
+        spendPolicy: spendPolicy(),
+        env: NATIVE_ENV,
       }),
     );
     const [row] = await db.select().from(agentRuns).where(eq(agentRuns.publicId, run.publicId));

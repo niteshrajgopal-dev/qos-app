@@ -1,6 +1,6 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 
-import { and, desc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, lt, lte, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 
 import type { DbClient } from "@/db/client";
@@ -688,6 +688,8 @@ async function applyRunDeadlinesInTx(
     extraWhere: and(
       eq(agentRuns.status, "queued"),
       lte(agentRuns.createdAt, new Date(input.now.getTime() - input.queuedStaleMs)),
+      // queued_worker runs record start on the worker; read-side settlement owns stale queued rows.
+      or(isNull(agentRuns.executionMode), ne(agentRuns.executionMode, "queued_worker")),
     ),
   });
 }
