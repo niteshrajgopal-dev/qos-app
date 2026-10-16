@@ -7,6 +7,7 @@ GRANT SELECT ON TABLE
   qos.catalogue_menu_sections,
   qos.catalogue_menu_section_translations,
   qos.catalogue_menu_section_products,
+  qos.catalogue_menu_live_revisions,
   qos.catalogue_product_translations,
   qos.catalogue_variants,
   qos.catalogue_variant_prices,
