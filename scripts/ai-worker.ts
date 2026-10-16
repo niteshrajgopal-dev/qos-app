@@ -13,10 +13,12 @@ import { createDbClient } from "@/db/client";
 import { agentRuns } from "@/db/schema";
 import { createMenuManagerJobHandler } from "@/lib/agents/menu-manager/menu-manager-job";
 import {
+  createCatalogueDescriptionNativeQosModel,
   createCatalogueTranslationNativeQosModel,
   createMenuManagerNativeQosModel,
   evaluateNativeOpenAiGate,
 } from "@/lib/agents/native/openai-runtime-gate";
+import { createCatalogueDescriptionJobHandler } from "@/lib/catalogue/description-draft/catalogue-description-job";
 import { createCatalogueTranslationJobHandler } from "@/lib/catalogue/translation-review/catalogue-translation-job";
 import {
   claimNextAiJob,
@@ -63,6 +65,11 @@ async function main() {
     model: translationModel,
   });
   handlers.set(catalogueTranslation.kind, catalogueTranslation);
+  const descriptionModel = createCatalogueDescriptionNativeQosModel();
+  const catalogueDescription = createCatalogueDescriptionJobHandler(db, {
+    model: descriptionModel,
+  });
+  handlers.set(catalogueDescription.kind, catalogueDescription);
   // Needs the AI photo provider settings and media storage settings of the web app.
   const aiPhotos = createAiPhotoJobHandler(db);
   handlers.set(aiPhotos.kind, aiPhotos);

@@ -344,6 +344,13 @@
       "when": 1792100000000,
       "tag": "0048_ai_worker_menu_facts_read",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1792200000000,
+      "tag": "0049_catalogue_description_draft",
+      "breakpoints": true
     }
   ]
 }

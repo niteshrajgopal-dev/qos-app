@@ -14,6 +14,7 @@ export const AI_SPEND_PATHS = [
   "ai_photo.async",
   "menu_manager.native",
   "catalogue.translation",
+  "catalogue.description",
 ] as const;
 export type AiSpendPath = (typeof AI_SPEND_PATHS)[number];
 

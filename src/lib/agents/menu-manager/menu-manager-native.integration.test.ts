@@ -268,7 +268,8 @@ integrationDescribe("native Menu Manager", () => {
         callId: "call_health",
         output: expect.objectContaining({
           menuPublicId: menu.publicId,
-          displayName: "Breakfast",
+          menuVersion: 1,
+          issueCounts: expect.any(Object),
         }),
       }),
     ]);
