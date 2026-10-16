@@ -305,7 +305,7 @@ integrationDescribe("AI translation approval queue (DB)", () => {
 
     await expect(
       listPendingAiTranslationApprovals(db, flower.tenant.id, ADMIN_SUBJECT),
-    ).resolves.toMatchObject({ items: [] });
+    ).rejects.toBeInstanceOf(StaffAuthorizationError);
 
     await expect(
       approveProductTranslation(db, flower.tenant.id, ADMIN_SUBJECT, product.publicId, "ar", {
