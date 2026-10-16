@@ -305,7 +305,7 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
   return {
     kind: MENU_MANAGER_JOB_KIND,
     async step(job, context) {
-      let run = job.agentRunId ? await getAgentRunById(db, job.tenantId, job.agentRunId) : null;
+      const run = job.agentRunId ? await getAgentRunById(db, job.tenantId, job.agentRunId) : null;
       try {
         return await runStep(job, context);
       } catch (error) {
