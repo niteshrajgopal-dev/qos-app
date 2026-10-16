@@ -230,6 +230,8 @@ const FAILURE_COPY: Record<string, string> = {
   not_started_in_time: "QOS did not start this review in time. Nothing was sent to the agent service.",
   worker_stopped_mid_review:
     "The AI worker stopped before this review finished. Nothing on the menu was changed. You can ask again.",
+  menu_manager_context_unavailable:
+    "QOS could not load the menu data needed for this review. Nothing on the menu was changed. Ask again after an administrator checks the AI worker database setup.",
   worker_native_model_unavailable:
     "The AI worker is not configured to run Menu Manager reviews. An administrator must align the worker environment with the API.",
 };

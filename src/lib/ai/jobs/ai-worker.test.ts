@@ -145,6 +145,32 @@ describe("AI worker loop", () => {
     expect(logs).toContainEqual(expect.objectContaining({ event: "ai_worker.step_crashed", message: "boom" }));
   });
 
+  it("logs structured postgres fields on step_crashed without finishing the job", async () => {
+    const { deps, worker, logs } = setup({
+      claims: [job()],
+      step: async () => {
+        throw Object.assign(new Error("permission denied for table catalogue_menu_translations"), {
+          code: "42501",
+          schema_name: "qos",
+          table_name: "catalogue_menu_translations",
+        });
+      },
+    });
+    const running = worker.run();
+    await vi.waitFor(() => expect(logs.map((l) => l.event)).toContain("ai_worker.step_crashed"));
+    worker.stop();
+    await running;
+    expect(deps.finish).not.toHaveBeenCalled();
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        event: "ai_worker.step_crashed",
+        dbSqlState: "42501",
+        dbTable: "catalogue_menu_translations",
+        dbSchema: "qos",
+      }),
+    );
+  });
+
   it("logs a lost lease separately from a crash", async () => {
     const claimed = job();
     const { worker, events } = setup({

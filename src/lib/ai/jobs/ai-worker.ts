@@ -4,6 +4,7 @@ import {
   type AiJobStepResult,
   type ClaimedAiJob,
 } from "@/lib/ai/jobs/ai-job-queue";
+import { postgresErrorLogFields } from "@/lib/db/postgres-error";
 
 /**
  * One step of a job (ADR-AI-02 decision 13): a bounded unit of work between
@@ -83,6 +84,11 @@ export type AiWorkerLogEvent =
       tenantId: string;
       runPublicId: string | null;
       message: string;
+      dbSqlState?: string;
+      dbMessage?: string;
+      dbSchema?: string;
+      dbTable?: string;
+      dbColumn?: string;
     }
   | { event: "ai_worker.stopping"; workerId: string; inFlight: number }
   | { event: "ai_worker.stopped"; workerId: string }
@@ -219,7 +225,12 @@ export function createAiWorker(deps: AiWorkerDeps, options: AiWorkerOptions): Ai
       if (error instanceof AiJobLeaseLostError) {
         deps.log({ event: "ai_worker.lease_lost", ...base });
       } else {
-        deps.log({ event: "ai_worker.step_crashed", ...base, message: errorMessage(error) });
+        deps.log({
+          event: "ai_worker.step_crashed",
+          ...base,
+          message: errorMessage(error),
+          ...postgresErrorLogFields(error),
+        });
       }
     } finally {
       clearInterval(beat);

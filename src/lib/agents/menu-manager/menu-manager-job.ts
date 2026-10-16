@@ -41,6 +41,7 @@ import {
   resolveUncertainPriorDispatch,
   UNCERTAIN_START_FAILURE,
 } from "@/lib/agents/menu-manager/menu-manager-uncertain-dispatch";
+import { failMenuManagerRunForTerminalDatabaseError } from "@/lib/agents/menu-manager/menu-manager-context-error";
 import {
   MENU_MANAGER_MAX_JOB_ATTEMPTS,
   WORKER_STOPPED_MID_REVIEW_CODE,
@@ -275,32 +276,47 @@ export function createMenuManagerJobHandler(db: DbClient, options: HandlerOption
     return { type: "reschedule", delayMs };
   }
 
+  async function runStep(job: ClaimedAiJob, context: AiJobStepContext): Promise<AiJobStepResult> {
+    const config = options.config ?? readAgentConfig();
+    let run = job.agentRunId ? await getAgentRunById(db, job.tenantId, job.agentRunId) : null;
+    if (!run) {
+      return { type: "failed", code: "run_missing", message: "The run for this job no longer exists." };
+    }
+    if (job.attemptNumber > MENU_MANAGER_MAX_JOB_ATTEMPTS) {
+      return failWorkerStopped(job, run);
+    }
+    if (run.executionMode !== "queued_worker") {
+      return { type: "failed", code: "execution_mode_mismatch", message: "Only queued_worker runs execute on the worker." };
+    }
+    const limits = runLimits(run, config);
+    run = await expireAgentRunIfDue(db, job.tenantId, run.publicId, {
+      queuedStaleMs: limits.queuedStaleMs,
+      now: clock(),
+    });
+    if (!isActive(run.status)) {
+      return { type: "completed" };
+    }
+    if (run.provider === "agents_sdk" || run.executionIdentity?.executorKind === "native") {
+      return nativeStep(job, context, run, config);
+    }
+    return run.status === "queued" ? start(job, context, run, config) : poll(job, run, config);
+  }
+
   return {
     kind: MENU_MANAGER_JOB_KIND,
     async step(job, context) {
-      const config = options.config ?? readAgentConfig();
       let run = job.agentRunId ? await getAgentRunById(db, job.tenantId, job.agentRunId) : null;
-      if (!run) {
-        return { type: "failed", code: "run_missing", message: "The run for this job no longer exists." };
+      try {
+        return await runStep(job, context);
+      } catch (error) {
+        if (run) {
+          const failed = await failMenuManagerRunForTerminalDatabaseError(db, job, run, error, clock());
+          if (failed) {
+            return failed;
+          }
+        }
+        throw error;
       }
-      if (job.attemptNumber > MENU_MANAGER_MAX_JOB_ATTEMPTS) {
-        return failWorkerStopped(job, run);
-      }
-      if (run.executionMode !== "queued_worker") {
-        return { type: "failed", code: "execution_mode_mismatch", message: "Only queued_worker runs execute on the worker." };
-      }
-      const limits = runLimits(run, config);
-      run = await expireAgentRunIfDue(db, job.tenantId, run.publicId, {
-        queuedStaleMs: limits.queuedStaleMs,
-        now: clock(),
-      });
-      if (!isActive(run.status)) {
-        return { type: "completed" };
-      }
-      if (run.provider === "agents_sdk" || run.executionIdentity?.executorKind === "native") {
-        return nativeStep(job, context, run, config);
-      }
-      return run.status === "queued" ? start(job, context, run, config) : poll(job, run, config);
     },
   };
 
