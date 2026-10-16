@@ -14,6 +14,13 @@ describe("catalogue description draft fixtures", () => {
   it("marks suggestions stale when the English translation version moved", () => {
     const run = {
       status: "completed",
+      requestSummary: {
+        schema: "qos.catalogue_description_request.v1",
+        sourceTranslationVersion: 1,
+        productVersion: 1,
+        modelId: "fake-model",
+        promptVersion: "catalogue_description_prompt.v1",
+      },
       result: {
         schema: "qos.catalogue_description_result.v1",
         description: "New copy",
@@ -21,7 +28,7 @@ describe("catalogue description draft fixtures", () => {
         modelId: "fake-model",
         promptVersion: "catalogue_description_prompt.v1",
       },
-    } as AgentRunRecord;
+    } as unknown as AgentRunRecord;
     const state = computeDescriptionSuggestionState({
       run,
       summary: {
