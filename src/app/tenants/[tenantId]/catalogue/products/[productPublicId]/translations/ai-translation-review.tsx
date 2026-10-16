@@ -228,10 +228,14 @@ export function AiTranslationReview({
   return (
     <section className="space-y-4" aria-labelledby="ai-translation-review-title">
       <header>
-        <h2 id="ai-translation-review-title" className="text-lg font-semibold">
+        <h2
+          id="ai-translation-review-title"
+          className="text-lg font-semibold"
+          style={{ color: "var(--text-primary)" }}
+        >
           {t.title}
         </h2>
-        <p className="text-sm text-zinc-600">{t.subtitle}</p>
+        <p className="qos-card-sub">{t.subtitle}</p>
       </header>
 
       <div className="flex flex-wrap gap-2">
@@ -278,42 +282,56 @@ export function AiTranslationReview({
         </p>
       ) : null}
       {review?.suggestionState === "accepted" ? (
-        <p className="text-sm text-zinc-600" role="status">{t.accepted}</p>
+        <p className="qos-card-sub" role="status">{t.accepted}</p>
       ) : null}
       {review?.suggestionState === "rejected" ? (
-        <p className="text-sm text-zinc-600" role="status">{t.rejected}</p>
+        <p className="qos-card-sub" role="status">{t.rejected}</p>
       ) : null}
       {review && review.status !== "completed" && review.suggestionState === "pending" ? (
-        <p className="text-sm text-zinc-600" role="status">{t.pending}</p>
+        <p className="qos-card-sub" role="status">{t.pending}</p>
       ) : null}
-      {!review ? <p className="text-sm text-zinc-500">{t.none}</p> : null}
+      {!review ? <p className="qos-card-sub">{t.none}</p> : null}
 
       {review ? (
         <div className="grid gap-6 lg:grid-cols-2">
           <article className="qos-card" data-padding="md" dir={sourceDir} lang={review.sourceLocale}>
-            <h3 className="mb-3 text-sm font-medium text-zinc-700">
+            <h3
+              className="mb-3 text-sm font-medium"
+              style={{ color: "var(--text-primary)" }}
+            >
               {t.source} ({localeLabel(review.sourceLocale)})
             </h3>
             <dl className="space-y-2 text-sm">
               <div>
-                <dt className="font-medium text-zinc-600">{t.displayName}</dt>
-                <dd>{review.source.displayName}</dd>
+                <dt className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                  {t.displayName}
+                </dt>
+                <dd style={{ color: "var(--text-primary)" }}>{review.source.displayName}</dd>
               </div>
               <div>
-                <dt className="font-medium text-zinc-600">{t.description}</dt>
-                <dd>{review.source.description ?? "—"}</dd>
+                <dt className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                  {t.description}
+                </dt>
+                <dd style={{ color: "var(--text-primary)" }}>
+                  {review.source.description ?? "—"}
+                </dd>
               </div>
             </dl>
           </article>
 
           <article className="qos-card" data-padding="md" dir={targetDir} lang={review.targetLocale}>
-            <h3 className="mb-3 text-sm font-medium text-zinc-700">
+            <h3
+              className="mb-3 text-sm font-medium"
+              style={{ color: "var(--text-primary)" }}
+            >
               {t.suggestion} ({localeLabel(review.targetLocale)})
             </h3>
             {canEdit ? (
               <div className="space-y-3 text-sm">
                 <label className="block">
-                  <span className="font-medium text-zinc-600">{t.displayName}</span>
+                  <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                    {t.displayName}
+                  </span>
                   <input
                     className="qos-input mt-1 w-full"
                     value={displayName}
@@ -322,7 +340,9 @@ export function AiTranslationReview({
                   />
                 </label>
                 <label className="block">
-                  <span className="font-medium text-zinc-600">{t.description}</span>
+                  <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                    {t.description}
+                  </span>
                   <textarea
                     className="qos-input mt-1 w-full min-h-[96px]"
                     value={description}
@@ -356,16 +376,24 @@ export function AiTranslationReview({
             ) : review.editableSuggestion || review.suggestion ? (
               <dl className="space-y-2 text-sm">
                 <div>
-                  <dt className="font-medium text-zinc-600">{t.displayName}</dt>
-                  <dd>{(review.editableSuggestion ?? review.suggestion)?.displayName}</dd>
+                  <dt className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                    {t.displayName}
+                  </dt>
+                  <dd style={{ color: "var(--text-primary)" }}>
+                    {(review.editableSuggestion ?? review.suggestion)?.displayName}
+                  </dd>
                 </div>
                 <div>
-                  <dt className="font-medium text-zinc-600">{t.description}</dt>
-                  <dd>{(review.editableSuggestion ?? review.suggestion)?.description ?? "—"}</dd>
+                  <dt className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                    {t.description}
+                  </dt>
+                  <dd style={{ color: "var(--text-primary)" }}>
+                    {(review.editableSuggestion ?? review.suggestion)?.description ?? "—"}
+                  </dd>
                 </div>
               </dl>
             ) : (
-              <p className="text-sm text-zinc-500">—</p>
+              <p className="text-sm qos-card-sub">—</p>
             )}
           </article>
         </div>
