@@ -248,6 +248,32 @@ integrationDescribe("native Menu Manager", () => {
     expect(job).toMatchObject({ status: "completed", attemptCount: 1 });
   });
 
+  it("lets the native loop call menu.get_health as qos_ai_worker", async () => {
+    const { menu, caller } = await seed();
+    const model = new FakeQosModel().script(
+      {
+        type: "tool_calls",
+        calls: [{ callId: "call_health", name: "menu.get_health", input: {} }],
+        usage: null,
+      },
+      { type: "completed", text: validReply(menu.publicId), usage: null },
+    );
+
+    await ask(caller, menu.publicId);
+    const step = await workerStep(model);
+    expect(step!.result).toEqual({ type: "completed" });
+    expect(model.requests).toHaveLength(2);
+    expect(model.requests[1]!.toolResults).toEqual([
+      expect.objectContaining({
+        callId: "call_health",
+        output: expect.objectContaining({
+          menuPublicId: menu.publicId,
+          displayName: "Breakfast",
+        }),
+      }),
+    ]);
+  });
+
   it("lets the native loop call a read-only menu tool before completing", async () => {
     const { menu, product, caller } = await seed();
     const model = new FakeQosModel().script(

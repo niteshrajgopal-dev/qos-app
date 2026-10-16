@@ -138,10 +138,26 @@ integrationDescribe("0042 AI job queue migration", () => {
       ai_spend_reservations: "SELECT,UPDATE",
       ai_spend_tenant_counters: "SELECT,UPDATE",
       catalogue_media_assets: "SELECT,UPDATE",
+      catalogue_media_derivatives: "SELECT",
       catalogue_media_upload_grants: "SELECT,UPDATE",
+      catalogue_menu_live_revisions: "SELECT",
       catalogue_menu_locations: "SELECT",
+      catalogue_menu_section_products: "SELECT",
+      catalogue_menu_section_translations: "SELECT",
+      catalogue_menu_sections: "SELECT",
+      catalogue_menu_translations: "SELECT",
       catalogue_menus: "SELECT",
+      catalogue_modifier_groups: "SELECT",
+      catalogue_modifier_options: "SELECT",
+      catalogue_product_categories: "SELECT",
+      catalogue_product_modifier_groups: "SELECT",
+      catalogue_product_translations: "SELECT",
       catalogue_products: "SELECT",
+      catalogue_variant_prices: "SELECT",
+      catalogue_variants: "SELECT",
+      location_item_stop_sales: "SELECT,UPDATE",
+      location_schedule_exceptions: "SELECT",
+      location_weekly_schedule_windows: "SELECT",
       locations: "SELECT",
       staff_identities: "SELECT",
       staff_location_scopes: "SELECT",
@@ -169,6 +185,21 @@ integrationDescribe("0042 AI job queue migration", () => {
     const [fk] = await connection.sql<{ definition: string }[]>`
       SELECT pg_get_constraintdef(oid) AS definition FROM pg_constraint WHERE conname = 'ai_jobs_media_asset_fk'`;
     expect(fk!.definition).toMatch(/REFERENCES (qos\.)?catalogue_media_assets\(tenant_id, id\) ON DELETE RESTRICT/);
+  });
+
+  it("0048: worker can read Menu Manager facts tables and cannot write catalogue rows", async () => {
+    await expect(
+      asRole<{ count: string }[]>("qos_ai_worker", "SELECT count(*)::text AS count FROM qos.catalogue_menu_translations"),
+    ).resolves.toEqual([{ count: "0" }]);
+    await expect(
+      asRole("qos_ai_worker", "INSERT INTO qos.catalogue_menu_translations DEFAULT VALUES"),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole("qos_ai_worker", "DELETE FROM qos.catalogue_menus"),
+    ).rejects.toThrow(/permission denied/);
+    await expect(
+      asRole("qos_ai_scaler", "SELECT count(*) FROM qos.catalogue_menu_translations"),
+    ).rejects.toThrow(/permission denied/);
   });
 
   it("applies every migration as a non-superuser admin with CREATEROLE, as on Azure", async () => {

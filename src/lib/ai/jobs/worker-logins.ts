@@ -6,7 +6,7 @@ import type postgres from "postgres";
  * Database logins for the AI worker and its autoscaler. Each login holds
  * exactly one queue role (privileges inherited, SET ROLE refused) and no
  * attributes beyond LOGIN, so a leaked credential reaches only what that role
- * was granted by migrations 0042/0043.
+ * was granted by migrations 0042-0048.
  */
 export type AiWorkerLoginSpec = {
   login: string;
