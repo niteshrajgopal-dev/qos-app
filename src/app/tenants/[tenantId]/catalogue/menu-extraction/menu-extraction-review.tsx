@@ -16,6 +16,7 @@ type Review = {
   gateReady: boolean;
   gateReason: string | null;
   decision: "confirmed" | "rejected" | "cancelled" | null;
+  candidatesRevision: number;
   candidates: Array<{
     candidateKey: string;
     excluded: boolean;
@@ -132,6 +133,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           runPublicId: review.runPublicId,
+          expectedVersion: review.candidatesRevision,
           candidates: draft.map((row) => ({
             candidateKey: row.candidateKey,
             excluded: row.excluded,
@@ -158,11 +160,18 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
     await saveDraft();
     setBusy(true);
     try {
+      const latestReviewResponse = await staffApiFetch(`${base}/${sourcePublicId}/review`);
+      const latestPayload = (await latestReviewResponse.json()) as { review: Review | null };
+      const latestReview = latestPayload.review;
+      if (!latestReview) {
+        throw new Error("Extraction review is not available.");
+      }
       const response = await staffApiFetch(`${base}/${sourcePublicId}/confirm`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          runPublicId: review.runPublicId,
+          runPublicId: latestReview.runPublicId,
+          expectedVersion: latestReview.candidatesRevision,
           importIdempotencyKey: confirmKey,
         }),
       });

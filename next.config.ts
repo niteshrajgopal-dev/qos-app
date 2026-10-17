@@ -15,6 +15,16 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Native PDF rasterization (@napi-rs/canvas, pdfjs-dist) runs only on the API upload path.
   serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist"],
+  outputFileTracingIncludes: {
+    "/api/tenants/*/catalogue/menu-extraction/upload": [
+      "./node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs",
+      "./node_modules/@napi-rs/canvas/**/*",
+      "./node_modules/@napi-rs/canvas-linux-x64-gnu/**/*",
+      "./node_modules/@napi-rs/canvas-linux-x64-musl/**/*",
+      "./node_modules/@napi-rs/canvas-linux-arm64-gnu/**/*",
+      "./node_modules/@napi-rs/canvas-linux-arm64-musl/**/*",
+    ],
+  },
   async headers() {
     return [
       {

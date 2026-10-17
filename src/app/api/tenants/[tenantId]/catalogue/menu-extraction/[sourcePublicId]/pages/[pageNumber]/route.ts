@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { db } from "@/db";
 import { catalogueErrorResponse } from "@/lib/catalogue/http";
+import { menuExtractionPageMimeFromStoragePath } from "@/lib/catalogue/menu-extraction/page-media";
 import {
   loadMenuExtractionSource,
   readMenuExtractionPageBytes,
@@ -26,16 +27,20 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const pageNum = Number.parseInt(pageNumber, 10);
+    if (!Number.isInteger(pageNum) || pageNum < 1 || String(pageNum) !== pageNumber.trim()) {
+      return NextResponse.json({ error: "Page not found." }, { status: 404 });
+    }
     const page = loaded.pages.find((row) => row.pageNumber === pageNum);
     if (!page) {
       return NextResponse.json({ error: "Page not found." }, { status: 404 });
     }
 
     const bytes = await readMenuExtractionPageBytes(tenantId, page.storagePath);
+    const contentType = menuExtractionPageMimeFromStoragePath(page.storagePath);
     return new NextResponse(new Uint8Array(bytes), {
       status: 200,
       headers: {
-        "Content-Type": "image/jpeg",
+        "Content-Type": contentType,
         "Cache-Control": "private, no-store",
       },
     });

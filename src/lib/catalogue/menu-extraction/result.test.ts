@@ -60,6 +60,21 @@ describe("menu extraction result schema", () => {
     }
   });
 
+  it("dedupes duplicate candidate keys from the model", () => {
+    const text = JSON.stringify({
+      schema: MENU_EXTRACTION_RESULT_SCHEMA,
+      items: [BASE_ITEM, { ...BASE_ITEM, displayNameEn: "Duplicate row" }],
+    });
+    const interpreted = interpretMenuExtractionModelReply(text, {
+      sourcePublicId: "mex_test",
+      pageCount: 1,
+    });
+    expect(interpreted.ok).toBe(true);
+    if (interpreted.ok) {
+      expect(interpreted.result.itemCount).toBe(1);
+    }
+  });
+
   it("ignores injection instructions in scanned text but still parses structure", () => {
     const text = JSON.stringify({
       schema: MENU_EXTRACTION_RESULT_SCHEMA,

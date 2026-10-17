@@ -30,6 +30,7 @@ import { MENU_EXTRACTION_RESULT_SCHEMA } from "@/lib/catalogue/menu-extraction/r
 import {
   CATALOGUE_MENU_EXTRACTION_JOB_KIND,
   confirmMenuExtraction,
+  getMenuExtractionReview,
   rejectMenuExtraction,
   requestMenuExtraction,
 } from "@/lib/catalogue/menu-extraction/service";
@@ -66,7 +67,7 @@ function menuExtractionSpendPolicy(overrides: Record<string, string> = {}) {
     AI_SPEND_PLATFORM_CONCURRENCY: "10",
     AI_SPEND_PROVIDER_OPENAI_CONCURRENCY: "10",
     AI_SPEND_CATALOGUE_MENU_EXTRACTION_ENABLED: "true",
-    AI_SPEND_CATALOGUE_MENU_EXTRACTION_MAX_UNITS_PER_RUN: "1",
+    AI_SPEND_CATALOGUE_MENU_EXTRACTION_MAX_UNITS_PER_RUN: "12",
     AI_SPEND_CATALOGUE_MENU_EXTRACTION_TENANT_DAILY_UNITS: "10",
     AI_SPEND_CATALOGUE_MENU_EXTRACTION_TENANT_MONTHLY_UNITS: "100",
     AI_SPEND_CATALOGUE_MENU_EXTRACTION_TENANT_CONCURRENCY: "10",
@@ -252,9 +253,19 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
     expect(visionComplete).toHaveBeenCalledTimes(1);
 
     const confirmIdem = `confirm-${randomBytes(6).toString("hex")}`;
+    const reviewBeforeConfirm = await runAsRole(sqlClient, "qos_app", () =>
+      getMenuExtractionReview(
+        db,
+        adminCaller.tenantId,
+        adminCaller.subject,
+        uploaded.sourcePublicId,
+        run.publicId,
+      ),
+    );
     const confirmed = await runAsRole(sqlClient, "qos_app", () =>
       confirmMenuExtraction(db, adminCaller, uploaded.sourcePublicId, {
         runPublicId: run.publicId,
+        expectedVersion: reviewBeforeConfirm?.candidatesRevision ?? 0,
         importIdempotencyKey: confirmIdem,
       }),
     );
@@ -364,6 +375,7 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
       runAsRole(sqlClient, "qos_app", () =>
         confirmMenuExtraction(db, second.adminCaller, uploaded.sourcePublicId, {
           runPublicId: run.publicId,
+          expectedVersion: 0,
           importIdempotencyKey: `confirm-${randomBytes(6).toString("hex")}`,
         }),
       ),

@@ -18,7 +18,7 @@ async function createJpeg(width: number, height: number) {
 }
 
 describe("prepareImportedImageBytes", () => {
-  it("does not resize a normal-sized image", async () => {
+  it("normalizes a normal-sized image without upscaling", async () => {
     const bytes = await createJpeg(64, 48);
 
     const prepared = await prepareImportedImageBytes(bytes, {
@@ -29,7 +29,8 @@ describe("prepareImportedImageBytes", () => {
     expect(prepared.contentType).toBe("image/jpeg");
     expect(prepared.width).toBe(64);
     expect(prepared.height).toBe(48);
-    expect(prepared.bytes.equals(bytes)).toBe(true);
+    expect(prepared.bytes.byteLength).toBeGreaterThan(0);
+    expect(prepared.bytes.equals(bytes)).toBe(false);
   });
 
   it("downsamples an oversized image while preserving aspect ratio", async () => {
