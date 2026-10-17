@@ -1,5 +1,6 @@
 import type { NativeModelConfig } from "@/lib/agents/native/native-model-config";
 import { redactOpenAiSecrets } from "@/lib/agents/native/openai-redaction";
+import { menuExtractionResultJsonSchema } from "@/lib/catalogue/menu-extraction/result";
 
 export type MenuExtractionVisionPage = {
   pageNumber: number;
@@ -33,6 +34,8 @@ export function createOpenAiMenuExtractionVisionProvider(
   if (config.provider !== "openai" || !config.openAiApiKey) {
     throw new Error("OpenAI vision provider is not configured.");
   }
+
+  const responseJsonSchema = menuExtractionResultJsonSchema();
 
   return {
     kind: "openai",
@@ -70,7 +73,14 @@ export function createOpenAiMenuExtractionVisionProvider(
             { role: "system", content: request.instructions },
             { role: "user", content: userContent },
           ],
-          response_format: { type: "json_object" },
+          response_format: {
+            type: "json_schema",
+            json_schema: {
+              name: "menu_extraction_result",
+              strict: true,
+              schema: responseJsonSchema,
+            },
+          },
         });
         const text = response.choices[0]?.message?.content ?? "";
         const usage = response.usage

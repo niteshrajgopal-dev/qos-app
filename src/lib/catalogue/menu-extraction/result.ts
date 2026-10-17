@@ -28,7 +28,7 @@ const evidenceSchema = z.strictObject({
   originalText: z.string().max(4000).nullable(),
 });
 
-const itemSchema = z.strictObject({
+export const menuExtractionModelItemZod = z.strictObject({
   candidateKey: z.string().trim().min(1).max(120),
   sectionName: z.string().trim().max(200).nullable(),
   displayNameEn: z.string().trim().max(200).nullable(),
@@ -67,10 +67,14 @@ export const menuExtractionResultZod = z.strictObject({
     .max(200)
     .nullable()
     .optional(),
-  items: z.array(itemSchema).max(500),
+  items: z.array(menuExtractionModelItemZod).max(500),
 });
 
-export type MenuExtractionModelItem = z.infer<typeof itemSchema>;
+export function menuExtractionResultJsonSchema() {
+  return z.toJSONSchema(menuExtractionResultZod, { target: "draft-7" });
+}
+
+export type MenuExtractionModelItem = z.infer<typeof menuExtractionModelItemZod>;
 
 export type MenuExtractionReplyContext = {
   sourcePublicId: string;
@@ -104,7 +108,12 @@ export function interpretMenuExtractionModelReply(
   }
 
   const items: MenuExtractionCandidatePayload[] = [];
+  const seenCandidateKeys = new Set<string>();
   for (const item of validated.data.items) {
+    if (seenCandidateKeys.has(item.candidateKey)) {
+      continue;
+    }
+    seenCandidateKeys.add(item.candidateKey);
     if (item.evidence.pageNumber > context.pageCount) {
       return {
         ok: false,

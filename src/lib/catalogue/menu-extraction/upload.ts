@@ -11,6 +11,13 @@ import {
   MENU_EXTRACTION_LIMITS,
   readMenuExtractionConfig,
 } from "@/lib/catalogue/menu-extraction/config";
+import { resolveMenuExtractionMimeType } from "@/lib/catalogue/menu-extraction/content-sniff";
+import { menuExtractionPageFileExtension } from "@/lib/catalogue/menu-extraction/page-media";
+import {
+  mapRasterizeError,
+  MenuExtractionRasterizeError,
+  rasterizeMenuUpload,
+} from "@/lib/catalogue/menu-extraction/rasterize";
 import { MediaValidationError } from "@/lib/media/validation";
 import { getMediaStorage } from "@/lib/media/storage";
 import {
@@ -41,18 +48,23 @@ function contentHash(bytes: Buffer) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-function detectMimeType(fileName: string, declared: string | null) {
-  const lower = fileName.toLowerCase();
-  if (lower.endsWith(".pdf")) {
-    return MENU_EXTRACTION_LIMITS.allowedPdfMimeType;
+function isUniqueViolation(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: string }).code === "23505"
+  );
+}
+
+async function deleteStoredPaths(paths: string[]) {
+  const storage = getMediaStorage();
+  if (!storage.deletePrivate) {
+    return;
   }
-  if (lower.endsWith(".png")) {
-    return "image/png";
+  for (const relativePath of paths) {
+    await storage.deletePrivate(relativePath);
   }
-  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) {
-    return "image/jpeg";
-  }
-  return declared?.split(";")[0]?.trim().toLowerCase() ?? "";
 }
 
 export async function uploadMenuExtractionSource(
@@ -76,7 +88,7 @@ export async function uploadMenuExtractionSource(
     );
   }
 
-  const mimeType = detectMimeType(input.fileName, input.contentType);
+  const mimeType = resolveMenuExtractionMimeType(input.fileName, input.contentType, input.bytes);
   const allowedImages = MENU_EXTRACTION_LIMITS.allowedImageMimeTypes as readonly string[];
   if (
     mimeType !== MENU_EXTRACTION_LIMITS.allowedPdfMimeType &&
@@ -91,10 +103,9 @@ export async function uploadMenuExtractionSource(
 
   const hash = contentHash(input.bytes);
 
-  return withTenantContext(db, tenantId, async (tx) => {
+  const existing = await withTenantContext(db, tenantId, async (tx) => {
     await assertTenantActive(tx, tenantId);
-
-    const [existing] = await tx
+    const [row] = await tx
       .select()
       .from(catalogueMenuExtractionSources)
       .where(
@@ -104,9 +115,12 @@ export async function uploadMenuExtractionSource(
         ),
       )
       .limit(1);
+    return row ?? null;
+  });
 
-    if (existing) {
-      const pages = await tx
+  if (existing) {
+    const pages = await withTenantContext(db, tenantId, async (tx) =>
+      tx
         .select()
         .from(catalogueMenuExtractionPages)
         .where(
@@ -114,69 +128,75 @@ export async function uploadMenuExtractionSource(
             eq(catalogueMenuExtractionPages.tenantId, tenantId),
             eq(catalogueMenuExtractionPages.sourceId, existing.id),
           ),
-        );
-      return {
-        sourcePublicId: existing.publicId,
-        contentHash: existing.contentHash,
-        pageCount: existing.pageCount,
-        replayed: true,
-        pages: pages.map((page) => ({
-          pageNumber: page.pageNumber,
-          width: page.width,
-          height: page.height,
-        })),
-      };
-    }
+        ),
+    );
+    return {
+      sourcePublicId: existing.publicId,
+      contentHash: existing.contentHash,
+      pageCount: existing.pageCount,
+      replayed: true,
+      pages: pages.map((page) => ({
+        pageNumber: page.pageNumber,
+        width: page.width,
+        height: page.height,
+      })),
+    };
+  }
 
-    let rasterized;
-    try {
-      const { rasterizeMenuUpload } = await import("@/lib/catalogue/menu-extraction/rasterize");
-      rasterized = await rasterizeMenuUpload(input.bytes, mimeType, config);
-    } catch (error) {
-      if (error instanceof MediaValidationError) {
-        throw new MenuExtractionUploadError(error.message, 400, error.field);
-      }
-      throw error;
+  let rasterized;
+  try {
+    rasterized = await rasterizeMenuUpload(input.bytes, mimeType, {
+      maxPixelDimension: config.maxPixelDimension,
+      maxUploadBytes: config.maxUploadBytes,
+      maxPages: config.maxPages,
+    });
+  } catch (error) {
+    if (error instanceof MediaValidationError) {
+      throw new MenuExtractionUploadError(error.message, 400, error.field);
     }
+    if (error instanceof MenuExtractionRasterizeError) {
+      throw new MenuExtractionUploadError(error.message, error.statusCode, error.field);
+    }
+    throw mapRasterizeError(error);
+  }
 
-    if (rasterized.pages.length === 0) {
-      throw new MenuExtractionUploadError("No readable pages were found in the upload.", 400);
-    }
-    if (rasterized.pages.length > config.maxPages) {
-      throw new MenuExtractionUploadError(
-        `Menu sources may contain at most ${config.maxPages} pages.`,
-        413,
-        "file",
-      );
-    }
+  if (rasterized.pages.length === 0) {
+    throw new MenuExtractionUploadError("No readable pages were found in the upload.", 400);
+  }
+  if (rasterized.pages.length > config.maxPages) {
+    throw new MenuExtractionUploadError(
+      `Menu sources may contain at most ${config.maxPages} pages.`,
+      413,
+      "file",
+    );
+  }
 
-    const storage = getMediaStorage();
-    const publicId = generateSourcePublicId();
-    const originalPath = `menu-extraction/${tenantId}/${publicId}/original`;
+  const storage = getMediaStorage();
+  const publicId = generateSourcePublicId();
+  const originalPath = `menu-extraction/${tenantId}/${publicId}/original`;
+  const writtenPaths: string[] = [originalPath];
+
+  try {
     await storage.writePrivate(originalPath, input.bytes);
 
-    const [source] = await tx
-      .insert(catalogueMenuExtractionSources)
-      .values({
-        tenantId,
-        publicId,
-        contentHash: hash,
-        fileName: input.fileName,
-        mimeType,
-        originalStoragePath: originalPath,
-        pageCount: rasterized.pages.length,
-        status: "ready",
-        uploadedBySubject: staffSubject,
-      })
-      .returning();
+    const pageRows: Array<{
+      tenantId: string;
+      sourceId: string;
+      pageNumber: number;
+      storagePath: string;
+      width: number;
+      height: number;
+      contentHash: string;
+    }> = [];
 
-    const pageRows = [];
     for (const page of rasterized.pages) {
-      const pagePath = `menu-extraction/${tenantId}/${publicId}/pages/${page.pageNumber}.jpg`;
+      const ext = menuExtractionPageFileExtension(page.mimeType);
+      const pagePath = `menu-extraction/${tenantId}/${publicId}/pages/${page.pageNumber}.${ext}`;
       await storage.writePrivate(pagePath, page.bytes);
+      writtenPaths.push(pagePath);
       pageRows.push({
         tenantId,
-        sourceId: source!.id,
+        sourceId: "",
         pageNumber: page.pageNumber,
         storagePath: pagePath,
         width: page.width,
@@ -185,35 +205,102 @@ export async function uploadMenuExtractionSource(
       });
     }
 
-    await tx.insert(catalogueMenuExtractionPages).values(pageRows);
+    return await withTenantContext(db, tenantId, async (tx) => {
+      await assertTenantActive(tx, tenantId);
 
-    await recordTenantAuditEventInTx(tx, {
-      tenantId,
-      actorSubject: staffSubject,
-      actorClass: auditActorClassFromStaffRole(membership.role),
-      action: "catalogue.menu_extraction.uploaded",
-      entityType: "catalogue_menu_extraction_source",
-      entityPublicId: publicId,
-      changeSummary: {
-        fileName: input.fileName,
-        mimeType,
-        pageCount: rasterized.pages.length,
+      const [source] = await tx
+        .insert(catalogueMenuExtractionSources)
+        .values({
+          tenantId,
+          publicId,
+          contentHash: hash,
+          fileName: input.fileName,
+          mimeType,
+          originalStoragePath: originalPath,
+          pageCount: rasterized.pages.length,
+          status: "ready",
+          uploadedBySubject: staffSubject,
+        })
+        .returning();
+
+      await tx.insert(catalogueMenuExtractionPages).values(
+        pageRows.map((row) => ({
+          ...row,
+          sourceId: source!.id,
+        })),
+      );
+
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        actorSubject: staffSubject,
+        actorClass: auditActorClassFromStaffRole(membership.role),
+        action: "catalogue.menu_extraction.uploaded",
+        entityType: "catalogue_menu_extraction_source",
+        entityPublicId: publicId,
+        changeSummary: {
+          fileName: input.fileName,
+          mimeType,
+          pageCount: rasterized.pages.length,
+          contentHash: hash,
+        },
+      });
+
+      return {
+        sourcePublicId: publicId,
         contentHash: hash,
-      },
+        pageCount: rasterized.pages.length,
+        replayed: false,
+        pages: rasterized.pages.map((page) => ({
+          pageNumber: page.pageNumber,
+          width: page.width,
+          height: page.height,
+        })),
+      };
     });
-
-    return {
-      sourcePublicId: publicId,
-      contentHash: hash,
-      pageCount: rasterized.pages.length,
-      replayed: false,
-      pages: rasterized.pages.map((page) => ({
-        pageNumber: page.pageNumber,
-        width: page.width,
-        height: page.height,
-      })),
-    };
-  });
+  } catch (error) {
+    await deleteStoredPaths(writtenPaths);
+    if (isUniqueViolation(error)) {
+      const replay = await withTenantContext(db, tenantId, async (tx) => {
+        const [row] = await tx
+          .select()
+          .from(catalogueMenuExtractionSources)
+          .where(
+            and(
+              eq(catalogueMenuExtractionSources.tenantId, tenantId),
+              eq(catalogueMenuExtractionSources.contentHash, hash),
+            ),
+          )
+          .limit(1);
+        if (!row) {
+          return null;
+        }
+        const pages = await tx
+          .select()
+          .from(catalogueMenuExtractionPages)
+          .where(
+            and(
+              eq(catalogueMenuExtractionPages.tenantId, tenantId),
+              eq(catalogueMenuExtractionPages.sourceId, row.id),
+            ),
+          );
+        return { row, pages };
+      });
+      if (replay) {
+        return {
+          sourcePublicId: replay.row.publicId,
+          contentHash: replay.row.contentHash,
+          pageCount: replay.row.pageCount,
+          replayed: true,
+          pages: replay.pages.map((page) => ({
+            pageNumber: page.pageNumber,
+            width: page.width,
+            height: page.height,
+          })),
+        };
+      }
+    }
+    throw error;
+  }
 }
 
 export { loadMenuExtractionSource, readMenuExtractionPageBytes } from "@/lib/catalogue/menu-extraction/source-store";

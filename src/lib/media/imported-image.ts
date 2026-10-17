@@ -52,9 +52,9 @@ export async function prepareImportedImageBytes(
     );
   }
 
-  let metadata;
+  let orientedMetadata;
   try {
-    metadata = await sharp(bytes, SHARP_DECODE_OPTIONS).metadata();
+    orientedMetadata = await sharp(bytes, SHARP_DECODE_OPTIONS).rotate().metadata();
   } catch {
     throw new MediaValidationError(
       "Uploaded image is corrupt or unreadable.",
@@ -62,27 +62,19 @@ export async function prepareImportedImageBytes(
     );
   }
 
-  const width = metadata.width ?? 0;
-  const height = metadata.height ?? 0;
-  if (width <= 0 || height <= 0) {
+  const orientedWidth = orientedMetadata.width ?? 0;
+  const orientedHeight = orientedMetadata.height ?? 0;
+  if (orientedWidth <= 0 || orientedHeight <= 0) {
     throw new MediaValidationError(
       "Uploaded image is corrupt or unreadable.",
       "body",
     );
   }
 
-  if (width <= maxPixelDimension && height <= maxPixelDimension) {
-    const validated = await validateImageBytes(bytes, detectedContentType);
-    return {
-      bytes,
-      contentType: detectedContentType,
-      width: validated.width,
-      height: validated.height,
-      resized: false,
-    };
-  }
+  const resized =
+    orientedWidth > maxPixelDimension || orientedHeight > maxPixelDimension;
 
-  const resizedPipeline = sharp(bytes, SHARP_DECODE_OPTIONS)
+  const pipeline = sharp(bytes, SHARP_DECODE_OPTIONS)
     .rotate()
     .resize({
       width: maxPixelDimension,
@@ -91,17 +83,17 @@ export async function prepareImportedImageBytes(
       withoutEnlargement: true,
     });
 
-  const resized =
+  const output =
     detectedContentType === "image/jpeg"
-      ? await resizedPipeline.jpeg({ quality: 85, mozjpeg: true }).toBuffer()
-      : await resizedPipeline.png({ compressionLevel: 9 }).toBuffer();
+      ? await pipeline.jpeg({ quality: 85, mozjpeg: true }).toBuffer()
+      : await pipeline.png({ compressionLevel: 9 }).toBuffer();
 
-  const validated = await validateImageBytes(resized, detectedContentType);
+  const validated = await validateImageBytes(output, detectedContentType);
   return {
-    bytes: resized,
+    bytes: output,
     contentType: detectedContentType,
     width: validated.width,
     height: validated.height,
-    resized: true,
+    resized,
   };
 }

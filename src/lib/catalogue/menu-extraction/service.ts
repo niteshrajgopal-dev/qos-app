@@ -32,7 +32,15 @@ import {
 } from "@/lib/catalogue/catalogue-import";
 import { CURRENT_CATALOGUE_MENU_EXTRACTION_DEFINITION } from "@/lib/catalogue/menu-extraction/definition";
 import { candidateToImportRow } from "@/lib/catalogue/menu-extraction/import-mapper";
+import { parseMenuExtractionCandidatePayload } from "@/lib/catalogue/menu-extraction/candidate-validation";
 import { MENU_EXTRACTION_INPUT_SCHEMA, MENU_EXTRACTION_RESULT_SCHEMA } from "@/lib/catalogue/menu-extraction/result";
+import {
+  assertMenuExtractionCandidatesRevision,
+  computeMenuExtractionCandidatesRevision,
+  lockMenuExtractionRunForUpdate,
+  menuExtractionConfirmImportIdempotencyKey,
+  readMenuExtractionDecision,
+} from "@/lib/catalogue/menu-extraction/run-lock";
 import { MENU_EXTRACTION_PROMPT_VERSION } from "@/lib/catalogue/menu-extraction/prompt";
 import { loadMenuExtractionSource } from "@/lib/catalogue/menu-extraction/source-store";
 import {
@@ -73,6 +81,7 @@ export type MenuExtractionReviewView = {
   gateReason: string | null;
   decision: "confirmed" | "rejected" | "cancelled" | null;
   importOperationPublicId: string | null;
+  candidatesRevision: number;
 };
 
 type Caller = {
@@ -88,6 +97,7 @@ export const requestMenuExtractionBodySchema = z.strictObject({
 
 export const updateMenuExtractionCandidatesBodySchema = z.strictObject({
   runPublicId: z.string().regex(/^run_[a-f0-9]{24}$/),
+  expectedVersion: z.number().int().nonnegative(),
   candidates: z
     .array(
       z.strictObject({
@@ -101,7 +111,8 @@ export const updateMenuExtractionCandidatesBodySchema = z.strictObject({
 
 export const confirmMenuExtractionBodySchema = z.strictObject({
   runPublicId: z.string().regex(/^run_[a-f0-9]{24}$/),
-  importIdempotencyKey: z.string().trim().min(8).max(200),
+  expectedVersion: z.number().int().nonnegative(),
+  importIdempotencyKey: z.string().trim().min(8).max(200).optional(),
 });
 
 export const rejectMenuExtractionBodySchema = z.strictObject({
@@ -186,6 +197,7 @@ export async function buildMenuExtractionReviewView(
       gateReason: gate.ready ? null : gate.reason,
       decision: (decision?.decision as MenuExtractionReviewView["decision"]) ?? null,
       importOperationPublicId: decision?.importOperationPublicId ?? null,
+      candidatesRevision: computeMenuExtractionCandidatesRevision(candidates),
     };
   });
 }
@@ -302,7 +314,7 @@ export async function requestMenuExtraction(
           provider: "openai",
           subjectType: "agent_run",
           subjectPublicId: accepted.publicId,
-          units: 1,
+          units: Math.max(1, loaded.source.pageCount),
           requestedBy,
         },
         { policy: spendPolicy, now: clock() },
@@ -354,33 +366,45 @@ export async function updateMenuExtractionCandidates(
   }
 
   return withTenantContext(db, caller.tenantId, async (tx) => {
-    const [decision] = await tx
-      .select()
-      .from(agentRunCatalogueMenuExtractionDecisions)
-      .where(
-        and(
-          eq(agentRunCatalogueMenuExtractionDecisions.tenantId, caller.tenantId),
-          eq(agentRunCatalogueMenuExtractionDecisions.agentRunId, run.id),
-        ),
-      )
-      .limit(1);
+    await lockMenuExtractionRunForUpdate(tx, caller.tenantId, run.id);
+    const decision = await readMenuExtractionDecision(tx, caller.tenantId, run.id);
     if (decision) {
       throw new AgentRunError("run_already_decided", "This extraction review is closed.", 409);
     }
 
+    const existingRows = await tx
+      .select()
+      .from(catalogueMenuExtractionCandidates)
+      .where(
+        and(
+          eq(catalogueMenuExtractionCandidates.tenantId, caller.tenantId),
+          eq(catalogueMenuExtractionCandidates.agentRunId, run.id),
+        ),
+      );
+    const revision = computeMenuExtractionCandidatesRevision(existingRows);
+    assertMenuExtractionCandidatesRevision(revision, input.expectedVersion);
+
+    const knownKeys = new Set(existingRows.map((row) => row.candidateKey));
     for (const candidate of input.candidates) {
-      if (candidate.payload.schema !== "qos.catalogue_menu_extraction_candidate.v1") {
+      if (!knownKeys.has(candidate.candidateKey)) {
+        throw new AgentRunError(
+          "candidate_not_found",
+          `Unknown candidate ${candidate.candidateKey}.`,
+          400,
+        );
+      }
+      let payload: MenuExtractionCandidatePayload;
+      try {
+        payload = parseMenuExtractionCandidatePayload(candidate.payload, candidate.candidateKey);
+      } catch {
         throw new AgentRunError("candidate_invalid", "Candidate payload is invalid.", 400);
       }
-      if (candidate.payload.amountMinor === 0) {
-        throw new AgentRunError("candidate_invalid", "Price must be blank when unknown.", 400);
-      }
-      await tx
+      const [updated] = await tx
         .update(catalogueMenuExtractionCandidates)
         .set({
           excluded: candidate.excluded,
-          payload: candidate.payload,
-          sectionName: candidate.payload.sectionName,
+          payload,
+          sectionName: payload.sectionName,
           updatedAt: new Date(),
         })
         .where(
@@ -389,7 +413,15 @@ export async function updateMenuExtractionCandidates(
             eq(catalogueMenuExtractionCandidates.agentRunId, run.id),
             eq(catalogueMenuExtractionCandidates.candidateKey, candidate.candidateKey),
           ),
+        )
+        .returning({ candidateKey: catalogueMenuExtractionCandidates.candidateKey });
+      if (!updated) {
+        throw new AgentRunError(
+          "candidate_not_found",
+          `Unknown candidate ${candidate.candidateKey}.`,
+          400,
         );
+      }
     }
 
     const review = await buildMenuExtractionReviewView(
@@ -423,66 +455,75 @@ export async function confirmMenuExtraction(
     throw new AgentRunError("source_not_found", "Menu source not found.", 404);
   }
 
-  const existingDecision = await withTenantContext(db, caller.tenantId, async (tx) => {
-    await assertTenantActive(tx, caller.tenantId);
-    const [row] = await tx
-      .select()
-      .from(agentRunCatalogueMenuExtractionDecisions)
-      .where(
-        and(
-          eq(agentRunCatalogueMenuExtractionDecisions.tenantId, caller.tenantId),
-          eq(agentRunCatalogueMenuExtractionDecisions.agentRunId, run.id),
-        ),
-      )
-      .limit(1);
-    return row ?? null;
-  });
-  if (existingDecision?.decision === "confirmed") {
-    const view = await buildMenuExtractionReviewView(db, caller.tenantId, sourcePublicId, run);
-    return {
-      review: view,
-      replayed: true,
-      importOperationPublicId: existingDecision.importOperationPublicId,
-    };
-  }
-  if (existingDecision) {
-    throw new AgentRunError("run_already_decided", "This extraction review is closed.", 409);
-  }
+  const importIdempotencyKey =
+    input.importIdempotencyKey ?? menuExtractionConfirmImportIdempotencyKey(run.publicId);
 
-  const candidates = await withTenantContext(db, caller.tenantId, async (tx) =>
-    tx
+  const preflight = await withTenantContext(db, caller.tenantId, async (tx) => {
+    await assertTenantActive(tx, caller.tenantId);
+    await lockMenuExtractionRunForUpdate(tx, caller.tenantId, run.id);
+    const decision = await readMenuExtractionDecision(tx, caller.tenantId, run.id);
+    if (decision?.decision === "confirmed") {
+      return { kind: "replay" as const, decision };
+    }
+    if (decision) {
+      throw new AgentRunError("run_already_decided", "This extraction review is closed.", 409);
+    }
+
+    const candidateRows = await tx
       .select()
       .from(catalogueMenuExtractionCandidates)
       .where(
         and(
           eq(catalogueMenuExtractionCandidates.tenantId, caller.tenantId),
           eq(catalogueMenuExtractionCandidates.agentRunId, run.id),
-          eq(catalogueMenuExtractionCandidates.excluded, false),
         ),
-      ),
-  );
+      );
+    const revision = computeMenuExtractionCandidatesRevision(candidateRows);
+    assertMenuExtractionCandidatesRevision(revision, input.expectedVersion);
 
-  const importRows = [];
-  let sourceRow = 1;
-  for (const row of candidates) {
-    const mapped = candidateToImportRow(sourcePublicId, row.payload, sourceRow);
-    if (!mapped) {
+    const selected = candidateRows.filter((row) => !row.excluded);
+    const importRows = [];
+    let sourceRow = 1;
+    for (const row of selected) {
+      try {
+        parseMenuExtractionCandidatePayload(row.payload, row.candidateKey);
+      } catch {
+        throw new AgentRunError(
+          "candidate_invalid",
+          `Candidate ${row.candidateKey} has invalid review data.`,
+          400,
+        );
+      }
+      const mapped = candidateToImportRow(sourcePublicId, row.payload, sourceRow);
+      if (!mapped) {
+        throw new AgentRunError(
+          "candidate_incomplete",
+          `Candidate ${row.candidateKey} is missing required confirmed fields (names and price).`,
+          400,
+        );
+      }
+      importRows.push(mapped);
+      sourceRow += 1;
+    }
+
+    if (importRows.length === 0) {
       throw new AgentRunError(
-        "candidate_incomplete",
-        `Candidate ${row.candidateKey} is missing required confirmed fields (names and price).`,
+        "no_candidates_selected",
+        "Select at least one candidate row to import.",
         400,
       );
     }
-    importRows.push(mapped);
-    sourceRow += 1;
-  }
 
-  if (importRows.length === 0) {
-    throw new AgentRunError(
-      "no_candidates_selected",
-      "Select at least one candidate row to import.",
-      400,
-    );
+    return { kind: "apply" as const, importRows, revision };
+  });
+
+  if (preflight.kind === "replay") {
+    const view = await buildMenuExtractionReviewView(db, caller.tenantId, sourcePublicId, run);
+    return {
+      review: view,
+      replayed: true,
+      importOperationPublicId: preflight.decision.importOperationPublicId,
+    };
   }
 
   const preview = await previewCatalogueImportFromNormalizedRows(
@@ -494,25 +535,73 @@ export async function confirmMenuExtraction(
       connectionKey: "catalogue.menu_extraction",
       fileName: loaded.source.fileName,
       fileFingerprint: loaded.source.contentHash,
-      idempotencyKey: input.importIdempotencyKey,
-      rows: importRows,
+      idempotencyKey: importIdempotencyKey,
+      rows: preflight.importRows,
     },
   );
 
   const applied = await applyCatalogueImport(db, caller.tenantId, caller.membership, caller.subject, {
     operationPublicId: preview.operationPublicId,
     previewHash: preview.previewHash,
-    idempotencyKey: `${input.importIdempotencyKey}:apply`,
+    idempotencyKey: `${importIdempotencyKey}:apply`,
   });
 
   const review = await withTenantContext(db, caller.tenantId, async (tx) => {
-    await tx.insert(agentRunCatalogueMenuExtractionDecisions).values({
-      tenantId: caller.tenantId,
-      agentRunId: run.id,
-      decision: "confirmed",
-      importOperationPublicId: applied.operationPublicId,
-      decidedBySubject: caller.subject,
-    });
+    await assertTenantActive(tx, caller.tenantId);
+    await lockMenuExtractionRunForUpdate(tx, caller.tenantId, run.id);
+
+    const decision = await readMenuExtractionDecision(tx, caller.tenantId, run.id);
+    if (decision?.decision === "confirmed") {
+      return {
+        replayed: true,
+        importOperationPublicId: decision.importOperationPublicId,
+        importReport: null,
+      };
+    }
+    if (decision) {
+      throw new AgentRunError("run_already_decided", "This extraction review is closed.", 409);
+    }
+
+    const candidateRows = await tx
+      .select()
+      .from(catalogueMenuExtractionCandidates)
+      .where(
+        and(
+          eq(catalogueMenuExtractionCandidates.tenantId, caller.tenantId),
+          eq(catalogueMenuExtractionCandidates.agentRunId, run.id),
+        ),
+      );
+    const revision = computeMenuExtractionCandidatesRevision(candidateRows);
+    assertMenuExtractionCandidatesRevision(revision, input.expectedVersion);
+
+    const [inserted] = await tx
+      .insert(agentRunCatalogueMenuExtractionDecisions)
+      .values({
+        tenantId: caller.tenantId,
+        agentRunId: run.id,
+        decision: "confirmed",
+        importOperationPublicId: applied.operationPublicId,
+        decidedBySubject: caller.subject,
+      })
+      .onConflictDoNothing({
+        target: [
+          agentRunCatalogueMenuExtractionDecisions.tenantId,
+          agentRunCatalogueMenuExtractionDecisions.agentRunId,
+        ],
+      })
+      .returning();
+
+    if (!inserted) {
+      const raced = await readMenuExtractionDecision(tx, caller.tenantId, run.id);
+      if (raced?.decision === "confirmed") {
+        return {
+          replayed: true,
+          importOperationPublicId: raced.importOperationPublicId,
+          importReport: null,
+        };
+      }
+      throw new AgentRunError("run_already_decided", "This extraction review is closed.", 409);
+    }
 
     await recordTenantAuditEventInTx(tx, {
       tenantId: caller.tenantId,
@@ -551,25 +640,40 @@ export async function rejectMenuExtraction(
   assertMenuExtractionRun(run, sourcePublicId);
 
   await withTenantContext(db, caller.tenantId, async (tx) => {
-    const [existing] = await tx
-      .select()
-      .from(agentRunCatalogueMenuExtractionDecisions)
-      .where(
-        and(
-          eq(agentRunCatalogueMenuExtractionDecisions.tenantId, caller.tenantId),
-          eq(agentRunCatalogueMenuExtractionDecisions.agentRunId, run.id),
-        ),
-      )
-      .limit(1);
-    if (existing) {
+    await assertTenantActive(tx, caller.tenantId);
+    await lockMenuExtractionRunForUpdate(tx, caller.tenantId, run.id);
+    const existing = await readMenuExtractionDecision(tx, caller.tenantId, run.id);
+    if (existing?.decision === "rejected") {
       return;
     }
-    await tx.insert(agentRunCatalogueMenuExtractionDecisions).values({
-      tenantId: caller.tenantId,
-      agentRunId: run.id,
-      decision: "rejected",
-      decidedBySubject: caller.subject,
-    });
+    if (existing) {
+      throw new AgentRunError("run_already_decided", "This extraction review is closed.", 409);
+    }
+
+    const [inserted] = await tx
+      .insert(agentRunCatalogueMenuExtractionDecisions)
+      .values({
+        tenantId: caller.tenantId,
+        agentRunId: run.id,
+        decision: "rejected",
+        decidedBySubject: caller.subject,
+      })
+      .onConflictDoNothing({
+        target: [
+          agentRunCatalogueMenuExtractionDecisions.tenantId,
+          agentRunCatalogueMenuExtractionDecisions.agentRunId,
+        ],
+      })
+      .returning();
+
+    if (!inserted) {
+      const raced = await readMenuExtractionDecision(tx, caller.tenantId, run.id);
+      if (raced?.decision === "rejected") {
+        return;
+      }
+      throw new AgentRunError("run_already_decided", "This extraction review is closed.", 409);
+    }
+
     await recordTenantAuditEventInTx(tx, {
       tenantId: caller.tenantId,
       actorSubject: caller.subject,

@@ -32,6 +32,9 @@ import {
   getMenuExtractionVisionProvider,
   type MenuExtractionVisionProvider,
 } from "@/lib/agents/native/menu-extraction-vision-provider";
+import { evaluateNativeOpenAiGate } from "@/lib/agents/native/openai-runtime-gate";
+import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
+import { menuExtractionPageMimeFromStoragePath } from "@/lib/catalogue/menu-extraction/page-media";
 import { markAiSpendDispatched, recordAiSpendOutcome } from "@/lib/ai/spend/spend-admission";
 import { AiJobLeaseLostError, type AiJobStepResult } from "@/lib/ai/jobs/ai-job-queue";
 import type { AiJobHandler } from "@/lib/ai/jobs/ai-worker";
@@ -42,6 +45,7 @@ const WORKER_ACTOR = { subject: "qos.ai-worker", actorClass: "system" as const }
 type HandlerOptions = {
   config?: AgentConfig;
   vision?: MenuExtractionVisionProvider;
+  env?: Record<string, string | undefined>;
   now?: () => Date;
 };
 
@@ -65,6 +69,7 @@ export function createCatalogueMenuExtractionJobHandler(
   options: HandlerOptions = {},
 ): AiJobHandler {
   const clock = options.now ?? (() => new Date());
+  const runtimeEnv = options.env ?? process.env;
 
   return {
     kind: CATALOGUE_MENU_EXTRACTION_JOB_KIND,
@@ -190,6 +195,49 @@ export function createCatalogueMenuExtractionJobHandler(
         throw new AiJobLeaseLostError(job.jobPublicId);
       }
 
+      const gate = evaluateNativeOpenAiGate(
+        "catalogue.menu_extraction",
+        runtimeEnv,
+        readAiSpendPolicy(runtimeEnv),
+      );
+      if (!gate.ready) {
+        return { type: "reschedule", delayMs: config.pollIntervalMs, code: "executor_unavailable" };
+      }
+
+      const loaded = await loadMenuExtractionSource(db, job.tenantId, requestSummary.sourcePublicId);
+      if (!loaded) {
+        await markAgentRunFailed(db, job.tenantId, activeRun.publicId, {
+          code: "source_not_found",
+          message: "The menu source for this extraction no longer exists.",
+          now: clock(),
+        });
+        await settleSpend("not_dispatched");
+        return { type: "failed", code: "source_not_found", message: "Menu source missing." };
+      }
+
+      const pages = [];
+      try {
+        for (const page of loaded.pages.sort((a, b) => a.pageNumber - b.pageNumber)) {
+          const bytes = await readMenuExtractionPageBytes(job.tenantId, page.storagePath);
+          const mimeType = menuExtractionPageMimeFromStoragePath(page.storagePath);
+          pages.push({
+            pageNumber: page.pageNumber,
+            mimeType,
+            base64: bytes.toString("base64"),
+            width: page.width,
+            height: page.height,
+          });
+        }
+      } catch {
+        await markAgentRunFailed(db, job.tenantId, activeRun.publicId, {
+          code: "source_pages_unreadable",
+          message: "Menu page images could not be read for extraction.",
+          now: clock(),
+        });
+        await settleSpend("not_dispatched");
+        return { type: "failed", code: "source_pages_unreadable", message: "Menu pages unreadable." };
+      }
+
       await context.markDispatched();
       const reservationPublicId = await spendReservationPublicId();
       if (reservationPublicId) {
@@ -215,29 +263,6 @@ export function createCatalogueMenuExtractionJobHandler(
           code: "started_after_run_ended",
           message: "The model accepted a menu extraction QOS had already ended.",
         };
-      }
-
-      const loaded = await loadMenuExtractionSource(db, job.tenantId, requestSummary.sourcePublicId);
-      if (!loaded) {
-        await markAgentRunFailed(db, job.tenantId, activeRun.publicId, {
-          code: "source_not_found",
-          message: "The menu source for this extraction no longer exists.",
-          now: clock(),
-        });
-        await settleSpend("failed_after_processing");
-        return { type: "failed", code: "source_not_found", message: "Menu source missing." };
-      }
-
-      const pages = [];
-      for (const page of loaded.pages.sort((a, b) => a.pageNumber - b.pageNumber)) {
-        const bytes = await readMenuExtractionPageBytes(job.tenantId, page.storagePath);
-        pages.push({
-          pageNumber: page.pageNumber,
-          mimeType: "image/jpeg" as const,
-          base64: bytes.toString("base64"),
-          width: page.width,
-          height: page.height,
-        });
       }
 
       const message = definition.buildRequest({
@@ -285,18 +310,32 @@ export function createCatalogueMenuExtractionJobHandler(
       }
 
       const items = (interpreted.result.items as MenuExtractionCandidatePayload[] | undefined) ?? [];
-      await withTenantContext(db, job.tenantId, async (tx) => {
-        for (const payload of items) {
-          await tx.insert(catalogueMenuExtractionCandidates).values({
-            tenantId: job.tenantId,
-            agentRunId: activeRun.id,
-            candidateKey: payload.candidateKey,
-            sectionName: payload.sectionName,
-            payload,
-            excluded: false,
-          });
-        }
-      });
+      try {
+        await withTenantContext(db, job.tenantId, async (tx) => {
+          for (const payload of items) {
+            await tx.insert(catalogueMenuExtractionCandidates).values({
+              tenantId: job.tenantId,
+              agentRunId: activeRun.id,
+              candidateKey: payload.candidateKey,
+              sectionName: payload.sectionName,
+              payload,
+              excluded: false,
+            });
+          }
+        });
+      } catch {
+        await markAgentRunFailed(db, job.tenantId, activeRun.publicId, {
+          code: "candidate_persist_failed",
+          message: "Extracted candidates could not be saved for review.",
+          now: clock(),
+        });
+        await settleSpend("failed_after_processing", visionResult.usage);
+        return {
+          type: "failed",
+          code: "candidate_persist_failed",
+          message: "Extracted candidates could not be saved.",
+        };
+      }
 
       await completeAgentRun(db, job.tenantId, activeRun.publicId, {
         result: interpreted.result,

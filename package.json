@@ -40,7 +40,7 @@
     "@azure/identity": "^4.13.3",
     "@azure/storage-blob": "^12.33.0",
     "@modelcontextprotocol/sdk": "^1.31.0",
-    "@napi-rs/canvas": "^0.1.80",
+    "@napi-rs/canvas": "^1.0.10",
     "@openai/agents": "0.18.0",
     "better-auth": "^1.7.4",
     "drizzle-orm": "^0.45.2",
@@ -66,6 +66,7 @@
     "eslint-config-next": "16.3.8",
     "tailwindcss": "^4",
     "typescript": "^5",
+    "pdf-lib": "^1.17.1",
     "vitest": "4.1.11"
   },
   "overrides": {

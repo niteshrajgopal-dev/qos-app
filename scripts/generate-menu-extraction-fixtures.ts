@@ -4,6 +4,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 
+import { PDFDocument } from "pdf-lib";
 import sharp from "sharp";
 
 const OUT = path.join(process.cwd(), "fixtures/menu-extraction/synthetic");
@@ -57,6 +58,24 @@ async function main() {
       <text x="50" y="180" font-size="22" font-family="serif">Soup of the day (price smudged)</text>
     </svg>`,
   );
+
+  const embeddedJpeg = await sharp(
+    Buffer.from(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480">
+        <rect width="100%" height="100%" fill="#fff"/>
+        <text x="32" y="64" font-size="28" font-family="sans-serif">SYNTHETIC PDF + IMAGE</text>
+        <text x="32" y="120" font-size="22" font-family="sans-serif">Grilled Halloumi — AED 32</text>
+      </svg>`,
+    ),
+  )
+    .jpeg({ quality: 90 })
+    .toBuffer();
+
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([640, 480]);
+  const image = await pdf.embedJpg(embeddedJpeg);
+  page.drawImage(image, { x: 0, y: 0, width: 640, height: 480 });
+  await writeFile(path.join(OUT, "en-text-menu-with-image.pdf"), await pdf.save());
 
   await writeFile(
     path.join(OUT, "README.md"),
