@@ -134,6 +134,8 @@ export type AgentRunExecutionMode = "inline" | "queued_worker";
 export class AgentRunError extends Error {
   readonly statusCode: number;
   readonly code: string;
+  readonly field?: string;
+  readonly candidateKey?: string;
   readonly activeRunPublicId?: string;
   readonly unresolvedRunPublicId?: string;
 
@@ -141,12 +143,19 @@ export class AgentRunError extends Error {
     code: string,
     message: string,
     statusCode: number,
-    options: { activeRunPublicId?: string; unresolvedRunPublicId?: string } = {},
+    options: {
+      activeRunPublicId?: string;
+      unresolvedRunPublicId?: string;
+      field?: string;
+      candidateKey?: string;
+    } = {},
   ) {
     super(message);
     this.name = "AgentRunError";
     this.code = code;
     this.statusCode = statusCode;
+    this.field = options.field;
+    this.candidateKey = options.candidateKey;
     this.activeRunPublicId = options.activeRunPublicId;
     this.unresolvedRunPublicId = options.unresolvedRunPublicId;
   }

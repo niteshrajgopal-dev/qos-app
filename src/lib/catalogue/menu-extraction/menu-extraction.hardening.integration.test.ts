@@ -26,6 +26,8 @@ import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
 import { createCatalogueMenuExtractionJobHandler } from "@/lib/catalogue/menu-extraction/catalogue-menu-extraction-job";
 import { MenuExtractionVisionError } from "@/lib/catalogue/menu-extraction/menu-extraction-vision-errors";
 import { MENU_EXTRACTION_RESULT_SCHEMA } from "@/lib/catalogue/menu-extraction/result";
+import { MenuExtractionCandidateValidationError } from "@/lib/catalogue/menu-extraction/candidate-validation";
+import { menuExtractionExtractIdempotencyKey } from "@/lib/catalogue/menu-extraction/extract-idempotency";
 import {
   CATALOGUE_MENU_EXTRACTION_JOB_KIND,
   confirmMenuExtraction,
@@ -362,6 +364,137 @@ integrationDescribe("catalogue menu extraction hardening (DB)", () => {
         }),
       ),
     ).rejects.toMatchObject({ statusCode: 409 });
+  });
+
+  it("rejects negative grid price edits with field errors", async () => {
+    const uploaded = await uploadPng();
+    const { run } = await runAsRole(sqlClient, "qos_app", () =>
+      requestMenuExtraction(
+        db,
+        adminCaller,
+        uploaded.sourcePublicId,
+        { idempotencyKey: `idem-${randomBytes(6).toString("hex")}` },
+        { env: NATIVE_ENV, spendPolicy: spendPolicy(), config: CONFIG },
+      ),
+    );
+    await workerStep(
+      JSON.stringify({
+        schema: MENU_EXTRACTION_RESULT_SCHEMA,
+        items: [
+          {
+            candidateKey: "row-1",
+            sectionName: "Mains",
+            displayNameEn: "Grilled Halloumi",
+            displayNameAr: "حلوم مشوي",
+            descriptionEn: null,
+            descriptionAr: null,
+            variantLabelEn: "Default",
+            variantLabelAr: "افتراضي",
+            priceText: "AED 32",
+            amountMinor: 3200,
+            currency: "AED",
+            allergenText: null,
+            unitText: null,
+            uncertainty: {
+              displayNameEn: "none",
+              displayNameAr: "none",
+              descriptionEn: "missing",
+              descriptionAr: "missing",
+              price: "low",
+              allergen: "missing",
+              unit: "missing",
+            },
+            evidence: { pageNumber: 1, bbox: null, originalText: "SYNTHETIC" },
+            modelConfidenceEstimate: "medium",
+          },
+        ],
+      }),
+    );
+    const review = await runAsRole(sqlClient, "qos_app", () =>
+      getMenuExtractionReview(
+        db,
+        adminCaller.tenantId,
+        adminCaller.subject,
+        uploaded.sourcePublicId,
+        run.publicId,
+      ),
+    );
+    const row = review?.candidates[0];
+    expect(row).toBeTruthy();
+
+    await expect(
+      runAsRole(sqlClient, "qos_app", () =>
+        updateMenuExtractionCandidates(db, adminCaller, uploaded.sourcePublicId, {
+          runPublicId: run.publicId,
+          expectedVersion: review?.candidatesRevision ?? 0,
+          candidates: [
+            {
+              candidateKey: row!.candidateKey,
+              excluded: false,
+              payload: {
+                ...row!.payload,
+                priceText: "-5",
+              },
+            },
+          ],
+        }),
+      ),
+    ).rejects.toBeInstanceOf(MenuExtractionCandidateValidationError);
+  });
+
+  it("allows extraction on two sources with per-source idempotency keys", async () => {
+    const first = await uploadPng();
+    const second = await uploadPng();
+    const firstKey = menuExtractionExtractIdempotencyKey(first.sourcePublicId);
+    const secondKey = menuExtractionExtractIdempotencyKey(second.sourcePublicId);
+    expect(firstKey).not.toBe(secondKey);
+
+    const firstRun = await runAsRole(sqlClient, "qos_app", () =>
+      requestMenuExtraction(
+        db,
+        adminCaller,
+        first.sourcePublicId,
+        { idempotencyKey: firstKey },
+        { env: NATIVE_ENV, spendPolicy: spendPolicy(), config: CONFIG },
+      ),
+    );
+    const secondRun = await runAsRole(sqlClient, "qos_app", () =>
+      requestMenuExtraction(
+        db,
+        adminCaller,
+        second.sourcePublicId,
+        { idempotencyKey: secondKey },
+        { env: NATIVE_ENV, spendPolicy: spendPolicy(), config: CONFIG },
+      ),
+    );
+    expect(firstRun.created).toBe(true);
+    expect(secondRun.created).toBe(true);
+  });
+
+  it("rejects a shared extract idempotency key across different sources", async () => {
+    const first = await uploadPng();
+    const second = await uploadPng();
+    const sharedLegacyKey = `extract-${randomBytes(6).toString("hex")}`;
+    await runAsRole(sqlClient, "qos_app", () =>
+      requestMenuExtraction(
+        db,
+        adminCaller,
+        first.sourcePublicId,
+        { idempotencyKey: sharedLegacyKey },
+        { env: NATIVE_ENV, spendPolicy: spendPolicy(), config: CONFIG },
+      ),
+    );
+    await expect(
+      runAsRole(sqlClient, "qos_app", () =>
+        requestMenuExtraction(
+          db,
+          adminCaller,
+          second.sourcePublicId,
+          { idempotencyKey: sharedLegacyKey },
+          { env: NATIVE_ENV, spendPolicy: spendPolicy(), config: CONFIG },
+        ),
+      ),
+    ).rejects.toMatchObject({ code: "idempotency_key_reused" });
   });
 
   it("serializes concurrent confirm and reject without 500s", async () => {
