@@ -1,44 +1,29 @@
 /**
- * Stacked overview composition (see qos-portal.css) applies only on viewports where
- * the default absolute layout overlapped in baseline measurements.
+ * Width-band stacked-overview breakpoints derived from dense Playwright
+ * measurements against origin/main CSS (see measurements.md).
  */
-export const PORTAL_OVERVIEW_STACKED_SHORT_MAX_HEIGHT_PX = 801;
-
-export const PORTAL_OVERVIEW_STACKED_WIDE_MIN_WIDTH_PX = 1600;
-
-export const PORTAL_OVERVIEW_STACKED_WIDE_MAX_HEIGHT_PX = 900;
-
-const STACKED_SHORT_VIEWPORT_MEDIA =
-  /@media\s*\(\s*min-width:\s*681px\s*\)\s*and\s*\(\s*max-height:\s*(\d+)px\s*\)/;
-
-const STACKED_WIDE_VIEWPORT_MEDIA =
-  /@media[\s\S]*?\(\s*min-width:\s*1600px\s*\)\s*and\s*\(\s*max-height:\s*(\d+)px\s*\)/;
+export const PORTAL_OVERVIEW_STACK_BANDS = [
+  { minWidth: 681, maxWidth: 767, maxHeight: 874 },
+  { minWidth: 768, maxWidth: 959, maxHeight: 874 },
+  { minWidth: 960, maxWidth: 1023, maxHeight: 874 },
+  { minWidth: 1024, maxWidth: 1180, maxHeight: 849 },
+  { minWidth: 1181, maxWidth: 1599, maxHeight: 874 },
+  { minWidth: 1600, maxWidth: null, maxHeight: 974 },
+] as const;
 
 const STACKED_RAIL_RELATIVE =
   /@media \(min-width: 681px\)[\s\S]*?\.qosp-rail\s*\{[\s\S]*?position:\s*relative/;
 
-export function parsePortalOverviewStackedShortMaxHeightFromCss(
-  css: string,
-): number | null {
-  const match = css.match(STACKED_SHORT_VIEWPORT_MEDIA);
-  if (!match) {
-    return null;
-  }
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
-export function parsePortalOverviewStackedWideMaxHeightFromCss(
-  css: string,
-): number | null {
-  const match = css.match(STACKED_WIDE_VIEWPORT_MEDIA);
-  if (!match) {
-    return null;
-  }
-  const parsed = Number.parseInt(match[1], 10);
-  return Number.isFinite(parsed) ? parsed : null;
-}
-
 export function portalOverviewCssDeclaresStackedRail(css: string): boolean {
   return STACKED_RAIL_RELATIVE.test(css);
+}
+
+export function portalOverviewCssIncludesStackBands(css: string): boolean {
+  return PORTAL_OVERVIEW_STACK_BANDS.every(
+    (band) =>
+      css.includes(`min-width: ${band.minWidth}px`) &&
+      (band.maxWidth == null ||
+        css.includes(`max-width: ${band.maxWidth}px`)) &&
+      css.includes(`max-height: ${band.maxHeight}px`),
+  );
 }

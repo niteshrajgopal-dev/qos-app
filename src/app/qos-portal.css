@@ -1216,10 +1216,15 @@
   .qosp-focus-card { grid-column: auto; }
 }
 
-/* Stacked overview only where the default absolute layout overlaps (see
-   docs/qos-149/overview-layout/measurements-main.md). */
-@media (min-width: 681px) and (max-height: 801px),
-       (min-width: 1600px) and (max-height: 900px) {
+/* Stacked overview only where main CSS overlapped (dense Playwright grid; see
+   docs/qos-149/overview-layout/measurements.md). Width bands use max-height one
+   step below the lowest main PASS height measured in each band. */
+@media (min-width: 681px) and (max-width: 767px) and (max-height: 874px),
+       (min-width: 768px) and (max-width: 959px) and (max-height: 874px),
+       (min-width: 960px) and (max-width: 1023px) and (max-height: 874px),
+       (min-width: 1024px) and (max-width: 1180px) and (max-height: 849px),
+       (min-width: 1181px) and (max-width: 1599px) and (max-height: 874px),
+       (min-width: 1600px) and (max-height: 974px) {
   .qosp-overview {
     height: auto;
     min-height: 0;

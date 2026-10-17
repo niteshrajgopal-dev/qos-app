@@ -3,11 +3,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  PORTAL_OVERVIEW_STACKED_SHORT_MAX_HEIGHT_PX,
-  PORTAL_OVERVIEW_STACKED_WIDE_MAX_HEIGHT_PX,
-  parsePortalOverviewStackedShortMaxHeightFromCss,
-  parsePortalOverviewStackedWideMaxHeightFromCss,
+  PORTAL_OVERVIEW_STACK_BANDS,
   portalOverviewCssDeclaresStackedRail,
+  portalOverviewCssIncludesStackBands,
 } from "./overview-layout";
 
 describe("portal overview layout CSS contract", () => {
@@ -16,25 +14,17 @@ describe("portal overview layout CSS contract", () => {
     "utf8",
   );
 
-  it("keeps short-viewport stacked max-height in sync with the TypeScript constant", () => {
-    expect(parsePortalOverviewStackedShortMaxHeightFromCss(css)).toBe(
-      PORTAL_OVERVIEW_STACKED_SHORT_MAX_HEIGHT_PX,
-    );
-  });
-
-  it("keeps wide-viewport stacked max-height in sync with the TypeScript constant", () => {
-    expect(parsePortalOverviewStackedWideMaxHeightFromCss(css)).toBe(
-      PORTAL_OVERVIEW_STACKED_WIDE_MAX_HEIGHT_PX,
-    );
-  });
-
   it("declares stacked composition that removes absolute positioning from the rail", () => {
     expect(portalOverviewCssDeclaresStackedRail(css)).toBe(true);
   });
 
-  it("does not use a blanket max-width stacked breakpoint", () => {
-    expect(css).not.toMatch(
-      /@media\s*\(\s*max-width:\s*1279px\s*\)\s*and\s*\(\s*min-width:\s*681px\s*\)/,
-    );
+  it("ships width-band stack thresholds derived from dense main measurements", () => {
+    expect(portalOverviewCssIncludesStackBands(css)).toBe(true);
+    expect(PORTAL_OVERVIEW_STACK_BANDS).toHaveLength(6);
+  });
+
+  it("does not use coarse grid-tuned single breakpoints (801px / 900px)", () => {
+    expect(css).not.toMatch(/max-height:\s*801px/);
+    expect(css).not.toMatch(/\(min-width: 1600px\) and \(max-height: 900px\)/);
   });
 });

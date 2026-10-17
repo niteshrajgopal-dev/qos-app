@@ -1,0 +1,3346 @@
+[
+  {
+    "width": 681,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 681,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 731,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 768,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 800,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 900,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 960,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 850,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1024,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 850,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1100,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 850,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1180,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1280,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1366,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1440,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 875,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 900,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 925,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 950,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1536,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 875,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 900,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 925,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 950,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1600,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 875,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 900,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 925,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 950,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1680,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 875,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 900,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 925,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 950,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1800,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 500,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 550,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 625,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 650,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 675,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 700,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 725,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 750,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 775,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 800,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 825,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 850,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 875,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock; hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 900,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 925,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 950,
+    "pass": false,
+    "overlap": "hero×dock",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 975,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 1000,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 1025,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 1050,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 1075,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 1920,
+    "height": 1100,
+    "pass": true,
+    "overlap": "",
+    "railPosition": "absolute",
+    "tag": null
+  },
+  {
+    "width": 853,
+    "height": 533,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": "1280@150%"
+  },
+  {
+    "width": 731,
+    "height": 457,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": "1280@175%"
+  },
+  {
+    "width": 960,
+    "height": 600,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": "1440@150%"
+  },
+  {
+    "width": 823,
+    "height": 514,
+    "pass": false,
+    "overlap": "rail×storefronts; rail×dock",
+    "railPosition": "absolute",
+    "tag": "1440@175%"
+  }
+]

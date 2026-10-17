@@ -1,0 +1,126 @@
+{
+  "perWidth": [
+    {
+      "width": 681,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 731,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 768,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 800,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 853,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 900,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 960,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 1024,
+      "lowestPassHeight": 850,
+      "highestFailHeight": 825
+    },
+    {
+      "width": 1100,
+      "lowestPassHeight": 850,
+      "highestFailHeight": 825
+    },
+    {
+      "width": 1180,
+      "lowestPassHeight": 850,
+      "highestFailHeight": 825
+    },
+    {
+      "width": 1280,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 1366,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 1440,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 1536,
+      "lowestPassHeight": 875,
+      "highestFailHeight": 850
+    },
+    {
+      "width": 1600,
+      "lowestPassHeight": 975,
+      "highestFailHeight": 950
+    },
+    {
+      "width": 1680,
+      "lowestPassHeight": 975,
+      "highestFailHeight": 950
+    },
+    {
+      "width": 1800,
+      "lowestPassHeight": 975,
+      "highestFailHeight": 950
+    },
+    {
+      "width": 1920,
+      "lowestPassHeight": 975,
+      "highestFailHeight": 950
+    }
+  ],
+  "cssStackBands": [
+    {
+      "minWidth": 681,
+      "maxWidth": 767,
+      "maxHeight": 899
+    },
+    {
+      "minWidth": 768,
+      "maxWidth": 959,
+      "maxHeight": 874
+    },
+    {
+      "minWidth": 960,
+      "maxWidth": 1023,
+      "maxHeight": 899
+    },
+    {
+      "minWidth": 1024,
+      "maxWidth": 1180,
+      "maxHeight": 849
+    },
+    {
+      "minWidth": 1181,
+      "maxWidth": 1599,
+      "maxHeight": 874
+    },
+    {
+      "minWidth": 1600,
+      "maxWidth": null,
+      "maxHeight": 974
+    }
+  ]
+}

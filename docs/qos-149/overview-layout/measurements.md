@@ -1,146 +1,30 @@
-# Overview layout overlap measurements
+# Overview layout measurements (summary)
 
-Playwright bounding-box checks on `/dev/overview-layout-harness` (fixture data only). Pairs checked: rail×storefronts, rail×dock, rail×hero, rail×footer, hero×dock.
+Dense grid: widths 681, 731, 768, 800, 853, 900, 960, 1024, 1100, 1180, 1280, 1366, 1440, 1536, 1600, 1680, 1800, 1920; heights 500, 550, 600–1100 step 25; plus zoom viewports 853×533 (1280@150%), 731×457 (1280@175%), 960×600 (1440@150%), 823×514 (1440@175%).
 
-## `origin/main` CSS (before fix)
+Full per-cell results: `measurements-main-dense.json`, `measurements-branch-dense.json`.
 
-| Width | Height | Pass | Overlaps |
-| --- | --- | --- | --- |
-| 1920 | 900 | **FAIL** | hero×dock |
-| 1920 | 800 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1920 | 600 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1600 | 900 | **FAIL** | hero×dock |
-| 1600 | 800 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1600 | 600 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1440 | 900 | PASS | — |
-| 1440 | 800 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1440 | 600 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1366 | 900 | PASS | — |
-| 1366 | 800 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1366 | 600 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1280 | 900 | PASS | — |
-| 1280 | 800 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1280 | 600 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1200 | 900 | PASS | — |
-| 1200 | 800 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1200 | 600 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1100 | 900 | PASS | — |
-| 1100 | 800 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1100 | 600 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 1024 | 900 | PASS | — |
-| 1024 | 800 | **FAIL** | rail×storefronts; rail×dock |
-| 1024 | 600 | **FAIL** | rail×storefronts; rail×dock; hero×dock |
-| 960 | 900 | PASS | — |
-| 960 | 800 | **FAIL** | rail×storefronts; rail×dock |
-| 960 | 600 | **FAIL** | rail×storefronts; rail×dock |
-| 901 | 900 | PASS | — |
-| 901 | 800 | **FAIL** | rail×storefronts; rail×dock |
-| 901 | 600 | **FAIL** | rail×storefronts; rail×dock |
-| 900 | 900 | PASS | — |
-| 900 | 800 | **FAIL** | rail×storefronts; rail×dock |
-| 900 | 600 | **FAIL** | rail×storefronts; rail×dock |
-| 853 | 900 | PASS | — |
-| 853 | 800 | **FAIL** | rail×storefronts; rail×dock |
-| 853 | 600 | **FAIL** | rail×storefronts; rail×dock |
-| 800 | 900 | PASS | — |
-| 800 | 800 | **FAIL** | rail×storefronts; rail×dock |
-| 800 | 600 | **FAIL** | rail×storefronts; rail×dock |
-| 731 | 900 | PASS | — |
-| 731 | 800 | **FAIL** | rail×storefronts; rail×dock |
-| 731 | 600 | **FAIL** | rail×storefronts; rail×dock |
-| 681 | 900 | PASS | — |
-| 681 | 800 | **FAIL** | rail×storefronts; rail×dock |
-| 681 | 600 | **FAIL** | rail×storefronts; rail×dock |
-| 680 | 900 | PASS | — |
-| 680 | 800 | PASS | — |
-| 680 | 600 | PASS | — |
-| 640 | 900 | PASS | — |
-| 640 | 800 | PASS | — |
-| 640 | 600 | PASS | — |
-| 480 | 900 | PASS | — |
-| 480 | 800 | PASS | — |
-| 480 | 600 | PASS | — |
-| 390 | 900 | PASS | — |
-| 390 | 800 | PASS | — |
-| 390 | 600 | PASS | — |
-| 320 | 900 | PASS | — |
-| 320 | 800 | PASS | — |
-| 320 | 600 | PASS | — |
+## Counts
 
-Raw JSON: `measurements-main.json`
+| Dataset | Total cells | PASS | FAIL |
+| --- | ---: | ---: | ---: |
+| `origin/main` CSS | 418 | 167 | 251 |
+| This branch CSS | 418 | 418 | 0 |
 
-## This branch (after fix)
+## Main-PASS cells stacked on branch
 
-Stacking applies only via:
+Count: **0** (target **0**).
 
-```css
-@media (min-width: 681px) and (max-height: 801px),
-       (min-width: 1600px) and (max-height: 900px) { … }
-```
+## Stack boundaries (from main dense grid)
 
-| Width | Height | Pass | Overlaps |
-| --- | --- | --- | --- |
-| 1920 | 900 | PASS | — |
-| 1920 | 800 | PASS | — |
-| 1920 | 600 | PASS | — |
-| 1600 | 900 | PASS | — |
-| 1600 | 800 | PASS | — |
-| 1600 | 600 | PASS | — |
-| 1440 | 900 | PASS | — |
-| 1440 | 800 | PASS | — |
-| 1440 | 600 | PASS | — |
-| 1366 | 900 | PASS | — |
-| 1366 | 800 | PASS | — |
-| 1366 | 600 | PASS | — |
-| 1280 | 900 | PASS | — |
-| 1280 | 800 | PASS | — |
-| 1280 | 600 | PASS | — |
-| 1200 | 900 | PASS | — |
-| 1200 | 800 | PASS | — |
-| 1200 | 600 | PASS | — |
-| 1100 | 900 | PASS | — |
-| 1100 | 800 | PASS | — |
-| 1100 | 600 | PASS | — |
-| 1024 | 900 | PASS | — |
-| 1024 | 800 | PASS | — |
-| 1024 | 600 | PASS | — |
-| 960 | 900 | PASS | — |
-| 960 | 800 | PASS | — |
-| 960 | 600 | PASS | — |
-| 901 | 900 | PASS | — |
-| 901 | 800 | PASS | — |
-| 901 | 600 | PASS | — |
-| 900 | 900 | PASS | — |
-| 900 | 800 | PASS | — |
-| 900 | 600 | PASS | — |
-| 853 | 900 | PASS | — |
-| 853 | 800 | PASS | — |
-| 853 | 600 | PASS | — |
-| 800 | 900 | PASS | — |
-| 800 | 800 | PASS | — |
-| 800 | 600 | PASS | — |
-| 731 | 900 | PASS | — |
-| 731 | 800 | PASS | — |
-| 731 | 600 | PASS | — |
-| 681 | 900 | PASS | — |
-| 681 | 800 | PASS | — |
-| 681 | 600 | PASS | — |
-| 680 | 900 | PASS | — |
-| 680 | 800 | PASS | — |
-| 680 | 600 | PASS | — |
-| 640 | 900 | PASS | — |
-| 640 | 800 | PASS | — |
-| 640 | 600 | PASS | — |
-| 480 | 900 | PASS | — |
-| 480 | 800 | PASS | — |
-| 480 | 600 | PASS | — |
-| 390 | 900 | PASS | — |
-| 390 | 800 | PASS | — |
-| 390 | 600 | PASS | — |
-| 320 | 900 | PASS | — |
-| 320 | 800 | PASS | — |
-| 320 | 600 | PASS | — |
+A single global `max-height` cannot cover all widths (e.g. 1024px needs stacking through 849px tall while 1280px absolute layout passes from 875px). CSS uses width bands; each `max-height` is **one pixel below** the lowest main PASS height in that band.
 
-Raw JSON: `measurements.json`
+- **681–767px** → stack when viewport height **≤ 874px**
+- **768–959px** → stack when viewport height **≤ 874px**
+- **960–1023px** → stack when viewport height **≤ 874px**
+- **1024–1180px** → stack when viewport height **≤ 849px**
+- **1181–1599px** → stack when viewport height **≤ 874px**
+- **1600–∞px** → stack when viewport height **≤ 974px**
 
-Screenshots (1024, 960, 853, 731 × 900) are kept as local run artifacts only, not in the repo.
+Zoom cells on branch: 1280@150% 853×533 → PASS; 1280@175% 731×457 → PASS; 1440@150% 960×600 → PASS; 1440@175% 823×514 → PASS.
+
