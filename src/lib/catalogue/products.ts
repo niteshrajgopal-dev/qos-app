@@ -52,7 +52,7 @@ export type DraftProductTranslationView = {
   displayName: string;
   description: string | null;
   translationVersion: number;
-  approvalStatus: "draft" | "approved";
+  approvalStatus: "draft" | "approved" | "rejected";
 };
 
 export type DraftProductEditorView = {

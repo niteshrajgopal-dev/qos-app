@@ -52,6 +52,7 @@ export const DB_STATUS_TO_QOS_STATE = {
   translation_approval_status: {
     draft: "draft",
     approved: "approved",
+    rejected: "rejected",
   },
   checkout_payment_attempt_status: {
     pending: "pending",

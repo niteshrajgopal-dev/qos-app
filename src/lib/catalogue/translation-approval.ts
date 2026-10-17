@@ -39,7 +39,7 @@ export type ProductTranslationReviewView = {
   displayName: string;
   description: string | null;
   translationVersion: number;
-  approvalStatus: "draft" | "approved";
+  approvalStatus: "draft" | "approved" | "rejected";
   provenance: string;
   approvedBySubject: string | null;
   approvedAt: string | null;
@@ -184,7 +184,7 @@ function emptyTranslation(locale: ProductLocale): ProductTranslationReviewView {
   };
 }
 
-async function loadLatestTranslationAcceptance(
+async function loadLatestAcceptedTranslationDecision(
   tx: DbClient,
   tenantId: string,
   productPublicId: string,
@@ -301,7 +301,7 @@ export async function listPendingAiTranslationApprovals(
         }
 
         const english = englishByProduct.get(row.productId);
-        const acceptance = await loadLatestTranslationAcceptance(
+        const acceptance = await loadLatestAcceptedTranslationDecision(
           tx,
           tenantId,
           row.productPublicId,
@@ -311,16 +311,18 @@ export async function listPendingAiTranslationApprovals(
         const sourceTranslationVersion =
           locale === "ar" ? english?.translationVersion ?? null : row.translationVersion;
 
+        const proposed = {
+          displayName: row.displayName,
+          description: row.description,
+        };
+
         items.push({
           productPublicId: row.productPublicId,
           productInternalName: row.productInternalName,
           locale,
           translationVersion: row.translationVersion,
           sourceTranslationVersion,
-          proposed: {
-            displayName: row.displayName,
-            description: row.description,
-          },
+          proposed,
           sourceCopy:
             english != null
               ? {
@@ -582,16 +584,23 @@ export async function rejectProductTranslation(
         );
       }
 
-      const [updated] = await tx
-        .update(catalogueProductTranslations)
-        .set({
-          approvalStatus: "draft",
+      const pendingAiAdminReview =
+        translation.approvalStatus === "draft" &&
+        translation.provenance === "ai_generated";
+
+      const rejectionUpdates: Partial<typeof catalogueProductTranslations.$inferInsert> =
+        {
+          approvalStatus: pendingAiAdminReview ? "rejected" : "draft",
           approvedBySubject: null,
           approvedAt: null,
           approvedTranslationVersion: null,
           approvedSourceTranslationVersion: null,
           updatedAt: new Date(),
-        })
+        };
+
+      const [updated] = await tx
+        .update(catalogueProductTranslations)
+        .set(rejectionUpdates)
         .where(
           and(
             eq(catalogueProductTranslations.tenantId, tenantId),
