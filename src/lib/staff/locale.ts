@@ -99,6 +99,15 @@ export const STAFF_UI_COPY = {
     productVideoLabel: "Product video",
     chooseFile: "Choose File",
     noFileChosen: "No file chosen",
+    archiveDraftProduct: "Archive draft product",
+    archiveDraftProductDescription:
+      "Remove this draft from the catalogue. It will not appear in product lists or menu pickers.",
+    archiveDraftProductConfirmTitle: "Archive this draft product?",
+    archiveDraftProductConfirmDescription:
+      "This hides the draft from your catalogue. Published menus are not changed.",
+    archiveDraftProductConfirmLabel: "Archive",
+    archiveDraftProductArchiving: "Archiving…",
+    archiveDraftProductSuccessNotice: "Draft product archived.",
   },
   ar: {
     signInTitle: "تسجيل الدخول إلى QOS",
@@ -161,6 +170,15 @@ export const STAFF_UI_COPY = {
     productVideoLabel: "فيديو المنتج",
     chooseFile: "اختيار ملف",
     noFileChosen: "لم يتم اختيار ملف",
+    archiveDraftProduct: "أرشفة المنتج المسود",
+    archiveDraftProductDescription:
+      "إزالة هذه المسودة من الكتالوج. لن تظهر في قوائم المنتجات أو منتقي القوائم.",
+    archiveDraftProductConfirmTitle: "أرشفة منتج المسود هذا؟",
+    archiveDraftProductConfirmDescription:
+      "سيُخفى المسود من الكتالوج. القوائم المنشورة لا تتغير.",
+    archiveDraftProductConfirmLabel: "أرشفة",
+    archiveDraftProductArchiving: "جاري الأرشفة…",
+    archiveDraftProductSuccessNotice: "تمت أرشفة منتج المسود.",
   },
 } as const;
 

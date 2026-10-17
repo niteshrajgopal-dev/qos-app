@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type { DbClient } from "@/db/client";
@@ -30,24 +30,43 @@ import {
 } from "@/lib/audit/tenant-audit";
 import { type TenantDbExecutor, withTenantContext } from "@/lib/tenant/context";
 
+export const CATALOGUE_PRODUCT_ARCHIVE_CODES = {
+  NOT_DRAFT: "product_not_draft",
+  ALREADY_ARCHIVED: "product_already_archived",
+  IN_PUBLISHED_MENU: "product_in_published_menu",
+} as const;
+
 export class CatalogueProductError extends Error {
   readonly statusCode: number;
   readonly field?: string;
+  readonly code?: string;
 
-  constructor(message: string, statusCode = 400, field?: string) {
+  constructor(
+    message: string,
+    statusCode = 400,
+    field?: string,
+    code?: string,
+  ) {
     super(message);
     this.name = "CatalogueProductError";
     this.statusCode = statusCode;
     this.field = field;
+    this.code = code;
   }
 }
 
 export class CatalogueProductConflictError extends CatalogueProductError {
-  constructor(message: string, field?: string) {
-    super(message, 409, field);
+  constructor(message: string, field?: string, code?: string) {
+    super(message, 409, field, code);
     this.name = "CatalogueProductConflictError";
   }
 }
+
+export type ArchivedCatalogueProductView = {
+  publicId: string;
+  status: "archived";
+  version: number;
+};
 
 export type DraftProductTranslationView = {
   displayName: string;
@@ -764,6 +783,129 @@ export async function updateDraftProduct(
         input,
         staffSubject,
       ),
+    );
+  } catch (error) {
+    return mapCatalogueError(error);
+  }
+}
+
+async function isProductInPublishedMenuRevision(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  productPublicId: string,
+): Promise<boolean> {
+  const rows = await tx.execute<{ exists: boolean }>(sql`
+    SELECT EXISTS (
+      SELECT 1
+      FROM qos.catalogue_menu_live_revisions AS r
+      WHERE r.tenant_id = ${tenantId}
+        AND EXISTS (
+          SELECT 1
+          FROM jsonb_array_elements(r.payload->'sections') AS section,
+               jsonb_array_elements(section->'products') AS product
+          WHERE product->>'productPublicId' = ${productPublicId}
+        )
+    ) AS "exists"
+  `);
+
+  return rows[0]?.exists === true;
+}
+
+export async function archiveDraftProductInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  publicId: string,
+  actor: string,
+): Promise<ArchivedCatalogueProductView> {
+  const [product] = await tx
+    .select()
+    .from(catalogueProducts)
+    .where(
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        eq(catalogueProducts.publicId, publicId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+
+  if (!product) {
+    throw new CatalogueProductError("Product not found.", 404);
+  }
+
+  if (product.status === "archived") {
+    throw new CatalogueProductConflictError(
+      "Product is already archived.",
+      "status",
+      CATALOGUE_PRODUCT_ARCHIVE_CODES.ALREADY_ARCHIVED,
+    );
+  }
+
+  if (product.status === "active") {
+    throw new CatalogueProductConflictError(
+      "Only draft products can be archived.",
+      "status",
+      CATALOGUE_PRODUCT_ARCHIVE_CODES.NOT_DRAFT,
+    );
+  }
+
+  if (product.status !== "draft") {
+    throw new CatalogueProductConflictError(
+      "Only draft products can be archived.",
+      "status",
+      CATALOGUE_PRODUCT_ARCHIVE_CODES.NOT_DRAFT,
+    );
+  }
+
+  if (await isProductInPublishedMenuRevision(tx, tenantId, publicId)) {
+    throw new CatalogueProductConflictError(
+      "This product appears in a published menu and cannot be archived.",
+      "status",
+      CATALOGUE_PRODUCT_ARCHIVE_CODES.IN_PUBLISHED_MENU,
+    );
+  }
+
+  const nextVersion = product.version + 1;
+
+  await tx
+    .update(catalogueProducts)
+    .set({
+      status: "archived",
+      version: nextVersion,
+      updatedAt: new Date(),
+    })
+    .where(eq(catalogueProducts.id, product.id));
+
+  await recordTenantAuditEventInTx(tx, {
+    tenantId,
+    actorSubject: actor,
+    actorClass: "staff_administrator",
+    action: "catalogue.product.archived",
+    entityType: "catalogue_product",
+    entityPublicId: publicId,
+    entityVersion: nextVersion,
+    changeSummary: {
+      previousStatus: product.status,
+      status: "archived",
+    },
+  });
+
+  return {
+    publicId,
+    status: "archived",
+    version: nextVersion,
+  };
+}
+
+export async function archiveDraftProduct(
+  db: DbClient,
+  tenantId: string,
+  publicId: string,
+  actor: string,
+): Promise<ArchivedCatalogueProductView> {
+  try {
+    return await withTenantContext(db, tenantId, async (tx) =>
+      archiveDraftProductInTx(tx, tenantId, publicId, actor),
     );
   } catch (error) {
     return mapCatalogueError(error);

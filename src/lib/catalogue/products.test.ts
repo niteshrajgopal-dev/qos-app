@@ -1,19 +1,33 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { staffIdentities, staffMemberships } from "@/db/schema";
+import {
+  brands,
+  catalogueMenuLiveRevisions,
+  catalogueMenus,
+  catalogueProducts,
+  locations,
+  staffIdentities,
+  staffMemberships,
+  tenantAuditEvents,
+} from "@/db/schema";
 import {
   grantRoleMembership,
   hasIntegrationDatabase,
   resetAndMigrate,
   runAsRole,
 } from "@/db/test-utils";
+import { eq } from "drizzle-orm";
 import {
+  CATALOGUE_PRODUCT_ARCHIVE_CODES,
   CatalogueProductConflictError,
   CatalogueProductError,
+  archiveDraftProduct,
   createDraftProduct,
   getDraftProduct,
   updateDraftProduct,
 } from "@/lib/catalogue/products";
+import { getCatalogueCounts } from "@/lib/catalogue/counts";
+import { listCatalogueProductSummaries } from "@/lib/catalogue/repository";
 import { seedFlowerDevTenant } from "@/lib/seed/dev-tenants";
 import { flowerRoseBouquetFixture } from "@/lib/seed/fixtures/flower-catalogue";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
@@ -38,7 +52,7 @@ integrationDescribe("catalogue draft products", () => {
   });
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.catalogue_modifier_option_translations, qos.catalogue_modifier_options, qos.catalogue_modifier_group_translations, qos.catalogue_product_modifier_groups, qos.catalogue_modifier_groups, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_media_derivatives, qos.catalogue_media_upload_grants, qos.catalogue_media_assets, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_access_request_locations, qos.staff_access_requests, qos.business_provisioning_operations, qos.staff_invitations, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.catalogue_menu_live_revisions, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_modifier_option_translations, qos.catalogue_modifier_options, qos.catalogue_modifier_group_translations, qos.catalogue_product_modifier_groups, qos.catalogue_modifier_groups, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_media_derivatives, qos.catalogue_media_upload_grants, qos.catalogue_media_assets, qos.catalogue_products, qos.location_external_menu_sources, qos.staff_access_request_locations, qos.staff_access_requests, qos.business_provisioning_operations, qos.staff_invitations, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
   });
 
   async function seedStaffMember(
@@ -287,6 +301,181 @@ integrationDescribe("catalogue draft products", () => {
 
       expect(product.publicId).toBe(created.publicId);
       expect(product.translations.en.displayName).toBe("Flat White");
+    });
+  });
+
+  it("archives draft products, blocks active or published-menu drafts, and records audit events", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const flowers = await createTenantHierarchy(db, flowerTenantFixture());
+    const admin = await seedStaffMember(
+      quotes.tenant.id,
+      "administrator",
+      "admin.archive@test",
+      "admin.archive@test",
+    );
+
+    const draft = await createDraftProduct(
+      db,
+      quotes.tenant.id,
+      admin,
+      baseProductInput,
+    );
+
+    const archived = await archiveDraftProduct(
+      db,
+      quotes.tenant.id,
+      draft.publicId,
+      "admin.archive@test",
+    );
+
+    expect(archived).toEqual({
+      publicId: draft.publicId,
+      status: "archived",
+      version: draft.version + 1,
+    });
+
+    const summaries = await listCatalogueProductSummaries(db, quotes.tenant.id);
+    expect(summaries.some((row) => row.publicId === draft.publicId)).toBe(false);
+
+    const counts = await getCatalogueCounts(db, quotes.tenant.id);
+    expect(counts.products).toBe(0);
+
+    const [audit] = await db
+      .select()
+      .from(tenantAuditEvents)
+      .where(eq(tenantAuditEvents.action, "catalogue.product.archived"));
+
+    expect(audit?.entityPublicId).toBe(draft.publicId);
+    expect(audit?.actorSubject).toBe("admin.archive@test");
+
+    await expect(
+      archiveDraftProduct(
+        db,
+        quotes.tenant.id,
+        draft.publicId,
+        "admin.archive@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: CATALOGUE_PRODUCT_ARCHIVE_CODES.ALREADY_ARCHIVED,
+    });
+
+    const activeDraft = await createDraftProduct(db, quotes.tenant.id, admin, {
+      ...baseProductInput,
+      internalName: "active-product",
+    });
+    await db
+      .update(catalogueProducts)
+      .set({ status: "active" })
+      .where(eq(catalogueProducts.publicId, activeDraft.publicId));
+
+    await expect(
+      archiveDraftProduct(
+        db,
+        quotes.tenant.id,
+        activeDraft.publicId,
+        "admin.archive@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: CATALOGUE_PRODUCT_ARCHIVE_CODES.NOT_DRAFT,
+    });
+
+    const publishedDraft = await createDraftProduct(db, quotes.tenant.id, admin, {
+      ...baseProductInput,
+      internalName: "published-menu-draft",
+    });
+
+    const [brand] = await db
+      .select({ id: brands.id })
+      .from(brands)
+      .where(eq(brands.tenantId, quotes.tenant.id))
+      .limit(1);
+    const [location] = await db
+      .select({ id: locations.id, publicId: locations.publicId })
+      .from(locations)
+      .where(eq(locations.tenantId, quotes.tenant.id))
+      .limit(1);
+
+    if (!brand || !location) {
+      throw new Error("Missing brand or location for published menu fixture.");
+    }
+
+    const [menu] = await db
+      .insert(catalogueMenus)
+      .values({
+        tenantId: quotes.tenant.id,
+        brandId: brand.id,
+        publicId: "archive-test-menu",
+        internalName: "Archive Test Menu",
+        provenance: "operator_entered",
+      })
+      .returning();
+
+    await db.insert(catalogueMenuLiveRevisions).values({
+      tenantId: quotes.tenant.id,
+      menuId: menu.id,
+      locationId: location.id,
+      sourceVersion: 1,
+      publishedBySubject: "admin.archive@test",
+      payload: {
+        menuPublicId: menu.publicId,
+        locationPublicId: location.publicId,
+        version: 1,
+        translations: {
+          en: { displayName: "Menu", description: null },
+          ar: { displayName: "قائمة", description: null },
+        },
+        sections: [
+          {
+            publicId: "section-1",
+            sortOrder: 0,
+            translations: {
+              en: { displayName: "Section", description: null },
+              ar: { displayName: "قسم", description: null },
+            },
+            products: [
+              {
+                productPublicId: publishedDraft.publicId,
+                sortOrder: 0,
+                translations: {
+                  en: { displayName: "Published draft", description: null },
+                  ar: { displayName: "مسودة", description: null },
+                },
+                price: {
+                  amountMinor: 1000,
+                  currency: "AED",
+                  inheritanceMode: "inherited",
+                },
+                mediaAssetId: null,
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    await expect(
+      archiveDraftProduct(
+        db,
+        quotes.tenant.id,
+        publishedDraft.publicId,
+        "admin.archive@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: CATALOGUE_PRODUCT_ARCHIVE_CODES.IN_PUBLISHED_MENU,
+    });
+
+    await expect(
+      archiveDraftProduct(
+        db,
+        flowers.tenant.id,
+        draft.publicId,
+        "admin.archive@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 404,
     });
   });
 

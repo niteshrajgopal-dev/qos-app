@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/Modal";
+import { shouldShowArchiveDraftProductAction } from "@/lib/catalogue/product-archive-action";
 import { Toast, ToastStack } from "@/components/Toast";
 import { mapVideoErrorToFriendlyMessage } from "@/lib/media/video-error-messages";
 import { AiDescriptionReview } from "@/app/tenants/[tenantId]/catalogue/products/ai-description-review";
@@ -86,6 +88,7 @@ export function ProductEditor({
   productPublicId,
   initialBusinessProfile = "generic_retail",
 }: ProductEditorProps) {
+  const router = useRouter();
   const isEditMode = Boolean(productPublicId);
   const [form, setForm] = useState<ProductEditorState>(() =>
     createEmptyFormState(initialBusinessProfile),
@@ -100,6 +103,12 @@ export function ProductEditor({
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [productStatus, setProductStatus] = useState<
+    "draft" | "active" | "archived" | null
+  >(null);
+  const [isAdministrator, setIsAdministrator] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageStatus, setImageStatus] = useState<string | null>(null);
   const [thumbnailPublicId, setThumbnailPublicId] = useState<string | null>(
@@ -152,6 +161,7 @@ export function ProductEditor({
       nutritionCalories: number | null;
       businessProfile: "hospitality" | "generic_retail";
       canEditPrice: boolean;
+      status: "draft" | "active" | "archived";
       defaultVariant: { amountMinor: number };
       translations: {
         en: TranslationFormState & { approvalStatus?: string };
@@ -188,10 +198,53 @@ export function ProductEditor({
       setForm(nextState);
       setBaseline(JSON.stringify(nextState));
       setHasLoadedProduct(true);
+      setProductStatus(product.status);
+      setIsAdministrator(product.canEditPrice);
       void loadApprovedVideoUrls();
     },
     [loadApprovedVideoUrls],
   );
+
+  const showArchiveAction = shouldShowArchiveDraftProductAction(
+    productStatus ?? "",
+    isAdministrator,
+  );
+
+  async function archiveProduct() {
+    if (!productPublicId) {
+      return;
+    }
+
+    setArchiving(true);
+    setError(null);
+    setFieldError(null);
+
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/archive`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+        field?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to archive product.");
+      }
+
+      router.push(`/tenants/${tenantId}/catalogue?productArchived=1`);
+    } catch (archiveError) {
+      setError(
+        archiveError instanceof Error
+          ? archiveError.message
+          : "Unable to archive product.",
+      );
+      setArchiveOpen(false);
+    } finally {
+      setArchiving(false);
+    }
+  }
 
   const loadProduct = useCallback(async () => {
     if (!productPublicId) {
@@ -1073,6 +1126,41 @@ export function ProductEditor({
         onClose={() => setDiscardOpen(false)}
         onConfirm={resetForm}
       />
+
+      <ConfirmDialog
+        open={archiveOpen}
+        tone="danger"
+        title={staffUiCopy(locale, "archiveDraftProductConfirmTitle")}
+        description={staffUiCopy(locale, "archiveDraftProductConfirmDescription")}
+        confirmLabel={staffUiCopy(locale, "archiveDraftProductConfirmLabel")}
+        cancelLabel="Cancel"
+        onClose={() => setArchiveOpen(false)}
+        onConfirm={() => void archiveProduct()}
+      />
+
+      {showArchiveAction ? (
+        <section className="qos-card" data-padding="md">
+          <h2 className="text-base font-medium text-zinc-900">
+            {staffUiCopy(locale, "archiveDraftProduct")}
+          </h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            {staffUiCopy(locale, "archiveDraftProductDescription")}
+          </p>
+          <div className="mt-4">
+            <button
+              type="button"
+              className="qos-btn"
+              data-variant="secondary"
+              disabled={archiving || saving}
+              onClick={() => setArchiveOpen(true)}
+            >
+              {archiving
+                ? staffUiCopy(locale, "archiveDraftProductArchiving")
+                : staffUiCopy(locale, "archiveDraftProduct")}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <p className="text-sm text-zinc-600">

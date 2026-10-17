@@ -71,14 +71,14 @@ export function catalogueErrorResponse(error: unknown) {
 
   if (error instanceof CatalogueProductConflictError) {
     return NextResponse.json(
-      { error: error.message, field: error.field },
+      { error: error.message, field: error.field, code: error.code },
       { status: error.statusCode },
     );
   }
 
   if (error instanceof CatalogueProductError) {
     return NextResponse.json(
-      { error: error.message, field: error.field },
+      { error: error.message, field: error.field, code: error.code },
       { status: error.statusCode },
     );
   }
