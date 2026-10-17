@@ -30,6 +30,7 @@ import { MENU_EXTRACTION_RESULT_SCHEMA } from "@/lib/catalogue/menu-extraction/r
 import {
   CATALOGUE_MENU_EXTRACTION_JOB_KIND,
   confirmMenuExtraction,
+  getLatestTenantMenuExtractionReview,
   getMenuExtractionReview,
   rejectMenuExtraction,
   requestMenuExtraction,
@@ -326,7 +327,42 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
         NATIVE_ENV,
       ),
     );
-    expect(review?.decision).toBe("rejected");
+    expect(review?.decision).toBe("cancelled");
+
+    const audits = await db
+      .select()
+      .from(tenantAuditEvents)
+      .where(eq(tenantAuditEvents.action, "catalogue.menu_extraction.cancelled"));
+    expect(audits.length).toBe(1);
+  });
+
+  it("restores the latest extraction review for the tenant after cancel", async () => {
+    const { adminCaller } = await seedTenant();
+    const uploaded = await uploadFixture(adminCaller);
+    const { run } = await runAsRole(sqlClient, "qos_app", () =>
+      requestMenuExtraction(
+        db,
+        adminCaller,
+        uploaded.sourcePublicId,
+        { idempotencyKey: `idem-${randomBytes(6).toString("hex")}` },
+        { env: NATIVE_ENV, spendPolicy: menuExtractionSpendPolicy(), config: CONFIG },
+      ),
+    );
+    await workerStep();
+    await runAsRole(sqlClient, "qos_app", () =>
+      rejectMenuExtraction(db, adminCaller, uploaded.sourcePublicId, {
+        runPublicId: run.publicId,
+      }),
+    );
+
+    const latest = await runAsRole(sqlClient, "qos_app", () =>
+      getLatestTenantMenuExtractionReview(db, adminCaller.tenantId, NATIVE_ENV),
+    );
+    expect(latest).toMatchObject({
+      runPublicId: run.publicId,
+      sourcePublicId: uploaded.sourcePublicId,
+      decision: "cancelled",
+    });
   });
 
   it("replays extraction idempotency without duplicate spend jobs", async () => {

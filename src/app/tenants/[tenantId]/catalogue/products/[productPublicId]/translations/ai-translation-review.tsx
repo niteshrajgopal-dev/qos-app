@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { shouldShowTranslationAcceptedBanner } from "@/lib/catalogue/ai-translation-review-ui";
+import { StaffTranslationFieldRow } from "@/lib/catalogue/staff-translation-field-row";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type Review = {
@@ -88,6 +90,7 @@ export function AiTranslationReview({
   const [busy, setBusy] = useState(false);
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
+  const [acceptedThisSession, setAcceptedThisSession] = useState(false);
 
   const loadReview = useCallback(async () => {
     const response = await staffApiFetch(`${base}/review`);
@@ -100,6 +103,7 @@ export function AiTranslationReview({
       throw new Error(payload.error ?? "Unable to load translation review.");
     }
     setReview(payload.review ?? null);
+    setAcceptedThisSession(false);
     setGateReady(payload.gateReady ?? false);
     const editable = payload.review?.editableSuggestion ?? payload.review?.suggestion;
     if (editable) {
@@ -192,6 +196,7 @@ export function AiTranslationReview({
         throw new Error(payload.error ?? "Unable to accept translation.");
       }
       setReview(payload.review ?? null);
+      setAcceptedThisSession(true);
     } catch (acceptError) {
       setError(acceptError instanceof Error ? acceptError.message : "Unable to accept translation.");
     } finally {
@@ -281,7 +286,7 @@ export function AiTranslationReview({
           {review.failureMessage ?? t.failed}
         </p>
       ) : null}
-      {review?.suggestionState === "accepted" ? (
+      {shouldShowTranslationAcceptedBanner(review?.suggestionState, acceptedThisSession) ? (
         <p className="text-sm" style={{ color: "var(--text-primary)" }} role="status">{t.accepted}</p>
       ) : null}
       {review?.suggestionState === "rejected" ? (
