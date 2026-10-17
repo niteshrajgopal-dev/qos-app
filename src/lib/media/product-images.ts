@@ -20,6 +20,10 @@ import {
   MediaValidationError,
   validateImageBytes,
 } from "@/lib/media/validation";
+import {
+  CatalogueProductMutationGuardError,
+  loadCatalogueProductForMutationInTx,
+} from "@/lib/catalogue/product-mutation-policy";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -37,6 +41,10 @@ export class ProductMediaError extends Error {
 }
 
 function mapMediaError(error: unknown): never {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    throw error;
+  }
+
   if (error instanceof RemoteImageFetchError) {
     throw new ProductMediaError(error.message, 400, error.field);
   }
@@ -75,27 +83,12 @@ function generateGrantToken() {
     .slice(0, 32);
 }
 
-async function requireDraftProduct(
+async function requireMutableProduct(
   tx: DbClient,
   tenantId: string,
   productPublicId: string,
 ) {
-  const [product] = await tx
-    .select()
-    .from(catalogueProducts)
-    .where(
-      and(
-        eq(catalogueProducts.tenantId, tenantId),
-        eq(catalogueProducts.publicId, productPublicId),
-      ),
-    )
-    .limit(1);
-
-  if (!product || product.status === "archived") {
-    throw new ProductMediaError("Product not found.", 404);
-  }
-
-  return product;
+  return loadCatalogueProductForMutationInTx(tx, tenantId, productPublicId);
 }
 
 export type CreateUploadGrantInput = {
@@ -157,7 +150,7 @@ export async function createProductImageUploadGrantInTx(
     );
   }
 
-  const product = await requireDraftProduct(tx, tenantId, productPublicId);
+  const product = await requireMutableProduct(tx, tenantId, productPublicId);
   const assetPublicId = generateAssetPublicId();
   const grantToken = generateGrantToken();
   const privateStoragePath = `${tenantId}/quarantine/${assetPublicId}/original`;
@@ -208,7 +201,7 @@ export async function ingestProductImageUpload(
 ) {
   try {
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await requireDraftProduct(tx, tenantId, productPublicId);
+      const product = await requireMutableProduct(tx, tenantId, productPublicId);
 
       const [grant] = await tx
         .select()
@@ -315,7 +308,7 @@ export async function processProductImageInTx(
   assetPublicId: string,
   publisherSubject: string,
 ) {
-  const product = await requireDraftProduct(tx, tenantId, productPublicId);
+  const product = await requireMutableProduct(tx, tenantId, productPublicId);
 
   const [asset] = await tx
     .select()
@@ -505,7 +498,7 @@ async function findApprovedProductImage(
   productPublicId: string,
 ) {
   return withTenantContext(db, tenantId, async (tx) => {
-    const product = await requireDraftProduct(tx, tenantId, productPublicId);
+    const product = await requireMutableProduct(tx, tenantId, productPublicId);
 
     const [primaryAsset] = product.primaryMediaAssetId
       ? await tx

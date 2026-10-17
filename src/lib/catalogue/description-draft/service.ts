@@ -26,6 +26,7 @@ import {
   auditActorClassFromStaffRole,
   recordTenantAuditEventInTx,
 } from "@/lib/audit/tenant-audit";
+import { loadCatalogueProductForMutationInTx } from "@/lib/catalogue/product-mutation-policy";
 import { CURRENT_CATALOGUE_DESCRIPTION_DEFINITION } from "@/lib/catalogue/description-draft/definition";
 import { diffDescriptionLines } from "@/lib/catalogue/description-draft/description-diff";
 import { CATALOGUE_DESCRIPTION_PROMPT_VERSION } from "@/lib/catalogue/description-draft/prompt";
@@ -335,6 +336,10 @@ export async function requestCatalogueDescription(
 ) {
   await requireAdministratorMembership(db, caller.tenantId, caller.subject);
 
+  await withTenantContext(db, caller.tenantId, async (tx) => {
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
+  });
+
   const env = options.env ?? process.env;
   const config = options.config ?? readAgentConfig(env);
   if (!config.enabled) {
@@ -476,6 +481,10 @@ export async function acceptCatalogueDescription(
 ) {
   await requireAdministratorMembership(db, caller.tenantId, caller.subject);
 
+  await withTenantContext(db, caller.tenantId, async (tx) => {
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
+  });
+
   const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
   assertDescriptionRun(run, productPublicId);
   const summary = parseRequestSummary(run);
@@ -488,6 +497,7 @@ export async function acceptCatalogueDescription(
 
   const idempotentReplay = await withTenantContext(db, caller.tenantId, async (tx) => {
     await assertTenantActive(tx, caller.tenantId);
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
     const loaded = await loadProductEnglishSource(tx, caller.tenantId, productPublicId);
     if (!loaded) {
       throw new AgentRunError("product_not_found", "Product not found.", 404);
@@ -617,11 +627,16 @@ export async function rejectCatalogueDescription(
 ) {
   await requireAdministratorMembership(db, caller.tenantId, caller.subject);
 
+  await withTenantContext(db, caller.tenantId, async (tx) => {
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
+  });
+
   const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
   assertDescriptionRun(run, productPublicId);
 
   await withTenantContext(db, caller.tenantId, async (tx) => {
     await assertTenantActive(tx, caller.tenantId);
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
     const loaded = await loadProductEnglishSource(tx, caller.tenantId, productPublicId);
     if (!loaded) {
       throw new AgentRunError("product_not_found", "Product not found.", 404);

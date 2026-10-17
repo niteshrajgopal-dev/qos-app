@@ -14,6 +14,10 @@ import { getMediaStorage } from "@/lib/media/storage";
 import { queueVideoProcessingJob, getJobStatus } from "@/lib/media/video-job-queue";
 import { readVideoProcessingConfig } from "@/lib/media/video-config";
 import { detectVideoContentType } from "@/lib/media/video-validation";
+import {
+  CatalogueProductMutationGuardError,
+  loadCatalogueProductForMutationInTx,
+} from "@/lib/catalogue/product-mutation-policy";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -39,6 +43,10 @@ export class ProductVideoError extends Error {
 }
 
 function mapVideoError(error: unknown): never {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    throw error;
+  }
+
   if (error instanceof StaffAuthorizationError) {
     throw error;
   }
@@ -65,27 +73,12 @@ function generateGrantToken(): string {
     .slice(0, 32);
 }
 
-async function requireDraftProduct(
+async function requireMutableProduct(
   tx: DbClient,
   tenantId: string,
   productPublicId: string,
 ) {
-  const [product] = await tx
-    .select()
-    .from(catalogueProducts)
-    .where(
-      and(
-        eq(catalogueProducts.tenantId, tenantId),
-        eq(catalogueProducts.publicId, productPublicId),
-      ),
-    )
-    .limit(1);
-
-  if (!product || product.status === "archived") {
-    throw new ProductVideoError("Product not found.", 404);
-  }
-
-  return product;
+  return loadCatalogueProductForMutationInTx(tx, tenantId, productPublicId);
 }
 
 /**
@@ -128,7 +121,7 @@ export async function createProductVideoUploadGrant(
     }
 
     return withTenantContext(db, tenantId, async (tx) => {
-      const product = await requireDraftProduct(tx, tenantId, productPublicId);
+      const product = await requireMutableProduct(tx, tenantId, productPublicId);
 
       const assetPublicId = generateAssetPublicId();
       const grantToken = generateGrantToken();
@@ -186,7 +179,7 @@ export async function ingestProductVideoUpload(
 ) {
   try {
     return withTenantContext(db, tenantId, async (tx) => {
-      const product = await requireDraftProduct(tx, tenantId, productPublicId);
+      const product = await requireMutableProduct(tx, tenantId, productPublicId);
 
       const [grant] = await tx
         .select()
@@ -289,7 +282,7 @@ export async function queueProductVideoProcessing(
 
   try {
     return withTenantContext(db, tenantId, async (tx) => {
-      const product = await requireDraftProduct(tx, tenantId, productPublicId);
+      const product = await requireMutableProduct(tx, tenantId, productPublicId);
 
       const [asset] = await tx
         .select()
@@ -406,7 +399,7 @@ export async function getApprovedProductVideoUrls(
 } | null> {
   try {
     return withTenantContext(db, tenantId, async (tx) => {
-      const product = await requireDraftProduct(tx, tenantId, productPublicId);
+      const product = await requireMutableProduct(tx, tenantId, productPublicId);
 
       const [asset] = await tx
         .select({ id: catalogueMediaAssets.id })
@@ -475,7 +468,7 @@ export async function deleteProductVideoAsset(
 
   try {
     return withTenantContext(db, tenantId, async (tx) => {
-      const product = await requireDraftProduct(tx, tenantId, productPublicId);
+      const product = await requireMutableProduct(tx, tenantId, productPublicId);
 
       const [asset] = await tx
         .select({

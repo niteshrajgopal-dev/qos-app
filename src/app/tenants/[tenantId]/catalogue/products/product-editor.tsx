@@ -14,6 +14,7 @@ import {
   productEditorSaveLabel,
   type CatalogueProductEditorStatus,
 } from "@/lib/catalogue/product-editor-copy";
+import { productEditorChildMutationsDisabled } from "@/lib/catalogue/product-editor-mutation-ui";
 import { Toast, ToastStack } from "@/components/Toast";
 import { mapVideoErrorToFriendlyMessage } from "@/lib/media/video-error-messages";
 import { AiDescriptionReview } from "@/app/tenants/[tenantId]/catalogue/products/ai-description-review";
@@ -125,6 +126,8 @@ export function ProductEditor({
   >(null);
   const editorStatus = productStatus ?? catalogueProductStatusHint;
   const isReadOnly = productEditorIsReadOnly(productStatus);
+  const childMutationsDisabled =
+    productEditorChildMutationsDisabled(editorStatus);
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageStatus, setImageStatus] = useState<string | null>(null);
@@ -928,6 +931,7 @@ export function ProductEditor({
               tenantId={tenantId}
               productPublicId={productPublicId}
               uiLocale={locale}
+              mutationsDisabled={childMutationsDisabled}
               onAccepted={() => {
                 void loadProduct().catch((loadError) => {
                   setError(
@@ -1056,7 +1060,7 @@ export function ProductEditor({
             <input
               type="file"
               accept="image/jpeg,image/png"
-              disabled={imageUploading}
+              disabled={imageUploading || childMutationsDisabled}
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) {
@@ -1123,7 +1127,7 @@ export function ProductEditor({
               <input
                 type="file"
                 accept="video/mp4"
-                disabled={videoUploading}
+                disabled={videoUploading || childMutationsDisabled}
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (file) {

@@ -39,9 +39,9 @@ import {
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import {
-  CATALOGUE_PRODUCT_ARCHIVED_MESSAGE,
+  CatalogueProductMutationGuardError,
   CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
-  isArchivedCatalogueProduct,
+  loadCatalogueProductForMutationInTx,
 } from "@/lib/catalogue/product-mutation-policy";
 import { withTenantContext } from "@/lib/tenant/context";
 
@@ -137,6 +137,25 @@ function generateModifierOptionPublicId(label?: string) {
 }
 
 function mapCatalogueError(error: unknown): never {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    if (error.statusCode === 404) {
+      throw new CatalogueModifierError(error.message, 404, error.field);
+    }
+    if (error.code === CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE) {
+      throw new CatalogueModifierConflictError(
+        error.message,
+        error.field,
+        error.code,
+      );
+    }
+    throw new CatalogueModifierError(
+      error.message,
+      error.statusCode,
+      error.field,
+      error.code,
+    );
+  }
+
   if (error instanceof CatalogueValidationError) {
     throw new CatalogueModifierError(error.message, 400, error.field);
   }
@@ -1127,38 +1146,6 @@ export async function listProductModifierGroups(
   }
 }
 
-async function loadProductForModifierMutation(
-  tx: DbClient,
-  tenantId: string,
-  productPublicId: string,
-) {
-  const [product] = await tx
-    .select()
-    .from(catalogueProducts)
-    .where(
-      and(
-        eq(catalogueProducts.tenantId, tenantId),
-        eq(catalogueProducts.publicId, productPublicId),
-      ),
-    )
-    .limit(1)
-    .for("update");
-
-  if (!product) {
-    throw new CatalogueModifierError("Product not found.", 404);
-  }
-
-  if (isArchivedCatalogueProduct(product.status)) {
-    throw new CatalogueModifierConflictError(
-      CATALOGUE_PRODUCT_ARCHIVED_MESSAGE,
-      "status",
-      CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
-    );
-  }
-
-  return product;
-}
-
 async function bumpProductVersion(
   tx: DbClient,
   tenantId: string,
@@ -1202,7 +1189,7 @@ export async function attachModifierGroupToProduct(
     const validated = validateAttachModifierGroupInput(input);
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForModifierMutation(
+      const product = await loadCatalogueProductForMutationInTx(
         tx,
         tenantId,
         productPublicId,
@@ -1316,7 +1303,7 @@ export async function detachModifierGroupFromProduct(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForModifierMutation(
+      const product = await loadCatalogueProductForMutationInTx(
         tx,
         tenantId,
         productPublicId,
@@ -1382,7 +1369,7 @@ export async function reorderProductModifierGroups(
     const validated = validateReorderProductModifierGroupsInput(input);
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForModifierMutation(
+      const product = await loadCatalogueProductForMutationInTx(
         tx,
         tenantId,
         productPublicId,

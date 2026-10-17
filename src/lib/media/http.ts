@@ -1,11 +1,17 @@
 import { NextResponse } from "next/server";
 
+import { catalogueErrorResponse } from "@/lib/catalogue/http";
+import { CatalogueProductMutationGuardError } from "@/lib/catalogue/product-mutation-policy";
 import { ProductMediaError } from "@/lib/media/product-images";
 import { ProductVideoError } from "@/lib/media/product-videos";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { StaffAuthError } from "@/lib/staff/session";
 
 export function productMediaErrorResponse(error: unknown) {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    return catalogueErrorResponse(error);
+  }
+
   if (error instanceof StaffAuthError) {
     return NextResponse.json(
       { error: error.message, field: error.field },

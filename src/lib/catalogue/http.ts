@@ -33,12 +33,20 @@ import { MenuExtractionCandidateValidationError } from "@/lib/catalogue/menu-ext
 import { AiSpendAdmissionError } from "@/lib/ai/spend/spend-admission";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { StaffAuthError } from "@/lib/staff/session";
+import { CatalogueProductMutationGuardError } from "@/lib/catalogue/product-mutation-policy";
 import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 
 export function catalogueErrorResponse(error: unknown) {
   const tenantInactive = mapTenantInactiveRouteError(error);
   if (tenantInactive) {
     return NextResponse.json(tenantInactive.body, { status: tenantInactive.statusCode });
+  }
+
+  if (error instanceof CatalogueProductMutationGuardError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field, code: error.code },
+      { status: error.statusCode },
+    );
   }
 
   if (error instanceof StaffAuthError) {

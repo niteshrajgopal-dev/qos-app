@@ -18,6 +18,10 @@ import {
   clearAdminReviewRevertSnapshot,
   translationTextMatchesLastApproved,
 } from "@/lib/catalogue/translation-admin-review-snapshot";
+import {
+  CatalogueProductMutationGuardError,
+  loadCatalogueProductForMutationInTx,
+} from "@/lib/catalogue/product-mutation-policy";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class TranslationApprovalError extends Error {
@@ -100,6 +104,10 @@ export type PublishTranslationValidationIssue = {
 };
 
 function mapApprovalError(error: unknown): never {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    throw error;
+  }
+
   if (error instanceof StaffAuthorizationError) {
     throw error;
   }
@@ -420,6 +428,8 @@ export async function approveProductTranslation(
     await requireAdministratorMembership(db, tenantId, adminSubject);
 
     return await withTenantContext(db, tenantId, async (tx) => {
+      await loadCatalogueProductForMutationInTx(tx, tenantId, productPublicId);
+
       const loaded = await loadProductWithTranslations(
         tx,
         tenantId,
@@ -562,6 +572,8 @@ export async function rejectProductTranslation(
     await requireAdministratorMembership(db, tenantId, adminSubject);
 
     return await withTenantContext(db, tenantId, async (tx) => {
+      await loadCatalogueProductForMutationInTx(tx, tenantId, productPublicId);
+
       const loaded = await loadProductWithTranslations(
         tx,
         tenantId,

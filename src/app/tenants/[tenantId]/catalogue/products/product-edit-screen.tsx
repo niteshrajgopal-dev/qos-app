@@ -90,6 +90,7 @@ export function ProductEditScreen({
       <ProductModifierGroupsPanel
         tenantId={tenantId}
         productPublicId={productPublicId}
+        productStatus={status}
       />
     </StaffScreen>
   );

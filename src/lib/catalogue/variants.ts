@@ -27,9 +27,9 @@ import {
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import {
-  CATALOGUE_PRODUCT_ARCHIVED_MESSAGE,
+  CatalogueProductMutationGuardError,
   CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
-  isArchivedCatalogueProduct,
+  loadCatalogueProductForMutationInTx,
 } from "@/lib/catalogue/product-mutation-policy";
 import { withTenantContext } from "@/lib/tenant/context";
 
@@ -96,6 +96,25 @@ function generateVariantPublicId(label?: string) {
 }
 
 function mapCatalogueError(error: unknown): never {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    if (error.statusCode === 404) {
+      throw new CatalogueVariantError(error.message, 404, error.field);
+    }
+    if (error.code === CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE) {
+      throw new CatalogueVariantConflictError(
+        error.message,
+        error.field,
+        error.code,
+      );
+    }
+    throw new CatalogueVariantError(
+      error.message,
+      error.statusCode,
+      error.field,
+      error.code,
+    );
+  }
+
   if (error instanceof CatalogueValidationError) {
     throw new CatalogueVariantError(error.message, 400, error.field);
   }
@@ -129,38 +148,6 @@ async function loadProductForVariants(
 
   if (!product) {
     throw new CatalogueVariantError("Product not found.", 404);
-  }
-
-  return product;
-}
-
-async function loadProductForVariantMutation(
-  tx: DbClient,
-  tenantId: string,
-  productPublicId: string,
-) {
-  const [product] = await tx
-    .select()
-    .from(catalogueProducts)
-    .where(
-      and(
-        eq(catalogueProducts.tenantId, tenantId),
-        eq(catalogueProducts.publicId, productPublicId),
-      ),
-    )
-    .limit(1)
-    .for("update");
-
-  if (!product) {
-    throw new CatalogueVariantError("Product not found.", 404);
-  }
-
-  if (isArchivedCatalogueProduct(product.status)) {
-    throw new CatalogueVariantConflictError(
-      CATALOGUE_PRODUCT_ARCHIVED_MESSAGE,
-      "status",
-      CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
-    );
   }
 
   return product;
@@ -590,7 +577,7 @@ export async function createProductVariant(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForVariantMutation(
+      const product = await loadCatalogueProductForMutationInTx(
         tx,
         tenantId,
         productPublicId,
@@ -754,7 +741,7 @@ export async function updateProductVariant(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForVariantMutation(
+      const product = await loadCatalogueProductForMutationInTx(
         tx,
         tenantId,
         productPublicId,
@@ -963,7 +950,7 @@ export async function reorderProductVariants(
     const validated = validateReorderProductVariantsInput(input);
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForVariantMutation(
+      const product = await loadCatalogueProductForMutationInTx(
         tx,
         tenantId,
         productPublicId,

@@ -31,6 +31,7 @@ type AiDescriptionReviewProps = {
   tenantId: string;
   productPublicId: string;
   uiLocale: "en" | "ar";
+  mutationsDisabled?: boolean;
   /** Called after accept succeeds so the editor can refetch draft product state from the API. */
   onAccepted?: () => void;
 };
@@ -86,6 +87,7 @@ export function AiDescriptionReview({
   tenantId,
   productPublicId,
   uiLocale,
+  mutationsDisabled = false,
   onAccepted,
 }: AiDescriptionReviewProps) {
   const t = COPY[uiLocale];
@@ -251,7 +253,7 @@ export function AiDescriptionReview({
           className="qos-btn"
           data-variant="secondary"
           data-size="sm"
-          disabled={busy || !gateReady}
+          disabled={busy || !gateReady || mutationsDisabled}
           onClick={() => void requestDescription()}
         >
           {t.request}
@@ -313,6 +315,7 @@ export function AiDescriptionReview({
                 <textarea
                   className="qos-input min-h-[96px] w-full"
                   value={description}
+                  disabled={mutationsDisabled}
                   onChange={(event) => setDescription(event.target.value)}
                   dir="ltr"
                 />
@@ -322,7 +325,7 @@ export function AiDescriptionReview({
                     className="qos-btn"
                     data-variant="primary"
                     data-size="sm"
-                    disabled={busy}
+                    disabled={busy || mutationsDisabled}
                     onClick={() => void accept()}
                   >
                     {t.accept}
@@ -332,7 +335,7 @@ export function AiDescriptionReview({
                     className="qos-btn"
                     data-variant="secondary"
                     data-size="sm"
-                    disabled={busy}
+                    disabled={busy || mutationsDisabled}
                     onClick={() => void reject()}
                   >
                     {t.reject}
