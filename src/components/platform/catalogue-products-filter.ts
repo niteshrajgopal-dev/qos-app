@@ -11,14 +11,17 @@ export type FilteredProducts = {
 };
 
 export function filterProducts(
-  products: ProductSummary[],
+  activeProducts: ProductSummary[],
+  archivedProducts: ProductSummary[],
   activeTab: string,
   searchQuery: string,
 ): FilteredProducts {
   const filteredByTab =
-    activeTab === "all"
-      ? products
-      : products.filter((p) => p.status === activeTab);
+    activeTab === "archived"
+      ? archivedProducts
+      : activeTab === "all"
+        ? activeProducts
+        : activeProducts.filter((p) => p.status === activeTab);
 
   const filteredBySearch = searchQuery
     ? filteredByTab.filter(
@@ -29,10 +32,10 @@ export function filterProducts(
     : filteredByTab;
 
   const counts = {
-    all: products.length,
-    active: products.filter((p) => p.status === "active").length,
-    draft: products.filter((p) => p.status === "draft").length,
-    archived: products.filter((p) => p.status === "archived").length,
+    all: activeProducts.length,
+    active: activeProducts.filter((p) => p.status === "active").length,
+    draft: activeProducts.filter((p) => p.status === "draft").length,
+    archived: archivedProducts.length,
   };
 
   return {

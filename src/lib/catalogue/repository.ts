@@ -15,7 +15,7 @@ import {
   catalogueVariants,
   catalogueVariantTranslations,
 } from "@/db/schema";
-import { withTenantContext } from "@/lib/tenant/context";
+import { type TenantDbExecutor, withTenantContext } from "@/lib/tenant/context";
 
 export type CatalogueVariantView = {
   publicId: string;
@@ -253,59 +253,96 @@ export async function listCatalogueProductPublicIds(
   });
 }
 
+type CatalogueProductSummaryRow = {
+  publicId: string;
+  internalName: string;
+  displayName: string;
+  status: string;
+  thumbnailPublicId: string | null;
+};
+
+async function listCatalogueProductSummariesWithStatuses(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  statuses: Array<"draft" | "active" | "archived">,
+  locale: string,
+): Promise<CatalogueProductSummaryRow[]> {
+  const rows = await tx
+    .select({
+      publicId: catalogueProducts.publicId,
+      internalName: catalogueProducts.internalName,
+      displayName: catalogueProductTranslations.displayName,
+      status: catalogueProducts.status,
+      thumbnailPublicId: catalogueMediaDerivatives.publicDerivativeId,
+    })
+    .from(catalogueProducts)
+    .leftJoin(
+      catalogueProductTranslations,
+      and(
+        eq(catalogueProductTranslations.tenantId, tenantId),
+        eq(catalogueProductTranslations.productId, catalogueProducts.id),
+        eq(catalogueProductTranslations.locale, locale),
+      ),
+    )
+    .leftJoin(
+      catalogueMediaAssets,
+      and(
+        eq(catalogueMediaAssets.tenantId, tenantId),
+        eq(catalogueMediaAssets.id, catalogueProducts.primaryMediaAssetId),
+        eq(catalogueMediaAssets.status, "approved"),
+      ),
+    )
+    .leftJoin(
+      catalogueMediaDerivatives,
+      and(
+        eq(catalogueMediaDerivatives.tenantId, tenantId),
+        eq(catalogueMediaDerivatives.assetId, catalogueMediaAssets.id),
+        eq(catalogueMediaDerivatives.derivativeKind, "thumbnail"),
+      ),
+    )
+    .where(
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        inArray(catalogueProducts.status, statuses),
+      ),
+    )
+    .orderBy(asc(catalogueProducts.publicId));
+
+  return rows.map((row) => ({
+    publicId: row.publicId,
+    internalName: row.internalName,
+    displayName: row.displayName ?? row.internalName,
+    status: row.status,
+    thumbnailPublicId: row.thumbnailPublicId ?? null,
+  }));
+}
+
 export async function listCatalogueProductSummaries(
   db: DbClient,
   tenantId: string,
   locale = "en",
 ) {
-  return withTenantContext(db, tenantId, async (tx) => {
-    const rows = await tx
-      .select({
-        publicId: catalogueProducts.publicId,
-        internalName: catalogueProducts.internalName,
-        displayName: catalogueProductTranslations.displayName,
-        status: catalogueProducts.status,
-        thumbnailPublicId: catalogueMediaDerivatives.publicDerivativeId,
-      })
-      .from(catalogueProducts)
-      .leftJoin(
-        catalogueProductTranslations,
-        and(
-          eq(catalogueProductTranslations.tenantId, tenantId),
-          eq(catalogueProductTranslations.productId, catalogueProducts.id),
-          eq(catalogueProductTranslations.locale, locale),
-        ),
-      )
-      .leftJoin(
-        catalogueMediaAssets,
-        and(
-          eq(catalogueMediaAssets.tenantId, tenantId),
-          eq(catalogueMediaAssets.id, catalogueProducts.primaryMediaAssetId),
-          eq(catalogueMediaAssets.status, "approved"),
-        ),
-      )
-      .leftJoin(
-        catalogueMediaDerivatives,
-        and(
-          eq(catalogueMediaDerivatives.tenantId, tenantId),
-          eq(catalogueMediaDerivatives.assetId, catalogueMediaAssets.id),
-          eq(catalogueMediaDerivatives.derivativeKind, "thumbnail"),
-        ),
-      )
-      .where(
-        and(
-          eq(catalogueProducts.tenantId, tenantId),
-          inArray(catalogueProducts.status, ["draft", "active"]),
-        ),
-      )
-      .orderBy(asc(catalogueProducts.publicId));
+  return withTenantContext(db, tenantId, async (tx) =>
+    listCatalogueProductSummariesWithStatuses(
+      tx,
+      tenantId,
+      ["draft", "active"],
+      locale,
+    ),
+  );
+}
 
-    return rows.map((row) => ({
-      publicId: row.publicId,
-      internalName: row.internalName,
-      displayName: row.displayName ?? row.internalName,
-      status: row.status,
-      thumbnailPublicId: row.thumbnailPublicId ?? null,
-    }));
-  });
+export async function listArchivedCatalogueProductSummaries(
+  db: DbClient,
+  tenantId: string,
+  locale = "en",
+) {
+  return withTenantContext(db, tenantId, async (tx) =>
+    listCatalogueProductSummariesWithStatuses(
+      tx,
+      tenantId,
+      ["archived"],
+      locale,
+    ),
+  );
 }

@@ -13,7 +13,10 @@ import {
   resetAndMigrate,
 } from "@/db/test-utils";
 import { createDraftProduct } from "@/lib/catalogue/products";
-import { listCatalogueProductSummaries } from "@/lib/catalogue/repository";
+import {
+  listArchivedCatalogueProductSummaries,
+  listCatalogueProductSummaries,
+} from "@/lib/catalogue/repository";
 import {
   createProductImageUploadGrant,
   ingestProductImageUpload,
@@ -172,6 +175,20 @@ integrationDescribe("listCatalogueProductSummaries", () => {
     const summaries = await listCatalogueProductSummaries(db, quotes.tenant.id);
     expect(summaries.some((row) => row.publicId === product.publicId)).toBe(
       false,
+    );
+
+    const archived = await listArchivedCatalogueProductSummaries(
+      db,
+      quotes.tenant.id,
+    );
+    expect(archived).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          publicId: product.publicId,
+          status: "archived",
+          displayName: "Archived Latte",
+        }),
+      ]),
     );
   });
 });
