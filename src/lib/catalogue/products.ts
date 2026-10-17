@@ -28,6 +28,11 @@ import {
   auditActorClassFromStaffRole,
   recordTenantAuditEventInTx,
 } from "@/lib/audit/tenant-audit";
+import {
+  CATALOGUE_PRODUCT_ARCHIVED_MESSAGE,
+  CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
+  isArchivedCatalogueProduct,
+} from "@/lib/catalogue/product-mutation-policy";
 import { type TenantDbExecutor, withTenantContext } from "@/lib/tenant/context";
 
 export const CATALOGUE_PRODUCT_ARCHIVE_CODES = {
@@ -533,11 +538,11 @@ export async function updateDraftProductInTx(
     throw new CatalogueProductError("Product not found.", 404);
   }
 
-  if (product.status === "archived") {
+  if (isArchivedCatalogueProduct(product.status)) {
     throw new CatalogueProductConflictError(
-      "Archived products cannot be edited.",
+      CATALOGUE_PRODUCT_ARCHIVED_MESSAGE,
       "status",
-      "product_archived",
+      CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
     );
   }
 

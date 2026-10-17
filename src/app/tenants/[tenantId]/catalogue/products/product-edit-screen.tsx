@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { ProductEditor } from "@/app/tenants/[tenantId]/catalogue/products/product-editor";
 import { ProductModifierGroupsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel";
@@ -11,6 +11,7 @@ import {
   productEditorPageTitle,
   type CatalogueProductEditorStatus,
 } from "@/lib/catalogue/product-editor-copy";
+import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { readStoredStaffLocale } from "@/lib/staff/locale";
 
 type ProductEditScreenProps = {
@@ -24,6 +25,33 @@ export function ProductEditScreen({
 }: ProductEditScreenProps) {
   const locale = readStoredStaffLocale();
   const [status, setStatus] = useState<CatalogueProductEditorStatus>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await staffApiFetch(
+          `/api/tenants/${tenantId}/catalogue/products/${productPublicId}`,
+        );
+        const payload = (await response.json()) as {
+          product?: { status: CatalogueProductEditorStatus };
+        };
+
+        if (cancelled || !response.ok || !payload.product?.status) {
+          return;
+        }
+
+        setStatus(payload.product.status);
+      } catch {
+        // Pre-load title falls back to draft-neutral copy when status is unknown.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productPublicId, tenantId]);
 
   return (
     <StaffScreen
@@ -51,11 +79,13 @@ export function ProductEditScreen({
       <ProductEditor
         tenantId={tenantId}
         productPublicId={productPublicId}
+        catalogueProductStatusHint={status}
         onStatusChange={setStatus}
       />
       <ProductVariantsPanel
         tenantId={tenantId}
         productPublicId={productPublicId}
+        productStatus={status}
       />
       <ProductModifierGroupsPanel
         tenantId={tenantId}

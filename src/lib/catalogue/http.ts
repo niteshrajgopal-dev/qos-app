@@ -99,28 +99,28 @@ export function catalogueErrorResponse(error: unknown) {
 
   if (error instanceof CatalogueModifierConflictError) {
     return NextResponse.json(
-      { error: error.message, field: error.field },
+      { error: error.message, field: error.field, code: error.code },
       { status: error.statusCode },
     );
   }
 
   if (error instanceof CatalogueModifierError) {
     return NextResponse.json(
-      { error: error.message, field: error.field },
+      { error: error.message, field: error.field, code: error.code },
       { status: error.statusCode },
     );
   }
 
   if (error instanceof CatalogueVariantConflictError) {
     return NextResponse.json(
-      { error: error.message, field: error.field },
+      { error: error.message, field: error.field, code: error.code },
       { status: error.statusCode },
     );
   }
 
   if (error instanceof CatalogueVariantError) {
     return NextResponse.json(
-      { error: error.message, field: error.field },
+      { error: error.message, field: error.field, code: error.code },
       { status: error.statusCode },
     );
   }

@@ -26,23 +26,35 @@ import {
 } from "@/lib/audit/tenant-audit";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
+import {
+  CATALOGUE_PRODUCT_ARCHIVED_MESSAGE,
+  CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
+  isArchivedCatalogueProduct,
+} from "@/lib/catalogue/product-mutation-policy";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class CatalogueVariantError extends Error {
   readonly statusCode: number;
   readonly field?: string;
+  readonly code?: string;
 
-  constructor(message: string, statusCode = 400, field?: string) {
+  constructor(
+    message: string,
+    statusCode = 400,
+    field?: string,
+    code?: string,
+  ) {
     super(message);
     this.name = "CatalogueVariantError";
     this.statusCode = statusCode;
     this.field = field;
+    this.code = code;
   }
 }
 
 export class CatalogueVariantConflictError extends CatalogueVariantError {
-  constructor(message: string, field?: string) {
-    super(message, 409, field);
+  constructor(message: string, field?: string, code?: string) {
+    super(message, 409, field, code);
     this.name = "CatalogueVariantConflictError";
   }
 }
@@ -117,6 +129,38 @@ async function loadProductForVariants(
 
   if (!product) {
     throw new CatalogueVariantError("Product not found.", 404);
+  }
+
+  return product;
+}
+
+async function loadProductForVariantMutation(
+  tx: DbClient,
+  tenantId: string,
+  productPublicId: string,
+) {
+  const [product] = await tx
+    .select()
+    .from(catalogueProducts)
+    .where(
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        eq(catalogueProducts.publicId, productPublicId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+
+  if (!product) {
+    throw new CatalogueVariantError("Product not found.", 404);
+  }
+
+  if (isArchivedCatalogueProduct(product.status)) {
+    throw new CatalogueVariantConflictError(
+      CATALOGUE_PRODUCT_ARCHIVED_MESSAGE,
+      "status",
+      CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
+    );
   }
 
   return product;
@@ -546,7 +590,11 @@ export async function createProductVariant(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForVariants(tx, tenantId, productPublicId);
+      const product = await loadProductForVariantMutation(
+        tx,
+        tenantId,
+        productPublicId,
+      );
 
       if (validated.publicId) {
         const [existingVariant] = await tx
@@ -706,7 +754,11 @@ export async function updateProductVariant(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForVariants(tx, tenantId, productPublicId);
+      const product = await loadProductForVariantMutation(
+        tx,
+        tenantId,
+        productPublicId,
+      );
 
       const [variant] = await tx
         .select()
@@ -911,7 +963,11 @@ export async function reorderProductVariants(
     const validated = validateReorderProductVariantsInput(input);
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForVariants(tx, tenantId, productPublicId);
+      const product = await loadProductForVariantMutation(
+        tx,
+        tenantId,
+        productPublicId,
+      );
       const variants = await tx
         .select({
           id: catalogueVariants.id,

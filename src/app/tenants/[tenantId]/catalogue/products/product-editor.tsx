@@ -46,6 +46,7 @@ type ProductEditorProps = {
   tenantId: string;
   productPublicId?: string;
   initialBusinessProfile?: "hospitality" | "generic_retail";
+  catalogueProductStatusHint?: CatalogueProductEditorStatus;
   onStatusChange?: (status: CatalogueProductEditorStatus) => void;
 };
 
@@ -97,6 +98,7 @@ export function ProductEditor({
   tenantId,
   productPublicId,
   initialBusinessProfile = "generic_retail",
+  catalogueProductStatusHint = null,
   onStatusChange,
 }: ProductEditorProps) {
   const router = useRouter();
@@ -121,6 +123,7 @@ export function ProductEditor({
   const [productStatus, setProductStatus] = useState<
     "draft" | "active" | "archived" | null
   >(null);
+  const editorStatus = productStatus ?? catalogueProductStatusHint;
   const isReadOnly = productEditorIsReadOnly(productStatus);
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
@@ -775,7 +778,7 @@ export function ProductEditor({
     return (
       <div className="space-y-4">
         <p className="text-sm text-zinc-600">
-          {productEditorLoadPrompt(productStatus, locale)}
+          {productEditorLoadPrompt(editorStatus, locale)}
         </p>
         <button
           type="button"

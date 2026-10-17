@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   productEditorIsReadOnly,
+  productEditorLoadPrompt,
   productEditorPageTitle,
   productEditorSaveLabel,
 } from "./product-editor-copy";
@@ -18,9 +19,33 @@ describe("productEditorCopy", () => {
   });
 
   it("selects status-appropriate Arabic titles and save labels", () => {
+    expect(productEditorPageTitle("draft", "ar")).toBe("تعديل مسودة المنتج");
     expect(productEditorPageTitle("active", "ar")).toBe("تعديل منتج نشط");
+    expect(productEditorPageTitle("archived", "ar")).toBe("عرض منتج مؤرشف");
     expect(productEditorSaveLabel("draft", "ar", false)).toBe("حفظ المسودة");
     expect(productEditorSaveLabel("active", "ar", false)).toBe("حفظ التغييرات");
+  });
+
+  it("selects status-appropriate load prompts in English and Arabic", () => {
+    expect(productEditorLoadPrompt("active", "en")).toBe(
+      "Load the product to begin editing.",
+    );
+    expect(productEditorLoadPrompt("archived", "en")).toBe(
+      "Load the archived product to view its details.",
+    );
+    expect(productEditorLoadPrompt("draft", "en")).toBe(
+      "Load the draft product to begin editing.",
+    );
+    expect(productEditorLoadPrompt(null, "en")).toBe(
+      "Load the draft product to begin editing.",
+    );
+
+    expect(productEditorLoadPrompt("archived", "ar")).toBe(
+      "حمّل المنتج المؤرشف لعرض التفاصيل.",
+    );
+    expect(productEditorLoadPrompt("active", "ar")).toBe(
+      "حمّل المنتج لبدء التعديل.",
+    );
   });
 
   it("treats archived products as read-only in the editor", () => {
