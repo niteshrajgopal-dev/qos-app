@@ -181,14 +181,15 @@ integrationDescribe("catalogue menu extraction hardening (DB)", () => {
     };
   });
 
-  async function uploadPng() {
+  async function uploadPng(uniqueTag?: string) {
     const bytes = await readFile(
       path.join(process.cwd(), "fixtures/menu-extraction/synthetic/en-text-menu.png"),
     );
+    const payload = uniqueTag ? Buffer.concat([bytes, Buffer.from(uniqueTag)]) : bytes;
     return runAsRole(sqlClient, "qos_app", () =>
       uploadMenuExtractionSource(db, adminCaller.tenantId, adminCaller.membership, adminCaller.subject, {
-        fileName: "synthetic-en-menu.png",
-        bytes,
+        fileName: uniqueTag ? `synthetic-en-menu-${uniqueTag}.png` : "synthetic-en-menu.png",
+        bytes: payload,
         contentType: "image/png",
       }),
     );
@@ -443,8 +444,8 @@ integrationDescribe("catalogue menu extraction hardening (DB)", () => {
   });
 
   it("allows extraction on two sources with per-source idempotency keys", async () => {
-    const first = await uploadPng();
-    const second = await uploadPng();
+    const first = await uploadPng("source-a");
+    const second = await uploadPng("source-b");
     const firstKey = menuExtractionExtractIdempotencyKey(first.sourcePublicId);
     const secondKey = menuExtractionExtractIdempotencyKey(second.sourcePublicId);
     expect(firstKey).not.toBe(secondKey);
@@ -472,8 +473,8 @@ integrationDescribe("catalogue menu extraction hardening (DB)", () => {
   });
 
   it("rejects a shared extract idempotency key across different sources", async () => {
-    const first = await uploadPng();
-    const second = await uploadPng();
+    const first = await uploadPng("legacy-a");
+    const second = await uploadPng("legacy-b");
     const sharedLegacyKey = `extract-${randomBytes(6).toString("hex")}`;
     await runAsRole(sqlClient, "qos_app", () =>
       requestMenuExtraction(

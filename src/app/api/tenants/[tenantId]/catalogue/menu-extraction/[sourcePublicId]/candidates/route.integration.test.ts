@@ -26,7 +26,7 @@ import {
   type MenuExtractionVisionProvider,
 } from "@/lib/catalogue/menu-extraction/vision-provider";
 import { uploadMenuExtractionSource } from "@/lib/catalogue/menu-extraction/upload";
-import { requireActiveStaffMembership } from "@/lib/staff/auth";
+import type { requireActiveStaffMembership } from "@/lib/staff/auth";
 import { quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
 
@@ -34,6 +34,8 @@ const staffMocks = vi.hoisted(() => ({
   requireStaffIdentity: vi.fn(),
   requireActiveStaffMembership: vi.fn(),
 }));
+
+const staffAuthActual = vi.hoisted(() => vi.importActual<typeof import("@/lib/staff/auth")>("@/lib/staff/auth"));
 
 vi.mock("@/lib/staff/auth", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/staff/auth")>();
@@ -166,25 +168,27 @@ integrationDescribe("menu extraction candidates PATCH route (DB)", () => {
       .insert(staffIdentities)
       .values({ providerSubject: ADMIN_SUBJECT, email: ADMIN_SUBJECT })
       .returning();
-    const [membership] = await db
+    const [membershipRow] = await db
       .insert(staffMemberships)
       .values({ tenantId: quotes.tenant.id, staffIdentityId: identity!.id, role: "administrator" })
       .returning();
     await db.insert(staffLocationScopes).values({
       tenantId: quotes.tenant.id,
-      staffMembershipId: membership!.id,
+      staffMembershipId: membershipRow!.id,
       locationId: quotes.location.id,
     });
+    const actualAuth = await staffAuthActual;
+    const activeMembership = await runAsRole(sqlClient, "qos_app", () =>
+      actualAuth.requireActiveStaffMembership(db, quotes.tenant.id, ADMIN_SUBJECT),
+    );
     adminCaller = {
       tenantId: quotes.tenant.id,
       subject: ADMIN_SUBJECT,
-      membership: await runAsRole(sqlClient, "qos_app", () =>
-        requireActiveStaffMembership(db, quotes.tenant.id, ADMIN_SUBJECT),
-      ),
+      membership: activeMembership,
     };
 
     staffMocks.requireStaffIdentity.mockResolvedValue({ subject: ADMIN_SUBJECT });
-    staffMocks.requireActiveStaffMembership.mockResolvedValue(adminCaller.membership);
+    staffMocks.requireActiveStaffMembership.mockResolvedValue(activeMembership);
   });
 
   async function uploadPng() {
