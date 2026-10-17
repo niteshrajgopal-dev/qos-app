@@ -20,6 +20,7 @@ import {
 } from "@/lib/catalogue/translation-admin-review-snapshot";
 import {
   CatalogueProductMutationGuardError,
+  CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
   loadCatalogueProductForMutationInTx,
 } from "@/lib/catalogue/product-mutation-policy";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -37,9 +38,12 @@ export class TranslationApprovalError extends Error {
 }
 
 export class TranslationApprovalConflictError extends TranslationApprovalError {
-  constructor(message: string, field?: string) {
+  readonly code?: string;
+
+  constructor(message: string, field?: string, code?: string) {
     super(message, 409, field);
     this.name = "TranslationApprovalConflictError";
+    this.code = code;
   }
 }
 
@@ -105,7 +109,21 @@ export type PublishTranslationValidationIssue = {
 
 function mapApprovalError(error: unknown): never {
   if (error instanceof CatalogueProductMutationGuardError) {
-    throw error;
+    if (error.statusCode === 404) {
+      throw new TranslationApprovalError(error.message, 404, error.field);
+    }
+    if (error.code === CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE) {
+      throw new TranslationApprovalConflictError(
+        error.message,
+        error.field,
+        error.code,
+      );
+    }
+    throw new TranslationApprovalError(
+      error.message,
+      error.statusCode,
+      error.field,
+    );
   }
 
   if (error instanceof StaffAuthorizationError) {

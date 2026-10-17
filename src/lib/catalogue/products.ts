@@ -30,9 +30,7 @@ import {
 } from "@/lib/audit/tenant-audit";
 import {
   CatalogueProductMutationGuardError,
-  CATALOGUE_PRODUCT_ARCHIVED_MESSAGE,
   CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
-  isArchivedCatalogueProduct,
   loadCatalogueProductForMutationInTx,
 } from "@/lib/catalogue/product-mutation-policy";
 import { type TenantDbExecutor, withTenantContext } from "@/lib/tenant/context";

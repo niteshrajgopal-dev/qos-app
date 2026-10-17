@@ -135,7 +135,7 @@ export function catalogueErrorResponse(error: unknown) {
 
   if (error instanceof TranslationApprovalConflictError) {
     return NextResponse.json(
-      { error: error.message, field: error.field },
+      { error: error.message, field: error.field, code: error.code },
       { status: error.statusCode },
     );
   }
