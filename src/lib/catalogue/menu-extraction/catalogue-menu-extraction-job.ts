@@ -45,6 +45,7 @@ const WORKER_ACTOR = { subject: "qos.ai-worker", actorClass: "system" as const }
 type HandlerOptions = {
   config?: AgentConfig;
   vision?: MenuExtractionVisionProvider;
+  env?: Record<string, string | undefined>;
   now?: () => Date;
 };
 
@@ -68,6 +69,7 @@ export function createCatalogueMenuExtractionJobHandler(
   options: HandlerOptions = {},
 ): AiJobHandler {
   const clock = options.now ?? (() => new Date());
+  const runtimeEnv = options.env ?? process.env;
 
   return {
     kind: CATALOGUE_MENU_EXTRACTION_JOB_KIND,
@@ -195,8 +197,8 @@ export function createCatalogueMenuExtractionJobHandler(
 
       const gate = evaluateNativeOpenAiGate(
         "catalogue.menu_extraction",
-        process.env,
-        readAiSpendPolicy(process.env),
+        runtimeEnv,
+        readAiSpendPolicy(runtimeEnv),
       );
       if (!gate.ready) {
         return { type: "reschedule", delayMs: config.pollIntervalMs, code: "executor_unavailable" };

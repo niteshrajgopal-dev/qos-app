@@ -209,6 +209,7 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
   async function workerStep(provider?: MenuExtractionVisionProvider) {
     const handler = createCatalogueMenuExtractionJobHandler(db, {
       config: CONFIG,
+      env: NATIVE_ENV,
       vision:
         provider ??
         ({

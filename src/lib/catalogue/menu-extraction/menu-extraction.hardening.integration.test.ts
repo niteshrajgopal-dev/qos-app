@@ -190,6 +190,7 @@ integrationDescribe("catalogue menu extraction hardening (DB)", () => {
     }
     const handler = createCatalogueMenuExtractionJobHandler(db, {
       config: CONFIG,
+      env: NATIVE_ENV,
       vision: {
         kind: "mock",
         complete: visionComplete as MenuExtractionVisionProvider["complete"],
