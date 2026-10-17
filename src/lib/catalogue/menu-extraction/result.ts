@@ -1,6 +1,10 @@
 import { z } from "zod";
 
 import type { CompletionInterpretation } from "@/lib/agents/agent-runs";
+import {
+  assertOpenAiStrictJsonSchema,
+  toOpenAiStrictJsonSchema,
+} from "@/lib/catalogue/menu-extraction/openai-strict-json-schema";
 import type { MenuExtractionCandidatePayload, MenuExtractionUncertainty } from "@/db/schema";
 
 export const MENU_EXTRACTION_INPUT_SCHEMA = "qos.catalogue_menu_extraction_input.v1";
@@ -71,7 +75,12 @@ export const menuExtractionResultZod = z.strictObject({
 });
 
 export function menuExtractionResultJsonSchema() {
-  return z.toJSONSchema(menuExtractionResultZod, { target: "draft-7" });
+  const draft = z.toJSONSchema(menuExtractionResultZod, {
+    target: "draft-7",
+  }) as Record<string, unknown>;
+  const strict = toOpenAiStrictJsonSchema(draft);
+  assertOpenAiStrictJsonSchema(strict);
+  return strict;
 }
 
 export type MenuExtractionModelItem = z.infer<typeof menuExtractionModelItemZod>;

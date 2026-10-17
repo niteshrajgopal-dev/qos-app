@@ -24,6 +24,7 @@ import {
 } from "@/lib/ai/jobs/ai-job-queue";
 import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
 import { createCatalogueMenuExtractionJobHandler } from "@/lib/catalogue/menu-extraction/catalogue-menu-extraction-job";
+import { MenuExtractionVisionError } from "@/lib/catalogue/menu-extraction/menu-extraction-vision-errors";
 import { MENU_EXTRACTION_RESULT_SCHEMA } from "@/lib/catalogue/menu-extraction/result";
 import {
   CATALOGUE_MENU_EXTRACTION_JOB_KIND,
@@ -191,7 +192,7 @@ integrationDescribe("catalogue menu extraction hardening (DB)", () => {
     );
   }
 
-  async function workerStep(reply?: string) {
+  async function workerStep(reply?: string, vision?: MenuExtractionVisionProvider) {
     if (reply) {
       visionComplete.mockResolvedValue({
         text: reply,
@@ -201,10 +202,12 @@ integrationDescribe("catalogue menu extraction hardening (DB)", () => {
     const handler = createCatalogueMenuExtractionJobHandler(db, {
       config: CONFIG,
       env: NATIVE_ENV,
-      vision: {
-        kind: "mock",
-        complete: visionComplete as MenuExtractionVisionProvider["complete"],
-      },
+      vision:
+        vision ??
+        ({
+          kind: "mock",
+          complete: visionComplete as MenuExtractionVisionProvider["complete"],
+        } satisfies MenuExtractionVisionProvider),
     });
     return runAsRole(sqlClient, "qos_ai_worker", async () => {
       const job = await claimNextAiJob(db, {
@@ -242,6 +245,37 @@ integrationDescribe("catalogue menu extraction hardening (DB)", () => {
         }),
       ),
     ).rejects.toBeInstanceOf(MenuExtractionUploadError);
+  });
+
+  it("records schema_rejected when the vision provider rejects the response schema", async () => {
+    const uploaded = await uploadPng();
+    const { run } = await runAsRole(sqlClient, "qos_app", () =>
+      requestMenuExtraction(
+        db,
+        adminCaller,
+        uploaded.sourcePublicId,
+        { idempotencyKey: `idem-${randomBytes(6).toString("hex")}` },
+        { env: NATIVE_ENV, spendPolicy: spendPolicy(), config: CONFIG },
+      ),
+    );
+    const step = await workerStep(undefined, {
+      kind: "mock",
+      complete: async () => {
+        throw new MenuExtractionVisionError(
+          "schema_rejected",
+          "The menu extraction response schema was rejected by the vision service.",
+          {
+            httpStatus: 400,
+            providerCode: "invalid_json_schema",
+            providerType: "invalid_request_error",
+          },
+        );
+      },
+    });
+    expect(step?.result).toMatchObject({ type: "failed", code: "schema_rejected" });
+    const [storedRun] = await db.select().from(agentRuns).where(eq(agentRuns.publicId, run.publicId));
+    expect(storedRun?.status).toBe("failed");
+    expect(storedRun?.failureCode).toBe("schema_rejected");
   });
 
   it("completes extraction when the model returns duplicate keys", async () => {

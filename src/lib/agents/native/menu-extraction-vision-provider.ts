@@ -1,5 +1,10 @@
 import type { NativeModelConfig } from "@/lib/agents/native/native-model-config";
 import { redactOpenAiSecrets } from "@/lib/agents/native/openai-redaction";
+import { classifyMenuExtractionVisionError } from "@/lib/agents/native/menu-extraction-vision-classify";
+import {
+  logMenuExtractionVisionFailure,
+  MenuExtractionVisionError,
+} from "@/lib/catalogue/menu-extraction/menu-extraction-vision-errors";
 import { menuExtractionResultJsonSchema } from "@/lib/catalogue/menu-extraction/result";
 
 export type MenuExtractionVisionPage = {
@@ -32,7 +37,10 @@ export function createOpenAiMenuExtractionVisionProvider(
   config: NativeModelConfig,
 ): MenuExtractionVisionProvider {
   if (config.provider !== "openai" || !config.openAiApiKey) {
-    throw new Error("OpenAI vision provider is not configured.");
+    throw new MenuExtractionVisionError(
+      "provider_unavailable",
+      "OpenAI vision provider is not configured.",
+    );
   }
 
   const responseJsonSchema = menuExtractionResultJsonSchema();
@@ -92,10 +100,17 @@ export function createOpenAiMenuExtractionVisionProvider(
           : null;
         return { text, usage };
       } catch (error) {
-        const message = redactOpenAiSecrets(
-          error instanceof Error ? error.message : "Vision request failed.",
+        const classified = classifyMenuExtractionVisionError(error);
+        if (request.correlationId) {
+          logMenuExtractionVisionFailure(request.correlationId, classified);
+        }
+        const redacted = redactOpenAiSecrets(classified.message);
+        throw new MenuExtractionVisionError(
+          classified.code,
+          redacted,
+          classified.diagnostics,
+          classified.classification,
         );
-        throw new Error(message);
       }
     },
   };

@@ -34,6 +34,10 @@ import {
 } from "@/lib/agents/native/menu-extraction-vision-provider";
 import { evaluateNativeOpenAiGate } from "@/lib/agents/native/openai-runtime-gate";
 import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
+import {
+  MenuExtractionVisionError,
+  spendOutcomeForMenuExtractionVisionFailure,
+} from "@/lib/catalogue/menu-extraction/menu-extraction-vision-errors";
 import { menuExtractionPageMimeFromStoragePath } from "@/lib/catalogue/menu-extraction/page-media";
 import { markAiSpendDispatched, recordAiSpendOutcome } from "@/lib/ai/spend/spend-admission";
 import { AiJobLeaseLostError, type AiJobStepResult } from "@/lib/ai/jobs/ai-job-queue";
@@ -280,18 +284,36 @@ export function createCatalogueMenuExtractionJobHandler(
           input: message,
           pages,
         });
-      } catch {
+      } catch (error) {
+        const visionError =
+          error instanceof MenuExtractionVisionError
+            ? error
+            : new MenuExtractionVisionError(
+                "model_submission_unknown",
+                "QOS could not confirm whether the model accepted this menu extraction.",
+              );
+        const spendOutcome = spendOutcomeForMenuExtractionVisionFailure(visionError);
+        const operatorReview = spendOutcome === "submission_unknown";
         await markAgentRunFailed(db, job.tenantId, activeRun.publicId, {
-          code: "model_submission_unknown",
-          message: "QOS could not confirm whether the model accepted this menu extraction.",
+          code: visionError.code,
+          message: visionError.message,
           now: clock(),
         });
-        await settleSpend("submission_unknown");
+        await settleSpend(spendOutcome);
+        if (operatorReview) {
+          return {
+            type: "operator_review",
+            code: visionError.code,
+            message: visionError.message,
+            providerOutcome: "submission_unknown",
+          };
+        }
         return {
-          type: "operator_review",
-          code: "model_submission_unknown",
-          message: "Menu extraction outcome unknown.",
-          providerOutcome: "submission_unknown",
+          type: "failed",
+          code: visionError.code,
+          message: visionError.message,
+          providerOutcome:
+            spendOutcome === "completed" ? undefined : spendOutcome,
         };
       }
 
