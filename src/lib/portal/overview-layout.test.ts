@@ -3,10 +3,11 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  PORTAL_OVERVIEW_STACKED_MAX_WIDTH_PX,
-  parsePortalOverviewStackedMaxWidthFromCss,
+  PORTAL_OVERVIEW_STACKED_SHORT_MAX_HEIGHT_PX,
+  PORTAL_OVERVIEW_STACKED_WIDE_MAX_HEIGHT_PX,
+  parsePortalOverviewStackedShortMaxHeightFromCss,
+  parsePortalOverviewStackedWideMaxHeightFromCss,
   portalOverviewCssDeclaresStackedRail,
-  portalOverviewUsesStackedLayout,
 } from "./overview-layout";
 
 describe("portal overview layout CSS contract", () => {
@@ -15,9 +16,15 @@ describe("portal overview layout CSS contract", () => {
     "utf8",
   );
 
-  it("keeps the stacked breakpoint in sync with the TypeScript constant", () => {
-    expect(parsePortalOverviewStackedMaxWidthFromCss(css)).toBe(
-      PORTAL_OVERVIEW_STACKED_MAX_WIDTH_PX,
+  it("keeps short-viewport stacked max-height in sync with the TypeScript constant", () => {
+    expect(parsePortalOverviewStackedShortMaxHeightFromCss(css)).toBe(
+      PORTAL_OVERVIEW_STACKED_SHORT_MAX_HEIGHT_PX,
+    );
+  });
+
+  it("keeps wide-viewport stacked max-height in sync with the TypeScript constant", () => {
+    expect(parsePortalOverviewStackedWideMaxHeightFromCss(css)).toBe(
+      PORTAL_OVERVIEW_STACKED_WIDE_MAX_HEIGHT_PX,
     );
   });
 
@@ -25,8 +32,9 @@ describe("portal overview layout CSS contract", () => {
     expect(portalOverviewCssDeclaresStackedRail(css)).toBe(true);
   });
 
-  it("treats zoom-prone widths as stacked (e.g. 1280px at 125% → 1024px)", () => {
-    expect(portalOverviewUsesStackedLayout(1024)).toBe(true);
-    expect(portalOverviewUsesStackedLayout(1280)).toBe(false);
+  it("does not use a blanket max-width stacked breakpoint", () => {
+    expect(css).not.toMatch(
+      /@media\s*\(\s*max-width:\s*1279px\s*\)\s*and\s*\(\s*min-width:\s*681px\s*\)/,
+    );
   });
 });

@@ -18,8 +18,6 @@ const WIDTHS = [
 
 const HEIGHTS = [900, 800, 600];
 
-const SCREENSHOT_WIDTHS = [1024, 960, 853, 731];
-
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = process.env.QOS_REPO_ROOT
   ? path.resolve(process.env.QOS_REPO_ROOT)
@@ -30,7 +28,12 @@ function parseArgs() {
   const baseUrl =
     process.argv.find((arg) => arg.startsWith("--base-url="))?.split("=")[1] ??
     "http://localhost:3000";
-  return { baseUrl };
+  const label =
+    process.argv.find((arg) => arg.startsWith("--label="))?.split("=")[1] ??
+    "branch";
+  const allowFailures = process.argv.includes("--allow-failures");
+  const screenshots = process.argv.includes("--screenshots");
+  return { baseUrl, label, allowFailures, screenshots };
 }
 
 function intersects(a, b) {
@@ -95,8 +98,10 @@ async function measureAt(page, baseUrl, width, height) {
 }
 
 async function main() {
-  const { baseUrl } = parseArgs();
+  const { baseUrl, label, allowFailures, screenshots } = parseArgs();
   mkdirSync(artifactDir, { recursive: true });
+  const mdName = label === "branch" ? "measurements.md" : `measurements-${label}.md`;
+  const jsonName = label === "branch" ? "measurements.json" : `measurements-${label}.json`;
 
   const browser = await chromium.launch();
   const context = await browser.newContext();
@@ -121,10 +126,10 @@ async function main() {
         );
       }
 
-      if (SCREENSHOT_WIDTHS.includes(width) && height === 900) {
+      if (screenshots && height === 900) {
         const file = path.join(
           artifactDir,
-          `overview-${width}x${height}.png`,
+          `overview-${label}-${width}x${height}.png`,
         );
         await page.screenshot({ path: file, fullPage: true });
       }
@@ -142,20 +147,26 @@ async function main() {
     ),
   ];
 
-  writeFileSync(path.join(artifactDir, "measurements.md"), `${tableLines.join("\n")}\n`);
+  writeFileSync(path.join(artifactDir, mdName), `${tableLines.join("\n")}\n`);
   writeFileSync(
-    path.join(artifactDir, "measurements.json"),
+    path.join(artifactDir, jsonName),
     JSON.stringify(results, null, 2),
   );
 
   const failures = results.filter((row) => !row.pass);
-  if (failures.length > 0) {
+  if (failures.length > 0 && !allowFailures) {
     console.error(`${failures.length} viewport combinations failed overlap checks.`);
     process.exit(1);
   }
 
-  console.log(`All ${results.length} viewport combinations passed.`);
-  console.log(`Wrote ${artifactDir}/measurements.md`);
+  if (failures.length === 0) {
+    console.log(`All ${results.length} viewport combinations passed.`);
+  } else {
+    console.log(
+      `${failures.length}/${results.length} viewport combinations failed (${label}).`,
+    );
+  }
+  console.log(`Wrote ${path.join(artifactDir, mdName)}`);
 }
 
 main().catch((error) => {
