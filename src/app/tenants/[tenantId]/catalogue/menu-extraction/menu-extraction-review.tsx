@@ -8,7 +8,10 @@ import { menuExtractionConfirmFieldIssues } from "@/lib/catalogue/menu-extractio
 import { menuExtractionExtractIdempotencyKey } from "@/lib/catalogue/menu-extraction/extract-idempotency";
 import { menuExtractionCopy } from "@/lib/catalogue/menu-extraction/menu-extraction-ui-copy";
 import { shouldPollMenuExtractionReview } from "@/lib/catalogue/menu-extraction/menu-extraction-review-polling";
-import { menuExtractionRunStatusLabel } from "@/lib/catalogue/menu-extraction/menu-extraction-run-status";
+import {
+  isMenuExtractionReviewClosed,
+  menuExtractionRunStatusLabel,
+} from "@/lib/catalogue/menu-extraction/menu-extraction-run-status";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type Review = {
@@ -64,6 +67,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
   }, [extractRetryNonce, sourcePublicId]);
   const confirmKey = useMemo(() => `confirm-${crypto.randomUUID()}`, []);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const reviewClosed = review ? isMenuExtractionReviewClosed(review.decision) : false;
 
   const base = `/api/tenants/${tenantId}/catalogue/menu-extraction`;
 
@@ -310,10 +314,14 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
       {review && sourcePublicId ? (
         <div className="stack gap-3">
           <p className="text-sm">
-            Run {review.runPublicId} · {menuExtractionRunStatusLabel(review.status, uiLocale)}
+            Run {review.runPublicId} ·{" "}
+            {menuExtractionRunStatusLabel(review.status, uiLocale, review.decision)}
             {shouldPollMenuExtractionReview(review.status) ? ` · ${t.extractionInProgress}` : ""}
             {!review.gateReady ? ` · ${t.gateBlocked}` : ""}
           </p>
+          {review.decision === "rejected" ? (
+            <p className="text-sm" role="status">{t.reviewCancelled}</p>
+          ) : null}
           {review.status === "failed" ? (
             <div className="stack gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
               <p className="font-medium">{t.extractionFailed}</p>
@@ -359,6 +367,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
                         <td className="p-2">
                           <input
                             className="w-full border rounded px-2 py-1"
+                            disabled={reviewClosed || busy}
                             value={row.payload.displayNameEn ?? ""}
                             onChange={(event) => {
                               const next = [...draft];
@@ -384,6 +393,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
                                 : ""
                             }`}
                             dir="rtl"
+                            disabled={reviewClosed || busy}
                             required={!row.excluded}
                             aria-invalid={Boolean(fieldErrors[`${row.candidateKey}:displayNameAr`])}
                             value={row.payload.displayNameAr ?? ""}
@@ -415,6 +425,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
                         <td className="p-2">
                           <input
                             className="w-full border rounded px-2 py-1"
+                            disabled={reviewClosed || busy}
                             value={row.payload.priceText ?? ""}
                             onChange={(event) => {
                               const next = [...draft];
@@ -435,6 +446,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
                         <td className="p-2">
                           <input
                             type="checkbox"
+                            disabled={reviewClosed || busy}
                             checked={row.excluded}
                             onChange={(event) => {
                               const next = [...draft];
@@ -451,13 +463,23 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
             </div>
           )}
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="btn" disabled={busy} onClick={() => void saveDraft()}>
+            <button
+              type="button"
+              className="btn"
+              disabled={busy || reviewClosed}
+              onClick={() => void saveDraft()}
+            >
               Save edits
             </button>
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={() => void confirm()}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={busy || reviewClosed}
+              onClick={() => void confirm()}
+            >
               {t.confirm}
             </button>
-            <button type="button" className="btn" disabled={busy} onClick={() => void reject()}>
+            <button type="button" className="btn" disabled={busy || reviewClosed} onClick={() => void reject()}>
               {t.reject}
             </button>
           </div>

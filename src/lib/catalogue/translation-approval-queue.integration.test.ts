@@ -3,7 +3,14 @@ import { randomBytes } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { agentRuns, catalogueProductTranslations, staffIdentities, staffLocationScopes, staffMemberships } from "@/db/schema";
+import {
+  agentRuns,
+  catalogueProductTranslations,
+  staffIdentities,
+  staffLocationScopes,
+  staffMemberships,
+  tenantAuditEvents,
+} from "@/db/schema";
 import { grantRoleMembership, hasIntegrationDatabase, resetAndMigrate, runAsRole } from "@/db/test-utils";
 import { readAgentConfig } from "@/lib/agents/config";
 import { createCatalogueTranslationJobHandler } from "@/lib/catalogue/translation-review/catalogue-translation-job";
@@ -21,7 +28,7 @@ import {
   type ClaimedAiJob,
 } from "@/lib/ai/jobs/ai-job-queue";
 import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
-import { createDraftProduct } from "@/lib/catalogue/products";
+import { createDraftProduct, updateDraftProduct } from "@/lib/catalogue/products";
 import {
   approveProductTranslation,
   listPendingAiTranslationApprovals,
@@ -294,6 +301,7 @@ integrationDescribe("AI translation approval queue (DB)", () => {
       .select({
         approvalStatus: catalogueProductTranslations.approvalStatus,
         provenance: catalogueProductTranslations.provenance,
+        displayName: catalogueProductTranslations.displayName,
       })
       .from(catalogueProductTranslations)
       .where(
@@ -302,12 +310,14 @@ integrationDescribe("AI translation approval queue (DB)", () => {
           eq(catalogueProductTranslations.locale, "ar"),
         ),
       );
-    expect(row?.approvalStatus).toBe("rejected");
-    expect(row?.provenance).toBe("ai_generated");
+    expect(row?.approvalStatus).toBe("approved");
+    expect(row?.provenance).toBe("operator_entered");
+    expect(row?.displayName).toBe(suggestion.displayName);
   });
 
-  it("keeps ai_generated provenance when admin rejects a pending ai draft", async () => {
+  it("reverts catalogue text to the pre-accept snapshot when admin rejects", async () => {
     const { quotes, product, adminCaller } = await seedTenant();
+    const baseline = { displayName: "لاتيه", description: "قهوة مع حليب." };
     const suggestion = { displayName: "مراجعة", description: "نص." };
     const run = await completeRun(adminCaller, product.publicId, suggestion);
 
@@ -326,7 +336,12 @@ integrationDescribe("AI translation approval queue (DB)", () => {
     });
 
     const [row] = await db
-      .select({ provenance: catalogueProductTranslations.provenance })
+      .select({
+        displayName: catalogueProductTranslations.displayName,
+        description: catalogueProductTranslations.description,
+        provenance: catalogueProductTranslations.provenance,
+        approvalStatus: catalogueProductTranslations.approvalStatus,
+      })
       .from(catalogueProductTranslations)
       .where(
         and(
@@ -334,7 +349,90 @@ integrationDescribe("AI translation approval queue (DB)", () => {
           eq(catalogueProductTranslations.locale, "ar"),
         ),
       );
-    expect(row?.provenance).toBe("ai_generated");
+    expect(row).toMatchObject({
+      displayName: baseline.displayName,
+      description: baseline.description,
+      provenance: "operator_entered",
+      approvalStatus: "draft",
+    });
+
+    const [audit] = await db
+      .select()
+      .from(tenantAuditEvents)
+      .where(eq(tenantAuditEvents.action, "catalogue.translation.reject"));
+    expect(audit?.changeSummary).toMatchObject({ revertedToSnapshot: true });
+  });
+
+  it("does not re-queue approval when a saved draft matches last approved text", async () => {
+    const { quotes, product, adminCaller } = await seedTenant();
+    const suggestion = { displayName: "لاتيه محدث", description: "وصف." };
+    const run = await completeRun(adminCaller, product.publicId, suggestion);
+
+    await runAsRole(sqlClient, "qos_app", () =>
+      acceptCatalogueTranslation(db, adminCaller, product.publicId, {
+        runPublicId: run.publicId,
+        displayName: suggestion.displayName,
+        description: suggestion.description,
+        expectedTargetTranslationVersion: 1,
+      }),
+    );
+
+    const pending = await listPendingAiTranslationApprovals(db, quotes.tenant.id, ADMIN_SUBJECT);
+    await approveProductTranslation(db, quotes.tenant.id, ADMIN_SUBJECT, product.publicId, "ar", {
+      expectedTranslationVersion: pending.items[0]!.translationVersion,
+    });
+
+    const run2 = await completeRun(adminCaller, product.publicId, {
+      displayName: "مسودة ثانية",
+      description: "ثاني.",
+    });
+    await runAsRole(sqlClient, "qos_app", () =>
+      acceptCatalogueTranslation(db, adminCaller, product.publicId, {
+        runPublicId: run2.publicId,
+        displayName: "مسودة ثانية",
+        description: "ثاني.",
+        expectedTargetTranslationVersion: 2,
+      }),
+    );
+
+    const pending2 = await listPendingAiTranslationApprovals(db, quotes.tenant.id, ADMIN_SUBJECT);
+    await rejectProductTranslation(db, quotes.tenant.id, ADMIN_SUBJECT, product.publicId, "ar", {
+      expectedTranslationVersion: pending2.items[0]!.translationVersion,
+    });
+
+    const [row] = await db
+      .select({ translationVersion: catalogueProductTranslations.translationVersion })
+      .from(catalogueProductTranslations)
+      .where(
+        and(
+          eq(catalogueProductTranslations.tenantId, quotes.tenant.id),
+          eq(catalogueProductTranslations.locale, "ar"),
+        ),
+      );
+    const version = row!.translationVersion;
+
+    await runAsRole(sqlClient, "qos_app", () =>
+      updateDraftProduct(
+        db,
+        quotes.tenant.id,
+        adminCaller.membership,
+        product.publicId,
+        {
+          expectedVersion: product.version,
+          translations: {
+            ar: {
+              expectedTranslationVersion: version,
+              displayName: suggestion.displayName,
+              description: suggestion.description,
+            },
+          },
+        },
+        ADMIN_SUBJECT,
+      ),
+    );
+
+    const list = await listPendingAiTranslationApprovals(db, quotes.tenant.id, ADMIN_SUBJECT);
+    expect(list.items).toHaveLength(0);
   });
 
   it("lists proposed copy from the catalogue translation row", async () => {

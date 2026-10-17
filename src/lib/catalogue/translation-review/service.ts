@@ -641,9 +641,17 @@ export async function acceptCatalogueTranslation(
       return true;
     }
 
+    const revertSnapshot = {
+      adminReviewRevertDisplayName: targetRow.displayName,
+      adminReviewRevertDescription: targetRow.description,
+      adminReviewRevertProvenance: targetRow.provenance,
+      adminReviewRevertApprovalStatus: targetRow.approvalStatus,
+    };
+
     const [applied] = await tx
       .update(catalogueProductTranslations)
       .set({
+        ...revertSnapshot,
         displayName: claimSanitized.value.displayName,
         description: claimSanitized.value.description,
         translationVersion: targetRow.translationVersion + 1,

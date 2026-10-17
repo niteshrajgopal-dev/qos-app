@@ -235,7 +235,7 @@ export function AiTranslationReview({
         >
           {t.title}
         </h2>
-        <p className="qos-card-sub">{t.subtitle}</p>
+        <p className="text-sm" style={{ color: "var(--text-primary)" }}>{t.subtitle}</p>
       </header>
 
       <div className="flex flex-wrap gap-2">
@@ -282,15 +282,17 @@ export function AiTranslationReview({
         </p>
       ) : null}
       {review?.suggestionState === "accepted" ? (
-        <p className="qos-card-sub" role="status">{t.accepted}</p>
+        <p className="text-sm" style={{ color: "var(--text-primary)" }} role="status">{t.accepted}</p>
       ) : null}
       {review?.suggestionState === "rejected" ? (
-        <p className="qos-card-sub" role="status">{t.rejected}</p>
+        <p className="text-sm" style={{ color: "var(--text-primary)" }} role="status">{t.rejected}</p>
       ) : null}
       {review && review.status !== "completed" && review.suggestionState === "pending" ? (
-        <p className="qos-card-sub" role="status">{t.pending}</p>
+        <p className="text-sm" style={{ color: "var(--text-primary)" }} role="status">{t.pending}</p>
       ) : null}
-      {!review ? <p className="qos-card-sub">{t.none}</p> : null}
+      {!review ? (
+        <p className="text-sm" style={{ color: "var(--text-primary)" }}>{t.none}</p>
+      ) : null}
 
       {review ? (
         <div className="grid gap-6 lg:grid-cols-2">
@@ -303,13 +305,13 @@ export function AiTranslationReview({
             </h3>
             <dl className="space-y-2 text-sm">
               <div>
-                <dt className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                <dt className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                   {t.displayName}
                 </dt>
                 <dd style={{ color: "var(--text-primary)" }}>{review.source.displayName}</dd>
               </div>
               <div>
-                <dt className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                <dt className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                   {t.description}
                 </dt>
                 <dd style={{ color: "var(--text-primary)" }}>
@@ -329,7 +331,7 @@ export function AiTranslationReview({
             {canEdit ? (
               <div className="space-y-3 text-sm">
                 <label className="block">
-                  <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                     {t.displayName}
                   </span>
                   <input
@@ -340,7 +342,7 @@ export function AiTranslationReview({
                   />
                 </label>
                 <label className="block">
-                  <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                  <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
                     {t.description}
                   </span>
                   <textarea

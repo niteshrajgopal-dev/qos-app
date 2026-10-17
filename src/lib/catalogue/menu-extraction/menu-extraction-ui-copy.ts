@@ -24,6 +24,7 @@ const COPY = {
     extractionInProgress: "Extraction in progress…",
     requiredField: "Required before confirm",
     missingArabicName: "Arabic name is required before confirm.",
+    reviewCancelled: "This extraction review was cancelled. Catalogue data was not changed.",
   },
   ar: {
     title: "مراجعة استخراج القائمة",
@@ -48,6 +49,7 @@ const COPY = {
     extractionInProgress: "الاستخراج قيد التنفيذ…",
     requiredField: "مطلوب قبل التأكيد",
     missingArabicName: "الاسم العربي مطلوب قبل التأكيد.",
+    reviewCancelled: "تم إلغاء مراجعة الاستخراج. لم تتغير بيانات الكتالوج.",
   },
 } as const;
 
