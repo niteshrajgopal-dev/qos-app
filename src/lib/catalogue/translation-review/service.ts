@@ -32,6 +32,7 @@ import {
   auditActorClassFromStaffRole,
   recordTenantAuditEventInTx,
 } from "@/lib/audit/tenant-audit";
+import { loadCatalogueProductForMutationInTx } from "@/lib/catalogue/product-mutation-policy";
 import { adminReviewRevertSnapshotFromRow } from "@/lib/catalogue/translation-admin-review-snapshot";
 import {
   CURRENT_CATALOGUE_TRANSLATION_DEFINITION,
@@ -377,6 +378,10 @@ export async function requestCatalogueTranslation(
 ) {
   await requireAdministratorMembership(db, caller.tenantId, caller.subject);
 
+  await withTenantContext(db, caller.tenantId, async (tx) => {
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
+  });
+
   if (input.sourceLocale === input.targetLocale) {
     throw new AgentRunError(
       "invalid_locales",
@@ -543,6 +548,10 @@ export async function acceptCatalogueTranslation(
 ) {
   await requireAdministratorMembership(db, caller.tenantId, caller.subject);
 
+  await withTenantContext(db, caller.tenantId, async (tx) => {
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
+  });
+
   const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
   assertTranslationRun(run, productPublicId);
   const summary = parseRequestSummary(run);
@@ -555,6 +564,7 @@ export async function acceptCatalogueTranslation(
 
   const idempotentReplay = await withTenantContext(db, caller.tenantId, async (tx) => {
     await assertTenantActive(tx, caller.tenantId);
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
     const loaded = await loadProductTranslations(tx, caller.tenantId, productPublicId);
     if (!loaded) {
       throw new AgentRunError("product_not_found", "Product not found.", 404);
@@ -707,11 +717,16 @@ export async function rejectCatalogueTranslation(
 ) {
   await requireAdministratorMembership(db, caller.tenantId, caller.subject);
 
+  await withTenantContext(db, caller.tenantId, async (tx) => {
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
+  });
+
   const run = await getAgentRun(db, caller.tenantId, input.runPublicId);
   assertTranslationRun(run, productPublicId);
 
   await withTenantContext(db, caller.tenantId, async (tx) => {
     await assertTenantActive(tx, caller.tenantId);
+    await loadCatalogueProductForMutationInTx(tx, caller.tenantId, productPublicId);
     const loaded = await loadProductTranslations(tx, caller.tenantId, productPublicId);
     if (!loaded) {
       throw new AgentRunError("product_not_found", "Product not found.", 404);

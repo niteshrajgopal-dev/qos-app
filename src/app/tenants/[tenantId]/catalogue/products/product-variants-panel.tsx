@@ -2,6 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import {
+  productVariantControlDisabled,
+  productVariantPriceDisabled,
+  productVariantsPanelShowsAddForm,
+} from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel-state";
+import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type VariantTranslation = {
@@ -32,6 +38,7 @@ type VariantsResponse = {
 type ProductVariantsPanelProps = {
   tenantId: string;
   productPublicId: string;
+  productStatus: CatalogueProductEditorStatus;
 };
 
 type NewVariantForm = {
@@ -72,7 +79,9 @@ function minorToMajor(value: number | null) {
 export function ProductVariantsPanel({
   tenantId,
   productPublicId,
+  productStatus,
 }: ProductVariantsPanelProps) {
+  const productReadOnly = productStatus === "archived";
   const [view, setView] = useState<VariantsResponse | null>(null);
   const [newVariant, setNewVariant] = useState<NewVariantForm>(emptyNewVariant);
   const [busy, setBusy] = useState(false);
@@ -295,7 +304,7 @@ export function ProductVariantsPanel({
         <button
           type="button"
           onClick={() => void loadVariants()}
-          disabled={busy}
+          disabled={productVariantControlDisabled(productReadOnly, false, busy)}
           className="qos-btn" data-variant="secondary" data-size="sm"
         >
           Reload
@@ -345,7 +354,11 @@ export function ProductVariantsPanel({
                 <input
                   className="qos-input"
                   value={variant.translations.en.displayName}
-                  disabled={variant.status === "archived" || busy}
+                  disabled={productVariantControlDisabled(
+                    productReadOnly,
+                    variant.status === "archived",
+                    busy,
+                  )}
                   onChange={(event) => {
                     if (!view) {
                       return;
@@ -373,7 +386,11 @@ export function ProductVariantsPanel({
                 <input
                   className="qos-input"
                   value={variant.translations.ar.displayName}
-                  disabled={variant.status === "archived" || busy}
+                  disabled={productVariantControlDisabled(
+                    productReadOnly,
+                    variant.status === "archived",
+                    busy,
+                  )}
                   onChange={(event) => {
                     if (!view) {
                       return;
@@ -401,9 +418,12 @@ export function ProductVariantsPanel({
                 <input
                   className="qos-input"
                   value={minorToMajor(variant.amountMinor)}
-                  disabled={
-                    variant.status === "archived" || busy || !view?.canEditPrice
-                  }
+                  disabled={productVariantPriceDisabled(
+                    productReadOnly,
+                    variant.status === "archived",
+                    busy,
+                    view?.canEditPrice ?? false,
+                  )}
                   onChange={(event) => {
                     if (!view) {
                       return;
@@ -426,7 +446,11 @@ export function ProductVariantsPanel({
                 <input
                   className="qos-input"
                   value={variant.sku ?? ""}
-                  disabled={variant.status === "archived" || busy}
+                  disabled={productVariantControlDisabled(
+                    productReadOnly,
+                    variant.status === "archived",
+                    busy,
+                  )}
                   onChange={(event) => {
                     if (!view) {
                       return;
@@ -445,7 +469,7 @@ export function ProductVariantsPanel({
               </label>
             </div>
 
-            {variant.status === "active" ? (
+            {variant.status === "active" && !productReadOnly ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
                   type="button"
@@ -508,66 +532,68 @@ export function ProductVariantsPanel({
         ))}
       </div>
 
-      <form
-        onSubmit={(event) => void handleCreateVariant(event)}
-        className="mt-8 rounded-xl border border-dashed border-zinc-300 p-4"
-      >
-        <h3 className="text-lg font-medium">Add variant</h3>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700">English label</span>
-            <input
-              className="qos-input"
-              value={newVariant.enLabel}
-              disabled={busy}
-              onChange={(event) =>
-                setNewVariant({ ...newVariant, enLabel: event.target.value })
-              }
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700">Arabic label</span>
-            <input
-              className="qos-input"
-              value={newVariant.arLabel}
-              disabled={busy}
-              onChange={(event) =>
-                setNewVariant({ ...newVariant, arLabel: event.target.value })
-              }
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700">AED price</span>
-            <input
-              className="qos-input"
-              value={newVariant.priceMajor}
-              disabled={busy || view?.canEditPrice === false}
-              onChange={(event) =>
-                setNewVariant({ ...newVariant, priceMajor: event.target.value })
-              }
-            />
-          </label>
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700">Optional public ID</span>
-            <input
-              className="qos-input"
-              placeholder="var_medium_abc12345"
-              value={newVariant.publicId}
-              disabled={busy}
-              onChange={(event) =>
-                setNewVariant({ ...newVariant, publicId: event.target.value })
-              }
-            />
-          </label>
-        </div>
-        <button
-          type="submit"
-          disabled={busy || !view}
-          className="qos-btn" data-variant="primary"
+      {productVariantsPanelShowsAddForm(productReadOnly) ? (
+        <form
+          onSubmit={(event) => void handleCreateVariant(event)}
+          className="mt-8 rounded-xl border border-dashed border-zinc-300 p-4"
         >
-          Add variant
-        </button>
-      </form>
+          <h3 className="text-lg font-medium">Add variant</h3>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="block text-sm">
+              <span className="font-medium text-zinc-700">English label</span>
+              <input
+                className="qos-input"
+                value={newVariant.enLabel}
+                disabled={busy}
+                onChange={(event) =>
+                  setNewVariant({ ...newVariant, enLabel: event.target.value })
+                }
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-zinc-700">Arabic label</span>
+              <input
+                className="qos-input"
+                value={newVariant.arLabel}
+                disabled={busy}
+                onChange={(event) =>
+                  setNewVariant({ ...newVariant, arLabel: event.target.value })
+                }
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-zinc-700">AED price</span>
+              <input
+                className="qos-input"
+                value={newVariant.priceMajor}
+                disabled={busy || view?.canEditPrice === false}
+                onChange={(event) =>
+                  setNewVariant({ ...newVariant, priceMajor: event.target.value })
+                }
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="font-medium text-zinc-700">Optional public ID</span>
+              <input
+                className="qos-input"
+                placeholder="var_medium_abc12345"
+                value={newVariant.publicId}
+                disabled={busy}
+                onChange={(event) =>
+                  setNewVariant({ ...newVariant, publicId: event.target.value })
+                }
+              />
+            </label>
+          </div>
+          <button
+            type="submit"
+            disabled={busy || !view}
+            className="qos-btn" data-variant="primary"
+          >
+            Add variant
+          </button>
+        </form>
+      ) : null}
     </section>
   );
 }

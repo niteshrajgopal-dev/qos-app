@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { shouldShowTranslationAcceptedBanner } from "@/lib/catalogue/ai-translation-review-ui";
+import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
+import { productEditorChildMutationsDisabled } from "@/lib/catalogue/product-editor-mutation-ui";
 import { StaffTranslationFieldRow } from "@/lib/catalogue/staff-translation-field-row";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
@@ -91,6 +93,34 @@ export function AiTranslationReview({
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [acceptedThisSession, setAcceptedThisSession] = useState(false);
+  const [productStatus, setProductStatus] =
+    useState<CatalogueProductEditorStatus>(null);
+  const mutationsDisabled = productEditorChildMutationsDisabled(productStatus);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await staffApiFetch(
+          `/api/tenants/${tenantId}/catalogue/products/${productPublicId}`,
+        );
+        const payload = (await response.json()) as {
+          product?: { status: CatalogueProductEditorStatus };
+        };
+        if (cancelled || !response.ok || !payload.product?.status) {
+          return;
+        }
+        setProductStatus(payload.product.status);
+      } catch {
+        // Leave controls enabled when status is unknown.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productPublicId, tenantId]);
 
   const loadReview = useCallback(async () => {
     const response = await staffApiFetch(`${base}/review`);
@@ -249,7 +279,7 @@ export function AiTranslationReview({
           className="qos-btn"
           data-variant="secondary"
           data-size="sm"
-          disabled={busy || !gateReady}
+          disabled={busy || !gateReady || mutationsDisabled}
           onClick={() => void requestTranslation("en", "ar")}
         >
           {t.requestEnToAr}
@@ -259,7 +289,7 @@ export function AiTranslationReview({
           className="qos-btn"
           data-variant="secondary"
           data-size="sm"
-          disabled={busy || !gateReady}
+          disabled={busy || !gateReady || mutationsDisabled}
           onClick={() => void requestTranslation("ar", "en")}
         >
           {t.requestArToEn}
@@ -342,6 +372,7 @@ export function AiTranslationReview({
                   <input
                     className="qos-input mt-1 w-full"
                     value={displayName}
+                    disabled={mutationsDisabled}
                     onChange={(event) => setDisplayName(event.target.value)}
                     dir={targetDir}
                   />
@@ -353,6 +384,7 @@ export function AiTranslationReview({
                   <textarea
                     className="qos-input mt-1 w-full min-h-[96px]"
                     value={description}
+                    disabled={mutationsDisabled}
                     onChange={(event) => setDescription(event.target.value)}
                     dir={targetDir}
                   />
@@ -363,7 +395,7 @@ export function AiTranslationReview({
                     className="qos-btn"
                     data-variant="primary"
                     data-size="sm"
-                    disabled={busy}
+                    disabled={busy || mutationsDisabled}
                     onClick={() => void accept()}
                   >
                     {t.accept}
@@ -373,7 +405,7 @@ export function AiTranslationReview({
                     className="qos-btn"
                     data-variant="secondary"
                     data-size="sm"
-                    disabled={busy}
+                    disabled={busy || mutationsDisabled}
                     onClick={() => void reject()}
                   >
                     {t.reject}

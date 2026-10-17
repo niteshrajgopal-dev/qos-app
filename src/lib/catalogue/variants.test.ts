@@ -6,9 +6,11 @@ import {
   resetAndMigrate,
 } from "@/db/test-utils";
 import {
+  archiveDraftProduct,
   createDraftProduct,
   getDraftProduct,
 } from "@/lib/catalogue/products";
+import { CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE } from "@/lib/catalogue/product-mutation-policy";
 import {
   CatalogueVariantConflictError,
   CatalogueVariantError,
@@ -451,6 +453,88 @@ integrationDescribe("catalogue product variants", () => {
         "user.quotes@test",
       ),
     ).rejects.toBeInstanceOf(StaffAuthorizationError);
+  });
+
+  it("blocks variant mutations on archived products with product_archived", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const admin = await seedStaffMember(
+      quotes.tenant.id,
+      "administrator",
+      "admin.archive-variants@test",
+      "admin.archive-variants@test",
+    );
+
+    const product = await createDraftProduct(
+      db,
+      quotes.tenant.id,
+      admin,
+      baseProductInput,
+    );
+
+    const archived = await archiveDraftProduct(
+      db,
+      quotes.tenant.id,
+      product.publicId,
+      "admin.archive-variants@test",
+    );
+
+    await expect(
+      createProductVariant(
+        db,
+        quotes.tenant.id,
+        admin,
+        product.publicId,
+        {
+          expectedProductVersion: archived.version,
+          translations: {
+            en: { displayName: "Large" },
+            ar: { displayName: "كبير" },
+          },
+        },
+        "admin.archive-variants@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
+    });
+
+    await expect(
+      updateProductVariant(
+        db,
+        quotes.tenant.id,
+        admin,
+        product.publicId,
+        product.defaultVariant.publicId,
+        {
+          expectedProductVersion: archived.version,
+          translations: {
+            en: { displayName: "Updated" },
+            ar: { displayName: "محدث" },
+          },
+        },
+        "admin.archive-variants@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
+    });
+
+    await expect(
+      reorderProductVariants(
+        db,
+        quotes.tenant.id,
+        admin,
+        product.publicId,
+        {
+          expectedProductVersion: archived.version,
+          orderedPublicIds: [product.defaultVariant.publicId],
+        },
+        "admin.archive-variants@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
+    });
   });
 
   it("loads flower fixture variants with localized labels", async () => {

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
+import { productEditorChildMutationsDisabled } from "@/lib/catalogue/product-editor-mutation-ui";
 import { StaffTranslationFieldRow } from "@/lib/catalogue/staff-translation-field-row";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
@@ -60,6 +62,34 @@ export function TranslationReview({
   const [review, setReview] = useState<ReviewBundle | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busyLocale, setBusyLocale] = useState<"en" | "ar" | null>(null);
+  const [productStatus, setProductStatus] =
+    useState<CatalogueProductEditorStatus>(null);
+  const mutationsDisabled = productEditorChildMutationsDisabled(productStatus);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await staffApiFetch(
+          `/api/tenants/${tenantId}/catalogue/products/${productPublicId}`,
+        );
+        const payload = (await response.json()) as {
+          product?: { status: CatalogueProductEditorStatus };
+        };
+        if (cancelled || !response.ok || !payload.product?.status) {
+          return;
+        }
+        setProductStatus(payload.product.status);
+      } catch {
+        // Leave controls enabled when status is unknown.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productPublicId, tenantId]);
 
   const loadReview = useCallback(async () => {
     setError(null);
@@ -239,7 +269,7 @@ export function TranslationReview({
                   <div className="flex gap-2 pt-2">
                     <button
                       type="button"
-                      disabled={busyLocale === "en"}
+                      disabled={mutationsDisabled || busyLocale === "en"}
                       onClick={() => void mutateTranslation("en", "approve")}
                       className="qos-btn" data-variant="primary" data-size="sm"
                     >
@@ -247,7 +277,7 @@ export function TranslationReview({
                     </button>
                     <button
                       type="button"
-                      disabled={busyLocale === "en"}
+                      disabled={mutationsDisabled || busyLocale === "en"}
                       onClick={() => void mutateTranslation("en", "reject")}
                       className="qos-btn" data-variant="secondary" data-size="sm"
                     >
@@ -344,7 +374,7 @@ export function TranslationReview({
                   <div className="flex gap-2 pt-2">
                     <button
                       type="button"
-                      disabled={busyLocale === "ar"}
+                      disabled={mutationsDisabled || busyLocale === "ar"}
                       onClick={() => void mutateTranslation("ar", "approve")}
                       className="qos-btn" data-variant="primary" data-size="sm"
                     >
@@ -352,7 +382,7 @@ export function TranslationReview({
                     </button>
                     <button
                       type="button"
-                      disabled={busyLocale === "ar"}
+                      disabled={mutationsDisabled || busyLocale === "ar"}
                       onClick={() => void mutateTranslation("ar", "reject")}
                       className="qos-btn" data-variant="secondary" data-size="sm"
                     >

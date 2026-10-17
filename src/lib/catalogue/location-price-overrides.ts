@@ -20,6 +20,10 @@ import {
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { listTenantLocations } from "@/lib/tenant/repository";
+import {
+  CatalogueProductMutationGuardError,
+  loadCatalogueProductForMutationInTx,
+} from "@/lib/catalogue/product-mutation-policy";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class LocationPriceOverrideError extends Error {
@@ -56,6 +60,10 @@ export type ProductLocationPriceBundle = {
 };
 
 function mapLocationPriceError(error: unknown): never {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    throw error;
+  }
+
   if (error instanceof StaffAuthorizationError) {
     throw error;
   }
@@ -284,6 +292,8 @@ export async function setProductLocationPriceOverride(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
+      await loadCatalogueProductForMutationInTx(tx, tenantId, productPublicId);
+
       const context = await loadDefaultVariantContext(
         tx,
         tenantId,
@@ -397,6 +407,8 @@ export async function resetProductLocationPriceOverride(
     requirePriceEditCapability(membership);
 
     return await withTenantContext(db, tenantId, async (tx) => {
+      await loadCatalogueProductForMutationInTx(tx, tenantId, productPublicId);
+
       const context = await loadDefaultVariantContext(
         tx,
         tenantId,

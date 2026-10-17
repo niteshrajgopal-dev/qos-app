@@ -38,23 +38,35 @@ import {
 } from "@/lib/audit/tenant-audit";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
+import {
+  CatalogueProductMutationGuardError,
+  CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
+  loadCatalogueProductForMutationInTx,
+} from "@/lib/catalogue/product-mutation-policy";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class CatalogueModifierError extends Error {
   readonly statusCode: number;
   readonly field?: string;
+  readonly code?: string;
 
-  constructor(message: string, statusCode = 400, field?: string) {
+  constructor(
+    message: string,
+    statusCode = 400,
+    field?: string,
+    code?: string,
+  ) {
     super(message);
     this.name = "CatalogueModifierError";
     this.statusCode = statusCode;
     this.field = field;
+    this.code = code;
   }
 }
 
 export class CatalogueModifierConflictError extends CatalogueModifierError {
-  constructor(message: string, field?: string) {
-    super(message, 409, field);
+  constructor(message: string, field?: string, code?: string) {
+    super(message, 409, field, code);
     this.name = "CatalogueModifierConflictError";
   }
 }
@@ -125,6 +137,25 @@ function generateModifierOptionPublicId(label?: string) {
 }
 
 function mapCatalogueError(error: unknown): never {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    if (error.statusCode === 404) {
+      throw new CatalogueModifierError(error.message, 404, error.field);
+    }
+    if (error.code === CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE) {
+      throw new CatalogueModifierConflictError(
+        error.message,
+        error.field,
+        error.code,
+      );
+    }
+    throw new CatalogueModifierError(
+      error.message,
+      error.statusCode,
+      error.field,
+      error.code,
+    );
+  }
+
   if (error instanceof CatalogueValidationError) {
     throw new CatalogueModifierError(error.message, 400, error.field);
   }
@@ -1158,20 +1189,11 @@ export async function attachModifierGroupToProduct(
     const validated = validateAttachModifierGroupInput(input);
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const [product] = await tx
-        .select()
-        .from(catalogueProducts)
-        .where(
-          and(
-            eq(catalogueProducts.tenantId, tenantId),
-            eq(catalogueProducts.publicId, productPublicId),
-          ),
-        )
-        .limit(1);
-
-      if (!product) {
-        throw new CatalogueModifierError("Product not found.", 404);
-      }
+      const product = await loadCatalogueProductForMutationInTx(
+        tx,
+        tenantId,
+        productPublicId,
+      );
 
       const group = await loadGroupByPublicId(
         tx,
@@ -1281,20 +1303,11 @@ export async function detachModifierGroupFromProduct(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const [product] = await tx
-        .select()
-        .from(catalogueProducts)
-        .where(
-          and(
-            eq(catalogueProducts.tenantId, tenantId),
-            eq(catalogueProducts.publicId, productPublicId),
-          ),
-        )
-        .limit(1);
-
-      if (!product) {
-        throw new CatalogueModifierError("Product not found.", 404);
-      }
+      const product = await loadCatalogueProductForMutationInTx(
+        tx,
+        tenantId,
+        productPublicId,
+      );
 
       const group = await loadGroupByPublicId(tx, tenantId, modifierGroupPublicId);
 
@@ -1356,20 +1369,11 @@ export async function reorderProductModifierGroups(
     const validated = validateReorderProductModifierGroupsInput(input);
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const [product] = await tx
-        .select()
-        .from(catalogueProducts)
-        .where(
-          and(
-            eq(catalogueProducts.tenantId, tenantId),
-            eq(catalogueProducts.publicId, productPublicId),
-          ),
-        )
-        .limit(1);
-
-      if (!product) {
-        throw new CatalogueModifierError("Product not found.", 404);
-      }
+      const product = await loadCatalogueProductForMutationInTx(
+        tx,
+        tenantId,
+        productPublicId,
+      );
 
       const assignments = await tx
         .select({

@@ -26,23 +26,35 @@ import {
 } from "@/lib/audit/tenant-audit";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
+import {
+  CatalogueProductMutationGuardError,
+  CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
+  loadCatalogueProductForMutationInTx,
+} from "@/lib/catalogue/product-mutation-policy";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class CatalogueVariantError extends Error {
   readonly statusCode: number;
   readonly field?: string;
+  readonly code?: string;
 
-  constructor(message: string, statusCode = 400, field?: string) {
+  constructor(
+    message: string,
+    statusCode = 400,
+    field?: string,
+    code?: string,
+  ) {
     super(message);
     this.name = "CatalogueVariantError";
     this.statusCode = statusCode;
     this.field = field;
+    this.code = code;
   }
 }
 
 export class CatalogueVariantConflictError extends CatalogueVariantError {
-  constructor(message: string, field?: string) {
-    super(message, 409, field);
+  constructor(message: string, field?: string, code?: string) {
+    super(message, 409, field, code);
     this.name = "CatalogueVariantConflictError";
   }
 }
@@ -84,6 +96,25 @@ function generateVariantPublicId(label?: string) {
 }
 
 function mapCatalogueError(error: unknown): never {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    if (error.statusCode === 404) {
+      throw new CatalogueVariantError(error.message, 404, error.field);
+    }
+    if (error.code === CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE) {
+      throw new CatalogueVariantConflictError(
+        error.message,
+        error.field,
+        error.code,
+      );
+    }
+    throw new CatalogueVariantError(
+      error.message,
+      error.statusCode,
+      error.field,
+      error.code,
+    );
+  }
+
   if (error instanceof CatalogueValidationError) {
     throw new CatalogueVariantError(error.message, 400, error.field);
   }
@@ -546,7 +577,11 @@ export async function createProductVariant(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForVariants(tx, tenantId, productPublicId);
+      const product = await loadCatalogueProductForMutationInTx(
+        tx,
+        tenantId,
+        productPublicId,
+      );
 
       if (validated.publicId) {
         const [existingVariant] = await tx
@@ -706,7 +741,11 @@ export async function updateProductVariant(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForVariants(tx, tenantId, productPublicId);
+      const product = await loadCatalogueProductForMutationInTx(
+        tx,
+        tenantId,
+        productPublicId,
+      );
 
       const [variant] = await tx
         .select()
@@ -911,7 +950,11 @@ export async function reorderProductVariants(
     const validated = validateReorderProductVariantsInput(input);
 
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await loadProductForVariants(tx, tenantId, productPublicId);
+      const product = await loadCatalogueProductForMutationInTx(
+        tx,
+        tenantId,
+        productPublicId,
+      );
       const variants = await tx
         .select({
           id: catalogueVariants.id,

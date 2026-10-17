@@ -28,6 +28,11 @@ import {
   auditActorClassFromStaffRole,
   recordTenantAuditEventInTx,
 } from "@/lib/audit/tenant-audit";
+import {
+  CatalogueProductMutationGuardError,
+  CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
+  loadCatalogueProductForMutationInTx,
+} from "@/lib/catalogue/product-mutation-policy";
 import { type TenantDbExecutor, withTenantContext } from "@/lib/tenant/context";
 
 export const CATALOGUE_PRODUCT_ARCHIVE_CODES = {
@@ -126,6 +131,25 @@ function generateDefaultVariantPublicId(productPublicId: string) {
 }
 
 function mapCatalogueError(error: unknown): never {
+  if (error instanceof CatalogueProductMutationGuardError) {
+    if (error.statusCode === 404) {
+      throw new CatalogueProductError(error.message, 404, error.field);
+    }
+    if (error.code === CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE) {
+      throw new CatalogueProductConflictError(
+        error.message,
+        error.field,
+        error.code,
+      );
+    }
+    throw new CatalogueProductError(
+      error.message,
+      error.statusCode,
+      error.field,
+      error.code,
+    );
+  }
+
   if (error instanceof CatalogueValidationError) {
     throw new CatalogueProductError(error.message, 400, error.field);
   }
@@ -518,28 +542,11 @@ export async function updateDraftProductInTx(
 ): Promise<DraftProductEditorView> {
   const businessProfile = await getTenantBusinessProfile(tx, tenantId);
   const validated = validateUpdateDraftProductInput(input, businessProfile);
-  const [product] = await tx
-    .select()
-    .from(catalogueProducts)
-    .where(
-      and(
-        eq(catalogueProducts.tenantId, tenantId),
-        eq(catalogueProducts.publicId, productPublicId),
-      ),
-    )
-    .limit(1);
-
-  if (!product) {
-    throw new CatalogueProductError("Product not found.", 404);
-  }
-
-  if (product.status === "archived") {
-    throw new CatalogueProductConflictError(
-      "Archived products cannot be edited.",
-      "status",
-      "product_archived",
-    );
-  }
+  const product = await loadCatalogueProductForMutationInTx(
+    tx,
+    tenantId,
+    productPublicId,
+  );
 
   if (product.version !== validated.expectedVersion) {
     throw new CatalogueProductConflictError(

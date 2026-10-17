@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
+import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
+import { productEditorChildMutationsDisabled } from "@/lib/catalogue/product-editor-mutation-ui";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type LocationPriceView = {
@@ -54,6 +56,34 @@ export function LocationPriceOverrides({
   const [busyLocationPublicId, setBusyLocationPublicId] = useState<string | null>(
     null,
   );
+  const [productStatus, setProductStatus] =
+    useState<CatalogueProductEditorStatus>(null);
+  const mutationsDisabled = productEditorChildMutationsDisabled(productStatus);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await staffApiFetch(
+          `/api/tenants/${tenantId}/catalogue/products/${productPublicId}`,
+        );
+        const payload = (await response.json()) as {
+          product?: { status: CatalogueProductEditorStatus };
+        };
+        if (cancelled || !response.ok || !payload.product?.status) {
+          return;
+        }
+        setProductStatus(payload.product.status);
+      } catch {
+        // Leave controls enabled when status is unknown.
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [productPublicId, tenantId]);
 
   const loadPrices = useCallback(async () => {
     setError(null);
@@ -268,6 +298,7 @@ export function LocationPriceOverrides({
                         <input
                           className="qos-input"
                           value={draftAmounts[location.locationPublicId] ?? ""}
+                          disabled={mutationsDisabled}
                           onChange={(event) =>
                             setDraftAmounts((current) => ({
                               ...current,
@@ -284,7 +315,10 @@ export function LocationPriceOverrides({
                         <div className="flex flex-wrap gap-2">
                           <button
                             type="button"
-                            disabled={busyLocationPublicId === location.locationPublicId}
+                            disabled={
+                              mutationsDisabled ||
+                              busyLocationPublicId === location.locationPublicId
+                            }
                             onClick={() => void saveOverride(location.locationPublicId)}
                             className="qos-btn" data-variant="primary" data-size="sm"
                           >
@@ -294,6 +328,7 @@ export function LocationPriceOverrides({
                             <button
                               type="button"
                               disabled={
+                                mutationsDisabled ||
                                 busyLocationPublicId === location.locationPublicId
                               }
                               onClick={() =>

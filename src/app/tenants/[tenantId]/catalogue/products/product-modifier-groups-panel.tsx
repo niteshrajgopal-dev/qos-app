@@ -3,11 +3,14 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
+import { productEditorChildMutationsDisabled } from "@/lib/catalogue/product-editor-mutation-ui";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type ProductModifierGroupsPanelProps = {
   tenantId: string;
   productPublicId: string;
+  productStatus: CatalogueProductEditorStatus;
 };
 
 type AvailableGroup = {
@@ -31,7 +34,9 @@ type ProductModifierView = {
 export function ProductModifierGroupsPanel({
   tenantId,
   productPublicId,
+  productStatus,
 }: ProductModifierGroupsPanelProps) {
+  const mutationsDisabled = productEditorChildMutationsDisabled(productStatus);
   const [view, setView] = useState<ProductModifierView | null>(null);
   const [availableGroups, setAvailableGroups] = useState<AvailableGroup[]>([]);
   const [selectedGroupPublicId, setSelectedGroupPublicId] = useState("");
@@ -223,7 +228,7 @@ export function ProductModifierGroupsPanel({
               </div>
               <button
                 type="button"
-                disabled={busy}
+                disabled={busy || mutationsDisabled}
                 onClick={() => void detachGroup(group.modifierGroupPublicId)}
                 className="qos-btn" data-variant="danger" data-size="sm"
               >
@@ -234,32 +239,34 @@ export function ProductModifierGroupsPanel({
         ))}
       </div>
 
-      <div className="mt-6 flex flex-wrap items-end gap-3">
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Attach group</span>
-          <select
-            className="qos-select"
-            value={selectedGroupPublicId}
-            disabled={busy || unattachedGroups.length === 0}
-            onChange={(event) => setSelectedGroupPublicId(event.target.value)}
+      {!mutationsDisabled ? (
+        <div className="mt-6 flex flex-wrap items-end gap-3">
+          <label className="block text-sm">
+            <span className="font-medium text-zinc-700">Attach group</span>
+            <select
+              className="qos-select"
+              value={selectedGroupPublicId}
+              disabled={busy || unattachedGroups.length === 0}
+              onChange={(event) => setSelectedGroupPublicId(event.target.value)}
+            >
+              <option value="">Select a modifier group</option>
+              {unattachedGroups.map((group) => (
+                <option key={group.publicId} value={group.publicId}>
+                  {group.translations.en.displayName || group.internalName}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            disabled={busy || !selectedGroupPublicId || !view}
+            onClick={() => void attachGroup()}
+            className="qos-btn" data-variant="primary"
           >
-            <option value="">Select a modifier group</option>
-            {unattachedGroups.map((group) => (
-              <option key={group.publicId} value={group.publicId}>
-                {group.translations.en.displayName || group.internalName}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          disabled={busy || !selectedGroupPublicId || !view}
-          onClick={() => void attachGroup()}
-          className="qos-btn" data-variant="primary"
-        >
-          Attach
-        </button>
-      </div>
+            Attach
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

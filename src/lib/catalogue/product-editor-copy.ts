@@ -20,7 +20,7 @@ const COPY = {
     restoreSuccess: "Product restored to draft.",
   },
   ar: {
-    pageTitleDraft: "تعديل منتج مسود",
+    pageTitleDraft: "تعديل مسودة المنتج",
     pageTitleActive: "تعديل منتج نشط",
     pageTitleArchived: "عرض منتج مؤرشف",
     loadProduct: "تحميل المنتج",
