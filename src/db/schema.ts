@@ -94,7 +94,7 @@ export const productStatusEnum = qos.enum("product_status", [
 
 export const translationApprovalStatusEnum = qos.enum(
   "translation_approval_status",
-  ["draft", "approved"],
+  ["draft", "approved", "rejected"],
 );
 
 export const catalogueStopSaleTargetTypeEnum = qos.enum(

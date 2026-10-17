@@ -10,7 +10,7 @@ type TranslationReviewView = {
   displayName: string;
   description: string | null;
   translationVersion: number;
-  approvalStatus: "draft" | "approved";
+  approvalStatus: "draft" | "approved" | "rejected";
   provenance: string;
   approvedBySubject: string | null;
   approvedAt: string | null;
@@ -42,8 +42,14 @@ function formatTimestamp(value: string | null) {
   return new Date(value).toLocaleString();
 }
 
-function statusLabel(status: "draft" | "approved") {
-  return status === "approved" ? "Approved" : "Draft";
+function statusLabel(status: "draft" | "approved" | "rejected") {
+  if (status === "approved") {
+    return "Approved";
+  }
+  if (status === "rejected") {
+    return "Rejected";
+  }
+  return "Draft";
 }
 
 export function TranslationReview({

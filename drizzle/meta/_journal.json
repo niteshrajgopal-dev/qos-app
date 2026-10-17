@@ -358,6 +358,13 @@
       "when": 1792300000000,
       "tag": "0050_catalogue_menu_extraction",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1792400000000,
+      "tag": "0051_translation_approval_rejected",
+      "breakpoints": true
     }
   ]
 }

@@ -156,7 +156,7 @@ async function approveLocaleIfNeeded(
   productPublicId: string,
   locale: ProductLocale,
   translation: {
-    approvalStatus: "draft" | "approved";
+    approvalStatus: "draft" | "approved" | "rejected";
     translationVersion: number;
   },
 ): Promise<"approved" | "skipped"> {
