@@ -489,7 +489,6 @@ export async function approveProductTranslation(
           lastApprovedSourceTranslationVersion: approvedSourceTranslationVersion,
           lastApprovedDisplayName: translation.displayName,
           lastApprovedDescription: translation.description,
-          provenance: "operator_entered",
           ...clearAdminReviewRevertSnapshot(),
           updatedAt: approvedAt,
         })

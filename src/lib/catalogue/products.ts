@@ -615,7 +615,6 @@ export async function updateDraftProductInTx(
 
       if (matchesLastApproved && existingTranslation.lastApprovedTranslationVersion != null) {
         translationUpdates.approvalStatus = "approved";
-        translationUpdates.provenance = "operator_entered";
         translationUpdates.approvedBySubject = existingTranslation.lastApprovedBySubject;
         translationUpdates.approvedAt = existingTranslation.lastApprovedAt;
         translationUpdates.approvedTranslationVersion =

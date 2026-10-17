@@ -311,8 +311,45 @@ integrationDescribe("AI translation approval queue (DB)", () => {
         ),
       );
     expect(row?.approvalStatus).toBe("approved");
-    expect(row?.provenance).toBe("operator_entered");
+    expect(row?.provenance).toBe("ai_generated");
     expect(row?.displayName).toBe(suggestion.displayName);
+  });
+
+  it("keeps ai_generated provenance when administrator approves a pending AI draft", async () => {
+    const { quotes, product, adminCaller } = await seedTenant();
+    const suggestion = { displayName: "مراجعة", description: "نص." };
+    const run = await completeRun(adminCaller, product.publicId, suggestion);
+
+    await runAsRole(sqlClient, "qos_app", () =>
+      acceptCatalogueTranslation(db, adminCaller, product.publicId, {
+        runPublicId: run.publicId,
+        displayName: suggestion.displayName,
+        description: suggestion.description,
+        expectedTargetTranslationVersion: 1,
+      }),
+    );
+
+    const pending = await listPendingAiTranslationApprovals(db, quotes.tenant.id, ADMIN_SUBJECT);
+    await approveProductTranslation(db, quotes.tenant.id, ADMIN_SUBJECT, product.publicId, "ar", {
+      expectedTranslationVersion: pending.items[0]!.translationVersion,
+    });
+
+    const [row] = await db
+      .select({
+        provenance: catalogueProductTranslations.provenance,
+        approvalStatus: catalogueProductTranslations.approvalStatus,
+      })
+      .from(catalogueProductTranslations)
+      .where(
+        and(
+          eq(catalogueProductTranslations.tenantId, quotes.tenant.id),
+          eq(catalogueProductTranslations.locale, "ar"),
+        ),
+      );
+    expect(row).toMatchObject({
+      provenance: "ai_generated",
+      approvalStatus: "approved",
+    });
   });
 
   it("reverts catalogue text to the pre-accept snapshot when admin rejects", async () => {
@@ -433,6 +470,23 @@ integrationDescribe("AI translation approval queue (DB)", () => {
 
     const list = await listPendingAiTranslationApprovals(db, quotes.tenant.id, ADMIN_SUBJECT);
     expect(list.items).toHaveLength(0);
+
+    const [afterSave] = await db
+      .select({
+        provenance: catalogueProductTranslations.provenance,
+        approvalStatus: catalogueProductTranslations.approvalStatus,
+      })
+      .from(catalogueProductTranslations)
+      .where(
+        and(
+          eq(catalogueProductTranslations.tenantId, quotes.tenant.id),
+          eq(catalogueProductTranslations.locale, "ar"),
+        ),
+      );
+    expect(afterSave).toMatchObject({
+      provenance: "ai_generated",
+      approvalStatus: "approved",
+    });
   });
 
   it("lists proposed copy from the catalogue translation row", async () => {
