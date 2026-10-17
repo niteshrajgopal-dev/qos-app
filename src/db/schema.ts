@@ -536,6 +536,23 @@ export const catalogueProductTranslations = qos.table(
     adminReviewRevertApprovalStatus: translationApprovalStatusEnum(
       "admin_review_revert_approval_status",
     ),
+    adminReviewRevertApprovedBySubject: text(
+      "admin_review_revert_approved_by_subject",
+    ),
+    adminReviewRevertApprovedAt: timestamp("admin_review_revert_approved_at", {
+      withTimezone: true,
+    }),
+    adminReviewRevertApprovedTranslationVersion: integer(
+      "admin_review_revert_approved_translation_version",
+    ),
+    adminReviewRevertApprovedSourceTranslationVersion: integer(
+      "admin_review_revert_approved_source_translation_version",
+    ),
+    adminReviewRevertCapturesApprovalFields: boolean(
+      "admin_review_revert_captures_approval_fields",
+    )
+      .notNull()
+      .default(false),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

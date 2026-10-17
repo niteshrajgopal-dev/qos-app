@@ -378,6 +378,7 @@ integrationDescribe("AI translation approval queue (DB)", () => {
         description: catalogueProductTranslations.description,
         provenance: catalogueProductTranslations.provenance,
         approvalStatus: catalogueProductTranslations.approvalStatus,
+        translationVersion: catalogueProductTranslations.translationVersion,
       })
       .from(catalogueProductTranslations)
       .where(
@@ -391,6 +392,7 @@ integrationDescribe("AI translation approval queue (DB)", () => {
       description: baseline.description,
       provenance: "operator_entered",
       approvalStatus: "draft",
+      translationVersion: 3,
     });
 
     const [audit] = await db

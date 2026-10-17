@@ -30,7 +30,10 @@ import {
 } from "@/lib/ai/jobs/ai-job-queue";
 import { readAiSpendPolicy } from "@/lib/ai/spend/spend-policy";
 import { createDraftProduct } from "@/lib/catalogue/products";
-import { listPendingAiTranslationApprovals } from "@/lib/catalogue/translation-approval";
+import {
+  approveProductTranslation,
+  listPendingAiTranslationApprovals,
+} from "@/lib/catalogue/translation-approval";
 import { requireActiveStaffMembership } from "@/lib/staff/auth";
 import { quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
@@ -176,6 +179,11 @@ integrationDescribe("POST /translations/[locale]/reject (DB)", () => {
         displayName: catalogueProductTranslations.displayName,
         description: catalogueProductTranslations.description,
         approvalStatus: catalogueProductTranslations.approvalStatus,
+        approvedBySubject: catalogueProductTranslations.approvedBySubject,
+        approvedAt: catalogueProductTranslations.approvedAt,
+        approvedTranslationVersion: catalogueProductTranslations.approvedTranslationVersion,
+        approvedSourceTranslationVersion:
+          catalogueProductTranslations.approvedSourceTranslationVersion,
       })
       .from(catalogueProductTranslations)
       .where(eq(catalogueProductTranslations.tenantId, tenantId));
@@ -184,6 +192,12 @@ integrationDescribe("POST /translations/[locale]/reject (DB)", () => {
   it("rejects only the target locale and bumps its version exactly once across accept→reject", async () => {
     const { quotes, product, adminCaller } = await seedTenant();
     staffMocks.requireStaffIdentity.mockResolvedValue({ subject: ADMIN_SUBJECT });
+
+    await runAsRole(sqlClient, "qos_app", () =>
+      approveProductTranslation(db, quotes.tenant.id, ADMIN_SUBJECT, product.publicId, "ar", {
+        expectedTranslationVersion: 1,
+      }),
+    );
 
     const baseline = await readTranslationRows(quotes.tenant.id);
     const baselineEn = baseline.find((row) => row.locale === "en")!;
@@ -266,8 +280,16 @@ integrationDescribe("POST /translations/[locale]/reject (DB)", () => {
       description: baselineEn.description,
       approvalStatus: baselineEn.approvalStatus,
     });
-    expect(arAfterReject.translationVersion).toBe(baselineAr.translationVersion + 1);
+    expect(arAfterReject.translationVersion).toBe(baselineAr.translationVersion + 2);
     expect(arAfterReject.displayName).toBe(baselineAr.displayName);
+    expect(arAfterReject.approvalStatus).toBe(baselineAr.approvalStatus);
+    expect(arAfterReject.approvedBySubject).toBe(baselineAr.approvedBySubject);
+    expect(arAfterReject.approvedTranslationVersion).toBe(
+      baselineAr.approvedTranslationVersion,
+    );
+    expect(arAfterReject.approvedSourceTranslationVersion).toBe(
+      baselineAr.approvedSourceTranslationVersion,
+    );
 
     const descriptionDecisionCountAfter = await db
       .select({ count: sql<number>`count(*)::int` })
