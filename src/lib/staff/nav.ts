@@ -33,6 +33,7 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
           { id: "menus", label: "Menus", availability: "ready" },
           { id: "modifiers", label: "Modifier groups", availability: "ready" },
           { id: "import", label: "Import", availability: "ready" },
+          { id: "menu-extraction", label: "Menu extraction", availability: "ready" },
           { id: "categories", label: "Categories", availability: "ready" },
         ],
       },
@@ -132,6 +133,7 @@ const STAFF_NAV_PATHS: Record<string, string> = {
   menus: "/catalogue/menus",
   modifiers: "/catalogue/modifier-groups",
   import: "/catalogue/import",
+  "menu-extraction": "/catalogue/menu-extraction",
   categories: "/catalogue/categories",
   customers: "/customers",
   channels: "/channels",
@@ -151,6 +153,7 @@ const STAFF_NAV_PATHS: Record<string, string> = {
 const PATH_MATCHERS: Array<{ id: string; suffix: string }> = [
   { id: "menus", suffix: "/catalogue/menus" },
   { id: "modifiers", suffix: "/catalogue/modifier-groups" },
+  { id: "menu-extraction", suffix: "/catalogue/menu-extraction" },
   { id: "import", suffix: "/catalogue/import" },
   { id: "categories", suffix: "/catalogue/categories" },
   { id: "catalogue", suffix: "/catalogue" },

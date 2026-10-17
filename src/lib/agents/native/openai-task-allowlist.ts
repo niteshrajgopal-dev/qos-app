@@ -6,6 +6,7 @@ export const OPENAI_NATIVE_TASKS = [
   "ai_photo.async",
   "catalogue.translation",
   "catalogue.description",
+  "catalogue.menu_extraction",
 ] as const;
 export type OpenAiNativeTask = (typeof OPENAI_NATIVE_TASKS)[number];
 

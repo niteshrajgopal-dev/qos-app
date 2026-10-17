@@ -19,6 +19,7 @@ import {
   evaluateNativeOpenAiGate,
 } from "@/lib/agents/native/openai-runtime-gate";
 import { createCatalogueDescriptionJobHandler } from "@/lib/catalogue/description-draft/catalogue-description-job";
+import { createCatalogueMenuExtractionJobHandler } from "@/lib/catalogue/menu-extraction/catalogue-menu-extraction-job";
 import { createCatalogueTranslationJobHandler } from "@/lib/catalogue/translation-review/catalogue-translation-job";
 import {
   claimNextAiJob,
@@ -70,6 +71,8 @@ async function main() {
     model: descriptionModel,
   });
   handlers.set(catalogueDescription.kind, catalogueDescription);
+  const catalogueMenuExtraction = createCatalogueMenuExtractionJobHandler(db);
+  handlers.set(catalogueMenuExtraction.kind, catalogueMenuExtraction);
   // Needs the AI photo provider settings and media storage settings of the web app.
   const aiPhotos = createAiPhotoJobHandler(db);
   handlers.set(aiPhotos.kind, aiPhotos);

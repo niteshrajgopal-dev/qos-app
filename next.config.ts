@@ -13,6 +13,8 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   output: "standalone",
   poweredByHeader: false,
+  // Native PDF rasterization (@napi-rs/canvas, pdfjs-dist) runs only on the API upload path.
+  serverExternalPackages: ["@napi-rs/canvas", "pdfjs-dist"],
   async headers() {
     return [
       {

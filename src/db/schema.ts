@@ -2734,6 +2734,55 @@ export type CatalogueImportApplyReport = {
   }>;
 };
 
+export type MenuExtractionUncertainty =
+  | "none"
+  | "low"
+  | "medium"
+  | "high"
+  | "missing"
+  | "contradictory";
+
+export type MenuExtractionBBox = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
+export type MenuExtractionSourceEvidence = {
+  pageNumber: number;
+  bbox: MenuExtractionBBox | null;
+  originalText: string | null;
+};
+
+export type MenuExtractionCandidatePayload = {
+  schema: "qos.catalogue_menu_extraction_candidate.v1";
+  candidateKey: string;
+  sectionName: string | null;
+  displayNameEn: string | null;
+  displayNameAr: string | null;
+  descriptionEn: string | null;
+  descriptionAr: string | null;
+  variantLabelEn: string | null;
+  variantLabelAr: string | null;
+  priceText: string | null;
+  amountMinor: number | null;
+  currency: string | null;
+  allergenText: string | null;
+  unitText: string | null;
+  uncertainty: {
+    displayNameEn: MenuExtractionUncertainty;
+    displayNameAr: MenuExtractionUncertainty;
+    descriptionEn: MenuExtractionUncertainty;
+    descriptionAr: MenuExtractionUncertainty;
+    price: MenuExtractionUncertainty;
+    allergen: MenuExtractionUncertainty;
+    unit: MenuExtractionUncertainty;
+  };
+  evidence: MenuExtractionSourceEvidence;
+  modelConfidenceEstimate: string | null;
+};
+
 export const catalogueImportSourceLinks = qos.table(
   "catalogue_import_source_links",
   {
@@ -2795,6 +2844,79 @@ export const catalogueImportOperations = qos.table(
       table.idempotencyKey,
     ),
     index("catalogue_import_operations_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const catalogueMenuExtractionSourceStatusEnum = qos.enum(
+  "catalogue_menu_extraction_source_status",
+  ["ready", "failed"],
+);
+
+export const catalogueMenuExtractionSources = qos.table(
+  "catalogue_menu_extraction_sources",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    contentHash: text("content_hash").notNull(),
+    fileName: text("file_name").notNull(),
+    mimeType: text("mime_type").notNull(),
+    originalStoragePath: text("original_storage_path").notNull(),
+    pageCount: integer("page_count").notNull(),
+    status: catalogueMenuExtractionSourceStatusEnum("status").notNull(),
+    uploadedBySubject: text("uploaded_by_subject").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("catalogue_menu_extraction_sources_public_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    unique("catalogue_menu_extraction_sources_content_hash_unique").on(
+      table.tenantId,
+      table.contentHash,
+    ),
+    unique("catalogue_menu_extraction_sources_tenant_id_id_unique").on(
+      table.tenantId,
+      table.id,
+    ),
+    index("catalogue_menu_extraction_sources_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const catalogueMenuExtractionPages = qos.table(
+  "catalogue_menu_extraction_pages",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    sourceId: uuid("source_id").notNull(),
+    pageNumber: integer("page_number").notNull(),
+    storagePath: text("storage_path").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    contentHash: text("content_hash").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "catalogue_menu_extraction_pages_source_fk",
+      columns: [table.tenantId, table.sourceId],
+      foreignColumns: [
+        catalogueMenuExtractionSources.tenantId,
+        catalogueMenuExtractionSources.id,
+      ],
+    }).onDelete("restrict"),
+    unique("catalogue_menu_extraction_pages_source_page_unique").on(
+      table.tenantId,
+      table.sourceId,
+      table.pageNumber,
+    ),
+    index("catalogue_menu_extraction_pages_tenant_id_idx").on(table.tenantId),
   ],
 );
 
@@ -2901,6 +3023,7 @@ export const agentCapabilityEnum = qos.enum("agent_capability", [
   "menu_manager",
   "catalogue_translation",
   "catalogue_description",
+  "catalogue_menu_extraction",
 ]);
 
 export const agentRunStatusEnum = qos.enum("agent_run_status", [
@@ -3115,6 +3238,40 @@ export const agentRuns = qos.table(
   ],
 );
 
+export const catalogueMenuExtractionCandidates = qos.table(
+  "catalogue_menu_extraction_candidates",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    agentRunId: uuid("agent_run_id").notNull(),
+    candidateKey: text("candidate_key").notNull(),
+    sectionName: text("section_name"),
+    payload: jsonb("payload").$type<MenuExtractionCandidatePayload>().notNull(),
+    excluded: boolean("excluded").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "catalogue_menu_extraction_candidates_run_fk",
+      columns: [table.tenantId, table.agentRunId],
+      foreignColumns: [agentRuns.tenantId, agentRuns.id],
+    }).onDelete("restrict"),
+    unique("catalogue_menu_extraction_candidates_run_key_unique").on(
+      table.tenantId,
+      table.agentRunId,
+      table.candidateKey,
+    ),
+    index("catalogue_menu_extraction_candidates_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
 /** One person-applied Menu Manager suggestion; immutable for idempotent replay. */
 export const agentRunCatalogueTranslationDecisions = qos.table(
   "agent_run_catalogue_translation_decisions",
@@ -3168,6 +3325,34 @@ export const agentRunCatalogueDescriptionDecisions = qos.table(
       foreignColumns: [agentRuns.tenantId, agentRuns.id],
     }).onDelete("restrict"),
     uniqueIndex("agent_run_catalogue_description_decisions_run_unique").on(
+      table.tenantId,
+      table.agentRunId,
+    ),
+  ],
+);
+
+export const agentRunCatalogueMenuExtractionDecisions = qos.table(
+  "agent_run_catalogue_menu_extraction_decisions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    agentRunId: uuid("agent_run_id").notNull(),
+    decision: text("decision").notNull(),
+    importOperationPublicId: text("import_operation_public_id"),
+    decidedBySubject: text("decided_by_subject").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "agent_run_catalogue_menu_extraction_decisions_run_fk",
+      columns: [table.tenantId, table.agentRunId],
+      foreignColumns: [agentRuns.tenantId, agentRuns.id],
+    }).onDelete("restrict"),
+    uniqueIndex("agent_run_catalogue_menu_extraction_decisions_run_unique").on(
       table.tenantId,
       table.agentRunId,
     ),
