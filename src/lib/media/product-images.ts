@@ -87,8 +87,14 @@ async function requireMutableProduct(
   tx: DbClient,
   tenantId: string,
   productPublicId: string,
+  options?: { rowLock?: boolean },
 ) {
-  return loadCatalogueProductForMutationInTx(tx, tenantId, productPublicId);
+  return loadCatalogueProductForMutationInTx(
+    tx,
+    tenantId,
+    productPublicId,
+    options,
+  );
 }
 
 export type CreateUploadGrantInput = {
@@ -201,7 +207,9 @@ export async function ingestProductImageUpload(
 ) {
   try {
     return await withTenantContext(db, tenantId, async (tx) => {
-      const product = await requireMutableProduct(tx, tenantId, productPublicId);
+      const product = await requireMutableProduct(tx, tenantId, productPublicId, {
+        rowLock: false,
+      });
 
       const [grant] = await tx
         .select()

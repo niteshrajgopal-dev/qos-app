@@ -37,12 +37,19 @@ export function isCatalogueProductMutationGuardError(
   return error instanceof CatalogueProductMutationGuardError;
 }
 
+export type CatalogueProductMutationLoadOptions = {
+  /** When false, skip row lock (e.g. worker ingest paths that cannot take product row locks). */
+  rowLock?: boolean;
+};
+
 export async function loadCatalogueProductForMutationInTx(
   tx: TenantDbExecutor,
   tenantId: string,
   productPublicId: string,
+  options: CatalogueProductMutationLoadOptions = {},
 ) {
-  const [product] = await tx
+  const rowLock = options.rowLock !== false;
+  const baseQuery = tx
     .select()
     .from(catalogueProducts)
     .where(
@@ -51,8 +58,9 @@ export async function loadCatalogueProductForMutationInTx(
         eq(catalogueProducts.publicId, productPublicId),
       ),
     )
-    .limit(1)
-    .for("update");
+    .limit(1);
+
+  const [product] = await (rowLock ? baseQuery.for("update") : baseQuery);
 
   if (!product) {
     throw new CatalogueProductMutationGuardError("Product not found.", 404);
