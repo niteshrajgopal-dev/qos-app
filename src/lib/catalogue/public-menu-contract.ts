@@ -26,6 +26,8 @@ export type PublicMenuProduct = {
   description: string | null;
   price: PublicMenuProductPrice;
   mediaAssetId: string | null;
+  /** Present when the published image is AI-generated; references owner-approved disclosure copy. */
+  mediaImageDisclosureI18nKey?: string;
   eligibility: PublicMenuProductEligibility;
 };
 
@@ -165,6 +167,9 @@ export function toPublicMenuResponse(input: {
             description: productText.description,
             price: product.price,
             mediaAssetId: product.mediaAssetId ?? null,
+            ...(product.mediaImageDisclosureI18nKey
+              ? { mediaImageDisclosureI18nKey: product.mediaImageDisclosureI18nKey }
+              : {}),
             eligibility: mapProductEligibility(
               product.productPublicId,
               input.productEligibility,
@@ -191,6 +196,10 @@ export function assertPublicMenuResponseIsAllowlisted(
     "credential",
     "tenantId",
     "approvedBySubject",
+    "generationMetadata",
+    "sourceProvenance",
+    "prompt",
+    "qos.ai_photo_generation",
   ];
 
   for (const pattern of forbiddenPatterns) {
