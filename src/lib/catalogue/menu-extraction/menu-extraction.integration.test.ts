@@ -315,6 +315,18 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
     );
     const products = await db.select().from(catalogueProducts);
     expect(products.length).toBe(0);
+
+    const review = await runAsRole(sqlClient, "qos_app", () =>
+      getMenuExtractionReview(
+        db,
+        adminCaller.tenantId,
+        adminCaller.subject,
+        uploaded.sourcePublicId,
+        run.publicId,
+        NATIVE_ENV,
+      ),
+    );
+    expect(review?.decision).toBe("rejected");
   });
 
   it("replays extraction idempotency without duplicate spend jobs", async () => {

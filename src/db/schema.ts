@@ -528,6 +528,14 @@ export const catalogueProductTranslations = qos.table(
     lastApprovedSourceTranslationVersion: integer(
       "last_approved_source_translation_version",
     ),
+    lastApprovedDisplayName: text("last_approved_display_name"),
+    lastApprovedDescription: text("last_approved_description"),
+    adminReviewRevertDisplayName: text("admin_review_revert_display_name"),
+    adminReviewRevertDescription: text("admin_review_revert_description"),
+    adminReviewRevertProvenance: dataProvenanceEnum("admin_review_revert_provenance"),
+    adminReviewRevertApprovalStatus: translationApprovalStatusEnum(
+      "admin_review_revert_approval_status",
+    ),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

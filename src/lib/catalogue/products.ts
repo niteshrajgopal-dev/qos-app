@@ -22,6 +22,7 @@ import {
 } from "@/lib/catalogue/validation";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
+import { translationTextMatchesLastApproved } from "@/lib/catalogue/translation-admin-review-snapshot";
 import { invalidateArabicApprovalAfterEnglishChange } from "@/lib/catalogue/translation-approval";
 import {
   auditActorClassFromStaffRole,
@@ -598,19 +599,39 @@ export async function updateDraftProductInTx(
       nextDescription !== existingTranslation.description;
 
     if (translationChanged) {
-      await tx
-        .update(catalogueProductTranslations)
-        .set({
+      const matchesLastApproved = translationTextMatchesLastApproved(
+        existingTranslation,
+        nextDisplayName,
+        nextDescription,
+      );
+
+      const translationUpdates: Partial<typeof catalogueProductTranslations.$inferInsert> =
+        {
           displayName: nextDisplayName,
           description: nextDescription,
           translationVersion: existingTranslation.translationVersion + 1,
-          approvalStatus: "draft",
-          approvedBySubject: null,
-          approvedAt: null,
-          approvedTranslationVersion: null,
-          approvedSourceTranslationVersion: null,
           updatedAt: new Date(),
-        })
+        };
+
+      if (matchesLastApproved && existingTranslation.lastApprovedTranslationVersion != null) {
+        translationUpdates.approvalStatus = "approved";
+        translationUpdates.approvedBySubject = existingTranslation.lastApprovedBySubject;
+        translationUpdates.approvedAt = existingTranslation.lastApprovedAt;
+        translationUpdates.approvedTranslationVersion =
+          existingTranslation.lastApprovedTranslationVersion;
+        translationUpdates.approvedSourceTranslationVersion =
+          existingTranslation.lastApprovedSourceTranslationVersion;
+      } else {
+        translationUpdates.approvalStatus = "draft";
+        translationUpdates.approvedBySubject = null;
+        translationUpdates.approvedAt = null;
+        translationUpdates.approvedTranslationVersion = null;
+        translationUpdates.approvedSourceTranslationVersion = null;
+      }
+
+      await tx
+        .update(catalogueProductTranslations)
+        .set(translationUpdates)
         .where(
           and(
             eq(catalogueProductTranslations.tenantId, tenantId),

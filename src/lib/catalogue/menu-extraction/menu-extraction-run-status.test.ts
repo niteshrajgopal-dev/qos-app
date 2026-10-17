@@ -7,5 +7,7 @@ describe("menuExtractionRunStatusLabel", () => {
     expect(menuExtractionRunStatusLabel("completed", "en")).toBe("ready");
     expect(menuExtractionRunStatusLabel("completed", "ar")).toBe("جاهز");
     expect(menuExtractionRunStatusLabel("failed", "en")).toBe("failed");
+    expect(menuExtractionRunStatusLabel("completed", "en", "rejected")).toBe("cancelled");
+    expect(menuExtractionRunStatusLabel("completed", "ar", "rejected")).toBe("ملغى");
   });
 });

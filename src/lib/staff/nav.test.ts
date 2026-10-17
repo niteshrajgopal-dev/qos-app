@@ -26,6 +26,9 @@ describe("staffNavHref", () => {
     expect(staffNavHref(tenantId, "import")).toBe(
       `/tenants/${tenantId}/catalogue/import`,
     );
+    expect(staffNavHref(tenantId, "menu-extraction")).toBe(
+      `/tenants/${tenantId}/catalogue/menu-extraction`,
+    );
     expect(staffNavHref(tenantId, "store")).toBe(
       `/tenants/${tenantId}/channels/online-store`,
     );
@@ -114,6 +117,7 @@ describe("portal header navigation", () => {
     }
 
     expect(isStaffMoreNavId("settings")).toBe(true);
+    expect(isStaffMoreNavId("menu-extraction")).toBe(true);
   });
 });
 
@@ -162,6 +166,9 @@ describe("activeStaffNavIdFromPath", () => {
     expect(
       activeStaffNavIdFromPath(`/tenants/${tenantId}/catalogue/categories`),
     ).toBe("categories");
+    expect(
+      activeStaffNavIdFromPath(`/tenants/${tenantId}/catalogue/menu-extraction`),
+    ).toBe("menu-extraction");
     expect(
       activeStaffNavIdFromPath(`/tenants/${tenantId}/channels/pos`),
     ).toBe("pos");

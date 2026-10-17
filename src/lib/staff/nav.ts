@@ -93,6 +93,7 @@ export const STAFF_MORE_NAV_GROUPS: StaffNavGroup[] = [
       { id: "categories", label: "Categories", availability: "ready" },
       { id: "modifiers", label: "Modifier groups", availability: "ready" },
       { id: "import", label: "Import", availability: "ready" },
+      { id: "menu-extraction", label: "Menu extraction", availability: "ready" },
     ],
   },
   {

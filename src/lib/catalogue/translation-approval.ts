@@ -13,6 +13,10 @@ import {
   requireAdministratorMembership,
   StaffAuthorizationError,
 } from "@/lib/staff/auth";
+import {
+  clearAdminReviewRevertSnapshot,
+  translationTextMatchesLastApproved,
+} from "@/lib/catalogue/translation-admin-review-snapshot";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class TranslationApprovalError extends Error {
@@ -483,6 +487,9 @@ export async function approveProductTranslation(
           lastApprovedAt: approvedAt,
           lastApprovedTranslationVersion: translation.translationVersion,
           lastApprovedSourceTranslationVersion: approvedSourceTranslationVersion,
+          lastApprovedDisplayName: translation.displayName,
+          lastApprovedDescription: translation.description,
+          ...clearAdminReviewRevertSnapshot(),
           updatedAt: approvedAt,
         })
         .where(
@@ -590,13 +597,34 @@ export async function rejectProductTranslation(
 
       const rejectionUpdates: Partial<typeof catalogueProductTranslations.$inferInsert> =
         {
-          approvalStatus: pendingAiAdminReview ? "rejected" : "draft",
           approvedBySubject: null,
           approvedAt: null,
           approvedTranslationVersion: null,
           approvedSourceTranslationVersion: null,
           updatedAt: new Date(),
+          ...clearAdminReviewRevertSnapshot(),
         };
+
+      if (pendingAiAdminReview) {
+        const hasRevertSnapshot =
+          translation.adminReviewRevertDisplayName != null ||
+          translation.adminReviewRevertApprovalStatus != null;
+
+        if (hasRevertSnapshot) {
+          rejectionUpdates.displayName =
+            translation.adminReviewRevertDisplayName ?? translation.displayName;
+          rejectionUpdates.description = translation.adminReviewRevertDescription;
+          rejectionUpdates.provenance =
+            translation.adminReviewRevertProvenance ?? translation.provenance;
+          rejectionUpdates.approvalStatus =
+            translation.adminReviewRevertApprovalStatus ?? "rejected";
+          rejectionUpdates.translationVersion = translation.translationVersion + 1;
+        } else {
+          rejectionUpdates.approvalStatus = "rejected";
+        }
+      } else {
+        rejectionUpdates.approvalStatus = "draft";
+      }
 
       const [updated] = await tx
         .update(catalogueProductTranslations)
@@ -632,6 +660,11 @@ export async function rejectProductTranslation(
           locale,
           productPublicId,
           translationVersion: translation.translationVersion,
+          pendingAiAdminReview,
+          revertedToSnapshot: pendingAiAdminReview
+            ? translation.adminReviewRevertDisplayName != null ||
+              translation.adminReviewRevertApprovalStatus != null
+            : false,
         },
       });
 
