@@ -3,7 +3,10 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { catalogueErrorResponse } from "@/lib/catalogue/http";
 import { createDraftProduct } from "@/lib/catalogue/products";
-import { listCatalogueProductSummaries } from "@/lib/catalogue/repository";
+import {
+  listArchivedCatalogueProductSummaries,
+  listCatalogueProductSummaries,
+} from "@/lib/catalogue/repository";
 import {
   requireActiveStaffMembership,
   requireStaffIdentity,
@@ -20,9 +23,12 @@ export async function GET(request: Request, context: RouteContext) {
     const { tenantId } = await context.params;
     const identity = await requireStaffIdentity(request);
     await requireActiveStaffMembership(db, tenantId, identity.subject);
-    const products = await listCatalogueProductSummaries(db, tenantId);
+    const [products, archivedProducts] = await Promise.all([
+      listCatalogueProductSummaries(db, tenantId),
+      listArchivedCatalogueProductSummaries(db, tenantId),
+    ]);
 
-    return NextResponse.json({ products });
+    return NextResponse.json({ products, archivedProducts });
   } catch (error) {
     return catalogueErrorResponse(error);
   }

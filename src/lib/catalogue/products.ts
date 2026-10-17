@@ -36,6 +36,10 @@ export const CATALOGUE_PRODUCT_ARCHIVE_CODES = {
   IN_PUBLISHED_MENU: "product_in_published_menu",
 } as const;
 
+export const CATALOGUE_PRODUCT_RESTORE_CODES = {
+  NOT_ARCHIVED: "product_not_archived",
+} as const;
+
 export class CatalogueProductError extends Error {
   readonly statusCode: number;
   readonly field?: string;
@@ -65,6 +69,12 @@ export class CatalogueProductConflictError extends CatalogueProductError {
 export type ArchivedCatalogueProductView = {
   publicId: string;
   status: "archived";
+  version: number;
+};
+
+export type RestoredCatalogueProductView = {
+  publicId: string;
+  status: "draft";
   version: number;
 };
 
@@ -523,6 +533,14 @@ export async function updateDraftProductInTx(
     throw new CatalogueProductError("Product not found.", 404);
   }
 
+  if (product.status === "archived") {
+    throw new CatalogueProductConflictError(
+      "Archived products cannot be edited.",
+      "status",
+      "product_archived",
+    );
+  }
+
   if (product.version !== validated.expectedVersion) {
     throw new CatalogueProductConflictError(
       "Product was updated elsewhere. Reload and try again.",
@@ -906,6 +924,83 @@ export async function archiveDraftProduct(
   try {
     return await withTenantContext(db, tenantId, async (tx) =>
       archiveDraftProductInTx(tx, tenantId, publicId, actor),
+    );
+  } catch (error) {
+    return mapCatalogueError(error);
+  }
+}
+
+export async function restoreArchivedProductInTx(
+  tx: TenantDbExecutor,
+  tenantId: string,
+  publicId: string,
+  actor: string,
+): Promise<RestoredCatalogueProductView> {
+  const [product] = await tx
+    .select()
+    .from(catalogueProducts)
+    .where(
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        eq(catalogueProducts.publicId, publicId),
+      ),
+    )
+    .limit(1)
+    .for("update");
+
+  if (!product) {
+    throw new CatalogueProductError("Product not found.", 404);
+  }
+
+  if (product.status !== "archived") {
+    throw new CatalogueProductConflictError(
+      "Only archived products can be restored to draft.",
+      "status",
+      CATALOGUE_PRODUCT_RESTORE_CODES.NOT_ARCHIVED,
+    );
+  }
+
+  const nextVersion = product.version + 1;
+
+  await tx
+    .update(catalogueProducts)
+    .set({
+      status: "draft",
+      version: nextVersion,
+      updatedAt: new Date(),
+    })
+    .where(eq(catalogueProducts.id, product.id));
+
+  await recordTenantAuditEventInTx(tx, {
+    tenantId,
+    actorSubject: actor,
+    actorClass: "staff_administrator",
+    action: "catalogue.product.restored",
+    entityType: "catalogue_product",
+    entityPublicId: publicId,
+    entityVersion: nextVersion,
+    changeSummary: {
+      previousStatus: product.status,
+      status: "draft",
+    },
+  });
+
+  return {
+    publicId,
+    status: "draft",
+    version: nextVersion,
+  };
+}
+
+export async function restoreArchivedProduct(
+  db: DbClient,
+  tenantId: string,
+  publicId: string,
+  actor: string,
+): Promise<RestoredCatalogueProductView> {
+  try {
+    return await withTenantContext(db, tenantId, async (tx) =>
+      restoreArchivedProductInTx(tx, tenantId, publicId, actor),
     );
   } catch (error) {
     return mapCatalogueError(error);

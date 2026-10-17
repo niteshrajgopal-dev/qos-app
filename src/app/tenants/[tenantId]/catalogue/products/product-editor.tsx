@@ -1,10 +1,19 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/Modal";
 import { shouldShowArchiveDraftProductAction } from "@/lib/catalogue/product-archive-action";
+import {
+  productEditorIsReadOnly,
+  productEditorLoadButtonLabel,
+  productEditorLoadPrompt,
+  productEditorRestoreLabel,
+  productEditorRestoreSuccessNotice,
+  productEditorSaveLabel,
+  type CatalogueProductEditorStatus,
+} from "@/lib/catalogue/product-editor-copy";
 import { Toast, ToastStack } from "@/components/Toast";
 import { mapVideoErrorToFriendlyMessage } from "@/lib/media/video-error-messages";
 import { AiDescriptionReview } from "@/app/tenants/[tenantId]/catalogue/products/ai-description-review";
@@ -37,6 +46,7 @@ type ProductEditorProps = {
   tenantId: string;
   productPublicId?: string;
   initialBusinessProfile?: "hospitality" | "generic_retail";
+  onStatusChange?: (status: CatalogueProductEditorStatus) => void;
 };
 
 const emptyTranslation = (): TranslationFormState => ({
@@ -87,8 +97,10 @@ export function ProductEditor({
   tenantId,
   productPublicId,
   initialBusinessProfile = "generic_retail",
+  onStatusChange,
 }: ProductEditorProps) {
   const router = useRouter();
+  const locale = readStoredStaffLocale();
   const isEditMode = Boolean(productPublicId);
   const [form, setForm] = useState<ProductEditorState>(() =>
     createEmptyFormState(initialBusinessProfile),
@@ -105,9 +117,11 @@ export function ProductEditor({
   const [discardOpen, setDiscardOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [archiving, setArchiving] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [productStatus, setProductStatus] = useState<
     "draft" | "active" | "archived" | null
   >(null);
+  const isReadOnly = productEditorIsReadOnly(productStatus);
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageStatus, setImageStatus] = useState<string | null>(null);
@@ -121,7 +135,6 @@ export function ProductEditor({
   const [approvedVideoUrls, setApprovedVideoUrls] = useState<{ playbackUrl: string; posterUrl: string } | null>(null);
   const [selectedVideoFilename, setSelectedVideoFilename] = useState<string | null>(null);
   const activeCorrelationIdRef = useRef<string | null>(null);
-  const locale = readStoredStaffLocale();
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
@@ -151,8 +164,7 @@ export function ProductEditor({
     }
   }, [productPublicId, tenantId]);
 
-  const applyProductPayload = useCallback(
-    (product: {
+  function applyProductPayload(product: {
       publicId: string;
       internalName: string;
       version: number;
@@ -167,7 +179,7 @@ export function ProductEditor({
         en: TranslationFormState & { approvalStatus?: string };
         ar: TranslationFormState & { approvalStatus?: string };
       };
-    }) => {
+  }) {
       const nextState: ProductEditorState = {
         publicId: product.publicId,
         internalName: product.internalName,
@@ -201,14 +213,53 @@ export function ProductEditor({
       setProductStatus(product.status);
       setIsAdministrator(product.canEditPrice);
       void loadApprovedVideoUrls();
-    },
-    [loadApprovedVideoUrls],
-  );
+  }
+
+  useEffect(() => {
+    onStatusChange?.(productStatus);
+  }, [onStatusChange, productStatus]);
 
   const showArchiveAction = shouldShowArchiveDraftProductAction(
     productStatus ?? "",
     isAdministrator,
   );
+  const showRestoreAction = productStatus === "archived" && isAdministrator;
+
+  async function restoreProduct() {
+    if (!productPublicId) {
+      return;
+    }
+
+    setRestoring(true);
+    setError(null);
+    setFieldError(null);
+
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/restore`,
+        { method: "POST" },
+      );
+      const payload = (await response.json()) as {
+        error?: string;
+        field?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to restore product.");
+      }
+
+      setSavedMessage(productEditorRestoreSuccessNotice(locale));
+      await loadProduct();
+    } catch (restoreError) {
+      setError(
+        restoreError instanceof Error
+          ? restoreError.message
+          : "Unable to restore product.",
+      );
+    } finally {
+      setRestoring(false);
+    }
+  }
 
   async function archiveProduct() {
     if (!productPublicId) {
@@ -724,7 +775,7 @@ export function ProductEditor({
     return (
       <div className="space-y-4">
         <p className="text-sm text-zinc-600">
-          Load the draft product to begin editing.
+          {productEditorLoadPrompt(productStatus, locale)}
         </p>
         <button
           type="button"
@@ -739,7 +790,7 @@ export function ProductEditor({
           }
           className="qos-btn" data-variant="secondary"
         >
-          Load product
+          {productEditorLoadButtonLabel(locale, false)}
         </button>
         {error ? (
           <p className="qos-alert" data-tone="error">
@@ -770,10 +821,11 @@ export function ProductEditor({
           }
           className="qos-btn" data-variant="secondary"
         >
-          Reload product
+          {productEditorLoadButtonLabel(locale, true)}
         </button>
       ) : null}
 
+      <fieldset className="space-y-6 border-0 p-0 m-0" disabled={isReadOnly}>
       <section className="qos-card" data-padding="md">
         <h2 className="text-lg font-semibold">General information</h2>
         <div className="mt-4 grid gap-4">
@@ -1098,6 +1150,7 @@ export function ProductEditor({
           </div>
         </section>
       ) : null}
+      </fieldset>
 
       {error ? (
         <p className="qos-alert" data-tone="error">
@@ -1138,6 +1191,28 @@ export function ProductEditor({
         onConfirm={() => void archiveProduct()}
       />
 
+      {showRestoreAction ? (
+        <section className="qos-card" data-padding="md">
+          <h2 className="text-base font-medium text-zinc-900">
+            {productEditorRestoreLabel(locale, false)}
+          </h2>
+          <p className="mt-2 text-sm text-zinc-600">
+            Return this archived product to draft status so it can be edited again.
+          </p>
+          <div className="mt-4">
+            <button
+              type="button"
+              className="qos-btn"
+              data-variant="secondary"
+              disabled={restoring}
+              onClick={() => void restoreProduct()}
+            >
+              {productEditorRestoreLabel(locale, restoring)}
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {showArchiveAction ? (
         <section className="qos-card" data-padding="md">
           <h2 className="text-base font-medium text-zinc-900">
@@ -1162,35 +1237,37 @@ export function ProductEditor({
         </section>
       ) : null}
 
-      <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
-        <p className="text-sm text-zinc-600">
-          {isDirty ? "Unsaved changes" : "All changes saved locally"}
-          {form.publicId ? (
-            <>
-              {" "}
-              · Product <code>{form.publicId}</code> · Version {form.version}
-            </>
-          ) : null}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={requestResetForm}
-            disabled={!isDirty || saving}
-            className="qos-btn" data-variant="secondary"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void saveProduct()}
-            className="qos-btn" data-variant="primary"
-          >
-            {saving ? "Saving…" : "Save draft"}
-          </button>
+      {!isReadOnly ? (
+        <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
+          <p className="text-sm text-zinc-600">
+            {isDirty ? "Unsaved changes" : "All changes saved locally"}
+            {form.publicId ? (
+              <>
+                {" "}
+                · Product <code>{form.publicId}</code> · Version {form.version}
+              </>
+            ) : null}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={requestResetForm}
+              disabled={!isDirty || saving}
+              className="qos-btn" data-variant="secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void saveProduct()}
+              className="qos-btn" data-variant="primary"
+            >
+              {productEditorSaveLabel(productStatus, locale, saving)}
+            </button>
+          </div>
         </div>
-      </div>
+      ) : null}
     </div>
   );
 }

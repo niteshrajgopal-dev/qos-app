@@ -41,12 +41,17 @@ export function publicProductThumbnailUrl(thumbnailPublicId: string) {
 
 type ApiResponse = {
   products: ProductSummary[];
+  archivedProducts?: ProductSummary[];
 };
 
 type LoadingState =
   | { status: "loading" }
   | { status: "error"; message: string }
-  | { status: "success"; products: ProductSummary[] };
+  | {
+      status: "success";
+      products: ProductSummary[];
+      archivedProducts: ProductSummary[];
+    };
 
 export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const router = useRouter();
@@ -57,6 +62,8 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [restoreError, setRestoreError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -82,7 +89,11 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
         }
 
         if ("products" in body) {
-          setState({ status: "success", products: body.products });
+          setState({
+            status: "success",
+            products: body.products,
+            archivedProducts: body.archivedProducts ?? [],
+          });
         }
       })
       .catch((error) => {
@@ -146,12 +157,61 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     );
   }
 
-  const allProducts = state.products;
+  const activeProducts = state.products;
+  const archivedProducts = state.archivedProducts;
   const { filtered, counts } = filterProducts(
-    allProducts,
+    activeProducts,
+    archivedProducts,
     activeTab,
     searchQuery,
   );
+
+  async function restoreArchivedProduct(publicId: string) {
+    setRestoringId(publicId);
+    setRestoreError(null);
+
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${publicId}/restore`,
+        { method: "POST" },
+      );
+      const body = (await response.json()) as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(body.error ?? "Unable to restore product.");
+      }
+
+      setState((current) => {
+        if (current.status !== "success") {
+          return current;
+        }
+
+        const restored = current.archivedProducts.find(
+          (product) => product.publicId === publicId,
+        );
+        if (!restored) {
+          return current;
+        }
+
+        return {
+          status: "success",
+          products: [
+            ...current.products,
+            { ...restored, status: "draft" },
+          ].sort((a, b) => a.publicId.localeCompare(b.publicId)),
+          archivedProducts: current.archivedProducts.filter(
+            (product) => product.publicId !== publicId,
+          ),
+        };
+      });
+    } catch (error) {
+      setRestoreError(
+        error instanceof Error ? error.message : "Unable to restore product.",
+      );
+    } finally {
+      setRestoringId(null);
+    }
+  }
 
   const tabs = [
     { id: "all", label: "All", count: counts.all },
@@ -162,9 +222,12 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
 
   const hasSearchQuery = Boolean(searchQuery.trim());
   const noSearchResults = hasSearchQuery && filtered.length === 0;
-  const emptyTab = !hasSearchQuery && filtered.length === 0 && counts.all > 0;
+  const emptyTab =
+    !hasSearchQuery &&
+    filtered.length === 0 &&
+    (counts.all > 0 || counts.archived > 0);
 
-  if (allProducts.length === 0) {
+  if (activeProducts.length === 0 && archivedProducts.length === 0) {
     return (
       <>
         <PageHeader
@@ -263,7 +326,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
           <Card padding="none">
             <TableToolbar>
               <SearchInput
-                placeholder={`Search ${allProducts.length} products`}
+                placeholder={`Search ${activeProducts.length} products`}
                 value={searchQuery}
                 onChange={handleSearchChange}
                 style={{ width: 240 }}
@@ -361,6 +424,8 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     );
   }
 
+  const isArchivedTab = activeTab === "archived";
+
   const columns = [
     {
       key: "name",
@@ -412,6 +477,27 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
       header: "Status",
       render: (r: ProductSummary) => <StatusBadge state={r.status} />,
     },
+    ...(isArchivedTab
+      ? [
+          {
+            key: "restore",
+            header: "Actions",
+            render: (r: ProductSummary) => (
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={restoringId === r.publicId}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void restoreArchivedProduct(r.publicId);
+                }}
+              >
+                {restoringId === r.publicId ? "Restoring…" : "Restore to draft"}
+              </Button>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const subtitleText = formatSubtitle(
@@ -460,11 +546,16 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
           </Alert>
         </div>
       ) : null}
+      {restoreError ? (
+        <div style={{ marginTop: 20 }}>
+          <Alert tone="error">{restoreError}</Alert>
+        </div>
+      ) : null}
       <div style={{ marginTop: 20 }}>
         <Card padding="none">
           <TableToolbar>
             <SearchInput
-              placeholder={`Search ${allProducts.length} products`}
+              placeholder={`Search ${isArchivedTab ? archivedProducts.length : activeProducts.length} products`}
               value={searchQuery}
               onChange={handleSearchChange}
               style={{ width: 240 }}

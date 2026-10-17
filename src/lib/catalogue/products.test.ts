@@ -19,15 +19,20 @@ import {
 import { eq } from "drizzle-orm";
 import {
   CATALOGUE_PRODUCT_ARCHIVE_CODES,
+  CATALOGUE_PRODUCT_RESTORE_CODES,
   CatalogueProductConflictError,
   CatalogueProductError,
   archiveDraftProduct,
   createDraftProduct,
   getDraftProduct,
+  restoreArchivedProduct,
   updateDraftProduct,
 } from "@/lib/catalogue/products";
 import { getCatalogueCounts } from "@/lib/catalogue/counts";
-import { listCatalogueProductSummaries } from "@/lib/catalogue/repository";
+import {
+  listArchivedCatalogueProductSummaries,
+  listCatalogueProductSummaries,
+} from "@/lib/catalogue/repository";
 import { seedFlowerDevTenant } from "@/lib/seed/dev-tenants";
 import { flowerRoseBouquetFixture } from "@/lib/seed/fixtures/flower-catalogue";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
@@ -477,6 +482,107 @@ integrationDescribe("catalogue draft products", () => {
     ).rejects.toMatchObject({
       statusCode: 404,
     });
+  });
+
+  it("restores archived products to draft with audit events and tenant isolation", async () => {
+    const quotes = await createTenantHierarchy(db, quotesTenantFixture());
+    const flowers = await createTenantHierarchy(db, flowerTenantFixture());
+    const admin = await seedStaffMember(
+      quotes.tenant.id,
+      "administrator",
+      "admin.restore@test",
+      "admin.restore@test",
+    );
+    const draft = await createDraftProduct(
+      db,
+      quotes.tenant.id,
+      admin,
+      baseProductInput,
+    );
+
+    await archiveDraftProduct(
+      db,
+      quotes.tenant.id,
+      draft.publicId,
+      "admin.restore@test",
+    );
+
+    const archivedSummaries = await listArchivedCatalogueProductSummaries(
+      db,
+      quotes.tenant.id,
+    );
+    expect(archivedSummaries.map((row) => row.publicId)).toContain(
+      draft.publicId,
+    );
+
+    const restored = await restoreArchivedProduct(
+      db,
+      quotes.tenant.id,
+      draft.publicId,
+      "admin.restore@test",
+    );
+
+    expect(restored).toEqual({
+      publicId: draft.publicId,
+      status: "draft",
+      version: draft.version + 2,
+    });
+
+    const summaries = await listCatalogueProductSummaries(db, quotes.tenant.id);
+    expect(summaries.some((row) => row.publicId === draft.publicId)).toBe(true);
+
+    const [audit] = await db
+      .select()
+      .from(tenantAuditEvents)
+      .where(eq(tenantAuditEvents.action, "catalogue.product.restored"));
+
+    expect(audit?.entityPublicId).toBe(draft.publicId);
+    expect(audit?.actorSubject).toBe("admin.restore@test");
+
+    await expect(
+      restoreArchivedProduct(
+        db,
+        quotes.tenant.id,
+        draft.publicId,
+        "admin.restore@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: CATALOGUE_PRODUCT_RESTORE_CODES.NOT_ARCHIVED,
+    });
+
+    await expect(
+      restoreArchivedProduct(
+        db,
+        flowers.tenant.id,
+        draft.publicId,
+        "admin.restore@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 404,
+    });
+
+    const activeDraft = await createDraftProduct(db, quotes.tenant.id, admin, {
+      ...baseProductInput,
+      internalName: "restore-active-product",
+    });
+    await db
+      .update(catalogueProducts)
+      .set({ status: "active" })
+      .where(eq(catalogueProducts.publicId, activeDraft.publicId));
+
+    await expect(
+      restoreArchivedProduct(
+        db,
+        quotes.tenant.id,
+        activeDraft.publicId,
+        "admin.restore@test",
+      ),
+    ).rejects.toMatchObject({
+      statusCode: 409,
+      code: CATALOGUE_PRODUCT_RESTORE_CODES.NOT_ARCHIVED,
+    });
+
   });
 
   it("rejects nutrition fields for generic retail tenants", async () => {

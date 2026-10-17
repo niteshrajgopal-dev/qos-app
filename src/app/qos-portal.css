@@ -1216,6 +1216,43 @@
   .qosp-focus-card { grid-column: auto; }
 }
 
+/* Stacked overview between mobile and desktop widths — prevents Business Pulse
+   overlapping the module dock at browser zoom (e.g. 150% on 1280px ≈ 853px). */
+@media (max-width: 900px) and (min-width: 681px) {
+  .qosp-overview {
+    height: auto;
+    min-height: 0;
+    padding-bottom: 21px;
+    display: flex;
+    flex-direction: column;
+  }
+  .qosp-hero {
+    position: relative;
+    top: auto;
+  }
+  .qosp-rail {
+    position: relative;
+    inset-inline-end: auto;
+    top: auto;
+    width: 100%;
+    margin-top: 34px;
+  }
+  .qosp-caption {
+    display: none;
+  }
+  .qosp-dock {
+    position: relative;
+    bottom: auto;
+    height: auto;
+    margin-top: 22px;
+  }
+  .qosp-overview-footer {
+    position: relative;
+    bottom: auto;
+    margin-top: 23px;
+  }
+}
+
 @media (max-width: 680px) {
   .qosp-topbar { padding: 10px 20px 5px; height: 111px; }
   .qosp-brand { align-items: flex-start; width: 85px; height: 46px; }
