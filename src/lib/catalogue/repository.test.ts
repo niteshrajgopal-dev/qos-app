@@ -5,7 +5,8 @@ import path from "node:path";
 import sharp from "sharp";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
-import { staffIdentities, staffMemberships } from "@/db/schema";
+import { catalogueProducts, staffIdentities, staffMemberships } from "@/db/schema";
+import { eq } from "drizzle-orm";
 import {
   grantRoleMembership,
   hasIntegrationDatabase,
@@ -147,6 +148,30 @@ integrationDescribe("listCatalogueProductSummaries", () => {
           thumbnailPublicId: null,
         }),
       ]),
+    );
+  });
+
+  it("excludes archived products from summaries", async () => {
+    const quotes = await createQuotesTwoLocationTenant(db);
+    const admin = await seedAdministrator(quotes.tenant.id);
+
+    const product = await createDraftProduct(db, quotes.tenant.id, admin, {
+      internalName: "archived-latte",
+      translations: {
+        en: { displayName: "Archived Latte", description: null },
+        ar: { displayName: "لاتيه", description: null },
+      },
+      defaultVariant: { amountMinor: 1800, currency: "AED" },
+    });
+
+    await db
+      .update(catalogueProducts)
+      .set({ status: "archived" })
+      .where(eq(catalogueProducts.publicId, product.publicId));
+
+    const summaries = await listCatalogueProductSummaries(db, quotes.tenant.id);
+    expect(summaries.some((row) => row.publicId === product.publicId)).toBe(
+      false,
     );
   });
 });

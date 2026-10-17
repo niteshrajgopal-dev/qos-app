@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import {
   PageHeader,
@@ -25,6 +25,7 @@ import {
   paginateProducts,
   formatSubtitle,
 } from "./catalogue-products-filter";
+import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
 
 export type ProductSummary = {
   publicId: string;
@@ -49,7 +50,10 @@ type LoadingState =
 
 export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const locale = readStoredStaffLocale();
   const [state, setState] = useState<LoadingState>({ status: "loading" });
+  const showArchivedNotice = searchParams.get("productArchived") === "1";
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -449,6 +453,13 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
           <Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />
         }
       />
+      {showArchivedNotice ? (
+        <div style={{ marginTop: 20 }}>
+          <Alert tone="success">
+            {staffUiCopy(locale, "archiveDraftProductSuccessNotice")}
+          </Alert>
+        </div>
+      ) : null}
       <div style={{ marginTop: 20 }}>
         <Card padding="none">
           <TableToolbar>

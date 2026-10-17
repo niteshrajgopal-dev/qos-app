@@ -292,7 +292,12 @@ export async function listCatalogueProductSummaries(
           eq(catalogueMediaDerivatives.derivativeKind, "thumbnail"),
         ),
       )
-      .where(eq(catalogueProducts.tenantId, tenantId))
+      .where(
+        and(
+          eq(catalogueProducts.tenantId, tenantId),
+          inArray(catalogueProducts.status, ["draft", "active"]),
+        ),
+      )
       .orderBy(asc(catalogueProducts.publicId));
 
     return rows.map((row) => ({
