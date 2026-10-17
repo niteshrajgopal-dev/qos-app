@@ -17,6 +17,11 @@ type PortalOverviewProps = {
   personName: string;
   motion: boolean;
   onToggleMotion: () => void;
+  /** Dev harness: skip API fetch and render with fixture data. */
+  layoutPreview?: {
+    overview: TenantOverview;
+    branches: TenantOverviewBranch[];
+  };
 };
 
 /* Dock copy and the 3.4s advance are from the approved prototype. */
@@ -41,14 +46,23 @@ export function PortalOverview({
   personName,
   motion,
   onToggleMotion,
+  layoutPreview,
 }: PortalOverviewProps) {
-  const [overview, setOverview] = useState<TenantOverview | null>(null);
-  const [branches, setBranches] = useState<TenantOverviewBranch[]>([]);
+  const [overview, setOverview] = useState<TenantOverview | null>(
+    layoutPreview?.overview ?? null,
+  );
+  const [branches, setBranches] = useState<TenantOverviewBranch[]>(
+    layoutPreview?.branches ?? [],
+  );
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState(0);
   const [held, setHeld] = useState(false);
 
   useEffect(() => {
+    if (layoutPreview) {
+      return;
+    }
+
     let cancelled = false;
 
     staffApiFetch(`/api/tenants/${tenantId}/overview`)
@@ -78,7 +92,7 @@ export function PortalOverview({
     return () => {
       cancelled = true;
     };
-  }, [tenantId]);
+  }, [layoutPreview, tenantId]);
 
   useEffect(() => {
     if (held || !motion) {

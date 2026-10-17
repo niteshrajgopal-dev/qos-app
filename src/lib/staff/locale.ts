@@ -170,15 +170,15 @@ export const STAFF_UI_COPY = {
     productVideoLabel: "فيديو المنتج",
     chooseFile: "اختيار ملف",
     noFileChosen: "لم يتم اختيار ملف",
-    archiveDraftProduct: "أرشفة المنتج المسودة",
+    archiveDraftProduct: "أرشفة مسودة المنتج",
     archiveDraftProductDescription:
       "إزالة هذه المسودة من الكتالوج. لن تظهر في قوائم المنتجات أو منتقي القوائم.",
     archiveDraftProductConfirmTitle: "أرشفة هذه المسودة؟",
     archiveDraftProductConfirmDescription:
-      "سيُخفى المسودة من الكتالوج. القوائم المنشورة لا تتغير.",
+      "ستُخفى المسودة من الكتالوج. القوائم المنشورة لا تتغير.",
     archiveDraftProductConfirmLabel: "أرشفة",
     archiveDraftProductArchiving: "جاري الأرشفة…",
-    archiveDraftProductSuccessNotice: "تمت أرشفة المنتج المسودة.",
+    archiveDraftProductSuccessNotice: "تمت أرشفة مسودة المنتج.",
   },
 } as const;
 

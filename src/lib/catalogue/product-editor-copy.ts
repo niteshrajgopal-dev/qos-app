@@ -33,7 +33,7 @@ const COPY = {
     saving: "جاري الحفظ…",
     restoreToDraft: "استعادة كمسودة",
     restoring: "جاري الاستعادة…",
-    restoreSuccess: "تمت استعادة المنتج كمسودة.",
+    restoreSuccess: "تمت استعادة مسودة المنتج.",
   },
 } as const;
 

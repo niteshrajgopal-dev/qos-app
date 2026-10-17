@@ -1216,9 +1216,11 @@
   .qosp-focus-card { grid-column: auto; }
 }
 
-/* Stacked overview between mobile and desktop widths — prevents Business Pulse
-   overlapping the module dock at browser zoom (e.g. 150% on 1280px ≈ 853px). */
-@media (max-width: 900px) and (min-width: 681px) {
+/* Stacked overview on tablet/zoom widths and short viewports — prevents Business
+   Pulse overlapping the module dock (e.g. 1280px at 125% zoom ≈ 1024px, or
+   1440px at 150% ≈ 960px). */
+@media (max-width: 1279px) and (min-width: 681px),
+       (min-width: 681px) and (max-height: 950px) {
   .qosp-overview {
     height: auto;
     min-height: 0;
