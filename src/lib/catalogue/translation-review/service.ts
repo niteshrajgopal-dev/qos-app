@@ -32,6 +32,7 @@ import {
   auditActorClassFromStaffRole,
   recordTenantAuditEventInTx,
 } from "@/lib/audit/tenant-audit";
+import { adminReviewRevertSnapshotFromRow } from "@/lib/catalogue/translation-admin-review-snapshot";
 import {
   CURRENT_CATALOGUE_TRANSLATION_DEFINITION,
 } from "@/lib/catalogue/translation-review/definition";
@@ -641,12 +642,7 @@ export async function acceptCatalogueTranslation(
       return true;
     }
 
-    const revertSnapshot = {
-      adminReviewRevertDisplayName: targetRow.displayName,
-      adminReviewRevertDescription: targetRow.description,
-      adminReviewRevertProvenance: targetRow.provenance,
-      adminReviewRevertApprovalStatus: targetRow.approvalStatus,
-    };
+    const revertSnapshot = adminReviewRevertSnapshotFromRow(targetRow);
 
     const [applied] = await tx
       .update(catalogueProductTranslations)

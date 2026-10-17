@@ -16,6 +16,12 @@ export function adminReviewRevertSnapshotFromRow(row: TranslationRow) {
     adminReviewRevertDescription: row.description,
     adminReviewRevertProvenance: row.provenance,
     adminReviewRevertApprovalStatus: row.approvalStatus,
+    adminReviewRevertApprovedBySubject: row.approvedBySubject,
+    adminReviewRevertApprovedAt: row.approvedAt,
+    adminReviewRevertApprovedTranslationVersion: row.approvedTranslationVersion,
+    adminReviewRevertApprovedSourceTranslationVersion:
+      row.approvedSourceTranslationVersion,
+    adminReviewRevertCapturesApprovalFields: true,
   };
 }
 
@@ -25,6 +31,39 @@ export function clearAdminReviewRevertSnapshot() {
     adminReviewRevertDescription: null,
     adminReviewRevertProvenance: null,
     adminReviewRevertApprovalStatus: null,
+    adminReviewRevertApprovedBySubject: null,
+    adminReviewRevertApprovedAt: null,
+    adminReviewRevertApprovedTranslationVersion: null,
+    adminReviewRevertApprovedSourceTranslationVersion: null,
+    adminReviewRevertCapturesApprovalFields: false,
+  };
+}
+
+export function adminReviewApprovalFieldsFromSnapshot(
+  row: Pick<
+    TranslationRow,
+    | "adminReviewRevertCapturesApprovalFields"
+    | "adminReviewRevertApprovedBySubject"
+    | "adminReviewRevertApprovedAt"
+    | "adminReviewRevertApprovedTranslationVersion"
+    | "adminReviewRevertApprovedSourceTranslationVersion"
+  >,
+) {
+  if (!row.adminReviewRevertCapturesApprovalFields) {
+    return {
+      approvedBySubject: null,
+      approvedAt: null,
+      approvedTranslationVersion: null,
+      approvedSourceTranslationVersion: null,
+    };
+  }
+
+  return {
+    approvedBySubject: row.adminReviewRevertApprovedBySubject,
+    approvedAt: row.adminReviewRevertApprovedAt,
+    approvedTranslationVersion: row.adminReviewRevertApprovedTranslationVersion,
+    approvedSourceTranslationVersion:
+      row.adminReviewRevertApprovedSourceTranslationVersion,
   };
 }
 

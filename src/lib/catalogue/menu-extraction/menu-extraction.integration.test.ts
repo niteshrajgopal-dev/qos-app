@@ -336,6 +336,48 @@ integrationDescribe("catalogue menu extraction (DB)", () => {
     expect(audits.length).toBe(1);
   });
 
+  it("refuses confirm after cancel without importing catalogue rows", async () => {
+    const { adminCaller } = await seedTenant();
+    const uploaded = await uploadFixture(adminCaller);
+    const { run } = await runAsRole(sqlClient, "qos_app", () =>
+      requestMenuExtraction(
+        db,
+        adminCaller,
+        uploaded.sourcePublicId,
+        { idempotencyKey: `idem-${randomBytes(6).toString("hex")}` },
+        { env: NATIVE_ENV, spendPolicy: menuExtractionSpendPolicy(), config: CONFIG },
+      ),
+    );
+    await workerStep();
+    const review = await runAsRole(sqlClient, "qos_app", () =>
+      getMenuExtractionReview(
+        db,
+        adminCaller.tenantId,
+        adminCaller.subject,
+        uploaded.sourcePublicId,
+        run.publicId,
+        NATIVE_ENV,
+      ),
+    );
+    await runAsRole(sqlClient, "qos_app", () =>
+      rejectMenuExtraction(db, adminCaller, uploaded.sourcePublicId, {
+        runPublicId: run.publicId,
+      }),
+    );
+
+    await expect(
+      runAsRole(sqlClient, "qos_app", () =>
+        confirmMenuExtraction(db, adminCaller, uploaded.sourcePublicId, {
+          runPublicId: run.publicId,
+          expectedVersion: review!.candidatesRevision,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "run_already_decided" });
+
+    const products = await db.select().from(catalogueProducts);
+    expect(products.length).toBe(0);
+  });
+
   it("restores the latest extraction review for the tenant after cancel", async () => {
     const { adminCaller } = await seedTenant();
     const uploaded = await uploadFixture(adminCaller);

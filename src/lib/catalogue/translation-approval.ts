@@ -14,6 +14,7 @@ import {
   StaffAuthorizationError,
 } from "@/lib/staff/auth";
 import {
+  adminReviewApprovalFieldsFromSnapshot,
   clearAdminReviewRevertSnapshot,
   translationTextMatchesLastApproved,
 } from "@/lib/catalogue/translation-admin-review-snapshot";
@@ -597,13 +598,11 @@ export async function rejectProductTranslation(
 
       const rejectionUpdates: Partial<typeof catalogueProductTranslations.$inferInsert> =
         {
-          approvedBySubject: null,
-          approvedAt: null,
-          approvedTranslationVersion: null,
-          approvedSourceTranslationVersion: null,
           updatedAt: new Date(),
           ...clearAdminReviewRevertSnapshot(),
         };
+
+      let nextTranslationVersion = translation.translationVersion;
 
       if (pendingAiAdminReview) {
         const hasRevertSnapshot =
@@ -618,11 +617,25 @@ export async function rejectProductTranslation(
             translation.adminReviewRevertProvenance ?? translation.provenance;
           rejectionUpdates.approvalStatus =
             translation.adminReviewRevertApprovalStatus ?? "rejected";
+          nextTranslationVersion = translation.translationVersion + 1;
+          rejectionUpdates.translationVersion = nextTranslationVersion;
+          Object.assign(
+            rejectionUpdates,
+            adminReviewApprovalFieldsFromSnapshot(translation),
+          );
         } else {
           rejectionUpdates.approvalStatus = "rejected";
+          rejectionUpdates.approvedBySubject = null;
+          rejectionUpdates.approvedAt = null;
+          rejectionUpdates.approvedTranslationVersion = null;
+          rejectionUpdates.approvedSourceTranslationVersion = null;
         }
       } else {
         rejectionUpdates.approvalStatus = "draft";
+        rejectionUpdates.approvedBySubject = null;
+        rejectionUpdates.approvedAt = null;
+        rejectionUpdates.approvedTranslationVersion = null;
+        rejectionUpdates.approvedSourceTranslationVersion = null;
       }
 
       const [updated] = await tx
@@ -654,11 +667,11 @@ export async function rejectProductTranslation(
         action: "catalogue.translation.reject",
         entityType: "product_translation",
         entityPublicId: `${productPublicId}:${locale}`,
-        entityVersion: translation.translationVersion,
+        entityVersion: nextTranslationVersion,
         changeSummary: {
           locale,
           productPublicId,
-          translationVersion: translation.translationVersion,
+          translationVersion: nextTranslationVersion,
           pendingAiAdminReview,
           revertedToSnapshot: pendingAiAdminReview
             ? translation.adminReviewRevertDisplayName != null ||
