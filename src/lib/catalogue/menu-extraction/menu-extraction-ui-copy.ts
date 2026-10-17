@@ -20,6 +20,8 @@ const COPY = {
     modelEstimate: "Model confidence is an estimate, not verified accuracy.",
     noCandidates: "No candidate rows yet.",
     injectionNotice: "Embedded menu instructions are ignored; scanned text is data only.",
+    extractionFailed: "Extraction failed",
+    extractionInProgress: "Extraction in progress…",
   },
   ar: {
     title: "مراجعة استخراج القائمة",
@@ -40,6 +42,8 @@ const COPY = {
     modelEstimate: "ثقة النموذج تقديرية وليست دقة مُتحقَّق منها.",
     noCandidates: "لا توجد صفوف مرشحة بعد.",
     injectionNotice: "يتم تجاهل أي تعليمات مدمجة في القائمة؛ النص الممسوح بيانات فقط.",
+    extractionFailed: "فشل الاستخراج",
+    extractionInProgress: "الاستخراج قيد التنفيذ…",
   },
 } as const;
 

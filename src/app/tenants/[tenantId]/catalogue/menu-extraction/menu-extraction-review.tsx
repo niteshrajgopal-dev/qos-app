@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { MenuExtractionCandidatePayload } from "@/db/schema";
+import { menuExtractionFailureMessage } from "@/lib/catalogue/menu-extraction/menu-extraction-failure-copy";
 import { menuExtractionCopy } from "@/lib/catalogue/menu-extraction/menu-extraction-ui-copy";
+import { shouldPollMenuExtractionReview } from "@/lib/catalogue/menu-extraction/menu-extraction-review-polling";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type Review = {
@@ -49,8 +51,9 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState<Review["candidates"]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const extractKey = useMemo(() => `extract-${crypto.randomUUID()}`, []);
+  const [extractKey, setExtractKey] = useState(() => `extract-${crypto.randomUUID()}`);
   const confirmKey = useMemo(() => `confirm-${crypto.randomUUID()}`, []);
 
   const base = `/api/tenants/${tenantId}/catalogue/menu-extraction`;
@@ -70,30 +73,43 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
     [base, t.gateBlocked],
   );
 
-  const upload = useCallback(async () => {
-    if (!file) {
-      setError("Choose a file first.");
+  const uploadFile = useCallback(
+    async (selected: File) => {
+      setFile(selected);
+      setBusy(true);
+      setError(null);
+      setReview(null);
+      setDraft([]);
+      try {
+        const form = new FormData();
+        form.set("file", selected);
+        const response = await staffApiFetch(`${base}/upload`, { method: "POST", body: form });
+        const payload = (await response.json()) as { sourcePublicId: string; error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Upload failed.");
+        }
+        setSourcePublicId(payload.sourcePublicId);
+      } catch (uploadError) {
+        setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [base],
+  );
+
+  useEffect(() => {
+    if (!sourcePublicId || !review || !shouldPollMenuExtractionReview(review.status)) {
       return;
     }
-    setBusy(true);
-    setError(null);
-    try {
-      const form = new FormData();
-      form.set("file", file);
-      const response = await staffApiFetch(`${base}/upload`, { method: "POST", body: form });
-      const payload = (await response.json()) as { sourcePublicId: string; error?: string };
-      if (!response.ok) {
-        throw new Error(payload.error ?? "Upload failed.");
-      }
-      setSourcePublicId(payload.sourcePublicId);
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
-    } finally {
-      setBusy(false);
-    }
-  }, [base, file]);
+    const timer = window.setInterval(() => {
+      void loadReview(sourcePublicId);
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, [loadReview, review?.status, sourcePublicId]);
 
-  const extract = useCallback(async () => {
+  const runExtract = useCallback(
+    async (idempotencyKey: string) => {
     if (!sourcePublicId) {
       return;
     }
@@ -103,7 +119,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
       const response = await staffApiFetch(`${base}/${sourcePublicId}/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idempotencyKey: extractKey }),
+        body: JSON.stringify({ idempotencyKey }),
       });
       const payload = (await response.json()) as { review: Review | null; error?: string };
       if (!response.ok) {
@@ -119,7 +135,19 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
     } finally {
       setBusy(false);
     }
-  }, [base, extractKey, loadReview, sourcePublicId]);
+  },
+    [base, loadReview, sourcePublicId],
+  );
+
+  const extract = useCallback(async () => {
+    await runExtract(extractKey);
+  }, [extractKey, runExtract]);
+
+  const retryExtract = useCallback(async () => {
+    const nextKey = `extract-${crypto.randomUUID()}`;
+    setExtractKey(nextKey);
+    await runExtract(nextKey);
+  }, [runExtract]);
 
   const saveDraft = useCallback(async () => {
     if (!sourcePublicId || !review) {
@@ -222,15 +250,24 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
       {error ? <p className="text-sm text-red-700" role="alert">{error}</p> : null}
 
       <div className="flex flex-wrap gap-2 items-end">
-        <label className="stack gap-1 text-sm">
-          <span>{t.upload}</span>
-          <input
-            type="file"
-            accept="image/png,image/jpeg,application/pdf"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          />
-        </label>
-        <button type="button" className="btn" disabled={busy} onClick={() => void upload()}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,application/pdf"
+          className="hidden"
+          onChange={(event) => {
+            const selected = event.target.files?.[0];
+            if (selected) {
+              void uploadFile(selected);
+            }
+          }}
+        />
+        <button
+          type="button"
+          className="btn"
+          disabled={busy}
+          onClick={() => fileInputRef.current?.click()}
+        >
           {t.upload}
         </button>
         <button
@@ -247,8 +284,24 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
         <div className="stack gap-3">
           <p className="text-sm">
             Run {review.runPublicId} · {review.status}
+            {shouldPollMenuExtractionReview(review.status) ? ` · ${t.extractionInProgress}` : ""}
             {!review.gateReady ? ` · ${t.gateBlocked}` : ""}
           </p>
+          {review.status === "failed" ? (
+            <div className="stack gap-2 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-900">
+              <p className="font-medium">{t.extractionFailed}</p>
+              <p>
+                {menuExtractionFailureMessage(
+                  review.failureCode,
+                  uiLocale,
+                  review.failureMessage,
+                )}
+              </p>
+              <button type="button" className="btn btn-secondary w-fit" disabled={busy} onClick={() => void retryExtract()}>
+                {t.retry}
+              </button>
+            </div>
+          ) : null}
           {review.candidates.length === 0 ? (
             <p className="text-sm">{t.noCandidates}</p>
           ) : (
