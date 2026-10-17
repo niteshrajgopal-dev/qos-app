@@ -8,6 +8,7 @@ import { LightWave } from "@/components/portal/LightWave";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { formatMinorAmount } from "@/lib/staff/overview";
 import type { TenantOverview, TenantOverviewBranch } from "@/lib/staff/overview";
+import { tenantAuditActionLabel } from "@/lib/audit/tenant-audit-action-label";
 import { staffNavHref } from "@/lib/staff/nav";
 
 type PortalOverviewProps = {
@@ -32,14 +33,6 @@ function greetingFor(hour: number) {
   if (hour < 12) return "Good morning";
   if (hour < 17) return "Good afternoon";
   return "Good evening";
-}
-
-function auditActionLabel(action: string) {
-  const [, verb] = action.split(".").slice(-2);
-  return action
-    .replace(/[._]/g, " ")
-    .replace(/^\w/, (character) => character.toUpperCase())
-    .concat(verb ? "" : "");
 }
 
 export function PortalOverview({
@@ -353,7 +346,7 @@ export function PortalOverview({
                     <Icon name="check" size={13} />
                   </span>
                   <span>
-                    {auditActionLabel(event.action)}
+                    {tenantAuditActionLabel(event.action)}
                     <small>
                       {event.entityType.replace(/_/g, " ")} ·{" "}
                       {new Date(event.occurredAt).toLocaleString("en-GB", {

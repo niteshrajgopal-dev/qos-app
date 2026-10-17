@@ -245,15 +245,15 @@ export function TranslationApprovalsReview({ tenantId }: TranslationApprovalsRev
                     <dl className="mt-2 space-y-2 text-sm">
                       <div>
                         <dt style={{ color: "var(--text-secondary)" }}>{t.displayName}</dt>
-                        <dd style={{ color: "var(--text-primary)" }}>
-                          {item.proposed.displayName}
-                        </dd>
+                          <dd style={{ color: "var(--text-primary)" }} dir="auto">
+                            <bdi>{item.proposed.displayName}</bdi>
+                          </dd>
                       </div>
                       <div>
                         <dt style={{ color: "var(--text-secondary)" }}>{t.description}</dt>
-                        <dd style={{ color: "var(--text-primary)" }}>
-                          {item.proposed.description ?? "—"}
-                        </dd>
+                          <dd style={{ color: "var(--text-primary)" }} dir="auto">
+                            <bdi>{item.proposed.description ?? "—"}</bdi>
+                          </dd>
                       </div>
                     </dl>
                   </article>

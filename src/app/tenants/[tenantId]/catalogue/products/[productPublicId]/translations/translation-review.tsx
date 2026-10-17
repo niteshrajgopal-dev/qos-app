@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useState } from "react";
 
+import { StaffTranslationFieldRow } from "@/lib/catalogue/staff-translation-field-row";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type TranslationReviewView = {
@@ -198,42 +199,36 @@ export function TranslationReview({
               </header>
               {english ? (
                 <div className="space-y-3 text-sm" style={{ color: "var(--text-primary)" }}>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Display name:
-                    </span>{" "}
-                    {english.displayName}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Description:
-                    </span>{" "}
-                    {english.description ?? "—"}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Version:
-                    </span>{" "}
-                    {english.translationVersion}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Provenance:
-                    </span>{" "}
-                    {english.provenance}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Approved by:
-                    </span>{" "}
-                    {english.approvedBySubject ?? "—"}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Approved at:
-                    </span>{" "}
-                    {formatTimestamp(english.approvedAt)}
-                  </p>
+                  <StaffTranslationFieldRow
+                    label="Display name"
+                    value={english.displayName}
+                    dir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Description"
+                    value={english.description ?? "—"}
+                    dir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Version"
+                    value={String(english.translationVersion)}
+                    dir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Provenance"
+                    value={english.provenance}
+                    dir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Approved by"
+                    value={english.approvedBySubject ?? "—"}
+                    dir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Approved at"
+                    value={formatTimestamp(english.approvedAt)}
+                    dir="ltr"
+                  />
                   {english.lastApprovedAt ? (
                     <p className="text-sm" style={{ color: "var(--text-primary)" }}>
                       Last approved v{english.lastApprovedTranslationVersion} by{" "}
@@ -292,48 +287,52 @@ export function TranslationReview({
               </header>
               {arabic ? (
                 <div className="space-y-3 text-sm" style={{ color: "var(--text-primary)" }}>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Display name:
-                    </span>{" "}
-                    {arabic.displayName}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Description:
-                    </span>{" "}
-                    {arabic.description ?? "—"}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Version:
-                    </span>{" "}
-                    {arabic.translationVersion}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Provenance:
-                    </span>{" "}
-                    {arabic.provenance}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Source EN version:
-                    </span>{" "}
-                    {arabic.approvedSourceTranslationVersion ?? "—"}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Approved by:
-                    </span>{" "}
-                    {arabic.approvedBySubject ?? "—"}
-                  </p>
-                  <p>
-                    <span className="text-sm font-medium" style={{ color: "var(--text-primary)" }}>
-                      Approved at:
-                    </span>{" "}
-                    {formatTimestamp(arabic.approvedAt)}
-                  </p>
+                  <StaffTranslationFieldRow
+                    label="Display name"
+                    value={arabic.displayName}
+                    dir="rtl"
+                    labelDir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Description"
+                    value={arabic.description ?? "—"}
+                    dir="rtl"
+                    labelDir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Version"
+                    value={String(arabic.translationVersion)}
+                    dir="rtl"
+                    labelDir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Provenance"
+                    value={arabic.provenance}
+                    dir="rtl"
+                    labelDir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Source EN version"
+                    value={
+                      arabic.approvedSourceTranslationVersion != null
+                        ? String(arabic.approvedSourceTranslationVersion)
+                        : "—"
+                    }
+                    dir="rtl"
+                    labelDir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Approved by"
+                    value={arabic.approvedBySubject ?? "—"}
+                    dir="rtl"
+                    labelDir="ltr"
+                  />
+                  <StaffTranslationFieldRow
+                    label="Approved at"
+                    value={formatTimestamp(arabic.approvedAt)}
+                    dir="rtl"
+                    labelDir="ltr"
+                  />
                   {arabic.lastApprovedAt ? (
                     <p className="text-sm" style={{ color: "var(--text-primary)" }}>
                       Last approved v{arabic.lastApprovedTranslationVersion} (EN v

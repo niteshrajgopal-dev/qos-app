@@ -68,6 +68,8 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
   const confirmKey = useMemo(() => `confirm-${crypto.randomUUID()}`, []);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const reviewClosed = review ? isMenuExtractionReviewClosed(review.decision) : false;
+  const reviewCancelled =
+    review?.decision === "cancelled" || review?.decision === "rejected";
 
   const base = `/api/tenants/${tenantId}/catalogue/menu-extraction`;
 
@@ -85,6 +87,27 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
     },
     [base, t.gateBlocked],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+    void staffApiFetch(`${base}/latest-review`)
+      .then(async (response) => {
+        if (cancelled || !response.ok) {
+          return;
+        }
+        const payload = (await response.json()) as { review: Review | null };
+        if (!payload.review) {
+          return;
+        }
+        setSourcePublicId(payload.review.sourcePublicId);
+        setReview(payload.review);
+        setDraft(payload.review.candidates);
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [base]);
 
   useEffect(() => {
     if (!sourcePublicId || !review || !shouldPollMenuExtractionReview(review.status)) {
@@ -319,7 +342,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
             {shouldPollMenuExtractionReview(review.status) ? ` · ${t.extractionInProgress}` : ""}
             {!review.gateReady ? ` · ${t.gateBlocked}` : ""}
           </p>
-          {review.decision === "rejected" ? (
+          {reviewCancelled ? (
             <p className="text-sm" role="status">{t.reviewCancelled}</p>
           ) : null}
           {review.status === "failed" ? (

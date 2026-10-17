@@ -665,7 +665,7 @@ export async function rejectMenuExtraction(
     await assertTenantActive(tx, caller.tenantId);
     await lockMenuExtractionRunForUpdate(tx, caller.tenantId, run.id);
     const existing = await readMenuExtractionDecision(tx, caller.tenantId, run.id);
-    if (existing?.decision === "rejected") {
+    if (existing?.decision === "cancelled" || existing?.decision === "rejected") {
       return;
     }
     if (existing) {
@@ -677,7 +677,7 @@ export async function rejectMenuExtraction(
       .values({
         tenantId: caller.tenantId,
         agentRunId: run.id,
-        decision: "rejected",
+        decision: "cancelled",
         decidedBySubject: caller.subject,
       })
       .onConflictDoNothing({
@@ -690,7 +690,7 @@ export async function rejectMenuExtraction(
 
     if (!inserted) {
       const raced = await readMenuExtractionDecision(tx, caller.tenantId, run.id);
-      if (raced?.decision === "rejected") {
+      if (raced?.decision === "cancelled" || raced?.decision === "rejected") {
         return;
       }
       throw new AgentRunError("run_already_decided", "This extraction review is closed.", 409);
@@ -702,7 +702,7 @@ export async function rejectMenuExtraction(
       actorClass: auditActorClassFromStaffRole(caller.membership.role),
       entityType: "catalogue_menu_extraction_source",
       entityPublicId: sourcePublicId,
-      action: "catalogue.menu_extraction.rejected",
+      action: "catalogue.menu_extraction.cancelled",
       changeSummary: { runPublicId: run.publicId },
     });
   });
@@ -719,6 +719,44 @@ function assertMenuExtractionRun(run: AgentRunRecord, sourcePublicId: string) {
   ) {
     throw new AgentRunError("run_not_found", "Menu extraction review not found.", 404);
   }
+}
+
+export async function getLatestTenantMenuExtractionReview(
+  db: DbClient,
+  tenantId: string,
+  env?: Record<string, string | undefined>,
+): Promise<MenuExtractionReviewView | null> {
+  const latest = await withTenantContext(db, tenantId, async (tx) => {
+    const [run] = await tx
+      .select({
+        publicId: agentRuns.publicId,
+        subjectPublicId: agentRuns.subjectPublicId,
+      })
+      .from(agentRuns)
+      .where(
+        and(
+          eq(agentRuns.tenantId, tenantId),
+          eq(agentRuns.capability, CAPABILITY),
+          eq(agentRuns.subjectType, SUBJECT_TYPE),
+        ),
+      )
+      .orderBy(desc(agentRuns.createdAt))
+      .limit(1);
+    return run ?? null;
+  });
+
+  if (!latest) {
+    return null;
+  }
+
+  const record = await getAgentRun(db, tenantId, latest.publicId);
+  return buildMenuExtractionReviewView(
+    db,
+    tenantId,
+    latest.subjectPublicId,
+    record,
+    env,
+  );
 }
 
 export async function getLatestMenuExtractionReview(

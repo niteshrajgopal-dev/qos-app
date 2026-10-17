@@ -618,7 +618,6 @@ export async function rejectProductTranslation(
             translation.adminReviewRevertProvenance ?? translation.provenance;
           rejectionUpdates.approvalStatus =
             translation.adminReviewRevertApprovalStatus ?? "rejected";
-          rejectionUpdates.translationVersion = translation.translationVersion + 1;
         } else {
           rejectionUpdates.approvalStatus = "rejected";
         }
