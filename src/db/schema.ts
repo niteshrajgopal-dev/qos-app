@@ -1217,6 +1217,8 @@ export type PublicMenuProductSnapshot = {
     inheritanceMode: "inherited" | "override";
   };
   mediaAssetId: string | null;
+  /** i18n key for customer disclosure when the approved image is AI-generated. */
+  mediaImageDisclosureI18nKey?: string | null;
 };
 
 export type MenuLiveSnapshotPayload = {
