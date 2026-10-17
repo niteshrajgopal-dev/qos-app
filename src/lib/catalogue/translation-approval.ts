@@ -184,7 +184,7 @@ function emptyTranslation(locale: ProductLocale): ProductTranslationReviewView {
   };
 }
 
-async function loadLatestTranslationAcceptance(
+async function loadLatestAcceptedTranslationDecision(
   tx: DbClient,
   tenantId: string,
   productPublicId: string,
@@ -194,6 +194,8 @@ async function loadLatestTranslationAcceptance(
     .select({
       decidedBySubject: agentRunCatalogueTranslationDecisions.decidedBySubject,
       createdAt: agentRunCatalogueTranslationDecisions.createdAt,
+      displayName: agentRunCatalogueTranslationDecisions.displayName,
+      description: agentRunCatalogueTranslationDecisions.description,
     })
     .from(agentRunCatalogueTranslationDecisions)
     .innerJoin(
@@ -301,7 +303,7 @@ export async function listPendingAiTranslationApprovals(
         }
 
         const english = englishByProduct.get(row.productId);
-        const acceptance = await loadLatestTranslationAcceptance(
+        const acceptance = await loadLatestAcceptedTranslationDecision(
           tx,
           tenantId,
           row.productPublicId,
@@ -311,16 +313,23 @@ export async function listPendingAiTranslationApprovals(
         const sourceTranslationVersion =
           locale === "ar" ? english?.translationVersion ?? null : row.translationVersion;
 
+        const proposed = acceptance
+          ? {
+              displayName: acceptance.displayName,
+              description: acceptance.description,
+            }
+          : {
+              displayName: row.displayName,
+              description: row.description,
+            };
+
         items.push({
           productPublicId: row.productPublicId,
           productInternalName: row.productInternalName,
           locale,
           translationVersion: row.translationVersion,
           sourceTranslationVersion,
-          proposed: {
-            displayName: row.displayName,
-            description: row.description,
-          },
+          proposed,
           sourceCopy:
             english != null
               ? {
@@ -582,16 +591,23 @@ export async function rejectProductTranslation(
         );
       }
 
-      const [updated] = await tx
-        .update(catalogueProductTranslations)
-        .set({
+      const rejectionUpdates: Partial<typeof catalogueProductTranslations.$inferInsert> =
+        {
           approvalStatus: "draft",
           approvedBySubject: null,
           approvedAt: null,
           approvedTranslationVersion: null,
           approvedSourceTranslationVersion: null,
           updatedAt: new Date(),
-        })
+        };
+
+      if (translation.provenance === "ai_generated") {
+        rejectionUpdates.provenance = "operator_entered";
+      }
+
+      const [updated] = await tx
+        .update(catalogueProductTranslations)
+        .set(rejectionUpdates)
         .where(
           and(
             eq(catalogueProductTranslations.tenantId, tenantId),

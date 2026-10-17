@@ -286,8 +286,15 @@ integrationDescribe("AI translation approval queue (DB)", () => {
       expectedTranslationVersion: staleList.items[0]!.translationVersion,
     });
 
+    await expect(
+      listPendingAiTranslationApprovals(db, quotes.tenant.id, ADMIN_SUBJECT),
+    ).resolves.toMatchObject({ items: [] });
+
     const [row] = await db
-      .select({ approvalStatus: catalogueProductTranslations.approvalStatus })
+      .select({
+        approvalStatus: catalogueProductTranslations.approvalStatus,
+        provenance: catalogueProductTranslations.provenance,
+      })
       .from(catalogueProductTranslations)
       .where(
         and(
@@ -296,6 +303,35 @@ integrationDescribe("AI translation approval queue (DB)", () => {
         ),
       );
     expect(row?.approvalStatus).toBe("draft");
+    expect(row?.provenance).toBe("operator_entered");
+  });
+
+  it("lists proposed copy from the staff accept decision, not stale row text", async () => {
+    const { quotes, product, adminCaller } = await seedTenant();
+    const suggestion = { displayName: "قهوة عربية", description: "وصف عربي." };
+    const run = await completeRun(adminCaller, product.publicId, suggestion);
+
+    await runAsRole(sqlClient, "qos_app", () =>
+      acceptCatalogueTranslation(db, adminCaller, product.publicId, {
+        runPublicId: run.publicId,
+        displayName: suggestion.displayName,
+        description: suggestion.description,
+        expectedTargetTranslationVersion: 1,
+      }),
+    );
+
+    await db
+      .update(catalogueProductTranslations)
+      .set({ displayName: "Arabic Coffee" })
+      .where(
+        and(
+          eq(catalogueProductTranslations.tenantId, quotes.tenant.id),
+          eq(catalogueProductTranslations.locale, "ar"),
+        ),
+      );
+
+    const list = await listPendingAiTranslationApprovals(db, quotes.tenant.id, ADMIN_SUBJECT);
+    expect(list.items[0]?.proposed).toMatchObject(suggestion);
   });
 
   it("enforces tenant isolation and administrator-only access", async () => {

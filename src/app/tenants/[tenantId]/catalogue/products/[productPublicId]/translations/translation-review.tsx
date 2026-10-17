@@ -150,12 +150,15 @@ export function TranslationReview({
         <>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-sm text-zinc-500">Internal name</p>
-              <p className="text-lg font-medium">{review.internalName}</p>
+              <p className="qos-card-sub">Internal name</p>
+              <p className="text-lg font-medium" style={{ color: "var(--text-primary)" }}>
+                {review.internalName}
+              </p>
             </div>
             <Link
               href={`/tenants/${tenantId}/catalogue/products/${productPublicId}/edit`}
-              className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
+              className="text-sm font-medium underline-offset-4 hover:underline"
+              style={{ color: "var(--text-secondary)" }}
             >
               Back to product editor
             </Link>
@@ -165,43 +168,66 @@ export function TranslationReview({
             <article className="qos-card" data-padding="md">
               <header className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     Source
                   </p>
-                  <h3 className="text-lg font-semibold">English</h3>
+                  <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+                    English
+                  </h3>
                 </div>
-                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700">
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-medium"
+                  style={{
+                    background: "var(--surface-muted, rgba(255,255,255,0.08))",
+                    color: "var(--text-primary)",
+                  }}
+                >
                   {english ? statusLabel(english.approvalStatus) : "—"}
                 </span>
               </header>
               {english ? (
-                <div className="space-y-3 text-sm">
+                <div className="space-y-3 text-sm" style={{ color: "var(--text-primary)" }}>
                   <p>
-                    <span className="font-medium text-zinc-700">Display name:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Display name:
+                    </span>{" "}
                     {english.displayName}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Description:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Description:
+                    </span>{" "}
                     {english.description ?? "—"}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Version:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Version:
+                    </span>{" "}
                     {english.translationVersion}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Provenance:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Provenance:
+                    </span>{" "}
                     {english.provenance}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Approved by:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Approved by:
+                    </span>{" "}
                     {english.approvedBySubject ?? "—"}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Approved at:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Approved at:
+                    </span>{" "}
                     {formatTimestamp(english.approvedAt)}
                   </p>
                   {english.lastApprovedAt ? (
-                    <p className="text-zinc-500">
+                    <p className="qos-card-sub">
                       Last approved v{english.lastApprovedTranslationVersion} by{" "}
                       {english.lastApprovedBySubject} on{" "}
                       {formatTimestamp(english.lastApprovedAt)}
@@ -236,47 +262,72 @@ export function TranslationReview({
             >
               <header className="mb-4 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                  <p
+                    className="text-xs font-semibold uppercase tracking-wide"
+                    style={{ color: "var(--text-secondary)" }}
+                  >
                     Translation
                   </p>
-                  <h3 className="text-lg font-semibold">العربية</h3>
+                  <h3 className="text-lg font-semibold" style={{ color: "var(--text-primary)" }}>
+                    العربية
+                  </h3>
                 </div>
-                <span className="rounded-full bg-zinc-100 px-3 py-1 text-xs font-medium text-zinc-700">
+                <span
+                  className="rounded-full px-3 py-1 text-xs font-medium"
+                  style={{
+                    background: "var(--surface-muted, rgba(255,255,255,0.08))",
+                    color: "var(--text-primary)",
+                  }}
+                >
                   {arabic ? statusLabel(arabic.approvalStatus) : "—"}
                 </span>
               </header>
               {arabic ? (
-                <div className="space-y-3 text-sm">
+                <div className="space-y-3 text-sm" style={{ color: "var(--text-primary)" }}>
                   <p>
-                    <span className="font-medium text-zinc-700">Display name:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Display name:
+                    </span>{" "}
                     {arabic.displayName}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Description:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Description:
+                    </span>{" "}
                     {arabic.description ?? "—"}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Version:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Version:
+                    </span>{" "}
                     {arabic.translationVersion}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Provenance:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Provenance:
+                    </span>{" "}
                     {arabic.provenance}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Source EN version:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Source EN version:
+                    </span>{" "}
                     {arabic.approvedSourceTranslationVersion ?? "—"}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Approved by:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Approved by:
+                    </span>{" "}
                     {arabic.approvedBySubject ?? "—"}
                   </p>
                   <p>
-                    <span className="font-medium text-zinc-700">Approved at:</span>{" "}
+                    <span className="font-medium" style={{ color: "var(--text-secondary)" }}>
+                      Approved at:
+                    </span>{" "}
                     {formatTimestamp(arabic.approvedAt)}
                   </p>
                   {arabic.lastApprovedAt ? (
-                    <p className="text-zinc-500">
+                    <p className="qos-card-sub">
                       Last approved v{arabic.lastApprovedTranslationVersion} (EN v
                       {arabic.lastApprovedSourceTranslationVersion}) by{" "}
                       {arabic.lastApprovedBySubject} on{" "}

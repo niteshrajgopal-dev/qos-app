@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { AI_DESCRIPTION_REVIEW_ACCEPTED_COPY } from "@/lib/catalogue/ai-description-review-copy";
+import { shouldShowDescriptionAcceptedBanner } from "@/lib/catalogue/ai-description-review-ui";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type DiffLine = {
@@ -95,6 +96,7 @@ export function AiDescriptionReview({
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [description, setDescription] = useState("");
+  const [acceptedThisSession, setAcceptedThisSession] = useState(false);
 
   const loadReview = useCallback(async () => {
     const response = await staffApiFetch(`${base}/review`);
@@ -107,6 +109,7 @@ export function AiDescriptionReview({
       throw new Error(payload.error ?? "Unable to load description review.");
     }
     setReview(payload.review ?? null);
+    setAcceptedThisSession(false);
     setGateReady(payload.gateReady ?? false);
     const editable = payload.review?.editableSuggestion ?? payload.review?.suggestion;
     if (editable !== undefined && editable !== null) {
@@ -199,6 +202,7 @@ export function AiDescriptionReview({
       }
       setReview(payload.review ?? null);
       if (payload.review?.suggestionState === "accepted") {
+        setAcceptedThisSession(true);
         onAccepted?.();
       }
     } catch (acceptError) {
@@ -282,16 +286,16 @@ export function AiDescriptionReview({
           {review.failureMessage ?? t.failed}
         </p>
       ) : null}
-      {review?.suggestionState === "accepted" ? (
-        <p className="text-sm text-zinc-600" role="status">{t.accepted}</p>
+      {shouldShowDescriptionAcceptedBanner(review?.suggestionState, acceptedThisSession) ? (
+        <p className="qos-card-sub" role="status">{t.accepted}</p>
       ) : null}
       {review?.suggestionState === "rejected" ? (
-        <p className="text-sm text-zinc-600" role="status">{t.rejected}</p>
+        <p className="qos-card-sub" role="status">{t.rejected}</p>
       ) : null}
       {review && review.status !== "completed" && review.suggestionState === "pending" ? (
-        <p className="text-sm text-zinc-600" role="status">{t.pending}</p>
+        <p className="qos-card-sub" role="status">{t.pending}</p>
       ) : null}
-      {!review ? <p className="text-sm text-zinc-500">{t.none}</p> : null}
+      {!review ? <p className="qos-card-sub">{t.none}</p> : null}
 
       {review ? (
         <div className="grid gap-4 lg:grid-cols-2">
