@@ -22,6 +22,8 @@ const COPY = {
     injectionNotice: "Embedded menu instructions are ignored; scanned text is data only.",
     extractionFailed: "Extraction failed",
     extractionInProgress: "Extraction in progress…",
+    requiredField: "Required before confirm",
+    missingArabicName: "Arabic name is required before confirm.",
   },
   ar: {
     title: "مراجعة استخراج القائمة",
@@ -44,6 +46,8 @@ const COPY = {
     injectionNotice: "يتم تجاهل أي تعليمات مدمجة في القائمة؛ النص الممسوح بيانات فقط.",
     extractionFailed: "فشل الاستخراج",
     extractionInProgress: "الاستخراج قيد التنفيذ…",
+    requiredField: "مطلوب قبل التأكيد",
+    missingArabicName: "الاسم العربي مطلوب قبل التأكيد.",
   },
 } as const;
 

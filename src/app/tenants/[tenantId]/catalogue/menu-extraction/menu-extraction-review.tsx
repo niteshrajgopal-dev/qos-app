@@ -4,8 +4,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { MenuExtractionCandidatePayload } from "@/db/schema";
 import { menuExtractionFailureMessage } from "@/lib/catalogue/menu-extraction/menu-extraction-failure-copy";
+import { menuExtractionConfirmFieldIssues } from "@/lib/catalogue/menu-extraction/candidate-validation";
+import { menuExtractionExtractIdempotencyKey } from "@/lib/catalogue/menu-extraction/extract-idempotency";
 import { menuExtractionCopy } from "@/lib/catalogue/menu-extraction/menu-extraction-ui-copy";
 import { shouldPollMenuExtractionReview } from "@/lib/catalogue/menu-extraction/menu-extraction-review-polling";
+import { menuExtractionRunStatusLabel } from "@/lib/catalogue/menu-extraction/menu-extraction-run-status";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type Review = {
@@ -45,7 +48,6 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
   const t = menuExtractionCopy(uiLocale);
   const dir = uiLocale === "ar" ? "rtl" : "ltr";
 
-  const [file, setFile] = useState<File | null>(null);
   const [sourcePublicId, setSourcePublicId] = useState<string | null>(null);
   const [review, setReview] = useState<Review | null>(null);
   const [busy, setBusy] = useState(false);
@@ -53,8 +55,15 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
   const [draft, setDraft] = useState<Review["candidates"]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [extractKey, setExtractKey] = useState(() => `extract-${crypto.randomUUID()}`);
+  const [extractRetryNonce, setExtractRetryNonce] = useState<string | null>(null);
+  const extractKey = useMemo(() => {
+    if (!sourcePublicId) {
+      return null;
+    }
+    return menuExtractionExtractIdempotencyKey(sourcePublicId, extractRetryNonce ?? undefined);
+  }, [extractRetryNonce, sourcePublicId]);
   const confirmKey = useMemo(() => `confirm-${crypto.randomUUID()}`, []);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const base = `/api/tenants/${tenantId}/catalogue/menu-extraction`;
 
@@ -73,31 +82,6 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
     [base, t.gateBlocked],
   );
 
-  const uploadFile = useCallback(
-    async (selected: File) => {
-      setFile(selected);
-      setBusy(true);
-      setError(null);
-      setReview(null);
-      setDraft([]);
-      try {
-        const form = new FormData();
-        form.set("file", selected);
-        const response = await staffApiFetch(`${base}/upload`, { method: "POST", body: form });
-        const payload = (await response.json()) as { sourcePublicId: string; error?: string };
-        if (!response.ok) {
-          throw new Error(payload.error ?? "Upload failed.");
-        }
-        setSourcePublicId(payload.sourcePublicId);
-      } catch (uploadError) {
-        setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
-      } finally {
-        setBusy(false);
-      }
-    },
-    [base],
-  );
-
   useEffect(() => {
     if (!sourcePublicId || !review || !shouldPollMenuExtractionReview(review.status)) {
       return;
@@ -109,14 +93,11 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
   }, [loadReview, review?.status, sourcePublicId]);
 
   const runExtract = useCallback(
-    async (idempotencyKey: string) => {
-    if (!sourcePublicId) {
-      return;
-    }
+    async (sourceId: string, idempotencyKey: string) => {
     setBusy(true);
     setError(null);
     try {
-      const response = await staffApiFetch(`${base}/${sourcePublicId}/extract`, {
+      const response = await staffApiFetch(`${base}/${sourceId}/extract`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idempotencyKey }),
@@ -129,25 +110,58 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
         setReview(payload.review);
         setDraft(payload.review.candidates);
       }
-      await loadReview(sourcePublicId);
+      await loadReview(sourceId);
     } catch (extractError) {
       setError(extractError instanceof Error ? extractError.message : "Extraction failed.");
     } finally {
       setBusy(false);
     }
   },
-    [base, loadReview, sourcePublicId],
+    [base, loadReview],
+  );
+
+  const uploadFile = useCallback(
+    async (selected: File) => {
+      setBusy(true);
+      setError(null);
+      setReview(null);
+      setDraft([]);
+      setFieldErrors({});
+      setExtractRetryNonce(null);
+      try {
+        const form = new FormData();
+        form.set("file", selected);
+        const response = await staffApiFetch(`${base}/upload`, { method: "POST", body: form });
+        const payload = (await response.json()) as { sourcePublicId: string; error?: string };
+        if (!response.ok) {
+          throw new Error(payload.error ?? "Upload failed.");
+        }
+        setSourcePublicId(payload.sourcePublicId);
+        const idempotencyKey = menuExtractionExtractIdempotencyKey(payload.sourcePublicId);
+        await runExtract(payload.sourcePublicId, idempotencyKey);
+      } catch (uploadError) {
+        setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
+        setBusy(false);
+      }
+    },
+    [base, runExtract],
   );
 
   const extract = useCallback(async () => {
-    await runExtract(extractKey);
-  }, [extractKey, runExtract]);
+    if (!sourcePublicId || !extractKey) {
+      return;
+    }
+    await runExtract(sourcePublicId, extractKey);
+  }, [extractKey, runExtract, sourcePublicId]);
 
   const retryExtract = useCallback(async () => {
-    const nextKey = `extract-${crypto.randomUUID()}`;
-    setExtractKey(nextKey);
-    await runExtract(nextKey);
-  }, [runExtract]);
+    if (!sourcePublicId) {
+      return;
+    }
+    const nonce = crypto.randomUUID();
+    setExtractRetryNonce(nonce);
+    await runExtract(sourcePublicId, menuExtractionExtractIdempotencyKey(sourcePublicId, nonce));
+  }, [runExtract, sourcePublicId]);
 
   const saveDraft = useCallback(async () => {
     if (!sourcePublicId || !review) {
@@ -185,6 +199,21 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
     if (!sourcePublicId || !review) {
       return;
     }
+    const nextFieldErrors: Record<string, string> = {};
+    for (const row of draft) {
+      if (row.excluded) {
+        continue;
+      }
+      for (const issue of menuExtractionConfirmFieldIssues(row.payload)) {
+        nextFieldErrors[`${row.candidateKey}:${issue.field}`] = issue.message;
+      }
+    }
+    if (Object.keys(nextFieldErrors).length > 0) {
+      setFieldErrors(nextFieldErrors);
+      setError(t.missingArabicName);
+      return;
+    }
+    setFieldErrors({});
     await saveDraft();
     setBusy(true);
     try {
@@ -213,7 +242,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
     } finally {
       setBusy(false);
     }
-  }, [base, confirmKey, loadReview, review, saveDraft, sourcePublicId]);
+  }, [base, confirmKey, draft, loadReview, review, saveDraft, sourcePublicId, t.missingArabicName]);
 
   const reject = useCallback(async () => {
     if (!sourcePublicId || !review) {
@@ -252,24 +281,22 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
       <div className="flex flex-wrap gap-2 items-end">
         <input
           ref={fileInputRef}
+          id="menu-extraction-upload-input"
           type="file"
           accept="image/png,image/jpeg,application/pdf"
-          className="hidden"
+          className="sr-only"
+          disabled={busy}
           onChange={(event) => {
             const selected = event.target.files?.[0];
+            event.target.value = "";
             if (selected) {
               void uploadFile(selected);
             }
           }}
         />
-        <button
-          type="button"
-          className="btn"
-          disabled={busy}
-          onClick={() => fileInputRef.current?.click()}
-        >
+        <label htmlFor="menu-extraction-upload-input" className={`btn ${busy ? "pointer-events-none opacity-60" : ""}`}>
           {t.upload}
-        </button>
+        </label>
         <button
           type="button"
           className="btn"
@@ -283,7 +310,7 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
       {review && sourcePublicId ? (
         <div className="stack gap-3">
           <p className="text-sm">
-            Run {review.runPublicId} · {review.status}
+            Run {review.runPublicId} · {menuExtractionRunStatusLabel(review.status, uiLocale)}
             {shouldPollMenuExtractionReview(review.status) ? ` · ${t.extractionInProgress}` : ""}
             {!review.gateReady ? ` · ${t.gateBlocked}` : ""}
           </p>
@@ -351,8 +378,14 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
                         </td>
                         <td className="p-2">
                           <input
-                            className="w-full border rounded px-2 py-1"
+                            className={`w-full border rounded px-2 py-1 ${
+                              fieldErrors[`${row.candidateKey}:displayNameAr`]
+                                ? "border-red-600 ring-1 ring-red-200"
+                                : ""
+                            }`}
                             dir="rtl"
+                            required={!row.excluded}
+                            aria-invalid={Boolean(fieldErrors[`${row.candidateKey}:displayNameAr`])}
                             value={row.payload.displayNameAr ?? ""}
                             onChange={(event) => {
                               const next = [...draft];
@@ -364,8 +397,17 @@ export function MenuExtractionReview({ tenantId, uiLocale }: MenuExtractionRevie
                                 },
                               };
                               setDraft(next);
+                              if (fieldErrors[`${row.candidateKey}:displayNameAr`]) {
+                                const { [`${row.candidateKey}:displayNameAr`]: _, ...rest } = fieldErrors;
+                                setFieldErrors(rest);
+                              }
                             }}
                           />
+                          {fieldErrors[`${row.candidateKey}:displayNameAr`] ? (
+                            <p className="text-xs text-red-700" role="alert">
+                              {t.requiredField}
+                            </p>
+                          ) : null}
                           <span className={`text-xs px-1 rounded ${uncertaintyClass(row.payload.uncertainty.displayNameAr)}`}>
                             {row.payload.uncertainty.displayNameAr}
                           </span>

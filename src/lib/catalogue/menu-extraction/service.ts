@@ -32,7 +32,11 @@ import {
 } from "@/lib/catalogue/catalogue-import";
 import { CURRENT_CATALOGUE_MENU_EXTRACTION_DEFINITION } from "@/lib/catalogue/menu-extraction/definition";
 import { candidateToImportRow } from "@/lib/catalogue/menu-extraction/import-mapper";
-import { parseMenuExtractionCandidatePayload } from "@/lib/catalogue/menu-extraction/candidate-validation";
+import {
+  MenuExtractionCandidateValidationError,
+  menuExtractionConfirmFieldIssues,
+  parseMenuExtractionCandidatePayload,
+} from "@/lib/catalogue/menu-extraction/candidate-validation";
 import { MENU_EXTRACTION_INPUT_SCHEMA, MENU_EXTRACTION_RESULT_SCHEMA } from "@/lib/catalogue/menu-extraction/result";
 import {
   assertMenuExtractionCandidatesRevision,
@@ -396,7 +400,10 @@ export async function updateMenuExtractionCandidates(
       let payload: MenuExtractionCandidatePayload;
       try {
         payload = parseMenuExtractionCandidatePayload(candidate.payload, candidate.candidateKey);
-      } catch {
+      } catch (error) {
+        if (error instanceof MenuExtractionCandidateValidationError) {
+          throw error;
+        }
         throw new AgentRunError("candidate_invalid", "Candidate payload is invalid.", 400);
       }
       const [updated] = await tx
@@ -485,21 +492,36 @@ export async function confirmMenuExtraction(
     const importRows = [];
     let sourceRow = 1;
     for (const row of selected) {
+      let normalized: MenuExtractionCandidatePayload;
       try {
-        parseMenuExtractionCandidatePayload(row.payload, row.candidateKey);
-      } catch {
+        normalized = parseMenuExtractionCandidatePayload(row.payload, row.candidateKey);
+      } catch (error) {
+        if (error instanceof MenuExtractionCandidateValidationError) {
+          throw error;
+        }
         throw new AgentRunError(
           "candidate_invalid",
           `Candidate ${row.candidateKey} has invalid review data.`,
           400,
         );
       }
-      const mapped = candidateToImportRow(sourcePublicId, row.payload, sourceRow);
+      const issues = menuExtractionConfirmFieldIssues(normalized);
+      if (issues.length > 0) {
+        const first = issues[0]!;
+        throw new AgentRunError(
+          "candidate_incomplete",
+          first.message,
+          400,
+          { field: first.field, candidateKey: row.candidateKey },
+        );
+      }
+      const mapped = candidateToImportRow(sourcePublicId, normalized, sourceRow);
       if (!mapped) {
         throw new AgentRunError(
           "candidate_incomplete",
           `Candidate ${row.candidateKey} is missing required confirmed fields (names and price).`,
           400,
+          { candidateKey: row.candidateKey },
         );
       }
       importRows.push(mapped);

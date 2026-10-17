@@ -29,6 +29,7 @@ import {
   TranslationApprovalError,
 } from "@/lib/catalogue/translation-approval";
 import { AgentRunError } from "@/lib/agents/agent-runs";
+import { MenuExtractionCandidateValidationError } from "@/lib/catalogue/menu-extraction/candidate-validation";
 import { AiSpendAdmissionError } from "@/lib/ai/spend/spend-admission";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { StaffAuthError } from "@/lib/staff/session";
@@ -138,11 +139,24 @@ export function catalogueErrorResponse(error: unknown) {
     );
   }
 
+  if (error instanceof MenuExtractionCandidateValidationError) {
+    return NextResponse.json(
+      {
+        error: error.message,
+        field: error.field,
+        candidateKey: error.candidateKey,
+      },
+      { status: error.statusCode },
+    );
+  }
+
   if (error instanceof AgentRunError) {
     return NextResponse.json(
       {
         error: error.message,
         code: error.code,
+        field: error.field,
+        candidateKey: error.candidateKey,
         activeRunPublicId: error.activeRunPublicId,
         unresolvedRunPublicId: error.unresolvedRunPublicId,
       },
