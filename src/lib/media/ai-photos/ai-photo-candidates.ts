@@ -135,6 +135,8 @@ export type GenerationMetadata = {
   promptVersion: string;
   prompt: string;
   contextSha256: string;
+  /** Product row version when generation was requested (catalogue_products.version). */
+  productVersion: number;
   menuPublicId: string;
   requestedBySubject: string;
   requestedAt: string;
@@ -216,6 +218,7 @@ function resolveAvailability(config: AiPhotoConfig, options: ServiceOptions) {
 type MenuProduct = {
   id: string;
   publicId: string;
+  version: number;
   primaryMediaAssetId: string | null;
   context: AiPhotoProductContext;
 };
@@ -260,6 +263,7 @@ async function loadMenuProducts(
     .select({
       id: catalogueProducts.id,
       publicId: catalogueProducts.publicId,
+      version: catalogueProducts.version,
       internalName: catalogueProducts.internalName,
       status: catalogueProducts.status,
       primaryMediaAssetId: catalogueProducts.primaryMediaAssetId,
@@ -286,6 +290,7 @@ async function loadMenuProducts(
     result.set(row.publicId, {
       id: row.id,
       publicId: row.publicId,
+      version: row.version,
       primaryMediaAssetId: row.primaryMediaAssetId,
       context: {
         displayName: row.displayName?.trim() || row.internalName,
@@ -753,6 +758,7 @@ async function reserveAiPhotoInTx(
     promptVersion: AI_PHOTO_PROMPT_VERSION,
     prompt,
     contextSha256: aiPhotoContextSha256(product.context),
+    productVersion: product.version,
     menuPublicId,
     requestedBySubject: caller.subject,
     requestedAt: now().toISOString(),
@@ -1162,10 +1168,14 @@ export async function acceptMenuAiPhoto(
     }
 
     const metadata = metadataOf(asset);
-    if (metadata.contextSha256 !== aiPhotoContextSha256(product.context)) {
+    const contextSha256 = aiPhotoContextSha256(product.context);
+    const staleContext = metadata.contextSha256 !== contextSha256;
+    const staleRevision =
+      metadata.productVersion !== undefined && metadata.productVersion !== product.version;
+    if (staleContext || staleRevision) {
       throw new AiPhotoError(
         "stale_candidate",
-        "The item's name or description changed after this image was generated. Generate a new one.",
+        "The item changed after this image was generated. Generate a new one.",
         409,
       );
     }

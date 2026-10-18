@@ -237,6 +237,7 @@ integrationDescribe("menu AI photo candidates", () => {
     expect(asset.generationMetadata).toMatchObject({
       schema: "qos.ai_photo_generation.v1",
       model: "gpt-image-1",
+      productVersion: latte.version,
       requestedBySubject: "admin@test",
       menuPublicId: menu.publicId,
       usage: { totalTokens: 30 },

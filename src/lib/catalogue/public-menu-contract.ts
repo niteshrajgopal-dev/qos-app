@@ -191,6 +191,10 @@ export function assertPublicMenuResponseIsAllowlisted(
     "credential",
     "tenantId",
     "approvedBySubject",
+    "generationMetadata",
+    "sourceProvenance",
+    "prompt",
+    "qos.ai_photo_generation",
   ];
 
   for (const pattern of forbiddenPatterns) {
