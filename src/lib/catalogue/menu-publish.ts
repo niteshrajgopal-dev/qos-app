@@ -25,7 +25,7 @@ import {
 } from "@/lib/catalogue/menus";
 import { ensureMenuPublicLink } from "@/lib/catalogue/public-menu-resolver";
 import { validateProductTranslationsForPublish } from "@/lib/catalogue/translation-approval";
-import { getApprovedProductMediaPublishSummary } from "@/lib/media/product-images";
+import { getApprovedThumbnailPublicIdForProduct } from "@/lib/media/product-images";
 import {
   requireAdministratorMembership,
   StaffAuthorizationError,
@@ -110,7 +110,6 @@ type ProductSnapshotContext = {
     inheritanceMode: "inherited" | "override";
   };
   mediaAssetId: string | null;
-  mediaImageDisclosureI18nKey: string | null;
 };
 
 async function loadApprovedProductSnapshots(
@@ -271,7 +270,11 @@ async function loadApprovedProductSnapshots(
         : null,
     );
 
-    const media = await getApprovedProductMediaPublishSummary(tx, tenantId, productId);
+    const mediaAssetId = await getApprovedThumbnailPublicIdForProduct(
+      tx,
+      tenantId,
+      productId,
+    );
 
     snapshots.set(publicId, {
       productPublicId: publicId,
@@ -281,8 +284,7 @@ async function loadApprovedProductSnapshots(
         currency: resolved.currency,
         inheritanceMode: resolved.inheritanceMode,
       },
-      mediaAssetId: media.mediaAssetId,
-      mediaImageDisclosureI18nKey: media.mediaImageDisclosureI18nKey,
+      mediaAssetId,
     });
   }
 
@@ -341,9 +343,6 @@ function compileLocationSnapshot(
               translations: snapshot.translations,
               price: snapshot.price,
               mediaAssetId: snapshot.mediaAssetId,
-              ...(snapshot.mediaImageDisclosureI18nKey
-                ? { mediaImageDisclosureI18nKey: snapshot.mediaImageDisclosureI18nKey }
-                : {}),
             };
 
             return publicProduct;

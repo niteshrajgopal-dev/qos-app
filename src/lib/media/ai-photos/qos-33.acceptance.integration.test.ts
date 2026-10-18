@@ -25,7 +25,6 @@ import { createDraftMenu } from "@/lib/catalogue/menus";
 import { createDraftProduct, updateDraftProduct } from "@/lib/catalogue/products";
 import { resolvePublicMenuByKey } from "@/lib/catalogue/public-menu-resolver";
 import { approveProductTranslation } from "@/lib/catalogue/translation-approval";
-import { AI_PHOTO_CUSTOMER_DISCLOSURE_I18N_KEY } from "@/lib/media/ai-photos/customer-disclosure";
 import {
   acceptMenuAiPhoto,
   generateMenuAiPhoto,
@@ -344,9 +343,10 @@ integrationDescribe("QOS-33 acceptance", () => {
       const publicKey = publish.results[0]!.publicKey!;
       const resolved = await resolvePublicMenuByKey(db, publicKey, "en");
       const productRow = resolved.sections[0]!.products[0]!;
-      expect(productRow.mediaImageDisclosureI18nKey).toBe(AI_PHOTO_CUSTOMER_DISCLOSURE_I18N_KEY);
+      expect(productRow).not.toHaveProperty("mediaImageDisclosureI18nKey");
       assertPublicMenuResponseIsAllowlisted(resolved);
       const serialized = JSON.stringify(resolved);
+      expect(serialized).not.toMatch(/ai_generated|sourceProvenance|generationMetadata|qos\.ai_photo_generation/i);
       expect(serialized).not.toContain("Menu item name:");
       expect(serialized).not.toContain(metadataOf(asset!).prompt);
     });

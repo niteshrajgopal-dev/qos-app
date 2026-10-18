@@ -8,7 +8,6 @@ import {
   catalogueMediaUploadGrants,
   catalogueProducts,
 } from "@/db/schema";
-import { AI_PHOTO_CUSTOMER_DISCLOSURE_I18N_KEY } from "@/lib/media/ai-photos/customer-disclosure";
 import { readMediaConfig } from "@/lib/media/config";
 import {
   fetchRemoteImageBytes,
@@ -717,42 +716,4 @@ export async function getApprovedThumbnailPublicIdsForProducts(
   }
 
   return result;
-}
-
-/** Approved thumbnail plus customer disclosure key when the primary image is AI-generated. */
-export async function getApprovedProductMediaPublishSummary(
-  tx: DbClient,
-  tenantId: string,
-  productId: string,
-): Promise<{ mediaAssetId: string | null; mediaImageDisclosureI18nKey: string | null }> {
-  const [product] = await tx
-    .select({ primaryMediaAssetId: catalogueProducts.primaryMediaAssetId })
-    .from(catalogueProducts)
-    .where(and(eq(catalogueProducts.tenantId, tenantId), eq(catalogueProducts.id, productId)))
-    .limit(1);
-
-  if (!product) {
-    return { mediaAssetId: null, mediaImageDisclosureI18nKey: null };
-  }
-
-  const thumbnails = await getApprovedThumbnailPublicIdsForProducts(tx, tenantId, [
-    { id: productId, primaryMediaAssetId: product.primaryMediaAssetId },
-  ]);
-  const mediaAssetId = thumbnails.get(productId) ?? null;
-  if (!mediaAssetId || !product.primaryMediaAssetId) {
-    return { mediaAssetId, mediaImageDisclosureI18nKey: null };
-  }
-
-  const [asset] = await tx
-    .select({ sourceProvenance: catalogueMediaAssets.sourceProvenance })
-    .from(catalogueMediaAssets)
-    .where(
-      and(eq(catalogueMediaAssets.tenantId, tenantId), eq(catalogueMediaAssets.id, product.primaryMediaAssetId)),
-    )
-    .limit(1);
-
-  const mediaImageDisclosureI18nKey =
-    asset?.sourceProvenance === "ai_generated" ? AI_PHOTO_CUSTOMER_DISCLOSURE_I18N_KEY : null;
-
-  return { mediaAssetId, mediaImageDisclosureI18nKey };
 }
