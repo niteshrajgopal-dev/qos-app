@@ -684,12 +684,14 @@ integrationDescribe("menu AI photo candidates", () => {
     const healthBefore = await getMenuHealth(db, tenantId, admin.membership, menu.publicId);
     expect(healthBefore.products.find((row) => row.productPublicId === latte.publicId)?.thumbnailPublicId).not.toBeNull();
 
-    await approveProductTranslation(db, tenantId, admin.subject, latte.publicId, "en", {
-      expectedTranslationVersion: latte.translations.en.translationVersion,
-    });
-    await approveProductTranslation(db, tenantId, admin.subject, latte.publicId, "ar", {
-      expectedTranslationVersion: latte.translations.ar.translationVersion,
-    });
+    for (const product of [latte, mocha, photographed]) {
+      await approveProductTranslation(db, tenantId, admin.subject, product.publicId, "en", {
+        expectedTranslationVersion: product.translations.en.translationVersion,
+      });
+      await approveProductTranslation(db, tenantId, admin.subject, product.publicId, "ar", {
+        expectedTranslationVersion: product.translations.ar.translationVersion,
+      });
+    }
     const publish = await publishDraftMenuToLocations(db, tenantId, admin.subject, menu.publicId, {
       locationIds: [quotes.location.id],
     });
