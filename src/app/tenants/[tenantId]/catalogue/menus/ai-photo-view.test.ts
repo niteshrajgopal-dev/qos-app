@@ -51,14 +51,20 @@ const available: AiPhotoAvailabilityView = {
   executionMode: "sync",
 };
 
-function candidate(productPublicId: string, status: AiPhotoCandidateView["status"]): AiPhotoCandidateView {
+function candidate(
+  productPublicId: string,
+  status: AiPhotoCandidateView["status"],
+  stale = false,
+): AiPhotoCandidateView {
   return {
     assetPublicId: `mas_${productPublicId}`,
     productPublicId,
     status,
+    stale,
     failureCode: status === "failed" ? "unsafe_output" : null,
     createdAt: new Date(0).toISOString(),
     previewPath: status === "pending_review" ? "/preview" : null,
+    generation: { model: "gpt-image-1", requestedAt: new Date(0).toISOString(), requestedBySubject: "admin@test" },
   };
 }
 
@@ -122,6 +128,12 @@ describe("progress", () => {
     expect(progress.b).toMatchObject({ state: "failed", message: expect.stringContaining("declined") });
     expect(progress.c).toEqual({ state: "generating" });
     expect(readyCandidates(progress).map((entry) => entry.productPublicId)).toEqual(["a"]);
+  });
+
+  it("marks stale pending candidates so Use stays disabled after reload", () => {
+    const progress = progressFromCandidates([candidate("a", "pending_review", true)]);
+    expect(progress.a).toMatchObject({ state: "stale" });
+    expect(readyCandidates(progress)).toEqual([]);
   });
 
   it("runs every task with bounded concurrency even when some fail", async () => {

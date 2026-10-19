@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { DbClient } from "@/db/client";
 import {
   brands,
+  catalogueMediaAssets,
   catalogueProductTranslations,
   catalogueProducts,
   catalogueVariantPrices,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/catalogue/validation";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
+import { getApprovedThumbnailPublicIdForProduct } from "@/lib/media/product-images";
 import { translationTextMatchesLastApproved } from "@/lib/catalogue/translation-admin-review-snapshot";
 import { invalidateArabicApprovalAfterEnglishChange } from "@/lib/catalogue/translation-approval";
 import {
@@ -98,6 +100,8 @@ export type DraftProductEditorView = {
   sku: string | null;
   barcode: string | null;
   primaryMediaAssetId: string | null;
+  thumbnailPublicId: string | null;
+  primaryMediaSource: (typeof catalogueMediaAssets.$inferSelect)["sourceProvenance"] | null;
   nutritionCalories: number | null;
   provenance: string;
   businessProfile: "hospitality" | "generic_retail";
@@ -382,6 +386,23 @@ async function loadDraftProductEditorView(
     );
   }
 
+  const thumbnailPublicId = await getApprovedThumbnailPublicIdForProduct(tx, tenantId, product.id);
+  let primaryMediaSource: (typeof catalogueMediaAssets.$inferSelect)["sourceProvenance"] | null =
+    null;
+  if (product.primaryMediaAssetId) {
+    const [primaryAsset] = await tx
+      .select({ sourceProvenance: catalogueMediaAssets.sourceProvenance })
+      .from(catalogueMediaAssets)
+      .where(
+        and(
+          eq(catalogueMediaAssets.tenantId, tenantId),
+          eq(catalogueMediaAssets.id, product.primaryMediaAssetId),
+        ),
+      )
+      .limit(1);
+    primaryMediaSource = primaryAsset?.sourceProvenance ?? null;
+  }
+
   return {
     publicId: product.publicId,
     internalName: product.internalName,
@@ -390,6 +411,8 @@ async function loadDraftProductEditorView(
     sku: product.sku,
     barcode: product.barcode,
     primaryMediaAssetId: product.primaryMediaAssetId,
+    thumbnailPublicId,
+    primaryMediaSource,
     nutritionCalories: product.nutritionCalories,
     provenance: product.provenance,
     businessProfile,

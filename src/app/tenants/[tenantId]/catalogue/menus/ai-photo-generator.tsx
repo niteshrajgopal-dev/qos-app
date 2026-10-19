@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { AiPhotoProvenanceMeta } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-provenance-meta";
 import {
   allowanceLabel,
   costLabel,
@@ -27,6 +28,7 @@ import type {
   MenuAiPhotosView,
 } from "@/lib/media/ai-photos/ai-photo-candidates";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
 
 /** Each request generates one image; two at a time keeps per-item progress visible without bursting the provider. */
 const GENERATION_CONCURRENCY = 2;
@@ -65,6 +67,8 @@ export function AiPhotoGenerator({
   onProgress,
   onChanged,
 }: AiPhotoGeneratorProps) {
+  const locale = readStoredStaffLocale();
+  const attachedGeneration = aiPhotos?.attachedAiPhotoGenerationByProductPublicId ?? {};
   const [selected, setSelected] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
   const [accuracyConfirmed, setAccuracyConfirmed] = useState(false);
@@ -203,6 +207,12 @@ export function AiPhotoGenerator({
       } else if (payload.code === "accuracy_review_required") {
         onProgress(candidate.productPublicId, { state: "ready", candidate });
         setError(payload.error ?? "Confirm the images before using them.");
+      } else if (payload.code === "stale_candidate") {
+        onProgress(candidate.productPublicId, {
+          state: "stale",
+          message: staffUiCopy(locale, "aiPhotoStaleMessage"),
+          candidate: payload.candidate ?? candidate,
+        });
       } else {
         onProgress(candidate.productPublicId, {
           state: "failed",
@@ -267,9 +277,18 @@ export function AiPhotoGenerator({
       case "failed":
       case "needs_replace":
         return entry.message;
+      case "stale":
+        return staffUiCopy(locale, "aiPhotoStaleMessage");
       default:
         return null;
     }
+  }
+
+  function generationForRow(productPublicId: string, entry: ItemProgress | undefined) {
+    if (entry && "candidate" in entry && entry.candidate?.generation) {
+      return entry.candidate.generation;
+    }
+    return attachedGeneration[productPublicId] ?? null;
   }
 
   function thumb(productPublicId: string) {
@@ -282,7 +301,9 @@ export function AiPhotoGenerator({
         <span className="qos-thumb" data-size="lg">
           {/* eslint-disable-next-line @next/next/no-img-element -- private, auth-gated preview */}
           <img src={candidate.previewPath!} alt="" />
-          <span className="qos-thumb-tag">AI</span>
+          <span className="qos-thumb-tag" title={staffUiCopy(locale, "aiGeneratedImageTitle")}>
+            AI
+          </span>
         </span>
       );
     }
@@ -291,7 +312,11 @@ export function AiPhotoGenerator({
         <span className="qos-thumb" data-size="lg">
           {/* eslint-disable-next-line @next/next/no-img-element -- matches catalogue thumbnails */}
           <img src={publicProductThumbnailUrl(thumbnailPublicId)} alt="" />
-          {entry?.state === "accepted" ? <span className="qos-thumb-tag">AI</span> : null}
+          {entry?.state === "accepted" || attachedGeneration[productPublicId] ? (
+            <span className="qos-thumb-tag" title={staffUiCopy(locale, "aiGeneratedImageTitle")}>
+              AI
+            </span>
+          ) : null}
         </span>
       );
     }
@@ -429,7 +454,9 @@ export function AiPhotoGenerator({
                         <div
                           className="qos-menu-row-meta"
                           style={
-                            entry?.state === "failed" || entry?.state === "needs_replace"
+                            entry?.state === "failed" ||
+                            entry?.state === "needs_replace" ||
+                            entry?.state === "stale"
                               ? { color: "var(--status-error-fg)", whiteSpace: "normal" }
                               : undefined
                           }
@@ -437,6 +464,10 @@ export function AiPhotoGenerator({
                           {line}
                         </div>
                       ) : null}
+                      <AiPhotoProvenanceMeta
+                        locale={locale}
+                        generation={generationForRow(item.productPublicId, entry)}
+                      />
                     </div>
                     {entry?.state === "ready" && canAccept ? (
                       <div className="qos-ai-item-actions">
@@ -470,6 +501,13 @@ export function AiPhotoGenerator({
                         >
                           Replace
                         </Button>
+                        <Button size="sm" variant="ghost" onClick={() => void reject(entry.candidate)}>
+                          Discard
+                        </Button>
+                      </div>
+                    ) : null}
+                    {entry?.state === "stale" ? (
+                      <div className="qos-ai-item-actions">
                         <Button size="sm" variant="ghost" onClick={() => void reject(entry.candidate)}>
                           Discard
                         </Button>

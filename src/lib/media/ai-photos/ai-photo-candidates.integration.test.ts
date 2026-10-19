@@ -23,16 +23,22 @@ import {
 } from "@/db/test-utils";
 import { getMenuHealth } from "@/lib/catalogue/menu-health";
 import { createDraftMenu } from "@/lib/catalogue/menus";
-import { createDraftProduct } from "@/lib/catalogue/products";
+import { publishDraftMenuToLocations } from "@/lib/catalogue/menu-publish";
+import { createDraftProduct, updateDraftProduct } from "@/lib/catalogue/products";
+import { resolvePublicMenuByKey } from "@/lib/catalogue/public-menu-resolver";
+import { approveProductTranslation } from "@/lib/catalogue/translation-approval";
+import { assertPublicMenuResponseIsAllowlisted } from "@/lib/catalogue/public-menu-contract";
 import {
   acceptMenuAiPhoto,
   AiPhotoError,
   generateMenuAiPhoto,
   getMenuAiPhotos,
+  metadataOf,
   readMenuAiPhotoPreview,
   rejectMenuAiPhoto,
   type AiPhotoCaller,
 } from "@/lib/media/ai-photos/ai-photo-candidates";
+import { getStaffProductPrimaryMediaProvenance } from "@/lib/media/ai-photos/staff-media-provenance";
 import type { AiPhotoConfig } from "@/lib/media/ai-photos/config";
 import {
   AiPhotoProviderError,
@@ -42,6 +48,7 @@ import {
   createProductImageUploadGrant,
   ingestProductImageUpload,
   processProductImage,
+  removeProductPrimaryPhoto,
 } from "@/lib/media/product-images";
 import { LocalMediaStorage, setMediaStorage } from "@/lib/media/storage";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
@@ -194,7 +201,18 @@ integrationDescribe("menu AI photo candidates", () => {
     await ingestProductImageUpload(db, tenantId, photographed.publicId, grant!.grantToken, bytes);
     await processProductImage(db, tenantId, adminMembership, photographed.publicId, grant!.assetPublicId, "admin@test");
 
-    return { tenantId, admin, user, menu, latte, mocha, photographed, offMenu, operatorAssetPublicId: grant!.assetPublicId };
+    return {
+      tenantId,
+      quotes,
+      admin,
+      user,
+      menu,
+      latte,
+      mocha,
+      photographed,
+      offMenu,
+      operatorAssetPublicId: grant!.assetPublicId,
+    };
   }
 
   async function productRow(tenantId: string, productPublicId: string) {
@@ -552,5 +570,170 @@ integrationDescribe("menu AI photo candidates", () => {
         { menuPublicId: menu.publicId, assetPublicId: candidate.assetPublicId },
       ),
     ).rejects.toThrow();
+  });
+
+  it("lists stale candidates after the item text changes", async () => {
+    const { tenantId, admin, menu, latte } = await seed();
+    const { provider } = fakeProvider();
+    const { candidate } = await generateMenuAiPhoto(
+      db,
+      admin,
+      { menuPublicId: menu.publicId, productPublicId: latte.publicId },
+      { config, provider },
+    );
+    expect(candidate.stale).toBe(false);
+
+    const product = await productRow(tenantId, latte.publicId);
+    await db
+      .update(catalogueProductTranslations)
+      .set({ description: "Iced latte with oat milk" })
+      .where(
+        and(
+          eq(catalogueProductTranslations.productId, product.id),
+          eq(catalogueProductTranslations.locale, "en"),
+        ),
+      );
+
+    const view = await getMenuAiPhotos(db, admin, menu.publicId, { config });
+    const listed = view.candidates.find((row) => row.assetPublicId === candidate.assetPublicId);
+    expect(listed?.stale).toBe(true);
+    expect(listed?.generation).toMatchObject({ model: "gpt-image-1" });
+  });
+
+  it("allows legacy candidates without productVersion when only the product version changed", async () => {
+    const { tenantId, admin, menu, latte } = await seed();
+    const { provider } = fakeProvider();
+    const { candidate } = await generateMenuAiPhoto(
+      db,
+      admin,
+      { menuPublicId: menu.publicId, productPublicId: latte.publicId },
+      { config, provider },
+    );
+
+    const [asset] = await db
+      .select()
+      .from(catalogueMediaAssets)
+      .where(
+        and(eq(catalogueMediaAssets.tenantId, tenantId), eq(catalogueMediaAssets.publicId, candidate.assetPublicId)),
+      );
+    const legacy = metadataOf(asset!);
+    const withoutVersion = { ...legacy };
+    delete withoutVersion.productVersion;
+    await db
+      .update(catalogueMediaAssets)
+      .set({ generationMetadata: withoutVersion })
+      .where(eq(catalogueMediaAssets.id, asset!.id));
+
+    await updateDraftProduct(db, tenantId, admin.membership, latte.publicId, {
+      expectedVersion: latte.version,
+      sku: "LEGACY-SKU",
+    }, admin.subject);
+
+    const refreshed = await getMenuAiPhotos(db, admin, menu.publicId, { config });
+    const listed = refreshed.candidates.find((row) => row.assetPublicId === candidate.assetPublicId);
+    expect(listed?.stale).toBe(false);
+
+    await acceptMenuAiPhoto(db, admin, {
+      menuPublicId: menu.publicId,
+      assetPublicId: candidate.assetPublicId,
+      accuracyConfirmed: true,
+    });
+  });
+
+  it("exposes attached AI provenance to staff without prompts for catalogue editors", async () => {
+    const { tenantId, admin, user, menu, latte } = await seed();
+    const { provider } = fakeProvider();
+    const { candidate } = await generateMenuAiPhoto(
+      db,
+      admin,
+      { menuPublicId: menu.publicId, productPublicId: latte.publicId },
+      { config, provider },
+    );
+    await acceptMenuAiPhoto(db, admin, {
+      menuPublicId: menu.publicId,
+      assetPublicId: candidate.assetPublicId,
+      accuracyConfirmed: true,
+    });
+
+    const adminView = await getMenuAiPhotos(db, admin, menu.publicId, { config });
+    expect(adminView.attachedAiPhotoGenerationByProductPublicId[latte.publicId]?.prompt).toContain("Latte");
+    const userView = await getMenuAiPhotos(db, user, menu.publicId, { config });
+    expect(userView.attachedAiPhotoGenerationByProductPublicId[latte.publicId]).not.toHaveProperty("prompt");
+
+    const adminProv = await getStaffProductPrimaryMediaProvenance(db, tenantId, admin.membership, latte.publicId);
+    expect(adminProv?.generation.prompt).toContain("Latte");
+    const userProv = await getStaffProductPrimaryMediaProvenance(db, tenantId, user.membership, latte.publicId);
+    expect(userProv?.generation).not.toHaveProperty("prompt");
+  });
+
+  it("removes draft primary photos without deleting assets or touching live menus", async () => {
+    const { tenantId, admin, user, menu, latte, quotes } = await seed();
+    const { provider } = fakeProvider();
+    const { candidate } = await generateMenuAiPhoto(
+      db,
+      admin,
+      { menuPublicId: menu.publicId, productPublicId: latte.publicId },
+      { config, provider },
+    );
+    await acceptMenuAiPhoto(db, admin, {
+      menuPublicId: menu.publicId,
+      assetPublicId: candidate.assetPublicId,
+      accuracyConfirmed: true,
+    });
+
+    const healthBefore = await getMenuHealth(db, tenantId, admin.membership, menu.publicId);
+    expect(healthBefore.products.find((row) => row.productPublicId === latte.publicId)?.thumbnailPublicId).not.toBeNull();
+
+    await approveProductTranslation(db, tenantId, admin.subject, latte.publicId, "en", {
+      expectedTranslationVersion: latte.translations.en.translationVersion,
+    });
+    await approveProductTranslation(db, tenantId, admin.subject, latte.publicId, "ar", {
+      expectedTranslationVersion: latte.translations.ar.translationVersion,
+    });
+    const publish = await publishDraftMenuToLocations(db, tenantId, admin.subject, menu.publicId, {
+      locationIds: [quotes.location.id],
+    });
+    const publicKey = publish.results[0]!.publicKey!;
+    const liveBefore = await resolvePublicMenuByKey(db, publicKey, "en");
+    assertPublicMenuResponseIsAllowlisted(liveBefore);
+    const liveMediaBefore = liveBefore.sections[0]!.products[0]!.mediaAssetId;
+
+    const removed = await removeProductPrimaryPhoto(
+      db,
+      tenantId,
+      user.membership,
+      latte.publicId,
+      { expectedVersion: (await productRow(tenantId, latte.publicId)).version },
+      user.subject,
+    );
+    expect(removed.removed).toBe(true);
+
+    const healthAfter = await getMenuHealth(db, tenantId, admin.membership, menu.publicId);
+    expect(healthAfter.products.find((row) => row.productPublicId === latte.publicId)?.thumbnailPublicId).toBeNull();
+
+    const liveAfter = await resolvePublicMenuByKey(db, publicKey, "en");
+    expect(liveAfter.sections[0]!.products[0]!.mediaAssetId).toBe(liveMediaBefore);
+
+    const [asset] = await db
+      .select()
+      .from(catalogueMediaAssets)
+      .where(eq(catalogueMediaAssets.publicId, candidate.assetPublicId));
+    expect(asset).toBeTruthy();
+
+    const audits = await db
+      .select()
+      .from(tenantAuditEvents)
+      .where(eq(tenantAuditEvents.action, "catalogue.media.primary_photo_removed"));
+    expect(audits).toHaveLength(1);
+
+    const again = await removeProductPrimaryPhoto(
+      db,
+      tenantId,
+      user.membership,
+      latte.publicId,
+      { expectedVersion: (await productRow(tenantId, latte.publicId)).version },
+      user.subject,
+    );
+    expect(again.removed).toBe(false);
   });
 });

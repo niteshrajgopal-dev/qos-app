@@ -24,6 +24,10 @@ import {
   CatalogueProductMutationGuardError,
   loadCatalogueProductForMutationInTx,
 } from "@/lib/catalogue/product-mutation-policy";
+import {
+  auditActorClassFromStaffRole,
+  recordTenantAuditEventInTx,
+} from "@/lib/audit/tenant-audit";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -717,4 +721,100 @@ export async function getApprovedThumbnailPublicIdsForProducts(
   }
 
   return result;
+}
+
+export type RemoveProductPrimaryPhotoInput = {
+  expectedVersion: number;
+};
+
+export type RemoveProductPrimaryPhotoResult = {
+  version: number;
+  removed: boolean;
+};
+
+/**
+ * Clears the draft product's primary image without deleting the media asset
+ * (provenance and audit history remain on the asset).
+ */
+export async function removeProductPrimaryPhoto(
+  db: DbClient,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  productPublicId: string,
+  input: RemoveProductPrimaryPhotoInput,
+  staffSubject: string,
+): Promise<RemoveProductPrimaryPhotoResult> {
+  if (membership.role !== "administrator" && membership.role !== "user") {
+    throw new StaffAuthorizationError(
+      "Administrator or catalogue editor membership is required for this action.",
+    );
+  }
+  try {
+    return await withTenantContext(db, tenantId, async (tx) => {
+      const product = await requireMutableProduct(tx, tenantId, productPublicId);
+      if (product.version !== input.expectedVersion) {
+        throw new ProductMediaError(
+          "Product was updated elsewhere. Reload and try again.",
+          409,
+          "expectedVersion",
+        );
+      }
+      if (!product.primaryMediaAssetId) {
+        return { version: product.version, removed: false };
+      }
+
+      const [previousAsset] = await tx
+        .select({ publicId: catalogueMediaAssets.publicId })
+        .from(catalogueMediaAssets)
+        .where(
+          and(
+            eq(catalogueMediaAssets.tenantId, tenantId),
+            eq(catalogueMediaAssets.id, product.primaryMediaAssetId),
+          ),
+        )
+        .limit(1);
+
+      const nextVersion = product.version + 1;
+      const [updated] = await tx
+        .update(catalogueProducts)
+        .set({
+          primaryMediaAssetId: null,
+          version: nextVersion,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(catalogueProducts.tenantId, tenantId),
+            eq(catalogueProducts.id, product.id),
+            eq(catalogueProducts.version, input.expectedVersion),
+          ),
+        )
+        .returning({ id: catalogueProducts.id });
+
+      if (!updated) {
+        throw new ProductMediaError(
+          "Product was updated elsewhere. Reload and try again.",
+          409,
+          "expectedVersion",
+        );
+      }
+
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        actorSubject: staffSubject,
+        actorClass: auditActorClassFromStaffRole(membership.role),
+        action: "catalogue.media.primary_photo_removed",
+        entityType: "catalogue_product",
+        entityPublicId: productPublicId,
+        entityVersion: nextVersion,
+        changeSummary: {
+          previousAssetPublicId: previousAsset?.publicId ?? null,
+        },
+      });
+
+      return { version: nextVersion, removed: true };
+    });
+  } catch (error) {
+    mapMediaError(error);
+  }
 }
