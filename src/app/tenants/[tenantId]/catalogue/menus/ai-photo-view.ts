@@ -161,14 +161,26 @@ export type ItemProgress =
   | { state: "accepted" }
   | { state: "rejected" }
   | { state: "failed"; message: string; candidate?: AiPhotoCandidateView }
-  | { state: "needs_replace"; message: string; candidate: AiPhotoCandidateView };
+  | { state: "needs_replace"; message: string; candidate: AiPhotoCandidateView }
+  | { state: "stale"; message: string; candidate: AiPhotoCandidateView };
 
 /** Seeds per-item progress from candidates already stored server-side. */
+export const AI_PHOTO_STALE_CANDIDATE_MESSAGE =
+  "Item changed since this image was generated. Generate a new one.";
+
 export function progressFromCandidates(candidates: readonly AiPhotoCandidateView[]) {
   const progress: Record<string, ItemProgress> = {};
   for (const candidate of candidates) {
     if (candidate.status === "pending_review") {
-      progress[candidate.productPublicId] = { state: "ready", candidate };
+      if (candidate.stale) {
+        progress[candidate.productPublicId] = {
+          state: "stale",
+          message: AI_PHOTO_STALE_CANDIDATE_MESSAGE,
+          candidate,
+        };
+      } else {
+        progress[candidate.productPublicId] = { state: "ready", candidate };
+      }
     } else if (candidate.status === "generating") {
       progress[candidate.productPublicId] = { state: "generating" };
     } else if (candidate.status === "failed") {
@@ -225,6 +237,12 @@ export function progressFromBatchItem(item: AiPhotoBatchItem): ItemProgress {
 export function readyCandidates(progress: Record<string, ItemProgress>) {
   return Object.values(progress).flatMap((entry) =>
     entry.state === "ready" ? [entry.candidate] : [],
+  );
+}
+
+export function staleCandidates(progress: Record<string, ItemProgress>) {
+  return Object.values(progress).flatMap((entry) =>
+    entry.state === "stale" ? [entry.candidate] : [],
   );
 }
 

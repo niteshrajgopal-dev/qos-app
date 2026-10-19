@@ -108,6 +108,12 @@ export const STAFF_UI_COPY = {
     archiveDraftProductConfirmLabel: "Archive",
     archiveDraftProductArchiving: "Archiving…",
     archiveDraftProductSuccessNotice: "Draft product archived.",
+    aiGeneratedImageTitle: "AI-generated image",
+    aiPhotoPromptLabel: "Generation prompt",
+    aiPhotoStaleMessage: "Item changed since this image was generated. Generate a new one.",
+    removeProductPhoto: "Remove photo",
+    removingProductPhoto: "Removing photo…",
+    productPhotoRemoved: "Photo removed from draft. Publish to update live menus.",
   },
   ar: {
     signInTitle: "تسجيل الدخول إلى QOS",
@@ -179,6 +185,12 @@ export const STAFF_UI_COPY = {
     archiveDraftProductConfirmLabel: "أرشفة",
     archiveDraftProductArchiving: "جاري الأرشفة…",
     archiveDraftProductSuccessNotice: "تمت أرشفة مسودة المنتج.",
+    aiGeneratedImageTitle: "صورة مُولَّدة بالذكاء الاصطناعي",
+    aiPhotoPromptLabel: "نص التوليد",
+    aiPhotoStaleMessage: "تغيّر الصنف بعد توليد هذه الصورة. أنشئ صورة جديدة.",
+    removeProductPhoto: "إزالة الصورة",
+    removingProductPhoto: "جاري إزالة الصورة…",
+    productPhotoRemoved: "أُزيلت الصورة من المسودة. انشر القائمة لتحديث القوائم المنشورة.",
   },
 } as const;
 

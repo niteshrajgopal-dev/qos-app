@@ -17,7 +17,11 @@ import {
 import { productEditorChildMutationsDisabled } from "@/lib/catalogue/product-editor-mutation-ui";
 import { Toast, ToastStack } from "@/components/Toast";
 import { mapVideoErrorToFriendlyMessage } from "@/lib/media/video-error-messages";
+import { AiPhotoProvenanceMeta } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-provenance-meta";
 import { AiDescriptionReview } from "@/app/tenants/[tenantId]/catalogue/products/ai-description-review";
+import { Button } from "@/components/Button";
+import { publicProductThumbnailUrl } from "@/components/platform/catalogue-products-list";
+import type { StaffMediaProvenanceView } from "@/lib/media/ai-photos/staff-media-provenance";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
 
@@ -134,6 +138,13 @@ export function ProductEditor({
   const [thumbnailPublicId, setThumbnailPublicId] = useState<string | null>(
     null,
   );
+  const [primaryMediaSource, setPrimaryMediaSource] = useState<
+    "ai_generated" | "operator_entered" | "imported" | null
+  >(null);
+  const [mediaProvenance, setMediaProvenance] = useState<StaffMediaProvenanceView | null>(
+    null,
+  );
+  const [removingPhoto, setRemovingPhoto] = useState(false);
   const [videoUploading, setVideoUploading] = useState(false);
   const [videoStatus, setVideoStatus] = useState<string | null>(null);
   const [videoJobState, setVideoJobState] = useState<"queued" | "processing" | "ready" | "rejected" | "failed" | "quarantined" | null>(null);
@@ -180,6 +191,8 @@ export function ProductEditor({
       businessProfile: "hospitality" | "generic_retail";
       canEditPrice: boolean;
       status: "draft" | "active" | "archived";
+      thumbnailPublicId?: string | null;
+      primaryMediaSource?: "ai_generated" | "operator_entered" | "imported" | null;
       defaultVariant: { amountMinor: number };
       translations: {
         en: TranslationFormState & { approvalStatus?: string };
@@ -218,7 +231,69 @@ export function ProductEditor({
       setHasLoadedProduct(true);
       setProductStatus(product.status);
       setIsAdministrator(product.canEditPrice);
+      setThumbnailPublicId(product.thumbnailPublicId ?? null);
+      setPrimaryMediaSource(product.primaryMediaSource ?? null);
       void loadApprovedVideoUrls();
+      void loadMediaProvenance(product.publicId);
+  }
+
+  async function loadMediaProvenance(publicId: string) {
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${publicId}/media/provenance`,
+      );
+      const payload = (await response.json()) as {
+        provenance?: StaffMediaProvenanceView | null;
+      };
+      if (response.ok) {
+        setMediaProvenance(payload.provenance ?? null);
+      }
+    } catch {
+      setMediaProvenance(null);
+    }
+  }
+
+  async function removeProductPhoto() {
+    if (!productPublicId) {
+      return;
+    }
+    setRemovingPhoto(true);
+    setError(null);
+    setImageStatus(null);
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/media/primary/remove`,
+        {
+          method: "POST",
+          body: JSON.stringify({ expectedVersion: form.version }),
+        },
+      );
+      const payload = (await response.json()) as {
+        result?: { version: number };
+        error?: string;
+        field?: string;
+      };
+      if (!response.ok) {
+        throw new Error(payload.error ?? "Unable to remove product photo.");
+      }
+      if (payload.result?.version) {
+        setForm((current) => ({ ...current, version: payload.result!.version }));
+        setBaseline((current) => {
+          const parsed = JSON.parse(current) as ProductEditorState;
+          return JSON.stringify({ ...parsed, version: payload.result!.version });
+        });
+      }
+      setThumbnailPublicId(null);
+      setPrimaryMediaSource(null);
+      setMediaProvenance(null);
+      setImageStatus(staffUiCopy(locale, "productPhotoRemoved"));
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error ? removeError.message : "Unable to remove product photo.",
+      );
+    } finally {
+      setRemovingPhoto(false);
+    }
   }
 
   useEffect(() => {
@@ -433,6 +508,8 @@ export function ProductEditor({
         (derivative) => derivative.kind === "thumbnail",
       );
       setThumbnailPublicId(thumbnail?.publicDerivativeId ?? null);
+      setPrimaryMediaSource("operator_entered");
+      void loadMediaProvenance(productPublicId);
       setImageStatus("Product image approved and ready for menu publish.");
     } catch (uploadError) {
       setError(
@@ -1079,12 +1156,39 @@ export function ProductEditor({
               </p>
             ) : null}
             {thumbnailPublicId ? (
-              <p className="text-xs text-zinc-500">
-                Thumbnail public id:{" "}
-                <code className="rounded bg-zinc-100 px-1.5 py-0.5">
-                  {thumbnailPublicId}
-                </code>
-              </p>
+              <div className="flex flex-wrap items-start gap-4">
+                <span className="qos-thumb" data-size="lg">
+                  {/* eslint-disable-next-line @next/next/no-img-element -- catalogue thumbnail */}
+                  <img src={publicProductThumbnailUrl(thumbnailPublicId)} alt="" />
+                  {primaryMediaSource === "ai_generated" ? (
+                    <span
+                      className="qos-thumb-tag"
+                      title={staffUiCopy(locale, "aiGeneratedImageTitle")}
+                    >
+                      AI
+                    </span>
+                  ) : null}
+                </span>
+                <div className="min-w-0 flex-1 space-y-2">
+                  <AiPhotoProvenanceMeta
+                    locale={locale}
+                    generation={mediaProvenance?.generation ?? null}
+                  />
+                  {editorStatus === "draft" && !childMutationsDisabled ? (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      loading={removingPhoto}
+                      disabled={imageUploading}
+                      onClick={() => void removeProductPhoto()}
+                    >
+                      {removingPhoto
+                        ? staffUiCopy(locale, "removingProductPhoto")
+                        : staffUiCopy(locale, "removeProductPhoto")}
+                    </Button>
+                  ) : null}
+                </div>
+              </div>
             ) : null}
           </div>
         </section>

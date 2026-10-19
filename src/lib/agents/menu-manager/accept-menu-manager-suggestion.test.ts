@@ -48,6 +48,8 @@ function product(overrides: Partial<DraftProductEditorView> = {}): DraftProductE
     sku: null,
     barcode: null,
     primaryMediaAssetId: null,
+    thumbnailPublicId: null,
+    primaryMediaSource: null,
     nutritionCalories: null,
     provenance: "operator_entered",
     businessProfile: "hospitality",
