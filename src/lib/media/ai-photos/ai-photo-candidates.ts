@@ -432,7 +432,6 @@ export async function getMenuAiPhotos(
     await assertMenuLocationAccess(tx, caller.tenantId, caller.membership, menuPublicId);
     const products = await loadMenuProducts(tx, caller.tenantId, menuPublicId);
     const productList = [...products.values()];
-    const publicIdById = new Map(productList.map((product) => [product.id, product.publicId]));
     const loadAssets = () =>
       productList.length === 0
         ? Promise.resolve([] as (typeof catalogueMediaAssets.$inferSelect)[])
