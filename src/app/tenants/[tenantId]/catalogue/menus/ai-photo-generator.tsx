@@ -9,6 +9,8 @@ import {
   failureMessage,
   generateActionState,
   missingPhotoItems,
+  effectiveAiPhotoItemProgress,
+  generationForAiPhotoRow,
   progressFromBatchItem,
   readyCandidates,
   runBounded,
@@ -27,6 +29,10 @@ import type {
   AiPhotoCandidateView,
   MenuAiPhotosView,
 } from "@/lib/media/ai-photos/ai-photo-candidates";
+import {
+  fetchCatalogueProductVersion,
+  removeProductPrimaryPhotoClient,
+} from "@/lib/media/remove-product-primary-photo-client";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
 
@@ -73,6 +79,7 @@ export function AiPhotoGenerator({
   const [generating, setGenerating] = useState(false);
   const [accuracyConfirmed, setAccuracyConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [removingProductPublicId, setRemovingProductPublicId] = useState<string | null>(null);
 
   const basePath = `/api/tenants/${tenantId}/catalogue/menus/${menuPublicId}/ai-photos`;
   const availability = aiPhotos?.availability ?? null;
@@ -259,8 +266,7 @@ export function AiPhotoGenerator({
     }
   }
 
-  function statusLine(productPublicId: string) {
-    const entry = progress[productPublicId];
+  function statusLine(productPublicId: string, entry: ItemProgress | undefined) {
     switch (entry?.state) {
       case "queued":
         return "Waiting…";
@@ -284,15 +290,34 @@ export function AiPhotoGenerator({
     }
   }
 
-  function generationForRow(productPublicId: string, entry: ItemProgress | undefined) {
-    if (entry && "candidate" in entry && entry.candidate?.generation) {
-      return entry.candidate.generation;
+  async function removeAttachedPhoto(productPublicId: string) {
+    setRemovingProductPublicId(productPublicId);
+    setError(null);
+    try {
+      const version = await fetchCatalogueProductVersion(tenantId, productPublicId);
+      await removeProductPrimaryPhotoClient(tenantId, productPublicId, version);
+      onProgress(productPublicId, { state: "rejected" });
+      onChanged();
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error ? removeError.message : "Unable to remove product photo.",
+      );
+    } finally {
+      setRemovingProductPublicId(null);
     }
-    return attachedGeneration[productPublicId] ?? null;
   }
 
-  function thumb(productPublicId: string) {
-    const entry = progress[productPublicId];
+  function canRemoveAttachedPhoto(productPublicId: string, entry: ItemProgress | undefined) {
+    if (!thumbnails.get(productPublicId)) {
+      return false;
+    }
+    if (entry?.state === "accepted") {
+      return true;
+    }
+    return Boolean(attachedGeneration[productPublicId]);
+  }
+
+  function thumb(productPublicId: string, entry: ItemProgress | undefined) {
     const candidate =
       entry && "candidate" in entry && entry.candidate?.previewPath ? entry.candidate : null;
     const thumbnailPublicId = thumbnails.get(productPublicId) ?? null;
@@ -436,9 +461,13 @@ export function AiPhotoGenerator({
             />
             <ul className="qos-ai-list" aria-label="Items missing photos">
               {items.map((item) => {
-                const entry = progress[item.productPublicId];
+                const entry = effectiveAiPhotoItemProgress(
+                  item.productPublicId,
+                  progress[item.productPublicId],
+                  aiPhotos,
+                );
                 const isSelectable = selectable.includes(item.productPublicId);
-                const line = statusLine(item.productPublicId);
+                const line = statusLine(item.productPublicId, entry);
                 return (
                   <li key={item.productPublicId} className="qos-ai-item">
                     <Checkbox
@@ -447,7 +476,7 @@ export function AiPhotoGenerator({
                       disabled={!isSelectable || generating}
                       onChange={() => toggle(item.productPublicId)}
                     />
-                    {thumb(item.productPublicId)}
+                    {thumb(item.productPublicId, entry)}
                     <div className="qos-ai-item-main">
                       <div className="qos-menu-row-name">{item.displayName}</div>
                       {line ? (
@@ -466,7 +495,7 @@ export function AiPhotoGenerator({
                       ) : null}
                       <AiPhotoProvenanceMeta
                         locale={locale}
-                        generation={generationForRow(item.productPublicId, entry)}
+                        generation={generationForAiPhotoRow(item.productPublicId, entry, aiPhotos)}
                       />
                     </div>
                     {entry?.state === "ready" && canAccept ? (
@@ -510,6 +539,18 @@ export function AiPhotoGenerator({
                       <div className="qos-ai-item-actions">
                         <Button size="sm" variant="ghost" onClick={() => void reject(entry.candidate)}>
                           Discard
+                        </Button>
+                      </div>
+                    ) : null}
+                    {canRemoveAttachedPhoto(item.productPublicId, entry) ? (
+                      <div className="qos-ai-item-actions">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={removingProductPublicId === item.productPublicId}
+                          onClick={() => void removeAttachedPhoto(item.productPublicId)}
+                        >
+                          {staffUiCopy(locale, "removeProductPhoto")}
                         </Button>
                       </div>
                     ) : null}

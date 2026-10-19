@@ -1,4 +1,6 @@
 import type { StaffMediaGenerationView } from "@/lib/media/ai-photos/staff-media-provenance";
+import type { StaffLocale } from "@/lib/staff/locale";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 function formatGenerationTime(requestedAt: string | undefined, locale: "en" | "ar") {
   if (!requestedAt) {
@@ -15,9 +17,22 @@ function formatGenerationTime(requestedAt: string | undefined, locale: "en" | "a
 }
 
 /** Compact provenance line for staff UI (model · time · requester). */
+function formatRequesterLabel(
+  generation: StaffMediaGenerationView,
+  locale: StaffLocale,
+): string | null {
+  if (typeof generation.requestedByDisplayName === "string") {
+    return generation.requestedByDisplayName;
+  }
+  if (typeof generation.requestedBySubject === "string") {
+    return staffUiCopy(locale, "staffMemberLabel");
+  }
+  return null;
+}
+
 export function formatStaffMediaGenerationSummary(
   generation: StaffMediaGenerationView | null | undefined,
-  locale: "en" | "ar",
+  locale: StaffLocale,
 ): string | null {
   if (!generation) {
     return null;
@@ -27,8 +42,7 @@ export function formatStaffMediaGenerationSummary(
     typeof generation.requestedAt === "string" ? generation.requestedAt : undefined,
     locale,
   );
-  const requester =
-    typeof generation.requestedBySubject === "string" ? generation.requestedBySubject : null;
+  const requester = formatRequesterLabel(generation, locale);
   const parts = [model, time, requester].filter((part): part is string => Boolean(part));
   return parts.length > 0 ? parts.join(" · ") : null;
 }

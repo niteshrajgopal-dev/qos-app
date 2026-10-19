@@ -8,6 +8,7 @@ import {
   hasWorkInFlight,
   mergeServerProgress,
   missingPhotoItems,
+  generationForAiPhotoRow,
   progressFromBatchItem,
   progressFromCandidates,
   readyCandidates,
@@ -118,6 +119,34 @@ describe("generator selection", () => {
 });
 
 describe("progress", () => {
+  it("resolves generation from attached and server candidates when row progress is empty", () => {
+    const attached = {
+      model: "gpt-image-1",
+      requestedAt: new Date(0).toISOString(),
+      requestedByDisplayName: "admin@test",
+    };
+    expect(
+      generationForAiPhotoRow(
+        "a",
+        undefined,
+        {
+          availability: available,
+          candidates: [candidate("b", "pending_review")],
+          aiPhotoProductPublicIds: ["a"],
+          attachedAiPhotoGenerationByProductPublicId: { a: attached },
+        },
+      ),
+    ).toEqual(attached);
+    expect(
+      generationForAiPhotoRow("b", undefined, {
+        availability: available,
+        candidates: [candidate("b", "pending_review")],
+        aiPhotoProductPublicIds: [],
+        attachedAiPhotoGenerationByProductPublicId: {},
+      })?.model,
+    ).toBe("gpt-image-1");
+  });
+
   it("seeds progress from stored candidates", () => {
     const progress = progressFromCandidates([
       candidate("a", "pending_review"),

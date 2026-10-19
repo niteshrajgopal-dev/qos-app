@@ -114,6 +114,7 @@ export const STAFF_UI_COPY = {
     removeProductPhoto: "Remove photo",
     removingProductPhoto: "Removing photo…",
     productPhotoRemoved: "Photo removed from draft. Publish to update live menus.",
+    staffMemberLabel: "Staff member",
   },
   ar: {
     signInTitle: "تسجيل الدخول إلى QOS",
@@ -191,6 +192,7 @@ export const STAFF_UI_COPY = {
     removeProductPhoto: "إزالة الصورة",
     removingProductPhoto: "جاري إزالة الصورة…",
     productPhotoRemoved: "أُزيلت الصورة من المسودة. انشر القائمة لتحديث القوائم المنشورة.",
+    staffMemberLabel: "عضو الفريق",
   },
 } as const;
 

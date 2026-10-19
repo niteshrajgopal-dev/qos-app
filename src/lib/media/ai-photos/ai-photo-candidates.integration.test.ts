@@ -572,6 +572,34 @@ integrationDescribe("menu AI photo candidates", () => {
     ).rejects.toThrow();
   });
 
+  it("lists stale candidates after a draft product edit bumps the version", async () => {
+    const { tenantId, admin, menu, latte } = await seed();
+    const { provider } = fakeProvider();
+    const { candidate } = await generateMenuAiPhoto(
+      db,
+      admin,
+      { menuPublicId: menu.publicId, productPublicId: latte.publicId },
+      { config, provider },
+    );
+
+    await updateDraftProduct(db, tenantId, admin.membership, latte.publicId, {
+      expectedVersion: latte.version,
+      sku: "STALE-SKU",
+    }, admin.subject);
+
+    const view = await getMenuAiPhotos(db, admin, menu.publicId, { config });
+    const listed = view.candidates.find((row) => row.assetPublicId === candidate.assetPublicId);
+    expect(listed?.stale).toBe(true);
+
+    await expect(
+      acceptMenuAiPhoto(db, admin, {
+        menuPublicId: menu.publicId,
+        assetPublicId: candidate.assetPublicId,
+        accuracyConfirmed: true,
+      }),
+    ).rejects.toMatchObject({ code: "stale_candidate", statusCode: 409 });
+  });
+
   it("lists stale candidates after the item text changes", async () => {
     const { tenantId, admin, menu, latte } = await seed();
     const { provider } = fakeProvider();
@@ -597,7 +625,45 @@ integrationDescribe("menu AI photo candidates", () => {
     const view = await getMenuAiPhotos(db, admin, menu.publicId, { config });
     const listed = view.candidates.find((row) => row.assetPublicId === candidate.assetPublicId);
     expect(listed?.stale).toBe(true);
-    expect(listed?.generation).toMatchObject({ model: "gpt-image-1" });
+    expect(listed?.generation).toMatchObject({
+      model: "gpt-image-1",
+      requestedByDisplayName: "admin@test",
+    });
+  });
+
+  it("keeps a stale pending candidate visible when a newer failed attempt exists", async () => {
+    const { tenantId, admin, menu, latte } = await seed();
+    const { provider } = fakeProvider();
+    const { candidate } = await generateMenuAiPhoto(
+      db,
+      admin,
+      { menuPublicId: menu.publicId, productPublicId: latte.publicId },
+      { config, provider },
+    );
+
+    await updateDraftProduct(db, tenantId, admin.membership, latte.publicId, {
+      expectedVersion: latte.version,
+      sku: "STALE-ROW",
+    }, admin.subject);
+
+    const bad: AiPhotoProvider = {
+      kind: "bad",
+      capabilities: { network: false, submitIdempotency: "none", usageReporting: false, internalRetries: 0 },
+      async generate() {
+        throw new AiPhotoProviderError("unsafe_output", "blocked");
+      },
+    };
+    await generateMenuAiPhoto(
+      db,
+      admin,
+      { menuPublicId: menu.publicId, productPublicId: latte.publicId },
+      { config, provider: bad },
+    );
+
+    const view = await getMenuAiPhotos(db, admin, menu.publicId, { config });
+    const listed = view.candidates.find((row) => row.assetPublicId === candidate.assetPublicId);
+    expect(listed?.stale).toBe(true);
+    expect(listed?.status).toBe("pending_review");
   });
 
   it("allows legacy candidates without productVersion when only the product version changed", async () => {

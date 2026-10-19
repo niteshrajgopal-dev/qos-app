@@ -25,7 +25,12 @@ import { Toast, ToastStack } from "@/components/Toast";
 import { Switch } from "@/design-system/components/primitives/Switch";
 import type { MenuHealthReport } from "@/lib/catalogue/menu-health";
 import type { MenuAiPhotosView } from "@/lib/media/ai-photos/ai-photo-candidates";
+import {
+  fetchCatalogueProductVersion,
+  removeProductPrimaryPhotoClient,
+} from "@/lib/media/remove-product-primary-photo-client";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
 
 type TranslationState = {
   displayName: string;
@@ -119,6 +124,7 @@ function normalizeSections(sections: SectionState[]) {
 }
 
 export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
+  const locale = readStoredStaffLocale();
   const isEditMode = Boolean(menuPublicId);
   const [form, setForm] = useState<MenuEditorState>(createInitialState);
   const [baseline, setBaseline] = useState("");
@@ -136,6 +142,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
   const [aiPhotosError, setAiPhotosError] = useState<string | null>(null);
   const [photoProgress, setPhotoProgress] = useState<Record<string, ItemProgress>>({});
   const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
+  const [removingRowPhoto, setRemovingRowPhoto] = useState<string | null>(null);
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
@@ -323,6 +330,22 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
     setHealthRefreshKey((key) => key + 1);
     void loadAiPhotos();
   }, [loadAiPhotos]);
+
+  async function removeMenuRowPhoto(productPublicId: string) {
+    setRemovingRowPhoto(productPublicId);
+    setError(null);
+    try {
+      const version = await fetchCatalogueProductVersion(tenantId, productPublicId);
+      await removeProductPrimaryPhotoClient(tenantId, productPublicId, version);
+      refreshPhotos();
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error ? removeError.message : "Unable to remove product photo.",
+      );
+    } finally {
+      setRemovingRowPhoto(null);
+    }
+  }
 
   const setItemProgress = useCallback((productPublicId: string, next: ItemProgress) => {
     setPhotoProgress((current) => ({ ...current, [productPublicId]: next }));
@@ -749,6 +772,16 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                             </div>
                           </div>
                           <div className="qos-menu-row-actions">
+                            {thumbnailPublicId && aiPhotoProducts.has(product.productPublicId) ? (
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                loading={removingRowPhoto === product.productPublicId}
+                                onClick={() => void removeMenuRowPhoto(product.productPublicId)}
+                              >
+                                {staffUiCopy(locale, "removeProductPhoto")}
+                              </Button>
+                            ) : null}
                             <Switch
                               label={<span className="sr-only">Show {product.displayName} on the menu</span>}
                               checked={!product.archived}

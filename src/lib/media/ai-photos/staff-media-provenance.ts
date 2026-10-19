@@ -4,9 +4,15 @@ import type { DbClient } from "@/db/client";
 import { catalogueMediaAssets, catalogueProducts } from "@/db/schema";
 import { metadataOf } from "@/lib/media/ai-photos/ai-photo-candidates";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
+import { resolveStaffDisplayNamesInTenant } from "@/lib/staff/subject-display";
 import { withTenantContext } from "@/lib/tenant/context";
 
-export type StaffMediaGenerationView = Record<string, unknown> & { prompt?: string };
+export type StaffMediaGenerationView = Record<string, unknown> & {
+  prompt?: string;
+  /** Tenant-scoped staff label; never a raw provider subject. */
+  requestedByDisplayName?: string;
+  reviewedByDisplayName?: string;
+};
 
 export type StaffMediaProvenanceView = {
   assetPublicId: string;
@@ -21,6 +27,36 @@ export function toStaffGenerationView(
 ): StaffMediaGenerationView {
   const { prompt, ...rest } = metadata;
   return includePrompt && typeof prompt === "string" ? { ...rest, prompt } : rest;
+}
+
+export function toStaffGenerationViewForTenant(
+  metadata: Record<string, unknown>,
+  includePrompt: boolean,
+  displayNames: ReadonlyMap<string, string>,
+): StaffMediaGenerationView {
+  const view = toStaffGenerationView(metadata, includePrompt);
+  const requestedBySubject =
+    typeof metadata.requestedBySubject === "string" ? metadata.requestedBySubject : null;
+  if (requestedBySubject) {
+    const resolved = displayNames.get(requestedBySubject);
+    if (resolved) {
+      view.requestedByDisplayName = resolved;
+    }
+  }
+  const review = metadata.review;
+  if (review && typeof review === "object" && review !== null) {
+    const decidedBySubject =
+      "decidedBySubject" in review && typeof review.decidedBySubject === "string"
+        ? review.decidedBySubject
+        : null;
+    if (decidedBySubject) {
+      const resolved = displayNames.get(decidedBySubject);
+      if (resolved) {
+        view.reviewedByDisplayName = resolved;
+      }
+    }
+  }
+  return view;
 }
 
 /**
@@ -54,11 +90,22 @@ export async function getStaffProductPrimaryMediaProvenance(
       return null;
     }
 
+    const metadata = metadataOf(asset);
+    const subjects = [
+      typeof metadata.requestedBySubject === "string" ? metadata.requestedBySubject : null,
+      metadata.review &&
+      typeof metadata.review === "object" &&
+      "decidedBySubject" in metadata.review &&
+      typeof metadata.review.decidedBySubject === "string"
+        ? metadata.review.decidedBySubject
+        : null,
+    ].filter((subject): subject is string => Boolean(subject));
+    const displayNames = await resolveStaffDisplayNamesInTenant(tx, tenantId, subjects);
     const includePrompt = membership.role === "administrator";
     return {
       assetPublicId: asset.publicId,
       sourceProvenance: asset.sourceProvenance,
-      generation: toStaffGenerationView(metadataOf(asset), includePrompt),
+      generation: toStaffGenerationViewForTenant(metadata, includePrompt, displayNames),
     };
   });
 }
