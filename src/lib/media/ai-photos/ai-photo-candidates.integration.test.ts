@@ -667,7 +667,7 @@ integrationDescribe("menu AI photo candidates", () => {
   });
 
   it("removes draft primary photos without deleting assets or touching live menus", async () => {
-    const { tenantId, admin, user, menu, latte, quotes } = await seed();
+    const { tenantId, admin, user, menu, latte, mocha, photographed, quotes } = await seed();
     const { provider } = fakeProvider();
     const { candidate } = await generateMenuAiPhoto(
       db,
