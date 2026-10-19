@@ -3,7 +3,9 @@ import type {
   AiPhotoAvailabilityView,
   AiPhotoBatchItem,
   AiPhotoCandidateView,
+  MenuAiPhotosView,
 } from "@/lib/media/ai-photos/ai-photo-candidates";
+import type { StaffMediaGenerationView } from "@/lib/media/ai-photos/staff-media-provenance";
 
 export type MenuPhotoSummary = {
   totalItems: number;
@@ -167,6 +169,43 @@ export type ItemProgress =
 /** Seeds per-item progress from candidates already stored server-side. */
 export const AI_PHOTO_STALE_CANDIDATE_MESSAGE =
   "Item changed since this image was generated. Generate a new one.";
+
+/** Resolves generation metadata from row progress and the latest menu AI photo list. */
+export function generationForAiPhotoRow(
+  productPublicId: string,
+  entry: ItemProgress | undefined,
+  aiPhotos: MenuAiPhotosView | null,
+): StaffMediaGenerationView | null {
+  if (entry && "candidate" in entry && entry.candidate?.generation) {
+    return entry.candidate.generation;
+  }
+  const attached = aiPhotos?.attachedAiPhotoGenerationByProductPublicId[productPublicId];
+  if (attached) {
+    return attached;
+  }
+  const serverCandidate = aiPhotos?.candidates.find(
+    (candidate) => candidate.productPublicId === productPublicId,
+  );
+  return serverCandidate?.generation ?? null;
+}
+
+/** Fills progress gaps after reload from server candidates (e.g. stale pending rows). */
+export function effectiveAiPhotoItemProgress(
+  productPublicId: string,
+  entry: ItemProgress | undefined,
+  aiPhotos: MenuAiPhotosView | null,
+): ItemProgress | undefined {
+  if (entry) {
+    return entry;
+  }
+  const candidate = aiPhotos?.candidates.find(
+    (row) => row.productPublicId === productPublicId,
+  );
+  if (!candidate) {
+    return undefined;
+  }
+  return progressFromCandidates([candidate])[productPublicId];
+}
 
 export function progressFromCandidates(candidates: readonly AiPhotoCandidateView[]) {
   const progress: Record<string, ItemProgress> = {};

@@ -40,9 +40,10 @@ import {
   type AiPhotoProductContext,
 } from "@/lib/media/ai-photos/prompt";
 import {
-  toStaffGenerationView,
+  toStaffGenerationViewForTenant,
   type StaffMediaGenerationView,
 } from "@/lib/media/ai-photos/staff-media-provenance";
+import { resolveStaffDisplayNamesInTenant } from "@/lib/staff/subject-display";
 import {
   AiPhotoProviderError,
   type AiPhotoProviderDiagnostics,
@@ -192,11 +193,23 @@ function candidatePreviewPath(tenantId: string, menuPublicId: string, assetPubli
   return `/api/tenants/${tenantId}/catalogue/menus/${menuPublicId}/ai-photos/${assetPublicId}/preview`;
 }
 
+function subjectsFromGenerationMetadata(metadata: Partial<GenerationMetadata>) {
+  const subjects: string[] = [];
+  if (typeof metadata.requestedBySubject === "string") {
+    subjects.push(metadata.requestedBySubject);
+  }
+  if (typeof metadata.review?.decidedBySubject === "string") {
+    subjects.push(metadata.review.decidedBySubject);
+  }
+  return subjects;
+}
+
 function candidateViewForCaller(
   caller: AiPhotoCaller,
   menuPublicId: string,
   product: MenuProduct,
   asset: typeof catalogueMediaAssets.$inferSelect,
+  displayNames: ReadonlyMap<string, string>,
 ): AiPhotoCandidateView {
   return toCandidateView(
     caller.tenantId,
@@ -204,6 +217,7 @@ function candidateViewForCaller(
     product,
     asset,
     caller.membership.role === "administrator",
+    displayNames,
   );
 }
 
@@ -213,6 +227,7 @@ function toCandidateView(
   product: MenuProduct,
   asset: typeof catalogueMediaAssets.$inferSelect,
   includePrompt: boolean,
+  displayNames: ReadonlyMap<string, string>,
 ): AiPhotoCandidateView {
   const status = toStatus(asset.status);
   const metadata = metadataOf(asset);
@@ -228,8 +243,46 @@ function toCandidateView(
     createdAt: asset.createdAt.toISOString(),
     previewPath:
       status === "pending_review" ? candidatePreviewPath(tenantId, menuPublicId, asset.publicId) : null,
-    generation: toStaffGenerationView(metadata, includePrompt),
+    generation: toStaffGenerationViewForTenant(metadata, includePrompt, displayNames),
   };
+}
+
+/** Prefer a reviewable pending candidate over a newer failed attempt for the same product. */
+async function candidateViewForCallerResolved(
+  db: DbClient,
+  caller: AiPhotoCaller,
+  menuPublicId: string,
+  product: MenuProduct,
+  asset: MediaAsset,
+) {
+  const displayNames = await withTenantContext(db, caller.tenantId, (tx) =>
+    resolveStaffDisplayNamesInTenant(
+      tx,
+      caller.tenantId,
+      subjectsFromGenerationMetadata(metadataOf(asset)),
+    ),
+  );
+  return candidateViewForCaller(caller, menuPublicId, product, asset, displayNames);
+}
+
+function representativeCandidateAsset(
+  assetsForProduct: (typeof catalogueMediaAssets.$inferSelect)[],
+  config: AiPhotoConfig,
+  now: Date,
+) {
+  const pending = assetsForProduct.find((asset) => toStatus(asset.status) === "pending_review");
+  if (pending) {
+    return pending;
+  }
+  const generating = assetsForProduct.find((asset) => toStatus(asset.status) === "generating");
+  if (generating) {
+    return generating;
+  }
+  return assetsForProduct.find(
+    (asset) =>
+      toStatus(asset.status) === "failed" &&
+      asset.createdAt.getTime() >= now.getTime() - QUOTA_WINDOW_MS,
+  );
 }
 
 function requireAdministrator(caller: AiPhotoCaller) {
@@ -470,26 +523,37 @@ export async function getMenuAiPhotos(
       new Date(now.getTime() - QUOTA_WINDOW_MS),
     );
 
-    const latestByProduct = new Map<string, (typeof assets)[number]>();
+    const assetsByProduct = new Map<string, (typeof assets)[number][]>();
     for (const asset of assets) {
-      if (!latestByProduct.has(asset.productId)) {
-        latestByProduct.set(asset.productId, asset);
-      }
+      const list = assetsByProduct.get(asset.productId) ?? [];
+      list.push(asset);
+      assetsByProduct.set(asset.productId, list);
     }
 
     const productById = new Map(productList.map((product) => [product.id, product]));
     const includePrompt = caller.membership.role === "administrator";
+    const displayNames = await resolveStaffDisplayNamesInTenant(
+      tx,
+      caller.tenantId,
+      assets.flatMap((asset) => subjectsFromGenerationMetadata(metadataOf(asset))),
+    );
     const candidates: AiPhotoCandidateView[] = [];
-    for (const asset of latestByProduct.values()) {
-      const product = productById.get(asset.productId);
+    for (const [productId, productAssets] of assetsByProduct) {
+      const product = productById.get(productId);
       if (!product) {
+        continue;
+      }
+      const asset = representativeCandidateAsset(productAssets, config, now);
+      if (!asset) {
         continue;
       }
       const status = toStatus(asset.status);
       const isRecentFailure =
         status === "failed" && asset.createdAt.getTime() >= now.getTime() - QUOTA_WINDOW_MS;
       if (status === "generating" || status === "pending_review" || isRecentFailure) {
-        candidates.push(candidateViewForCaller(caller, menuPublicId, product, asset));
+        candidates.push(
+          candidateViewForCaller(caller, menuPublicId, product, asset, displayNames),
+        );
       }
     }
 
@@ -499,25 +563,28 @@ export async function getMenuAiPhotos(
     const assetById = new Map(assets.map((asset) => [asset.id, asset]));
     const thumbnails = await getApprovedThumbnailPublicIdsForProducts(tx, caller.tenantId, productList);
     const attachedAiPhotoGenerationByProductPublicId: Record<string, StaffMediaGenerationView> = {};
-    const aiPhotoProductPublicIds = productList
-      .filter((product) => {
-        if (
-          product.primaryMediaAssetId === null ||
-          !approvedAiAssetIds.has(product.primaryMediaAssetId) ||
-          !thumbnails.has(product.id)
-        ) {
-          return false;
-        }
-        const asset = assetById.get(product.primaryMediaAssetId);
-        if (asset) {
-          attachedAiPhotoGenerationByProductPublicId[product.publicId] = toStaffGenerationView(
-            metadataOf(asset),
-            includePrompt,
-          );
-        }
-        return true;
-      })
-      .map((product) => product.publicId);
+    const aiPhotoProductPublicIds: string[] = [];
+    for (const product of productList) {
+      const primaryAsset =
+        product.primaryMediaAssetId === null
+          ? null
+          : assetById.get(product.primaryMediaAssetId) ?? null;
+      if (
+        primaryAsset?.sourceProvenance === "ai_generated" &&
+        approvedAiAssetIds.has(primaryAsset.id)
+      ) {
+        attachedAiPhotoGenerationByProductPublicId[product.publicId] =
+          toStaffGenerationViewForTenant(metadataOf(primaryAsset), includePrompt, displayNames);
+      }
+      if (
+        product.primaryMediaAssetId !== null &&
+        approvedAiAssetIds.has(product.primaryMediaAssetId) &&
+        thumbnails.has(product.id) &&
+        primaryAsset?.sourceProvenance === "ai_generated"
+      ) {
+        aiPhotoProductPublicIds.push(product.publicId);
+      }
+    }
 
     return {
       availability: availabilityView(config, reason, caller, usedToday),
@@ -948,18 +1015,37 @@ export async function generateMenuAiPhoto(
   }).catch(spendRefusal);
 
   const { reserved, product } = generationContext;
-  const view = (asset: MediaAsset) => candidateViewForCaller(caller, input.menuPublicId, product, asset);
 
   switch (reserved.kind) {
     case "existing":
-      return { candidate: view(reserved.asset), created: false, queued: false };
+      return {
+        candidate: await candidateViewForCallerResolved(
+          db,
+          caller,
+          input.menuPublicId,
+          product,
+          reserved.asset,
+        ),
+        created: false,
+        queued: false,
+      };
     case "in_progress":
       throw new AiPhotoError("generation_in_progress", IN_PROGRESS_MESSAGE, 409);
     case "daily_limit_reached":
       throw new AiPhotoError("daily_limit_reached", dailyLimitMessage(config), 429);
   }
   if (queued) {
-    return { candidate: view(reserved.asset), created: true, queued: true };
+    return {
+      candidate: await candidateViewForCallerResolved(
+        db,
+        caller,
+        input.menuPublicId,
+        product,
+        reserved.asset,
+      ),
+      created: true,
+      queued: true,
+    };
   }
 
   const asset = reserved.asset;
@@ -983,7 +1069,11 @@ export async function generateMenuAiPhoto(
     if (!failed) {
       throw error;
     }
-    return { candidate: view(failed), created: true, queued: false };
+    return {
+      candidate: await candidateViewForCallerResolved(db, caller, input.menuPublicId, product, failed),
+      created: true,
+      queued: false,
+    };
   }
 
   try {
@@ -993,11 +1083,19 @@ export async function generateMenuAiPhoto(
       failureCode: "storage_failed",
       message: "The generated image could not be stored.",
     });
-    return { candidate: view(failed!), created: true, queued: false };
+    return {
+      candidate: await candidateViewForCallerResolved(db, caller, input.menuPublicId, product, failed!),
+      created: true,
+      queued: false,
+    };
   }
 
   const stored = await recordAiPhotoCompletion(db, caller.tenantId, asset.id, { usage, completedAt: now() });
-  return { candidate: view(stored), created: true, queued: false };
+  return {
+    candidate: await candidateViewForCallerResolved(db, caller, input.menuPublicId, product, stored),
+    created: true,
+    queued: false,
+  };
 }
 
 /** What a provider (or output normalisation) failure proves, as recorded on the asset. */
@@ -1105,18 +1203,37 @@ export async function queueMenuAiPhotoBatch(
     const items: AiPhotoBatchItem[] = [];
     for (const productPublicId of productPublicIds) {
       const product = products.get(productPublicId);
-      const item = (outcome: AiPhotoBatchOutcome, candidate: MediaAsset | null, message: string | null) =>
+      const item = async (
+        outcome: AiPhotoBatchOutcome,
+        candidate: MediaAsset | null,
+        message: string | null,
+      ) => {
+        const displayNames =
+          candidate && product
+            ? await resolveStaffDisplayNamesInTenant(
+                tx,
+                caller.tenantId,
+                subjectsFromGenerationMetadata(metadataOf(candidate)),
+              )
+            : new Map<string, string>();
         items.push({
           productPublicId,
           outcome,
           candidate:
             candidate && product
-              ? candidateViewForCaller(caller, input.menuPublicId, product, candidate)
+              ? candidateViewForCaller(
+                  caller,
+                  input.menuPublicId,
+                  product,
+                  candidate,
+                  displayNames,
+                )
               : null,
           message,
         });
+      };
       if (!product) {
-        item("product_not_in_menu", null, "This item is not on the menu.");
+        await item("product_not_in_menu", null, "This item is not on the menu.");
         continue;
       }
       try {
@@ -1125,23 +1242,23 @@ export async function queueMenuAiPhotoBatch(
         );
         switch (reserved.kind) {
           case "existing":
-            item("existing_candidate", reserved.asset, null);
+            await item("existing_candidate", reserved.asset, null);
             break;
           case "in_progress":
-            item("in_progress", null, IN_PROGRESS_MESSAGE);
+            await item("in_progress", null, IN_PROGRESS_MESSAGE);
             break;
           case "daily_limit_reached":
-            item("daily_limit_reached", null, dailyLimitMessage(config));
+            await item("daily_limit_reached", null, dailyLimitMessage(config));
             break;
           case "reserved":
-            item("queued", reserved.asset, null);
+            await item("queued", reserved.asset, null);
             break;
         }
       } catch (error) {
         if (!(error instanceof AiSpendAdmissionError)) {
           throw error;
         }
-        item(error.code, null, error.message);
+        await item(error.code, null, error.message);
       }
     }
     return { items };
@@ -1209,8 +1326,21 @@ export async function acceptMenuAiPhoto(
     const { asset, productPublicId } = await loadCandidate(tx, caller.tenantId, input.assetPublicId, { lock: true });
     const product = await requireMenuProduct(tx, caller.tenantId, input.menuPublicId, productPublicId);
 
+    const displayNamesFor = async (row: MediaAsset) =>
+      resolveStaffDisplayNamesInTenant(
+        tx,
+        caller.tenantId,
+        subjectsFromGenerationMetadata(metadataOf(row)),
+      );
+
     if (asset.status === "approved") {
-      return candidateViewForCaller(caller, input.menuPublicId, product, asset);
+      return candidateViewForCaller(
+        caller,
+        input.menuPublicId,
+        product,
+        asset,
+        await displayNamesFor(asset),
+      );
     }
     if (asset.status !== "uploaded") {
       throw new AiPhotoError("candidate_not_reviewable", "This AI photo can no longer be accepted.", 409);
@@ -1290,7 +1420,13 @@ export async function acceptMenuAiPhoto(
       changeSummary: { productPublicId, replacedAssetPublicId },
     });
 
-    return candidateViewForCaller(caller, input.menuPublicId, product, accepted);
+    return candidateViewForCaller(
+      caller,
+      input.menuPublicId,
+      product,
+      accepted,
+      await displayNamesFor(accepted),
+    );
   });
 }
 
@@ -1308,8 +1444,21 @@ export async function rejectMenuAiPhoto(
     const { asset, productPublicId } = await loadCandidate(tx, caller.tenantId, input.assetPublicId, { lock: true });
     const product = await requireMenuProduct(tx, caller.tenantId, input.menuPublicId, productPublicId);
 
+    const displayNamesFor = async (row: MediaAsset) =>
+      resolveStaffDisplayNamesInTenant(
+        tx,
+        caller.tenantId,
+        subjectsFromGenerationMetadata(metadataOf(row)),
+      );
+
     if (asset.status === "rejected") {
-      return candidateViewForCaller(caller, input.menuPublicId, product, asset);
+      return candidateViewForCaller(
+        caller,
+        input.menuPublicId,
+        product,
+        asset,
+        await displayNamesFor(asset),
+      );
     }
     if (asset.status !== "uploaded") {
       throw new AiPhotoError("candidate_not_reviewable", "This AI photo can no longer be rejected.", 409);
@@ -1342,7 +1491,13 @@ export async function rejectMenuAiPhoto(
       changeSummary: { productPublicId },
     });
 
-    return candidateViewForCaller(caller, input.menuPublicId, product, rejected);
+    return candidateViewForCaller(
+      caller,
+      input.menuPublicId,
+      product,
+      rejected,
+      await displayNamesFor(rejected),
+    );
   });
 }
 

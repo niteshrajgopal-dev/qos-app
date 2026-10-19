@@ -14,7 +14,10 @@ import {
   productEditorSaveLabel,
   type CatalogueProductEditorStatus,
 } from "@/lib/catalogue/product-editor-copy";
-import { productEditorChildMutationsDisabled } from "@/lib/catalogue/product-editor-mutation-ui";
+import {
+  productEditorCanRemovePrimaryPhoto,
+  productEditorChildMutationsDisabled,
+} from "@/lib/catalogue/product-editor-mutation-ui";
 import { Toast, ToastStack } from "@/components/Toast";
 import { mapVideoErrorToFriendlyMessage } from "@/lib/media/video-error-messages";
 import { AiPhotoProvenanceMeta } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-provenance-meta";
@@ -1174,7 +1177,7 @@ export function ProductEditor({
                     locale={locale}
                     generation={mediaProvenance?.generation ?? null}
                   />
-                  {editorStatus === "draft" && !childMutationsDisabled ? (
+                  {productEditorCanRemovePrimaryPhoto(editorStatus) && !childMutationsDisabled ? (
                     <Button
                       size="sm"
                       variant="ghost"

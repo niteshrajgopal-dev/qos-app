@@ -9,3 +9,10 @@ export function productEditorChildMutationsDisabled(
 ): boolean {
   return productEditorIsReadOnly(productStatus);
 }
+
+/** Draft and active products may clear an attached primary photo; archived may not. */
+export function productEditorCanRemovePrimaryPhoto(
+  productStatus: CatalogueProductEditorStatus,
+): boolean {
+  return !productEditorIsReadOnly(productStatus);
+}
