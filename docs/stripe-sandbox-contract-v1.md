@@ -16,8 +16,8 @@ This document records the backend payment handoff and reconciliation contract fo
 | --- | --- |
 | API Container App | `ca-qos-dev-api` |
 | API URL | `https://ca-qos-dev-api.gentleplant-cc8574e8.uaenorth.azurecontainerapps.io` |
-| Storefront Container App | `ca-qos-dev-storefront` |
-| Storefront URL | `https://ca-qos-dev-storefront.gentleplant-cc8574e8.uaenorth.azurecontainerapps.io` |
+| Quotes Storefront Container App | `ca-qos-dev-storefront-quotes` |
+| Storefront URL | `https://quotes.dev.qosapp.com` |
 | Runtime Key Vault | `kv-qos-dev-runtime` |
 
 Secrets are stored in Key Vault and referenced by Container App env vars. **Never commit or log secret values.**

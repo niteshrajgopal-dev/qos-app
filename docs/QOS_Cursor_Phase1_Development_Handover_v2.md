@@ -110,7 +110,8 @@ Region:
 
 Existing services:
 - QOS API Container App: `ca-qos-dev-api`
-- Shared Storefront Container App: `ca-qos-dev-storefront`
+- Quotes Storefront Container App: `ca-qos-dev-storefront-quotes`
+- Floréa Storefront Container App: `ca-qos-dev-storefront-florea`
 - Container Apps Environment: `cae-qos-dev`
 - ACR: `qosdevacr`
 - PostgreSQL Flexible Server: `psql-qos-dev`
@@ -119,17 +120,20 @@ Existing services:
 - Storage: `stqosdev`
 - Admin/legacy Key Vault: `kv-qos-dev`
 - Runtime Key Vault: `kv-qos-dev-runtime`
-- Storefront managed identity: `id-qos-dev-storefront`
+- Quotes storefront managed identity: `id-qos-dev-storefront-quotes`
+- Floréa storefront managed identity: `id-qos-dev-storefront-florea`
 
 Azure Front Door:
 - Profile: `afd-qos-dev`
 - Endpoint: `qos-dev-storefront`
-- Route: `route-qos-dev-storefront`
-- Origin group: `og-qos-dev-storefront`
-- Origin: `origin-qos-dev-storefront`
+- Quotes route / origin group / origin: `route-qos-dev-storefront-quotes` → `og-qos-dev-storefront-quotes` → `origin-qos-dev-storefront-quotes`
+- Floréa route / origin group / origin: `route-qos-dev-storefront-florea` → `og-qos-dev-storefront-florea` → `origin-qos-dev-storefront-florea`
 
-Customer development hostname:
+The legacy shared runtime `ca-qos-dev-storefront` / `id-qos-dev-storefront` was retired on 2026-10-19 under QOS-100 (ADR-SF-01). Do not recreate it or treat it as an approved deploy target.
+
+Customer development hostnames:
 - `quotes.dev.qosapp.com`
+- `flowers.dev.qosapp.com`
 
 Verified end-to-end health:
 - `https://quotes.dev.qosapp.com/api/health`
@@ -859,11 +863,11 @@ Key Storefront Platform issues:
 - QOS-51 — versioned Storefront Manifest
 - QOS-52 — refactor Quotes into tenant #1 of reusable renderer
 - QOS-53 — resolve verified hostnames to correct storefront and reject unknown hosts
-- QOS-54 — shared Development storefront runtime
-- QOS-55 — Azure Front Door in front of shared storefront runtime
+- QOS-54 — original shared Development storefront runtime (superseded by ADR-SF-01 / QOS-80; leftover app retired in QOS-100)
+- QOS-55 — Azure Front Door in front of storefront runtimes (now one dedicated route/origin group per instance)
 - QOS-56 — tenant subdomains and verified custom-domain lifecycle
 
-Infrastructure for QOS-54 through QOS-56 has been substantially established.
+Infrastructure for QOS-54 through QOS-56 has been substantially established. The live storefront runtime is dedicated per instance (`ca-qos-dev-storefront-quotes`, `ca-qos-dev-storefront-florea`), not a shared Container App.
 
 The next development work is the application/data foundation that enables QOS-50 through QOS-53.
 

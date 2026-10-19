@@ -31,7 +31,7 @@ This document records a sanitized inventory of the existing Quotes sample reposi
 | State | Zustand **5.0.15** + `localStorage` | Replace cart/order/loyalty persistence with QOS public basket + customer APIs |
 | Auth | **None** | QOS customer auth (QOS-22) via Quotes UI (QOS-36) |
 | Payment | Client-only card form + simulated delay | QOS checkout quote + Stripe sandbox handoff (QOS-26/43/44/39) |
-| Deployment | `output: "standalone"` Docker image on port 3000 | Shared `ca-qos-dev-storefront` runtime (QOS-54) |
+| Deployment | `output: "standalone"` Docker image on port 3000 | Dedicated `ca-qos-dev-storefront-quotes` instance (ADR-SF-01 / QOS-80; QOS-54 shared runtime retired in QOS-100) |
 | i18n | **English only** (`lang="en"`, `en-GB` dates, **GBP £**) | Explicit EN/AR selector + RTL (QOS-34); **AED** from QOS APIs |
 
 No `process.env` / `NEXT_PUBLIC_*` usage in Quotes today. The only QOS naming is `/api/health` returning `service: "qos-storefront"`.
