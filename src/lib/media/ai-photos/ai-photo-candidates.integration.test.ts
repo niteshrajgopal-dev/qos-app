@@ -38,7 +38,10 @@ import {
   rejectMenuAiPhoto,
   type AiPhotoCaller,
 } from "@/lib/media/ai-photos/ai-photo-candidates";
-import { getStaffProductPrimaryMediaProvenance } from "@/lib/media/ai-photos/staff-media-provenance";
+import {
+  getStaffProductPrimaryMediaProvenance,
+  getStaffProductRemovedPrimaryPhotoHistory,
+} from "@/lib/media/ai-photos/staff-media-provenance";
 import type { AiPhotoConfig } from "@/lib/media/ai-photos/config";
 import {
   AiPhotoProviderError,
@@ -793,6 +796,28 @@ integrationDescribe("menu AI photo candidates", () => {
       .from(tenantAuditEvents)
       .where(eq(tenantAuditEvents.action, "catalogue.media.primary_photo_removed"));
     expect(audits).toHaveLength(1);
+
+    const adminHistory = await getStaffProductRemovedPrimaryPhotoHistory(
+      db,
+      tenantId,
+      admin.membership,
+      latte.publicId,
+    );
+    expect(adminHistory).toHaveLength(1);
+    expect(adminHistory[0]).toMatchObject({
+      assetPublicId: candidate.assetPublicId,
+      sourceProvenance: "ai_generated",
+    });
+    expect(adminHistory[0]!.generation.model).toBeTruthy();
+    expect(adminHistory[0]!.generation.prompt).toContain("Latte");
+
+    await expect(
+      getStaffProductRemovedPrimaryPhotoHistory(db, tenantId, user.membership, latte.publicId),
+    ).rejects.toBeInstanceOf(StaffAuthorizationError);
+
+    const publicSerialized = JSON.stringify(liveAfter);
+    expect(publicSerialized).not.toContain("removedHistory");
+    expect(publicSerialized).not.toContain(candidate.assetPublicId);
 
     const again = await removeProductPrimaryPhoto(
       db,

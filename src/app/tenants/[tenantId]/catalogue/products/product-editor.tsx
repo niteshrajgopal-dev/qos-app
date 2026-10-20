@@ -24,7 +24,11 @@ import { AiPhotoProvenanceMeta } from "@/app/tenants/[tenantId]/catalogue/menus/
 import { AiDescriptionReview } from "@/app/tenants/[tenantId]/catalogue/products/ai-description-review";
 import { Button } from "@/components/Button";
 import { publicProductThumbnailUrl } from "@/components/platform/catalogue-products-list";
-import type { StaffMediaProvenanceView } from "@/lib/media/ai-photos/staff-media-provenance";
+import type {
+  StaffMediaProvenanceView,
+  StaffRemovedPrimaryPhotoView,
+} from "@/lib/media/ai-photos/staff-media-provenance";
+import { ProductRemovedPhotoHistory } from "@/app/tenants/[tenantId]/catalogue/products/product-removed-photo-history";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
 
@@ -147,7 +151,11 @@ export function ProductEditor({
   const [mediaProvenance, setMediaProvenance] = useState<StaffMediaProvenanceView | null>(
     null,
   );
+  const [removedPhotoHistory, setRemovedPhotoHistory] = useState<
+    StaffRemovedPrimaryPhotoView[]
+  >([]);
   const [removingPhoto, setRemovingPhoto] = useState(false);
+  const [removePhotoConfirmOpen, setRemovePhotoConfirmOpen] = useState(false);
   const [videoUploading, setVideoUploading] = useState(false);
   const [videoStatus, setVideoStatus] = useState<string | null>(null);
   const [videoJobState, setVideoJobState] = useState<"queued" | "processing" | "ready" | "rejected" | "failed" | "quarantined" | null>(null);
@@ -238,6 +246,27 @@ export function ProductEditor({
       setPrimaryMediaSource(product.primaryMediaSource ?? null);
       void loadApprovedVideoUrls();
       void loadMediaProvenance(product.publicId);
+      if (product.canEditPrice) {
+        void loadRemovedPhotoHistory(product.publicId);
+      } else {
+        setRemovedPhotoHistory([]);
+      }
+  }
+
+  async function loadRemovedPhotoHistory(publicId: string) {
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${publicId}/media/removed-history`,
+      );
+      const payload = (await response.json()) as {
+        removedHistory?: StaffRemovedPrimaryPhotoView[];
+      };
+      if (response.ok) {
+        setRemovedPhotoHistory(payload.removedHistory ?? []);
+      }
+    } catch {
+      setRemovedPhotoHistory([]);
+    }
   }
 
   async function loadMediaProvenance(publicId: string) {
@@ -290,6 +319,9 @@ export function ProductEditor({
       setPrimaryMediaSource(null);
       setMediaProvenance(null);
       setImageStatus(staffUiCopy(locale, "productPhotoRemoved"));
+      if (isAdministrator && productPublicId) {
+        void loadRemovedPhotoHistory(productPublicId);
+      }
     } catch (removeError) {
       setError(
         removeError instanceof Error ? removeError.message : "Unable to remove product photo.",
@@ -1183,7 +1215,7 @@ export function ProductEditor({
                       variant="ghost"
                       loading={removingPhoto}
                       disabled={imageUploading}
-                      onClick={() => void removeProductPhoto()}
+                      onClick={() => setRemovePhotoConfirmOpen(true)}
                     >
                       {removingPhoto
                         ? staffUiCopy(locale, "removingProductPhoto")
@@ -1192,6 +1224,9 @@ export function ProductEditor({
                   ) : null}
                 </div>
               </div>
+            ) : null}
+            {isAdministrator ? (
+              <ProductRemovedPhotoHistory locale={locale} entries={removedPhotoHistory} />
             ) : null}
           </div>
         </section>
@@ -1303,6 +1338,20 @@ export function ProductEditor({
         cancelLabel="Cancel"
         onClose={() => setArchiveOpen(false)}
         onConfirm={() => void archiveProduct()}
+      />
+
+      <ConfirmDialog
+        open={removePhotoConfirmOpen}
+        tone="danger"
+        title={staffUiCopy(locale, "removeProductPhotoConfirmTitle")}
+        description={staffUiCopy(locale, "removeProductPhotoConfirmDescription")}
+        confirmLabel={staffUiCopy(locale, "removeProductPhotoConfirmLabel")}
+        cancelLabel="Cancel"
+        onClose={() => setRemovePhotoConfirmOpen(false)}
+        onConfirm={() => {
+          setRemovePhotoConfirmOpen(false);
+          void removeProductPhoto();
+        }}
       />
 
       {showRestoreAction ? (

@@ -113,7 +113,15 @@ export const STAFF_UI_COPY = {
     aiPhotoStaleMessage: "Item changed since this image was generated. Generate a new one.",
     removeProductPhoto: "Remove photo",
     removingProductPhoto: "Removing photo…",
+    removeProductPhotoConfirmTitle: "Remove this photo?",
+    removeProductPhotoConfirmDescription:
+      "The photo will be cleared from the draft product. Published menus stay unchanged until you publish.",
+    removeProductPhotoConfirmLabel: "Remove photo",
     productPhotoRemoved: "Photo removed from draft. Publish to update live menus.",
+    removedPhotoHistoryTitle: "Removed photos",
+    removedPhotoHistoryRemovedPrefix: "Removed",
+    photoSourceAiGenerated: "AI-generated",
+    photoSourceUploaded: "Uploaded",
     staffMemberLabel: "Staff member",
   },
   ar: {
@@ -191,7 +199,15 @@ export const STAFF_UI_COPY = {
     aiPhotoStaleMessage: "تغيّر الصنف بعد توليد هذه الصورة. أنشئ صورة جديدة.",
     removeProductPhoto: "إزالة الصورة",
     removingProductPhoto: "جاري إزالة الصورة…",
+    removeProductPhotoConfirmTitle: "إزالة هذه الصورة؟",
+    removeProductPhotoConfirmDescription:
+      "ستُزال الصورة من مسودة المنتج. القوائم المنشورة لا تتغيّر حتى تنشر التعديلات.",
+    removeProductPhotoConfirmLabel: "إزالة الصورة",
     productPhotoRemoved: "أُزيلت الصورة من المسودة. انشر القائمة لتحديث القوائم المنشورة.",
+    removedPhotoHistoryTitle: "الصور المُزالة",
+    removedPhotoHistoryRemovedPrefix: "أُزيلت",
+    photoSourceAiGenerated: "مُولَّدة بالذكاء الاصطناعي",
+    photoSourceUploaded: "مرفوعة",
     staffMemberLabel: "عضو الفريق",
   },
 } as const;
