@@ -48,7 +48,10 @@ function parseArgs() {
     process.argv.find((arg) => arg.startsWith("--label="))?.split("=")[1] ??
     "branch";
   const allowFailures = process.argv.includes("--allow-failures");
-  return { baseUrl, label, allowFailures };
+  const locale =
+    process.argv.find((arg) => arg.startsWith("--locale="))?.split("=")[1] ??
+    "en";
+  return { baseUrl, label, allowFailures, locale };
 }
 
 /** Ignore sub-pixel touching (layout probe noise at measured boundaries). */
@@ -90,10 +93,15 @@ function viewportList() {
   return list;
 }
 
-async function measureAt(page, baseUrl, width, height) {
+async function measureAt(page, baseUrl, width, height, locale) {
   await page.setViewportSize({ width, height });
-  const harnessUrl = new URL("/dev/overview-layout-harness", baseUrl).toString();
-  await page.goto(harnessUrl, { waitUntil: "networkidle" });
+  const harnessUrl = new URL("/dev/overview-layout-harness", baseUrl);
+  harnessUrl.searchParams.set("locale", locale);
+  await page.goto(harnessUrl.toString(), { waitUntil: "networkidle" });
+  await page.waitForFunction(
+    (expectedDir) => document.documentElement.dir === expectedDir,
+    locale === "ar" ? "rtl" : "ltr",
+  );
   await page.waitForSelector(".qosp-rail");
   await page.waitForSelector(".qosp-dock");
   await page.evaluate(
@@ -125,6 +133,8 @@ async function measureAt(page, baseUrl, width, height) {
     .locator(".qosp-rail")
     .evaluate((element) => getComputedStyle(element).position);
 
+  const documentDir = await page.evaluate(() => document.documentElement.dir);
+
   const pairs = [
     { label: "rail×storefronts", overlaps: intersects(boxes.rail, boxes.storefronts) },
     { label: "rail×dock", overlaps: intersects(boxes.rail, boxes.dock) },
@@ -141,6 +151,8 @@ async function measureAt(page, baseUrl, width, height) {
     pass,
     overlap: overlapSummary(pairs),
     railPosition,
+    documentDir,
+    locale,
   };
 }
 
@@ -269,11 +281,18 @@ function writeSummary({
   );
 }
 
+function jsonNameFor(label, locale) {
+  const localeTag = locale === "ar" ? "-ar" : "-en";
+  if (label === "branch") {
+    return `measurements-branch-dense${localeTag}.json`;
+  }
+  return `measurements-${label}-dense${localeTag}.json`;
+}
+
 async function main() {
-  const { baseUrl, label, allowFailures } = parseArgs();
+  const { baseUrl, label, allowFailures, locale } = parseArgs();
   mkdirSync(artifactDir, { recursive: true });
-  const jsonName =
-    label === "branch" ? "measurements-branch-dense.json" : `measurements-${label}-dense.json`;
+  const jsonName = jsonNameFor(label, locale);
 
   const browser = await chromium.launch();
   const context = await browser.newContext();
@@ -287,6 +306,7 @@ async function main() {
       baseUrl,
       viewport.width,
       viewport.height,
+      locale,
     );
     results.push({
       ...result,
@@ -308,7 +328,7 @@ async function main() {
   }
 
   console.log(
-    `${label}: ${results.length - failures.length}/${results.length} passed.`,
+    `${label} (${locale}): ${results.length - failures.length}/${results.length} passed.`,
   );
   console.log(`Wrote ${path.join(artifactDir, jsonName)}`);
 

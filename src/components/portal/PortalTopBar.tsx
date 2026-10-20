@@ -6,6 +6,11 @@ import { useEffect, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import {
+  staffNavLabel,
+  staffUiCopy,
+  type StaffLocale,
+} from "@/lib/staff/locale";
+import {
   isStaffMoreNavId,
   staffNavHref,
   STAFF_MORE_NAV_GROUPS,
@@ -19,7 +24,7 @@ type PortalTopBarProps = {
   activeId: string;
   personName: string;
   roleLabel: string;
-  locale: "en" | "ar";
+  locale: StaffLocale;
   onToggleLocale: () => void;
   onOpenSearch: () => void;
   onSelectTenant: (tenantId: string) => void;
@@ -106,7 +111,7 @@ export function PortalTopBar({
               className="qosp-nav-link"
               data-active={activeId === item.id || undefined}
             >
-              {item.label}
+              {staffNavLabel(locale, item.id, item.label)}
             </Link>
           );
         })}
@@ -119,18 +124,30 @@ export function PortalTopBar({
             aria-expanded={openMenu === "more"}
             onClick={() => setOpenMenu(openMenu === "more" ? null : "more")}
           >
-            More
+            {staffUiCopy(locale, "more")}
             <Icon name="chevron-down" size={14} />
           </button>
           {openMenu === "more" ? (
             <div
               className="qos-menu"
               role="menu"
-              style={{ top: 46, insetInlineStart: "50%", transform: "translateX(-50%)" }}
+              style={{
+                top: 46,
+                insetInlineStart: "50%",
+                translate: "-50% 0",
+              }}
             >
               {STAFF_MORE_NAV_GROUPS.map((group) => (
                 <div key={group.label}>
-                  <div className="qos-cmd-group">{group.label}</div>
+                  <div className="qos-cmd-group">
+                    {group.label
+                      ? staffNavLabel(
+                          locale,
+                          group.label.toLowerCase(),
+                          group.label,
+                        )
+                      : null}
+                  </div>
                   {group.items.map((item) => {
                     const href = staffNavHref(tenantId, item.id);
                     if (!href) {
@@ -146,7 +163,7 @@ export function PortalTopBar({
                         data-selected={activeId === item.id || undefined}
                         onClick={() => setOpenMenu(null)}
                       >
-                        {item.label}
+                        {staffNavLabel(locale, item.id, item.label)}
                       </Link>
                     );
                   })}
@@ -162,7 +179,7 @@ export function PortalTopBar({
           type="button"
           className="qosp-search-trigger"
           onClick={onOpenSearch}
-          aria-label="Search this business"
+          aria-label={staffUiCopy(locale, "searchThisBusiness")}
         >
           <Icon name="search" size={15} />
           <kbd>⌘K</kbd>
@@ -170,7 +187,7 @@ export function PortalTopBar({
         <button
           type="button"
           className="qosp-icon-button qosp-notification"
-          aria-label="Notifications"
+          aria-label={staffUiCopy(locale, "notifications")}
         >
           <Icon name="alert-circle" size={17} />
           <i aria-hidden="true" />
@@ -199,7 +216,9 @@ export function PortalTopBar({
               role="listbox"
               style={{ top: 44, insetInlineEnd: 0, minWidth: 260 }}
             >
-              <div className="qos-cmd-group">Switch business</div>
+              <div className="qos-cmd-group">
+                {staffUiCopy(locale, "switchBusiness")}
+              </div>
               {tenants.map((tenant) => (
                 <button
                   key={tenant.id}
@@ -266,7 +285,9 @@ export function PortalTopBar({
                 }}
               >
                 <Icon name="log-out" size={15} />
-                <span style={{ flex: 1 }}>Sign out</span>
+                <span style={{ flex: 1 }}>
+                  {staffUiCopy(locale, "signOut")}
+                </span>
               </button>
             </div>
           ) : null}

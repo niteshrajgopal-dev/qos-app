@@ -4,9 +4,11 @@ import {
   isStaffLocale,
   readStoredStaffLocale,
   setStoredStaffLocale,
+  STAFF_UI_COPY,
   staffDocumentDirection,
   staffNavLabel,
   staffUiCopy,
+  subscribeStaffLocale,
 } from "@/lib/staff/locale";
 
 describe("staff locale", () => {
@@ -43,6 +45,38 @@ describe("staff locale", () => {
     expect(staffUiCopy("ar", "home")).toBe("الرئيسية");
     expect(staffNavLabel("ar", "menus", "Menus")).toBe("القوائم");
     expect(staffNavLabel("ar", "catalogue", "Products")).toBe("المنتجات");
+    expect(staffNavLabel("ar", "home", "Overview")).toBe("نظرة عامة");
     expect(staffNavLabel("en", "unknown", "Fallback")).toBe("Fallback");
+  });
+
+  it("keeps Arabic catalogue keys in parity with English", () => {
+    const enKeys = Object.keys(STAFF_UI_COPY.en).sort();
+    const arKeys = Object.keys(STAFF_UI_COPY.ar).sort();
+    expect(arKeys).toEqual(enKeys);
+  });
+
+  it("notifies locale subscribers when the stored locale changes", () => {
+    const store = new Map<string, string>();
+    let notifications = 0;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: (key: string) => store.get(key) ?? null,
+          setItem: (key: string, value: string) => {
+            store.set(key, value);
+          },
+        },
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      },
+    });
+
+    const unsubscribe = subscribeStaffLocale(() => {
+      notifications += 1;
+    });
+    setStoredStaffLocale("ar");
+    expect(notifications).toBe(1);
+    unsubscribe();
   });
 });

@@ -115,6 +115,72 @@ export const STAFF_UI_COPY = {
     removingProductPhoto: "Removing photo…",
     productPhotoRemoved: "Photo removed from draft. Publish to update live menus.",
     staffMemberLabel: "Staff member",
+    overview: "Overview",
+    storefronts: "Storefronts",
+    more: "More",
+    menuExtraction: "Menu extraction",
+    allChannels: "All channels",
+    members: "Members",
+    aiAgents: "AI & Agents",
+    cancel: "Cancel",
+    confirm: "Confirm",
+    keepEditing: "Keep editing",
+    discard: "Discard",
+    roleAdministrator: "Administrator",
+    roleUser: "User",
+    unableToLoadWorkspace: "Unable to load staff workspace",
+    noAccessToBusiness: "No access to this business",
+    noMembershipBody:
+      "Your staff account does not have an active membership here.",
+    switchBusiness: "Switch business",
+    searchThisBusiness: "Search this business",
+    notifications: "Notifications",
+    productsTitle: "Products",
+    loadingProductsSubtitle: "Loading products...",
+    loadingCatalogueProducts: "Loading catalogue products...",
+    unableToLoadCatalogueProducts: "Unable to load catalogue products.",
+    networkError: "Network error",
+    noProductsYet: "No products yet",
+    newProduct: "New product",
+    noCatalogueProductsTitle: "No catalogue products",
+    noCatalogueProductsBody: "Products you create or import will appear here.",
+    noProductsMatchSearch: "No products match your search",
+    clearSearch: "Clear search",
+    tabAll: "All",
+    tabActive: "Active",
+    tabDrafts: "Drafts",
+    tabArchived: "Archived",
+    columnProduct: "Product",
+    columnInternalName: "Internal name",
+    columnStatus: "Status",
+    columnActions: "Actions",
+    unableToRestoreProduct: "Unable to restore product.",
+    noActiveProductsTitle: "No active products",
+    noActiveProductsBody: "Active products will appear here once published.",
+    noDraftProductsTitle: "No draft products",
+    noDraftProductsBody: "Products you create or import will start as drafts.",
+    noArchivedProductsTitle: "No archived products",
+    noArchivedProductsBody: "Archived products will appear here.",
+    noProductsTitle: "No products",
+    noProductsBody: "No products to display.",
+    searchProductsPlaceholder: "Search {count} products",
+    productsSearchEmptyBody: 'No products found for "{query}".',
+    productsSearchMatchOne: "1 product matches",
+    productsSearchMatchMany: "{count} products match",
+    productsCountOne: "1 product",
+    productsCountMany: "{count} products",
+    productsActiveOne: "1 active",
+    productsActiveMany: "{count} active",
+    productsDraftOne: "1 draft",
+    productsDraftMany: "{count} drafts",
+    productsArchivedOne: "1 archived",
+    productsArchivedMany: "{count} archived",
+    discardUnsavedProductTitle: "Discard unsaved changes to this draft product?",
+    discardUnsavedProductDescription:
+      "The current draft will revert to the last saved version.",
+    discardUnsavedMenuTitle: "Discard unsaved changes to this draft menu?",
+    restoreToDraft: "Restore to draft",
+    restoring: "Restoring…",
   },
   ar: {
     signInTitle: "تسجيل الدخول إلى QOS",
@@ -193,6 +259,71 @@ export const STAFF_UI_COPY = {
     removingProductPhoto: "جاري إزالة الصورة…",
     productPhotoRemoved: "أُزيلت الصورة من المسودة. انشر القائمة لتحديث القوائم المنشورة.",
     staffMemberLabel: "عضو الفريق",
+    overview: "نظرة عامة",
+    storefronts: "واجهات المتجر",
+    more: "المزيد",
+    menuExtraction: "استخراج القائمة",
+    allChannels: "كل القنوات",
+    members: "الأعضاء",
+    aiAgents: "الذكاء الاصطناعي والوكلاء",
+    cancel: "إلغاء",
+    confirm: "تأكيد",
+    keepEditing: "متابعة التعديل",
+    discard: "تجاهل",
+    roleAdministrator: "مسؤول",
+    roleUser: "مستخدم",
+    unableToLoadWorkspace: "تعذر تحميل مساحة عمل الموظفين",
+    noAccessToBusiness: "لا يوجد وصول إلى هذا النشاط",
+    noMembershipBody: "حسابك لا يملك عضوية نشطة هنا.",
+    switchBusiness: "تبديل النشاط",
+    searchThisBusiness: "البحث في هذا النشاط",
+    notifications: "الإشعارات",
+    productsTitle: "المنتجات",
+    loadingProductsSubtitle: "جاري تحميل المنتجات...",
+    loadingCatalogueProducts: "جاري تحميل منتجات الكتالوج...",
+    unableToLoadCatalogueProducts: "تعذر تحميل منتجات الكتالوج.",
+    networkError: "خطأ في الشبكة",
+    noProductsYet: "لا توجد منتجات بعد",
+    newProduct: "منتج جديد",
+    noCatalogueProductsTitle: "لا توجد منتجات في الكتالوج",
+    noCatalogueProductsBody: "ستظهر المنتجات التي تنشئها أو تستوردها هنا.",
+    noProductsMatchSearch: "لا توجد منتجات مطابقة لبحثك",
+    clearSearch: "مسح البحث",
+    tabAll: "الكل",
+    tabActive: "نشط",
+    tabDrafts: "مسودات",
+    tabArchived: "مؤرشف",
+    columnProduct: "المنتج",
+    columnInternalName: "الاسم الداخلي",
+    columnStatus: "الحالة",
+    columnActions: "إجراءات",
+    unableToRestoreProduct: "تعذر استعادة المنتج.",
+    noActiveProductsTitle: "لا توجد منتجات نشطة",
+    noActiveProductsBody: "ستظهر المنتجات النشطة هنا بعد النشر.",
+    noDraftProductsTitle: "لا توجد مسودات منتجات",
+    noDraftProductsBody: "تبدأ المنتجات التي تنشئها أو تستوردها كمسودات.",
+    noArchivedProductsTitle: "لا توجد منتجات مؤرشفة",
+    noArchivedProductsBody: "ستظهر المنتجات المؤرشفة هنا.",
+    noProductsTitle: "لا توجد منتجات",
+    noProductsBody: "لا توجد منتجات لعرضها.",
+    searchProductsPlaceholder: "ابحث في {count} منتجًا",
+    productsSearchEmptyBody: 'لم يُعثر على منتجات لـ "{query}".',
+    productsSearchMatchOne: "منتج واحد مطابق",
+    productsSearchMatchMany: "{count} منتجات مطابقة",
+    productsCountOne: "منتج واحد",
+    productsCountMany: "{count} منتجات",
+    productsActiveOne: "نشط واحد",
+    productsActiveMany: "{count} نشطة",
+    productsDraftOne: "مسودة واحدة",
+    productsDraftMany: "{count} مسودات",
+    productsArchivedOne: "مؤرشف واحد",
+    productsArchivedMany: "{count} مؤرشفة",
+    discardUnsavedProductTitle: "تجاهل التغييرات غير المحفوظة على مسودة المنتج؟",
+    discardUnsavedProductDescription:
+      "ستعود المسودة الحالية إلى آخر نسخة محفوظة.",
+    discardUnsavedMenuTitle: "تجاهل التغييرات غير المحفوظة على مسودة القائمة؟",
+    restoreToDraft: "استعادة كمسودة",
+    restoring: "جاري الاستعادة…",
   },
 } as const;
 
@@ -204,6 +335,7 @@ export function staffUiCopy(locale: StaffLocale, key: StaffUiCopyKey) {
 
 const NAV_LABEL_KEYS: Record<string, StaffUiCopyKey> = {
   Home: "home",
+  Overview: "overview",
   Orders: "orders",
   Catalogue: "catalogue",
   Products: "products",
@@ -213,16 +345,25 @@ const NAV_LABEL_KEYS: Record<string, StaffUiCopyKey> = {
   Categories: "categories",
   Customers: "customers",
   "Sales Channels": "channels",
+  "Sales channels": "channels",
   "Online Store": "store",
+  Storefronts: "storefronts",
   POS: "pos",
   Locations: "locations",
   Integrations: "integrations",
   Analytics: "analytics",
   Team: "team",
+  Members: "members",
   "Access requests": "accessRequests",
   Approvals: "approvals",
   Audit: "audit",
   Settings: "settings",
+  "Menu extraction": "menuExtraction",
+  "All channels": "allChannels",
+  "AI & Agents": "aiAgents",
+  More: "more",
+  Commerce: "commerce",
+  Platform: "platform",
 };
 
 export function staffNavLabel(locale: StaffLocale, id: string, fallback: string) {
@@ -234,4 +375,91 @@ export function staffNavLabel(locale: StaffLocale, id: string, fallback: string)
     return staffUiCopy(locale, id as StaffUiCopyKey);
   }
   return fallback;
+}
+
+export function staffRoleLabel(
+  locale: StaffLocale,
+  role: "administrator" | "user" | null | undefined,
+) {
+  if (role === "administrator") {
+    return staffUiCopy(locale, "roleAdministrator");
+  }
+  if (role === "user") {
+    return staffUiCopy(locale, "roleUser");
+  }
+  return staffUiCopy(locale, "roleUser");
+}
+
+export function staffProductsSearchPlaceholder(
+  locale: StaffLocale,
+  count: number,
+) {
+  return staffUiCopy(locale, "searchProductsPlaceholder").replace(
+    "{count}",
+    String(count),
+  );
+}
+
+export function staffProductsSearchEmptyBody(
+  locale: StaffLocale,
+  query: string,
+) {
+  return staffUiCopy(locale, "productsSearchEmptyBody").replace(
+    "{query}",
+    query,
+  );
+}
+
+export function staffProductsListSubtitle(
+  locale: StaffLocale,
+  count: number,
+  activeTab: string,
+  hasSearchQuery: boolean,
+): string {
+  if (hasSearchQuery) {
+    return count === 1
+      ? staffUiCopy(locale, "productsSearchMatchOne")
+      : staffUiCopy(locale, "productsSearchMatchMany").replace(
+          "{count}",
+          String(count),
+        );
+  }
+
+  switch (activeTab) {
+    case "all":
+      return count === 1
+        ? staffUiCopy(locale, "productsCountOne")
+        : staffUiCopy(locale, "productsCountMany").replace(
+            "{count}",
+            String(count),
+          );
+    case "active":
+      return count === 1
+        ? staffUiCopy(locale, "productsActiveOne")
+        : staffUiCopy(locale, "productsActiveMany").replace(
+            "{count}",
+            String(count),
+          );
+    case "draft":
+      return count === 1
+        ? staffUiCopy(locale, "productsDraftOne")
+        : staffUiCopy(locale, "productsDraftMany").replace(
+            "{count}",
+            String(count),
+          );
+    case "archived":
+      return count === 1
+        ? staffUiCopy(locale, "productsArchivedOne")
+        : staffUiCopy(locale, "productsArchivedMany").replace(
+            "{count}",
+            String(count),
+          );
+    default:
+      return count === 1
+        ? staffUiCopy(locale, "productsCountOne")
+        : staffUiCopy(locale, "productsCountMany").replace(
+            "{count}",
+            String(count),
+          );
+  }
 }

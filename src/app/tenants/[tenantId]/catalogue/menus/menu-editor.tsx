@@ -29,8 +29,9 @@ import {
   fetchCatalogueProductVersion,
   removeProductPrimaryPhotoClient,
 } from "@/lib/media/remove-product-primary-photo-client";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type TranslationState = {
   displayName: string;
@@ -124,7 +125,7 @@ function normalizeSections(sections: SectionState[]) {
 }
 
 export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
-  const locale = readStoredStaffLocale();
+  const { locale } = useStaffLocale();
   const isEditMode = Boolean(menuPublicId);
   const [form, setForm] = useState<MenuEditorState>(createInitialState);
   const [baseline, setBaseline] = useState("");
@@ -945,10 +946,10 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       <ConfirmDialog
         open={discardOpen}
         tone="danger"
-        title="Discard unsaved changes to this draft menu?"
-        description="The current draft will revert to the last saved version."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        title={staffUiCopy(locale, "discardUnsavedMenuTitle")}
+        description={staffUiCopy(locale, "discardUnsavedProductDescription")}
+        confirmLabel={staffUiCopy(locale, "discard")}
+        cancelLabel={staffUiCopy(locale, "keepEditing")}
         onClose={() => setDiscardOpen(false)}
         onConfirm={resetForm}
       />
