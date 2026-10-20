@@ -195,6 +195,7 @@ export function assertPublicMenuResponseIsAllowlisted(
     "sourceProvenance",
     "prompt",
     "qos.ai_photo_generation",
+    "removedHistory",
   ];
 
   for (const pattern of forbiddenPatterns) {
