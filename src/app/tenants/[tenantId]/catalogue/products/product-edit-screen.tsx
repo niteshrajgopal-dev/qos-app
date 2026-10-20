@@ -7,12 +7,12 @@ import { ProductModifierGroupsPanel } from "@/app/tenants/[tenantId]/catalogue/p
 import { ProductVariantsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel";
 import { ButtonLink } from "@/components/ButtonLink";
 import { StaffScreen } from "@/components/staff/StaffScreen";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import {
   productEditorPageTitle,
   type CatalogueProductEditorStatus,
 } from "@/lib/catalogue/product-editor-copy";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-import { readStoredStaffLocale } from "@/lib/staff/locale";
 
 type ProductEditScreenProps = {
   tenantId: string;
@@ -23,7 +23,7 @@ export function ProductEditScreen({
   tenantId,
   productPublicId,
 }: ProductEditScreenProps) {
-  const locale = readStoredStaffLocale();
+  const { locale } = useStaffLocale();
   const [status, setStatus] = useState<CatalogueProductEditorStatus>(null);
 
   useEffect(() => {

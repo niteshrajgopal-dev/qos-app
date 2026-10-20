@@ -25,8 +25,9 @@ import { AiDescriptionReview } from "@/app/tenants/[tenantId]/catalogue/products
 import { Button } from "@/components/Button";
 import { publicProductThumbnailUrl } from "@/components/platform/catalogue-products-list";
 import type { StaffMediaProvenanceView } from "@/lib/media/ai-photos/staff-media-provenance";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type TranslationFormState = {
   displayName: string;
@@ -110,7 +111,7 @@ export function ProductEditor({
   onStatusChange,
 }: ProductEditorProps) {
   const router = useRouter();
-  const locale = readStoredStaffLocale();
+  const { locale } = useStaffLocale();
   const isEditMode = Boolean(productPublicId);
   const [form, setForm] = useState<ProductEditorState>(() =>
     createEmptyFormState(initialBusinessProfile),
@@ -1286,10 +1287,10 @@ export function ProductEditor({
       <ConfirmDialog
         open={discardOpen}
         tone="danger"
-        title="Discard unsaved changes to this draft product?"
-        description="The current draft will revert to the last saved version."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        title={staffUiCopy(locale, "discardUnsavedProductTitle")}
+        description={staffUiCopy(locale, "discardUnsavedProductDescription")}
+        confirmLabel={staffUiCopy(locale, "discard")}
+        cancelLabel={staffUiCopy(locale, "keepEditing")}
         onClose={() => setDiscardOpen(false)}
         onConfirm={resetForm}
       />
@@ -1300,7 +1301,7 @@ export function ProductEditor({
         title={staffUiCopy(locale, "archiveDraftProductConfirmTitle")}
         description={staffUiCopy(locale, "archiveDraftProductConfirmDescription")}
         confirmLabel={staffUiCopy(locale, "archiveDraftProductConfirmLabel")}
-        cancelLabel="Cancel"
+        cancelLabel={staffUiCopy(locale, "cancel")}
         onClose={() => setArchiveOpen(false)}
         onConfirm={() => void archiveProduct()}
       />
@@ -1369,7 +1370,7 @@ export function ProductEditor({
               disabled={!isDirty || saving}
               className="qos-btn" data-variant="secondary"
             >
-              Cancel
+              {staffUiCopy(locale, "cancel")}
             </button>
             <button
               type="button"

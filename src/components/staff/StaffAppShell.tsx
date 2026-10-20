@@ -9,14 +9,20 @@ import { PortalTopBar } from "@/components/portal/PortalTopBar";
 import { useAmbientMotion } from "@/components/portal/use-ambient-motion";
 import { CommandPalette } from "@/design-system";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
-import { staffUiCopy } from "@/lib/staff/locale";
+import {
+  staffRoleLabel,
+  staffUiCopy,
+} from "@/lib/staff/locale";
 import type { ActiveStaffMembershipSummary } from "@/lib/staff/memberships";
 import {
   activeStaffNavIdFromPath,
   staffNavHref,
-  STAFF_MORE_NAV_GROUPS,
-  STAFF_TOP_NAV,
+  STAFF_NAV_GROUPS,
 } from "@/lib/staff/nav";
+import {
+  buildStaffCommandGroups,
+  filterCommandGroups,
+} from "@/lib/staff/overlay";
 import {
   fetchStaffSession,
   signOutStaff,
@@ -59,7 +65,7 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
   const isOverview = activeId === "home";
   const membership = memberships.find((entry) => entry.tenantId === tenantId);
   const name = personName(email);
-  const roleLabel = membership?.role === "administrator" ? "Administrator" : "User";
+  const roleLabel = staffRoleLabel(locale, membership?.role ?? null);
   const tenantName = membership?.tenantName ?? "QOS";
 
   useEffect(() => {
@@ -107,35 +113,11 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
 
   /* The palette moves you around this business. It lists real destinations only;
      record search will arrive with the screens that own those records. */
-  const commandGroups = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    const matches = (label: string) => !term || label.toLowerCase().includes(term);
-
-    const groups = [
-      {
-        label: "Go to",
-        items: STAFF_TOP_NAV.filter((item) => matches(item.label)).map((item) => ({
-          id: item.id,
-          label: item.label,
-          kind: "Screen",
-          screen: item.id,
-        })),
-      },
-      ...STAFF_MORE_NAV_GROUPS.map((group) => ({
-        label: group.label ?? "More",
-        items: group.items
-          .filter((item) => matches(item.label))
-          .map((item) => ({
-            id: item.id,
-            label: item.label,
-            kind: "Screen",
-            screen: item.id,
-          })),
-      })),
-    ];
-
-    return groups.filter((group) => group.items.length > 0);
-  }, [query]);
+  const commandGroups = useMemo(
+    () =>
+      filterCommandGroups(buildStaffCommandGroups(STAFF_NAV_GROUPS, locale), query),
+    [locale, query],
+  );
 
   const workspace = !ready ? (
     <p style={{ color: "var(--text-secondary)" }}>
@@ -144,16 +126,20 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
   ) : error ? (
     <div className="qos-alert" data-tone="error" role="alert">
       <div>
-        <div className="qos-alert-title">Unable to load staff workspace</div>
+        <div className="qos-alert-title">
+          {staffUiCopy(locale, "unableToLoadWorkspace")}
+        </div>
         <div className="qos-alert-body">{error}</div>
       </div>
     </div>
   ) : !membership ? (
     <div className="qos-alert" data-tone="warning" role="status">
       <div>
-        <div className="qos-alert-title">No access to this business</div>
+        <div className="qos-alert-title">
+          {staffUiCopy(locale, "noAccessToBusiness")}
+        </div>
         <div className="qos-alert-body">
-          Your staff account does not have an active membership here.
+          {staffUiCopy(locale, "noMembershipBody")}
         </div>
       </div>
     </div>
@@ -202,11 +188,12 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
         onClose={() => setCommandOpen(false)}
         onSelect={(item) => {
           setCommandOpen(false);
-          if (item && typeof item === "object" && "screen" in item && item.screen) {
-            go(String(item.screen));
+          if (item?.id) {
+            go(item.id);
           }
         }}
         groups={commandGroups}
+        placeholder={staffUiCopy(locale, "searchCommands")}
       />
     </PortalShellProvider>
   );

@@ -34,7 +34,8 @@ import {
   removeProductPrimaryPhotoClient,
 } from "@/lib/media/remove-product-primary-photo-client";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 /** Each request generates one image; two at a time keeps per-item progress visible without bursting the provider. */
 const GENERATION_CONCURRENCY = 2;
@@ -73,7 +74,7 @@ export function AiPhotoGenerator({
   onProgress,
   onChanged,
 }: AiPhotoGeneratorProps) {
-  const locale = readStoredStaffLocale();
+  const { locale } = useStaffLocale();
   const attachedGeneration = aiPhotos?.attachedAiPhotoGenerationByProductPublicId ?? {};
   const [selected, setSelected] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
