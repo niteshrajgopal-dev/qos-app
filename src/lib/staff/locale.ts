@@ -123,6 +123,73 @@ export const STAFF_UI_COPY = {
     photoSourceAiGenerated: "AI-generated",
     photoSourceUploaded: "Uploaded",
     staffMemberLabel: "Staff member",
+    cancel: "Cancel",
+    keepEditing: "Keep editing",
+    discard: "Discard",
+    discardUnsavedProductTitle: "Discard unsaved changes to this draft product?",
+    discardUnsavedProductDescription:
+      "The current draft will revert to the last saved version.",
+    productEditorSectionIdentityTitle: "Identity",
+    productEditorSectionIdentityHelp:
+      "Internal identifiers used in search, imports, and reports.",
+    productEditorSectionEnglishTitle: "English",
+    productEditorSectionEnglishHelp:
+      "Name and description shown when the menu language is English.",
+    productEditorSectionArabicTitle: "Arabic",
+    productEditorSectionArabicHelp:
+      "Name and description shown when the menu language is Arabic.",
+    productEditorSectionPricingTitle: "Pricing and calories",
+    productEditorSectionPricingHelp:
+      "Default sell price and optional calorie count for hospitality menus.",
+    productEditorSectionMediaTitle: "Media",
+    productEditorSectionMediaHelp:
+      "Photo and short video validated for menu publish.",
+    productEditorSectionVariantsTitle: "Variants",
+    productEditorSectionVariantsHelp:
+      "Size or style choices sold under one product.",
+    productEditorSectionModifierGroupsTitle: "Modifier groups",
+    productEditorSectionModifierGroupsHelp:
+      "Reusable choice groups attached to this product.",
+    productEditorSectionStatusTitle: "Status",
+    productEditorSectionStatusHelp:
+      "Whether this product is a draft, live in menus, or archived.",
+    productEditorInternalNameLabel: "Internal name",
+    productEditorInternalNameHelp: "Staff-only label; not shown on customer menus.",
+    productEditorSkuLabel: "SKU",
+    productEditorSkuHelp: "Optional stock-keeping unit.",
+    productEditorBarcodeLabel: "Barcode",
+    productEditorBarcodeHelp: "Optional scannable code.",
+    productEditorDisplayNameLabel: "Display name",
+    productEditorDescriptionLabel: "Description",
+    productEditorTranslationVersionLabel: "Translation version",
+    productEditorDefaultPriceLabel: "Default price (AED)",
+    productEditorDefaultPriceHelp: "Applies to the default variant.",
+    productEditorCaloriesLabel: "Calories (optional)",
+    productEditorPriceAdminNotice: "Price changes require an administrator.",
+    productEditorPhotoLabel: "Product photo",
+    productEditorPhotoHelp:
+      "Upload a JPEG or PNG. It is validated and converted for menu publish.",
+    productEditorUploadingPhoto: "Uploading and processing…",
+    productEditorPhotoApproved:
+      "Product image approved and ready for menu publish.",
+    productEditorLoading: "Loading product…",
+    productEditorUnsavedChanges: "Unsaved changes",
+    productEditorAllSavedLocally: "All changes saved locally",
+    productEditorProductLabel: "Product",
+    productEditorVersionLabel: "Version",
+    productEditorSavedDraftNotice: "Draft product saved.",
+    productEditorCreatedDraftNotice: "Draft product created.",
+    productEditorInvalidPrice: "Enter a valid AED price.",
+    productEditorRestoreHelp:
+      "Return this archived product to draft status so it can be edited again.",
+    productEditorStatusDraft: "Draft",
+    productEditorStatusActive: "Active",
+    productEditorStatusArchived: "Archived",
+    productEditorCurrentStatus: "Current status",
+    productEditorTranslationReview: "Translation review",
+    productEditorLocationPrices: "Location prices",
+    productEditorVideoProcessingTimeout:
+      "Processing took too long. Check back later.",
   },
   ar: {
     signInTitle: "تسجيل الدخول إلى QOS",
@@ -209,6 +276,72 @@ export const STAFF_UI_COPY = {
     photoSourceAiGenerated: "مُولَّدة بالذكاء الاصطناعي",
     photoSourceUploaded: "مرفوعة",
     staffMemberLabel: "عضو الفريق",
+    cancel: "إلغاء",
+    keepEditing: "متابعة التعديل",
+    discard: "تجاهل",
+    discardUnsavedProductTitle: "تجاهل التغييرات غير المحفوظة على مسودة المنتج؟",
+    discardUnsavedProductDescription:
+      "ستعود المسودة إلى آخر نسخة محفوظة.",
+    productEditorSectionIdentityTitle: "الهوية",
+    productEditorSectionIdentityHelp:
+      "معرّفات داخلية تُستخدم في البحث والاستيراد والتقارير.",
+    productEditorSectionEnglishTitle: "الإنجليزية",
+    productEditorSectionEnglishHelp:
+      "الاسم والوصف الظاهران عندما تكون لغة القائمة الإنجليزية.",
+    productEditorSectionArabicTitle: "العربية",
+    productEditorSectionArabicHelp:
+      "الاسم والوصف الظاهران عندما تكون لغة القائمة العربية.",
+    productEditorSectionPricingTitle: "التسعير والسعرات",
+    productEditorSectionPricingHelp:
+      "سعر البيع الافتراضي وعدد السعرات اختياريًا لقوائم الضيافة.",
+    productEditorSectionMediaTitle: "الوسائط",
+    productEditorSectionMediaHelp:
+      "صورة المنتج وفيديو قصير يُتحقق منهما قبل النشر في القائمة.",
+    productEditorSectionVariantsTitle: "المتغيرات",
+    productEditorSectionVariantsHelp:
+      "اختيارات الحجم أو النمط التي تُباع تحت منتج واحد.",
+    productEditorSectionModifierGroupsTitle: "مجموعات الإضافات",
+    productEditorSectionModifierGroupsHelp:
+      "مجموعات اختيار قابلة لإعادة الاستخدام مرتبطة بهذا المنتج.",
+    productEditorSectionStatusTitle: "الحالة",
+    productEditorSectionStatusHelp:
+      "ما إذا كان المنتج مسودة أو منشورًا في القوائم أو مؤرشفًا.",
+    productEditorInternalNameLabel: "الاسم الداخلي",
+    productEditorInternalNameHelp: "تسمية للفريق فقط؛ لا تظهر في قوائم العملاء.",
+    productEditorSkuLabel: "رمز SKU",
+    productEditorSkuHelp: "رمز مخزون اختياري.",
+    productEditorBarcodeLabel: "الباركود",
+    productEditorBarcodeHelp: "رمز قابل للمسح اختياري.",
+    productEditorDisplayNameLabel: "اسم العرض",
+    productEditorDescriptionLabel: "الوصف",
+    productEditorTranslationVersionLabel: "إصدار الترجمة",
+    productEditorDefaultPriceLabel: "السعر الافتراضي (درهم)",
+    productEditorDefaultPriceHelp: "ينطبق على المتغير الافتراضي.",
+    productEditorCaloriesLabel: "السعرات (اختياري)",
+    productEditorPriceAdminNotice: "تغيير السعر يتطلب صلاحية مسؤول.",
+    productEditorPhotoLabel: "صورة المنتج",
+    productEditorPhotoHelp:
+      "ارفع JPEG أو PNG. تُتحقق من الصورة وتُحوَّل للنشر في القائمة.",
+    productEditorUploadingPhoto: "جاري الرفع والمعالجة…",
+    productEditorPhotoApproved: "تمت الموافقة على الصورة وهي جاهزة للنشر في القائمة.",
+    productEditorLoading: "جاري تحميل المنتج…",
+    productEditorUnsavedChanges: "تغييرات غير محفوظة",
+    productEditorAllSavedLocally: "جميع التغييرات محفوظة محليًا",
+    productEditorProductLabel: "المنتج",
+    productEditorVersionLabel: "الإصدار",
+    productEditorSavedDraftNotice: "تم حفظ مسودة المنتج.",
+    productEditorCreatedDraftNotice: "تم إنشاء مسودة المنتج.",
+    productEditorInvalidPrice: "أدخل سعرًا صالحًا بالدرهم.",
+    productEditorRestoreHelp:
+      "إعادة هذا المنتج المؤرشف إلى مسودة حتى يمكن تعديله مجددًا.",
+    productEditorStatusDraft: "مسودة",
+    productEditorStatusActive: "نشط",
+    productEditorStatusArchived: "مؤرشف",
+    productEditorCurrentStatus: "الحالة الحالية",
+    productEditorTranslationReview: "مراجعة الترجمة",
+    productEditorLocationPrices: "أسعار الفروع",
+    productEditorVideoProcessingTimeout:
+      "استغرقت المعالجة وقتًا طويلًا. تحقق لاحقًا.",
   },
 } as const;
 

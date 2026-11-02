@@ -11,6 +11,7 @@ type ProductModifierGroupsPanelProps = {
   tenantId: string;
   productPublicId: string;
   productStatus: CatalogueProductEditorStatus;
+  embedded?: boolean;
 };
 
 type AvailableGroup = {
@@ -35,6 +36,7 @@ export function ProductModifierGroupsPanel({
   tenantId,
   productPublicId,
   productStatus,
+  embedded = false,
 }: ProductModifierGroupsPanelProps) {
   const mutationsDisabled = productEditorChildMutationsDisabled(productStatus);
   const [view, setView] = useState<ProductModifierView | null>(null);
@@ -183,22 +185,33 @@ export function ProductModifierGroupsPanel({
       ),
   );
 
-  return (
-    <section className="mt-10 border-t border-zinc-200 pt-8">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">Modifier groups</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Attach reusable choice groups to this product.
-          </p>
+  const panelBody = (
+    <>
+      {!embedded ? (
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">Modifier groups</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Attach reusable choice groups to this product.
+            </p>
+          </div>
+          <Link
+            href={`/tenants/${tenantId}/catalogue/modifier-groups`}
+            className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
+          >
+            Manage groups
+          </Link>
         </div>
-        <Link
-          href={`/tenants/${tenantId}/catalogue/modifier-groups`}
-          className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
-        >
-          Manage groups
-        </Link>
-      </div>
+      ) : (
+        <div className="mb-4 flex justify-end">
+          <Link
+            href={`/tenants/${tenantId}/catalogue/modifier-groups`}
+            className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
+          >
+            Manage groups
+          </Link>
+        </div>
+      )}
 
       {error ? (
         <p className="qos-alert" data-tone="error">
@@ -267,6 +280,14 @@ export function ProductModifierGroupsPanel({
           </button>
         </div>
       ) : null}
-    </section>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="min-w-0">{panelBody}</div>;
+  }
+
+  return (
+    <section className="mt-10 border-t border-zinc-200 pt-8">{panelBody}</section>
   );
 }
