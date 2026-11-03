@@ -9,6 +9,7 @@ const AUDITED_SURFACES = [
   "components/portal/PortalTopBar.tsx",
   "components/staff/StaffAppShell.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-editor.tsx",
+  "app/tenants/[tenantId]/catalogue/products/product-edit-screen.tsx",
   "app/tenants/[tenantId]/catalogue/menus/menu-editor.tsx",
 ];
 
@@ -25,6 +26,13 @@ const FORBIDDEN_LITERALS = [
   ">Overview<",
   '"Sign out"',
   "readStoredStaffLocale(",
+  '"General information"',
+  '"English copy"',
+  '"Arabic copy"',
+  '"Internal name"',
+  '"Unsaved changes"',
+  '"Remove this photo?"',
+  '"Removed photos"',
 ];
 
 describe("staff admin audited surfaces", () => {

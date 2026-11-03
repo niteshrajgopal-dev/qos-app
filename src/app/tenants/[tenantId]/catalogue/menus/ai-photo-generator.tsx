@@ -20,6 +20,7 @@ import {
 import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
 import { Drawer } from "@/components/Drawer";
+import { ConfirmDialog } from "@/components/Modal";
 import { Icon } from "@/components/Icon";
 import { publicProductThumbnailUrl } from "@/components/platform/catalogue-products-list";
 import { Checkbox } from "@/design-system/components/primitives/Checkbox";
@@ -53,7 +54,7 @@ type AiPhotoGeneratorProps = {
   /** Why the AI photo state could not be loaded, shown instead of a misleading empty allowance. */
   aiPhotosError: string | null;
   progress: Record<string, ItemProgress>;
-  onProgress: (productPublicId: string, next: ItemProgress) => void;
+  onProgress: (productPublicId: string, next: ItemProgress | null) => void;
   /** Called after generations or accepts so health, thumbnails and the daily allowance reload. */
   onChanged: () => void;
 };
@@ -81,6 +82,9 @@ export function AiPhotoGenerator({
   const [accuracyConfirmed, setAccuracyConfirmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [removingProductPublicId, setRemovingProductPublicId] = useState<string | null>(null);
+  const [pendingRemoveProductPublicId, setPendingRemoveProductPublicId] = useState<string | null>(
+    null,
+  );
 
   const basePath = `/api/tenants/${tenantId}/catalogue/menus/${menuPublicId}/ai-photos`;
   const availability = aiPhotos?.availability ?? null;
@@ -297,7 +301,7 @@ export function AiPhotoGenerator({
     try {
       const version = await fetchCatalogueProductVersion(tenantId, productPublicId);
       await removeProductPrimaryPhotoClient(tenantId, productPublicId, version);
-      onProgress(productPublicId, { state: "rejected" });
+      onProgress(productPublicId, null);
       onChanged();
     } catch (removeError) {
       setError(
@@ -549,7 +553,7 @@ export function AiPhotoGenerator({
                           size="sm"
                           variant="ghost"
                           loading={removingProductPublicId === item.productPublicId}
-                          onClick={() => void removeAttachedPhoto(item.productPublicId)}
+                          onClick={() => setPendingRemoveProductPublicId(item.productPublicId)}
                         >
                           {staffUiCopy(locale, "removeProductPhoto")}
                         </Button>
@@ -562,6 +566,23 @@ export function AiPhotoGenerator({
           </>
         )}
       </div>
+
+      <ConfirmDialog
+        open={pendingRemoveProductPublicId !== null}
+        tone="danger"
+        title={staffUiCopy(locale, "removeProductPhotoConfirmTitle")}
+        description={staffUiCopy(locale, "removeProductPhotoConfirmDescription")}
+        confirmLabel={staffUiCopy(locale, "removeProductPhotoConfirmLabel")}
+        cancelLabel="Cancel"
+        onClose={() => setPendingRemoveProductPublicId(null)}
+        onConfirm={() => {
+          const productPublicId = pendingRemoveProductPublicId;
+          setPendingRemoveProductPublicId(null);
+          if (productPublicId) {
+            void removeAttachedPhoto(productPublicId);
+          }
+        }}
+      />
     </Drawer>
   );
 }

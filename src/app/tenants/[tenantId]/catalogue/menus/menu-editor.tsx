@@ -144,6 +144,9 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
   const [photoProgress, setPhotoProgress] = useState<Record<string, ItemProgress>>({});
   const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
   const [removingRowPhoto, setRemovingRowPhoto] = useState<string | null>(null);
+  const [pendingRemoveRowPhotoProductId, setPendingRemoveRowPhotoProductId] = useState<string | null>(
+    null,
+  );
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
@@ -348,8 +351,14 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
     }
   }
 
-  const setItemProgress = useCallback((productPublicId: string, next: ItemProgress) => {
-    setPhotoProgress((current) => ({ ...current, [productPublicId]: next }));
+  const setItemProgress = useCallback((productPublicId: string, next: ItemProgress | null) => {
+    setPhotoProgress((current) => {
+      if (next === null) {
+        const { [productPublicId]: _removed, ...rest } = current;
+        return rest;
+      }
+      return { ...current, [productPublicId]: next };
+    });
   }, []);
 
   const thumbnails = useMemo(() => thumbnailsByProduct(healthReport), [healthReport]);
@@ -778,7 +787,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                                 size="sm"
                                 variant="ghost"
                                 loading={removingRowPhoto === product.productPublicId}
-                                onClick={() => void removeMenuRowPhoto(product.productPublicId)}
+                                onClick={() => setPendingRemoveRowPhotoProductId(product.productPublicId)}
                               >
                                 {staffUiCopy(locale, "removeProductPhoto")}
                               </Button>
@@ -952,6 +961,23 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         cancelLabel={staffUiCopy(locale, "keepEditing")}
         onClose={() => setDiscardOpen(false)}
         onConfirm={resetForm}
+      />
+
+      <ConfirmDialog
+        open={pendingRemoveRowPhotoProductId !== null}
+        tone="danger"
+        title={staffUiCopy(locale, "removeProductPhotoConfirmTitle")}
+        description={staffUiCopy(locale, "removeProductPhotoConfirmDescription")}
+        confirmLabel={staffUiCopy(locale, "removeProductPhotoConfirmLabel")}
+        cancelLabel="Cancel"
+        onClose={() => setPendingRemoveRowPhotoProductId(null)}
+        onConfirm={() => {
+          const productPublicId = pendingRemoveRowPhotoProductId;
+          setPendingRemoveRowPhotoProductId(null);
+          if (productPublicId) {
+            void removeMenuRowPhoto(productPublicId);
+          }
+        }}
       />
 
       {isEditMode && form.publicId ? (

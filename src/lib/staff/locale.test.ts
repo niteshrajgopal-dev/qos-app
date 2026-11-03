@@ -49,7 +49,7 @@ describe("staff locale", () => {
     expect(staffNavLabel("en", "unknown", "Fallback")).toBe("Fallback");
   });
 
-  it("keeps Arabic catalogue keys in parity with English", () => {
+  it("keeps Arabic staff UI keys in parity with English", () => {
     const enKeys = Object.keys(STAFF_UI_COPY.en).sort();
     const arKeys = Object.keys(STAFF_UI_COPY.ar).sort();
     expect(arKeys).toEqual(enKeys);
@@ -78,5 +78,22 @@ describe("staff locale", () => {
     setStoredStaffLocale("ar");
     expect(notifications).toBe(1);
     unsubscribe();
+  });
+
+  it("provides bilingual product editor section labels", () => {
+    expect(staffUiCopy("en", "productEditorSectionIdentityTitle")).toBe("Identity");
+    expect(staffUiCopy("ar", "productEditorSectionIdentityTitle")).toBe("الهوية");
+    expect(staffUiCopy("en", "productEditorSectionStatusTitle")).toBe("Status");
+    expect(staffUiCopy("ar", "productEditorSectionStatusTitle")).toBe("الحالة");
+  });
+
+  it("provides bilingual remove-photo confirm copy (QOS-151)", () => {
+    expect(staffUiCopy("en", "removeProductPhotoConfirmTitle")).toBe(
+      "Remove this photo?",
+    );
+    expect(staffUiCopy("ar", "removeProductPhotoConfirmTitle")).toBe(
+      "إزالة هذه الصورة؟",
+    );
+    expect(staffUiCopy("ar", "removedPhotoHistoryTitle")).toBe("الصور المُزالة");
   });
 });

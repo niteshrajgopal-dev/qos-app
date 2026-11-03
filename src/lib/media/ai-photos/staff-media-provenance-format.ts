@@ -2,18 +2,26 @@ import type { StaffMediaGenerationView } from "@/lib/media/ai-photos/staff-media
 import type { StaffLocale } from "@/lib/staff/locale";
 import { staffUiCopy } from "@/lib/staff/locale";
 
-function formatGenerationTime(requestedAt: string | undefined, locale: "en" | "ar") {
-  if (!requestedAt) {
+export function formatStaffMediaTimestamp(isoTime: string | undefined, locale: "en" | "ar") {
+  if (!isoTime) {
     return null;
   }
-  const date = new Date(requestedAt);
+  const date = new Date(isoTime);
   if (Number.isNaN(date.getTime())) {
     return null;
   }
   return date.toLocaleString(locale === "ar" ? "ar-AE" : "en-GB", {
-    dateStyle: "medium",
-    timeStyle: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short",
   });
+}
+
+function formatGenerationTime(requestedAt: string | undefined, locale: "en" | "ar") {
+  return formatStaffMediaTimestamp(requestedAt, locale);
 }
 
 /** Compact provenance line for staff UI (model · time · requester). */
@@ -26,6 +34,23 @@ function formatRequesterLabel(
   }
   if (typeof generation.requestedBySubject === "string") {
     return staffUiCopy(locale, "staffMemberLabel");
+  }
+  return null;
+}
+
+export function formatStaffMediaSourceLabel(
+  sourceProvenance: string | null | undefined,
+  locale: StaffLocale,
+): string | null {
+  if (sourceProvenance === "ai_generated") {
+    return staffUiCopy(locale, "photoSourceAiGenerated");
+  }
+  if (
+    sourceProvenance === "operator_entered" ||
+    sourceProvenance === "imported" ||
+    sourceProvenance === "synthetic_fixture"
+  ) {
+    return staffUiCopy(locale, "photoSourceUploaded");
   }
   return null;
 }

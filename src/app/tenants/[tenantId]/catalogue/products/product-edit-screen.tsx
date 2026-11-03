@@ -3,8 +3,6 @@
 import { useEffect, useState } from "react";
 
 import { ProductEditor } from "@/app/tenants/[tenantId]/catalogue/products/product-editor";
-import { ProductModifierGroupsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel";
-import { ProductVariantsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel";
 import { ButtonLink } from "@/components/ButtonLink";
 import { StaffScreen } from "@/components/staff/StaffScreen";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
@@ -13,6 +11,7 @@ import {
   type CatalogueProductEditorStatus,
 } from "@/lib/catalogue/product-editor-copy";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type ProductEditScreenProps = {
   tenantId: string;
@@ -64,14 +63,14 @@ export function ProductEditScreen({
             variant="secondary"
             size="sm"
           >
-            Translation review
+            {staffUiCopy(locale, "productEditorTranslationReview")}
           </ButtonLink>
           <ButtonLink
             href={`/tenants/${tenantId}/catalogue/products/${productPublicId}/location-prices`}
             variant="secondary"
             size="sm"
           >
-            Location prices
+            {staffUiCopy(locale, "productEditorLocationPrices")}
           </ButtonLink>
         </>
       }
@@ -81,16 +80,6 @@ export function ProductEditScreen({
         productPublicId={productPublicId}
         catalogueProductStatusHint={status}
         onStatusChange={setStatus}
-      />
-      <ProductVariantsPanel
-        tenantId={tenantId}
-        productPublicId={productPublicId}
-        productStatus={status}
-      />
-      <ProductModifierGroupsPanel
-        tenantId={tenantId}
-        productPublicId={productPublicId}
-        productStatus={status}
       />
     </StaffScreen>
   );
