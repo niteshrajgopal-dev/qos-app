@@ -1,24 +1,26 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { ArrowUpRight, Package, Plus, Upload } from "lucide-react";
 
+import { Button } from "@/design-system";
 import {
-  PageHeader,
-  Card,
-  Button,
-  DataTable,
-  TableToolbar,
-  Pagination,
-  SearchInput,
-  Tabs,
-  Breadcrumbs,
-  Icon,
-  StatusBadge,
-  EmptyState,
-  Alert,
-} from "@/design-system";
+  PortalArea,
+  PortalBadge,
+  PortalFilterTabs,
+  PortalNotice,
+  PortalPageHeader,
+  PortalPagination,
+  PortalPanel,
+  PortalSearchField,
+  PortalStat,
+  PortalStatGrid,
+  PortalToolbar,
+  type PortalBadgeTone,
+} from "@/components/portal/workspace/PortalWorkspace";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import {
@@ -27,6 +29,7 @@ import {
   staffProductsSearchEmptyBody,
   staffProductsSearchPlaceholder,
   staffUiCopy,
+  type StaffLocale,
 } from "@/lib/staff/locale";
 import {
   filterProducts,
@@ -45,6 +48,19 @@ export function publicProductThumbnailUrl(thumbnailPublicId: string) {
   return `/api/public/media/${thumbnailPublicId}`;
 }
 
+export function productStatusBadge(
+  locale: StaffLocale,
+  status: string,
+): { tone: PortalBadgeTone; label: string } {
+  if (status === "active") {
+    return { tone: "positive", label: staffUiCopy(locale, "productEditorStatusActive") };
+  }
+  if (status === "archived") {
+    return { tone: "neutral", label: staffUiCopy(locale, "productEditorStatusArchived") };
+  }
+  return { tone: "warm", label: staffUiCopy(locale, "productEditorStatusDraft") };
+}
+
 type ApiResponse = {
   products: ProductSummary[];
   archivedProducts?: ProductSummary[];
@@ -59,6 +75,9 @@ type LoadingState =
       archivedProducts: ProductSummary[];
     };
 
+const PAGE_SIZE = 24;
+const RESULTS_ID = "catalogue-products-results";
+
 export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -70,14 +89,6 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
-
-  const breadcrumbItems = useMemo(
-    () => [
-      { label: staffUiCopy(locale, "catalogue") },
-      { label: staffUiCopy(locale, "productsTitle") },
-    ],
-    [locale],
-  );
 
   useEffect(() => {
     let cancelled = false;
@@ -137,48 +148,6 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     setCurrentPage(1);
   };
 
-  if (state.status === "loading") {
-    return (
-      <>
-        <PageHeader
-          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
-          title={staffUiCopy(locale, "productsTitle")}
-          subtitle={staffUiCopy(locale, "loadingProductsSubtitle")}
-        />
-        <div style={{ marginTop: 20 }}>
-          <Card>
-            <p style={{ color: "var(--text-secondary)" }}>
-              {staffUiCopy(locale, "loadingCatalogueProducts")}
-            </p>
-          </Card>
-        </div>
-      </>
-    );
-  }
-
-  if (state.status === "error") {
-    return (
-      <>
-        <PageHeader
-          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
-          title={staffUiCopy(locale, "productsTitle")}
-        />
-        <div style={{ marginTop: 20 }}>
-          <Alert tone="error">{state.message}</Alert>
-        </div>
-      </>
-    );
-  }
-
-  const activeProducts = state.products;
-  const archivedProducts = state.archivedProducts;
-  const { filtered, counts } = filterProducts(
-    activeProducts,
-    archivedProducts,
-    activeTab,
-    searchQuery,
-  );
-
   async function restoreArchivedProduct(publicId: string) {
     setRestoringId(publicId);
     setRestoreError(null);
@@ -230,331 +199,280 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     }
   }
 
-  const tabs = [
-    { id: "all", label: staffUiCopy(locale, "tabAll"), count: counts.all },
-    {
-      id: "active",
-      label: staffUiCopy(locale, "tabActive"),
-      count: counts.active,
-    },
-    {
-      id: "draft",
-      label: staffUiCopy(locale, "tabDrafts"),
-      count: counts.draft,
-    },
-    {
-      id: "archived",
-      label: staffUiCopy(locale, "tabArchived"),
-      count: counts.archived,
-    },
-  ];
-
-  const listActions = (
-    <>
-      <Button
-        variant="secondary"
-        icon="upload"
-        onClick={() => router.push(`/tenants/${tenantId}/catalogue/import`)}
-      >
-        {staffNavLabel(locale, "import", "Import")}
-      </Button>
-      <Button
-        icon="plus"
-        onClick={() =>
-          router.push(`/tenants/${tenantId}/catalogue/products/new`)
-        }
-      >
-        {staffUiCopy(locale, "newProduct")}
-      </Button>
-    </>
+  const newProductHref = `/tenants/${tenantId}/catalogue/products/new`;
+  const header = (
+    <PortalPageHeader
+      title={staffUiCopy(locale, "catalogueHeadline")}
+      description={staffUiCopy(locale, "catalogueDescription")}
+      actions={
+        <>
+          <Button
+            variant="secondary"
+            onClick={() => router.push(`/tenants/${tenantId}/catalogue/import`)}
+          >
+            <Upload size={16} aria-hidden="true" />
+            {staffNavLabel(locale, "import", "Import")}
+          </Button>
+          <Button onClick={() => router.push(newProductHref)}>
+            <Plus size={16} aria-hidden="true" />
+            {staffUiCopy(locale, "newProduct")}
+          </Button>
+        </>
+      }
+    />
   );
 
-  const hasSearchQuery = Boolean(searchQuery.trim());
-  const noSearchResults = hasSearchQuery && filtered.length === 0;
-  const emptyTab =
-    !hasSearchQuery &&
-    filtered.length === 0 &&
-    (counts.all > 0 || counts.archived > 0);
+  const managementPanel = (
+    <PortalPanel className="qosp-catalogue-management">
+      <h2>{staffUiCopy(locale, "catalogueManagement")}</h2>
+      <ul className="qosp-link-list">
+        {(
+          [
+            ["menus", "/catalogue/menus"],
+            ["modifiers", "/catalogue/modifier-groups"],
+            ["categories", "/catalogue/categories"],
+          ] as const
+        ).map(([key, suffix]) => (
+          <li key={key}>
+            <Link className="qosp-text-link" href={`/tenants/${tenantId}${suffix}`}>
+              {staffUiCopy(locale, key)}
+              <ArrowUpRight size={15} aria-hidden="true" className="qosp-flip-rtl" />
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </PortalPanel>
+  );
 
-  if (activeProducts.length === 0 && archivedProducts.length === 0) {
+  if (state.status === "loading") {
     return (
-      <>
-        <PageHeader
-          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
-          title={staffUiCopy(locale, "productsTitle")}
-          subtitle={staffUiCopy(locale, "noProductsYet")}
-          actions={listActions}
-        />
-        <div style={{ marginTop: 20 }}>
-          <EmptyState
-            icon="package"
-            title={staffUiCopy(locale, "noCatalogueProductsTitle")}
-            body={staffUiCopy(locale, "noCatalogueProductsBody")}
-            actions={
-              <Button
-                icon="plus"
-                onClick={() =>
-                  router.push(`/tenants/${tenantId}/catalogue/products/new`)
-                }
-              >
-                {staffUiCopy(locale, "newProduct")}
-              </Button>
-            }
-          />
-        </div>
-      </>
+      <PortalArea>
+        {header}
+        <PortalPanel>
+          <p className="qosp-meta-line" role="status">
+            {staffUiCopy(locale, "loadingCatalogueProducts")}
+          </p>
+        </PortalPanel>
+      </PortalArea>
     );
   }
 
-  const pageSize = 20;
-  const totalProducts = filtered.length;
-  const pageCount = Math.ceil(totalProducts / pageSize);
-  const paginatedProducts = paginateProducts(filtered, currentPage, pageSize);
-
-  if (noSearchResults) {
+  if (state.status === "error") {
     return (
-      <>
-        <PageHeader
-          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
-          title={staffUiCopy(locale, "productsTitle")}
-          subtitle={staffProductsListSubtitle(
-            locale,
-            filtered.length,
-            activeTab,
-            hasSearchQuery,
-          )}
-          actions={listActions}
-          tabs={
-            <Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />
-          }
-        />
-        <div style={{ marginTop: 20 }}>
-          <Card padding="none">
-            <TableToolbar>
-              <SearchInput
-                placeholder={staffProductsSearchPlaceholder(
-                  locale,
-                  activeProducts.length,
-                )}
-                value={searchQuery}
-                onChange={handleSearchChange}
-                style={{ width: 240 }}
-              />
-            </TableToolbar>
-            <div style={{ padding: "64px 24px", textAlign: "center" }}>
-              <EmptyState
-                icon="search"
-                title={staffUiCopy(locale, "noProductsMatchSearch")}
-                body={staffProductsSearchEmptyBody(locale, searchQuery)}
-                actions={
-                  <Button
-                    variant="secondary"
-                    onClick={() => setSearchQuery("")}
-                  >
-                    {staffUiCopy(locale, "clearSearch")}
-                  </Button>
-                }
-              />
-            </div>
-          </Card>
-        </div>
-      </>
+      <PortalArea>
+        {header}
+        <PortalNotice tone="error">{state.message}</PortalNotice>
+      </PortalArea>
     );
   }
 
-  if (emptyTab) {
-    const emptyMessages = {
-      active: {
-        title: staffUiCopy(locale, "noActiveProductsTitle"),
-        body: staffUiCopy(locale, "noActiveProductsBody"),
-      },
-      draft: {
-        title: staffUiCopy(locale, "noDraftProductsTitle"),
-        body: staffUiCopy(locale, "noDraftProductsBody"),
-      },
-      archived: {
-        title: staffUiCopy(locale, "noArchivedProductsTitle"),
-        body: staffUiCopy(locale, "noArchivedProductsBody"),
-      },
-    };
-
-    const message =
-      activeTab === "active" || activeTab === "draft" || activeTab === "archived"
-        ? emptyMessages[activeTab]
-        : {
-            title: staffUiCopy(locale, "noProductsTitle"),
-            body: staffUiCopy(locale, "noProductsBody"),
-          };
-
-    return (
-      <>
-        <PageHeader
-          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
-          title={staffUiCopy(locale, "productsTitle")}
-          subtitle={staffProductsListSubtitle(
-            locale,
-            filtered.length,
-            activeTab,
-            hasSearchQuery,
-          )}
-          actions={listActions}
-          tabs={
-            <Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />
-          }
-        />
-        <div style={{ marginTop: 20 }}>
-          <Card>
-            <EmptyState
-              icon="package"
-              title={message.title}
-              body={message.body}
-            />
-          </Card>
-        </div>
-      </>
-    );
-  }
+  const activeProducts = state.products;
+  const archivedProducts = state.archivedProducts;
+  const { filtered, counts } = filterProducts(
+    activeProducts,
+    archivedProducts,
+    activeTab,
+    searchQuery,
+  );
 
   const isArchivedTab = activeTab === "archived";
+  const hasSearchQuery = Boolean(searchQuery.trim());
+  const noSearchResults = hasSearchQuery && filtered.length === 0;
+  const catalogueIsEmpty =
+    activeProducts.length === 0 && archivedProducts.length === 0;
 
-  const columns = [
-    {
-      key: "name",
-      header: staffUiCopy(locale, "columnProduct"),
-      sortable: true,
-      render: (r: ProductSummary) => (
-        <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <span
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: "var(--radius-sm)",
-              background: "var(--surface-sunken)",
-              display: "grid",
-              placeItems: "center",
-              color: "var(--text-tertiary)",
-              overflow: "hidden",
-              flex: "none",
-            }}
-          >
-            {r.thumbnailPublicId ? (
-              <Image
-                src={publicProductThumbnailUrl(r.thumbnailPublicId)}
-                alt=""
-                width={28}
-                height={28}
-                unoptimized
-                style={{ width: 28, height: 28, objectFit: "cover", display: "block" }}
-              />
-            ) : (
-              <Icon name="image" size={13} />
-            )}
-          </span>
-          <span style={{ fontWeight: 500 }}>{r.displayName}</span>
-        </span>
-      ),
-    },
-    {
-      key: "internalName",
-      header: staffUiCopy(locale, "columnInternalName"),
-      render: (r: ProductSummary) => (
-        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-          {r.internalName}
-        </span>
-      ),
-    },
-    {
-      key: "state",
-      header: staffUiCopy(locale, "columnStatus"),
-      render: (r: ProductSummary) => <StatusBadge state={r.status} />,
-    },
-    ...(isArchivedTab
-      ? [
-          {
-            key: "restore",
-            header: staffUiCopy(locale, "columnActions"),
-            render: (r: ProductSummary) => (
-              <Button
-                variant="secondary"
-                size="sm"
-                disabled={restoringId === r.publicId}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void restoreArchivedProduct(r.publicId);
-                }}
-              >
-                {restoringId === r.publicId
-                  ? staffUiCopy(locale, "restoring")
-                  : staffUiCopy(locale, "restoreToDraft")}
-              </Button>
-            ),
-          },
-        ]
-      : []),
+  const tabs = [
+    { id: "all", label: staffUiCopy(locale, "tabAll"), count: counts.all },
+    { id: "active", label: staffUiCopy(locale, "tabActive"), count: counts.active },
+    { id: "draft", label: staffUiCopy(locale, "tabDrafts"), count: counts.draft },
+    { id: "archived", label: staffUiCopy(locale, "tabArchived"), count: counts.archived },
   ];
 
-  const subtitleText = staffProductsListSubtitle(
-    locale,
-    totalProducts,
-    activeTab,
-    Boolean(searchQuery),
-  );
+  const emptyTabMessages: Record<string, { title: string; body: string }> = {
+    active: {
+      title: staffUiCopy(locale, "noActiveProductsTitle"),
+      body: staffUiCopy(locale, "noActiveProductsBody"),
+    },
+    draft: {
+      title: staffUiCopy(locale, "noDraftProductsTitle"),
+      body: staffUiCopy(locale, "noDraftProductsBody"),
+    },
+    archived: {
+      title: staffUiCopy(locale, "noArchivedProductsTitle"),
+      body: staffUiCopy(locale, "noArchivedProductsBody"),
+    },
+  };
+  const emptyTabMessage = emptyTabMessages[activeTab] ?? {
+    title: staffUiCopy(locale, "noProductsTitle"),
+    body: staffUiCopy(locale, "noProductsBody"),
+  };
+
+  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const page = Math.min(currentPage, pageCount);
+  const pageProducts = paginateProducts(filtered, page, PAGE_SIZE);
+
+  let results: React.ReactNode;
+  if (catalogueIsEmpty) {
+    results = (
+      <PortalPanel className="qosp-empty-panel">
+        <Package size={36} strokeWidth={1.2} aria-hidden="true" />
+        <h2>{staffUiCopy(locale, "noCatalogueProductsTitle")}</h2>
+        <p>{staffUiCopy(locale, "noCatalogueProductsBody")}</p>
+        <Button onClick={() => router.push(newProductHref)}>
+          <Plus size={16} aria-hidden="true" />
+          {staffUiCopy(locale, "newProduct")}
+        </Button>
+      </PortalPanel>
+    );
+  } else if (noSearchResults) {
+    results = (
+      <PortalPanel className="qosp-empty-panel">
+        <h2>{staffUiCopy(locale, "noProductsMatchSearch")}</h2>
+        <p>{staffProductsSearchEmptyBody(locale, searchQuery)}</p>
+        <Button variant="secondary" onClick={() => setSearchQuery("")}>
+          {staffUiCopy(locale, "clearSearch")}
+        </Button>
+      </PortalPanel>
+    );
+  } else if (filtered.length === 0) {
+    results = (
+      <PortalPanel className="qosp-empty-panel">
+        <Package size={36} strokeWidth={1.2} aria-hidden="true" />
+        <h2>{emptyTabMessage.title}</h2>
+        <p>{emptyTabMessage.body}</p>
+      </PortalPanel>
+    );
+  } else {
+    results = (
+      <>
+        <ul className="qosp-product-grid">
+          {pageProducts.map((product) => {
+            const badge = productStatusBadge(locale, product.status);
+            return (
+              <li key={product.publicId} className="qosp-product-card qosp-glass">
+                <div className="qosp-product-visual">
+                  {product.thumbnailPublicId ? (
+                    <Image
+                      src={publicProductThumbnailUrl(product.thumbnailPublicId)}
+                      alt=""
+                      fill
+                      sizes="(max-width: 680px) 50vw, 320px"
+                      unoptimized
+                    />
+                  ) : (
+                    <span className="qosp-product-visual-empty">
+                      <Package size={40} strokeWidth={1} aria-hidden="true" />
+                      {staffUiCopy(locale, "productNoPhoto")}
+                    </span>
+                  )}
+                  <span className="qosp-product-arrow" aria-hidden="true">
+                    <ArrowUpRight size={15} className="qosp-flip-rtl" />
+                  </span>
+                </div>
+                <div className="qosp-product-info">
+                  <span className="qosp-product-meta">{product.internalName}</span>
+                  <h2 className="qosp-product-name">
+                    <Link
+                      className="qosp-product-link"
+                      href={`/tenants/${tenantId}/catalogue/products/${product.publicId}/edit`}
+                    >
+                      {product.displayName || product.internalName}
+                    </Link>
+                  </h2>
+                  <div className="qosp-product-foot">
+                    <PortalBadge tone={badge.tone}>{badge.label}</PortalBadge>
+                    {isArchivedTab ? (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={restoringId === product.publicId}
+                        onClick={() => void restoreArchivedProduct(product.publicId)}
+                      >
+                        {restoringId === product.publicId
+                          ? staffUiCopy(locale, "restoring")
+                          : staffUiCopy(locale, "restoreToDraft")}
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+        {pageCount > 1 ? (
+          <PortalPagination
+            page={page}
+            pageCount={pageCount}
+            pageSize={PAGE_SIZE}
+            total={filtered.length}
+            onPageChange={setCurrentPage}
+          />
+        ) : null}
+      </>
+    );
+  }
 
   return (
-    <>
-      <PageHeader
-        breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
-        title={staffUiCopy(locale, "productsTitle")}
-        subtitle={subtitleText}
-        actions={listActions}
-        tabs={<Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />}
-      />
-      {showArchivedNotice ? (
-        <div style={{ marginTop: 20 }}>
-          <Alert tone="success">
+    <PortalArea>
+      {header}
+      <div className="qosp-stack">
+        {showArchivedNotice ? (
+          <PortalNotice tone="success">
             {staffUiCopy(locale, "archiveDraftProductSuccessNotice")}
-          </Alert>
-        </div>
-      ) : null}
-      {restoreError ? (
-        <div style={{ marginTop: 20 }}>
-          <Alert tone="error">{restoreError}</Alert>
-        </div>
-      ) : null}
-      <div style={{ marginTop: 20 }}>
-        <Card padding="none">
-          <TableToolbar>
-            <SearchInput
-              placeholder={staffProductsSearchPlaceholder(
-                locale,
-                isArchivedTab ? archivedProducts.length : activeProducts.length,
-              )}
-              value={searchQuery}
-              onChange={handleSearchChange}
-              style={{ width: 240 }}
-            />
-          </TableToolbar>
-          <DataTable
-            columns={columns}
-            rows={paginatedProducts}
-            onRowClick={(r) =>
-              router.push(
-                `/tenants/${tenantId}/catalogue/products/${r.publicId}/edit`,
-              )
-            }
-            sortKey="name"
-          />
-          {pageCount > 1 ? (
-            <Pagination
-              page={currentPage}
-              pageCount={pageCount}
-              pageSize={pageSize}
-              total={totalProducts}
-              onPageChange={setCurrentPage}
-            />
-          ) : null}
-        </Card>
+          </PortalNotice>
+        ) : null}
+        {restoreError ? <PortalNotice tone="error">{restoreError}</PortalNotice> : null}
       </div>
-    </>
+
+      <PortalStatGrid>
+        <PortalStat
+          label={staffUiCopy(locale, "productsTitle")}
+          value={String(counts.all)}
+          sub={staffUiCopy(locale, "catalogueStatProductsSub")}
+        />
+        <PortalStat
+          label={staffUiCopy(locale, "catalogueStatActiveLabel")}
+          value={String(counts.active)}
+          sub={staffUiCopy(locale, "catalogueStatActiveSub")}
+        />
+        <PortalStat
+          label={staffUiCopy(locale, "catalogueStatDraftsLabel")}
+          value={String(counts.draft)}
+          sub={staffUiCopy(locale, "catalogueStatDraftsSub")}
+        />
+      </PortalStatGrid>
+
+      {catalogueIsEmpty ? null : (
+        <PortalToolbar>
+          <PortalFilterTabs
+            label={staffUiCopy(locale, "catalogueFilterLabel")}
+            tabs={tabs}
+            value={activeTab}
+            onChange={handleTabChange}
+            controls={RESULTS_ID}
+          />
+          <PortalSearchField
+            label={staffUiCopy(locale, "catalogueSearchLabel")}
+            placeholder={staffProductsSearchPlaceholder(
+              locale,
+              isArchivedTab ? archivedProducts.length : activeProducts.length,
+            )}
+            value={searchQuery}
+            onChange={handleSearchChange}
+          />
+        </PortalToolbar>
+      )}
+
+      <section id={RESULTS_ID} aria-label={staffUiCopy(locale, "catalogueResultsLabel")}>
+        {catalogueIsEmpty ? null : (
+          <p className="qosp-meta-line qosp-results-summary" aria-live="polite">
+            {staffProductsListSubtitle(locale, filtered.length, activeTab, hasSearchQuery)}
+          </p>
+        )}
+        {results}
+      </section>
+
+      {managementPanel}
+    </PortalArea>
   );
 }

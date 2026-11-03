@@ -171,18 +171,56 @@ export const STAFF_UI_COPY = {
     noArchivedProductsBody: "Archived products will appear here.",
     noProductsTitle: "No products",
     noProductsBody: "No products to display.",
-    searchProductsPlaceholder: "Search {count} products",
     productsSearchEmptyBody: 'No products found for "{query}".',
-    productsSearchMatchOne: "1 product matches",
-    productsSearchMatchMany: "{count} products match",
-    productsCountOne: "1 product",
-    productsCountMany: "{count} products",
-    productsActiveOne: "1 active",
-    productsActiveMany: "{count} active",
-    productsDraftOne: "1 draft",
-    productsDraftMany: "{count} drafts",
-    productsArchivedOne: "1 archived",
-    productsArchivedMany: "{count} archived",
+    workspaceEyebrow: "{name} workspace",
+    catalogueHeadline: "An offering, well curated.",
+    catalogueDescription: "Products, prices and availability. One shared catalogue.",
+    catalogueStatProductsSub: "In your catalogue",
+    catalogueStatActiveLabel: "Active",
+    catalogueStatActiveSub: "Live in published menus",
+    catalogueStatDraftsLabel: "Drafts",
+    catalogueStatDraftsSub: "Prepare before publishing",
+    catalogueFilterLabel: "Filter products by status",
+    catalogueSearchLabel: "Search catalogue",
+    catalogueManagement: "Catalogue management",
+    catalogueResultsLabel: "Products",
+    productNoPhoto: "No photo yet",
+    openProduct: "Open product",
+    paginationPrevious: "Previous page",
+    paginationNext: "Next page",
+    paginationRange: "{from}–{to} of {total}",
+    newDraftProductTitle: "New draft product",
+    newDraftProductSubtitle:
+      "Create English and Arabic copy. Both translations must be approved before the product can go live.",
+    reload: "Reload",
+    variantSaved: "Variant saved.",
+    variantAdded: "Variant added.",
+    variantOrderUpdated: "Variant order updated.",
+    variantDefault: "Default",
+    variantEnglishLabel: "English label",
+    variantArabicLabel: "Arabic label",
+    variantPriceLabel: "Price (AED)",
+    variantSave: "Save variant",
+    variantMakeDefault: "Make default",
+    variantMoveUp: "Move up",
+    variantMoveDown: "Move down",
+    variantArchive: "Archive variant",
+    variantAddTitle: "Add variant",
+    variantPublicIdLabel: "Public ID (optional)",
+    variantsLoadError: "Unable to load variants.",
+    variantSaveError: "Unable to save variant.",
+    variantCreateError: "Unable to create variant.",
+    variantReorderError: "Unable to reorder variants.",
+    modifierManageGroups: "Manage groups",
+    modifierAttached: "Modifier group attached.",
+    modifierDetached: "Modifier group detached.",
+    modifierDetach: "Detach",
+    modifierAttachGroupLabel: "Attach a group",
+    modifierSelectGroup: "Select a modifier group",
+    modifierAttach: "Attach",
+    modifierLoadError: "Unable to load modifier groups.",
+    modifierAttachError: "Unable to attach modifier group.",
+    modifierDetachError: "Unable to detach modifier group.",
     discardUnsavedProductTitle: "Discard unsaved changes to this draft product?",
     discardUnsavedProductDescription:
       "The current draft will revert to the last saved version.",
@@ -383,18 +421,56 @@ export const STAFF_UI_COPY = {
     noArchivedProductsBody: "ستظهر المنتجات المؤرشفة هنا.",
     noProductsTitle: "لا توجد منتجات",
     noProductsBody: "لا توجد منتجات لعرضها.",
-    searchProductsPlaceholder: "ابحث في {count} منتجًا",
-    productsSearchEmptyBody: 'لم يُعثر على منتجات لـ "{query}".',
-    productsSearchMatchOne: "منتج واحد مطابق",
-    productsSearchMatchMany: "{count} منتجات مطابقة",
-    productsCountOne: "منتج واحد",
-    productsCountMany: "{count} منتجات",
-    productsActiveOne: "نشط واحد",
-    productsActiveMany: "{count} نشطة",
-    productsDraftOne: "مسودة واحدة",
-    productsDraftMany: "{count} مسودات",
-    productsArchivedOne: "مؤرشف واحد",
-    productsArchivedMany: "{count} مؤرشفة",
+    productsSearchEmptyBody: "لم يُعثر على منتجات تطابق «{query}».",
+    workspaceEyebrow: "مساحة عمل {name}",
+    catalogueHeadline: "تشكيلة منتقاة بعناية.",
+    catalogueDescription: "المنتجات والأسعار والتوفّر. كتالوج واحد مشترك.",
+    catalogueStatProductsSub: "في الكتالوج",
+    catalogueStatActiveLabel: "المنتجات النشطة",
+    catalogueStatActiveSub: "ظاهرة في القوائم المنشورة",
+    catalogueStatDraftsLabel: "المسودات",
+    catalogueStatDraftsSub: "جهّزها قبل النشر",
+    catalogueFilterLabel: "تصفية المنتجات حسب الحالة",
+    catalogueSearchLabel: "البحث في الكتالوج",
+    catalogueManagement: "إدارة الكتالوج",
+    catalogueResultsLabel: "المنتجات",
+    productNoPhoto: "لا توجد صورة بعد",
+    openProduct: "فتح المنتج",
+    paginationPrevious: "الصفحة السابقة",
+    paginationNext: "الصفحة التالية",
+    paginationRange: "{from}–{to} من {total}",
+    newDraftProductTitle: "مسودة منتج جديدة",
+    newDraftProductSubtitle:
+      "أنشئ النص بالإنجليزية والعربية. يجب اعتماد الترجمتين قبل أن يصبح المنتج متاحًا.",
+    reload: "إعادة التحميل",
+    variantSaved: "تم حفظ المتغيّر.",
+    variantAdded: "تمت إضافة المتغيّر.",
+    variantOrderUpdated: "تم تحديث ترتيب المتغيّرات.",
+    variantDefault: "افتراضي",
+    variantEnglishLabel: "التسمية بالإنجليزية",
+    variantArabicLabel: "التسمية بالعربية",
+    variantPriceLabel: "السعر (درهم)",
+    variantSave: "حفظ المتغيّر",
+    variantMakeDefault: "تعيينه افتراضيًا",
+    variantMoveUp: "نقل إلى الأعلى",
+    variantMoveDown: "نقل إلى الأسفل",
+    variantArchive: "أرشفة المتغيّر",
+    variantAddTitle: "إضافة متغيّر",
+    variantPublicIdLabel: "المعرّف العام (اختياري)",
+    variantsLoadError: "تعذّر تحميل المتغيّرات.",
+    variantSaveError: "تعذّر حفظ المتغيّر.",
+    variantCreateError: "تعذّر إنشاء المتغيّر.",
+    variantReorderError: "تعذّرت إعادة ترتيب المتغيّرات.",
+    modifierManageGroups: "إدارة المجموعات",
+    modifierAttached: "تم ربط مجموعة الإضافات.",
+    modifierDetached: "تم فصل مجموعة الإضافات.",
+    modifierDetach: "فصل",
+    modifierAttachGroupLabel: "ربط مجموعة",
+    modifierSelectGroup: "اختر مجموعة إضافات",
+    modifierAttach: "ربط",
+    modifierLoadError: "تعذّر تحميل مجموعات الإضافات.",
+    modifierAttachError: "تعذّر ربط مجموعة الإضافات.",
+    modifierDetachError: "تعذّر فصل مجموعة الإضافات.",
     discardUnsavedProductTitle: "تجاهل التغييرات غير المحفوظة على مسودة المنتج؟",
     discardUnsavedProductDescription:
       "ستعود المسودة الحالية إلى آخر نسخة محفوظة.",
@@ -527,14 +603,112 @@ export function staffRoleLabel(
   return staffUiCopy(locale, "roleUser");
 }
 
+/** Every count phrase has an `other` form; the rest follow CLDR plural
+ * categories. Arabic needs all six: the counted noun changes between 1, 2,
+ * 3–10 (plural), 11–99 (singular accusative) and 100+ (singular genitive). */
+export type StaffCountForms = Partial<Record<Intl.LDMLPluralRule, string>> & {
+  other: string;
+};
+
+export const STAFF_COUNT_COPY = {
+  en: {
+    products: { one: "1 product", other: "{count} products" },
+    productsActive: { one: "1 active", other: "{count} active" },
+    productsDraft: { one: "1 draft", other: "{count} drafts" },
+    productsArchived: { one: "1 archived", other: "{count} archived" },
+    productsSearchMatch: { one: "1 product matches", other: "{count} products match" },
+    searchProductsPlaceholder: { one: "Search 1 product", other: "Search {count} products" },
+    modifierOptions: { one: "1 option", other: "{count} options" },
+  },
+  ar: {
+    products: {
+      zero: "لا توجد منتجات",
+      one: "منتج واحد",
+      two: "منتجان",
+      few: "{count} منتجات",
+      many: "{count} منتجًا",
+      other: "{count} منتج",
+    },
+    productsActive: {
+      zero: "لا توجد منتجات نشطة",
+      one: "منتج نشط واحد",
+      two: "منتجان نشطان",
+      few: "{count} منتجات نشطة",
+      many: "{count} منتجًا نشطًا",
+      other: "{count} منتج نشط",
+    },
+    productsDraft: {
+      zero: "لا توجد مسودات",
+      one: "مسودة واحدة",
+      two: "مسودتان",
+      few: "{count} مسودات",
+      many: "{count} مسودةً",
+      other: "{count} مسودة",
+    },
+    productsArchived: {
+      zero: "لا توجد منتجات مؤرشفة",
+      one: "منتج مؤرشف واحد",
+      two: "منتجان مؤرشفان",
+      few: "{count} منتجات مؤرشفة",
+      many: "{count} منتجًا مؤرشفًا",
+      other: "{count} منتج مؤرشف",
+    },
+    productsSearchMatch: {
+      zero: "لا توجد منتجات مطابقة",
+      one: "منتج واحد مطابق",
+      two: "منتجان مطابقان",
+      few: "{count} منتجات مطابقة",
+      many: "{count} منتجًا مطابقًا",
+      other: "{count} منتج مطابق",
+    },
+    searchProductsPlaceholder: {
+      zero: "ابحث في المنتجات",
+      one: "ابحث في منتج واحد",
+      two: "ابحث في منتجَين",
+      few: "ابحث في {count} منتجات",
+      many: "ابحث في {count} منتجًا",
+      other: "ابحث في {count} منتج",
+    },
+    modifierOptions: {
+      zero: "لا توجد خيارات",
+      one: "خيار واحد",
+      two: "خياران",
+      few: "{count} خيارات",
+      many: "{count} خيارًا",
+      other: "{count} خيار",
+    },
+  },
+} as const satisfies Record<StaffLocale, Record<string, StaffCountForms>>;
+
+export type StaffCountKey = keyof (typeof STAFF_COUNT_COPY)["en"];
+
+const PLURAL_RULES: Record<StaffLocale, Intl.PluralRules> = {
+  en: new Intl.PluralRules("en"),
+  ar: new Intl.PluralRules("ar"),
+};
+
+export function staffCount(locale: StaffLocale, key: StaffCountKey, count: number) {
+  const forms: StaffCountForms = STAFF_COUNT_COPY[locale][key];
+  const category = PLURAL_RULES[locale].select(count);
+  return (forms[category] ?? forms.other).replace("{count}", String(count));
+}
+
+export function staffCopyWith(
+  locale: StaffLocale,
+  key: StaffUiCopyKey,
+  values: Record<string, string | number>,
+) {
+  return Object.entries(values).reduce<string>(
+    (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
+    staffUiCopy(locale, key),
+  );
+}
+
 export function staffProductsSearchPlaceholder(
   locale: StaffLocale,
   count: number,
 ) {
-  return staffUiCopy(locale, "searchProductsPlaceholder").replace(
-    "{count}",
-    String(count),
-  );
+  return staffCount(locale, "searchProductsPlaceholder", count);
 }
 
 export function staffProductsSearchEmptyBody(
@@ -554,49 +728,17 @@ export function staffProductsListSubtitle(
   hasSearchQuery: boolean,
 ): string {
   if (hasSearchQuery) {
-    return count === 1
-      ? staffUiCopy(locale, "productsSearchMatchOne")
-      : staffUiCopy(locale, "productsSearchMatchMany").replace(
-          "{count}",
-          String(count),
-        );
+    return staffCount(locale, "productsSearchMatch", count);
   }
 
   switch (activeTab) {
-    case "all":
-      return count === 1
-        ? staffUiCopy(locale, "productsCountOne")
-        : staffUiCopy(locale, "productsCountMany").replace(
-            "{count}",
-            String(count),
-          );
     case "active":
-      return count === 1
-        ? staffUiCopy(locale, "productsActiveOne")
-        : staffUiCopy(locale, "productsActiveMany").replace(
-            "{count}",
-            String(count),
-          );
+      return staffCount(locale, "productsActive", count);
     case "draft":
-      return count === 1
-        ? staffUiCopy(locale, "productsDraftOne")
-        : staffUiCopy(locale, "productsDraftMany").replace(
-            "{count}",
-            String(count),
-          );
+      return staffCount(locale, "productsDraft", count);
     case "archived":
-      return count === 1
-        ? staffUiCopy(locale, "productsArchivedOne")
-        : staffUiCopy(locale, "productsArchivedMany").replace(
-            "{count}",
-            String(count),
-          );
+      return staffCount(locale, "productsArchived", count);
     default:
-      return count === 1
-        ? staffUiCopy(locale, "productsCountOne")
-        : staffUiCopy(locale, "productsCountMany").replace(
-            "{count}",
-            String(count),
-          );
+      return staffCount(locale, "products", count);
   }
 }
