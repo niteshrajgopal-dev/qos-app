@@ -573,7 +573,7 @@ export function AiPhotoGenerator({
         title={staffUiCopy(locale, "removeProductPhotoConfirmTitle")}
         description={staffUiCopy(locale, "removeProductPhotoConfirmDescription")}
         confirmLabel={staffUiCopy(locale, "removeProductPhotoConfirmLabel")}
-        cancelLabel="Cancel"
+        cancelLabel={staffUiCopy(locale, "cancel")}
         onClose={() => setPendingRemoveProductPublicId(null)}
         onConfirm={() => {
           const productPublicId = pendingRemoveProductPublicId;

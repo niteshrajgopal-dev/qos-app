@@ -969,7 +969,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         title={staffUiCopy(locale, "removeProductPhotoConfirmTitle")}
         description={staffUiCopy(locale, "removeProductPhotoConfirmDescription")}
         confirmLabel={staffUiCopy(locale, "removeProductPhotoConfirmLabel")}
-        cancelLabel="Cancel"
+        cancelLabel={staffUiCopy(locale, "cancel")}
         onClose={() => setPendingRemoveRowPhotoProductId(null)}
         onConfirm={() => {
           const productPublicId = pendingRemoveRowPhotoProductId;
@@ -1022,7 +1022,9 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <p className="min-w-0 text-sm text-zinc-600">
-          {isDirty ? "Unsaved changes" : "All changes saved locally"}
+          {isDirty
+            ? staffUiCopy(locale, "productEditorUnsavedChanges")
+            : staffUiCopy(locale, "productEditorAllSavedLocally")}
           {form.publicId ? (
             <>
               {" "}
@@ -1037,7 +1039,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
             disabled={!isDirty || saving}
             className="qos-btn" data-variant="secondary"
           >
-            Cancel
+            {staffUiCopy(locale, "cancel")}
           </button>
           <button
             type="button"

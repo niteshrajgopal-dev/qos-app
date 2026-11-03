@@ -9,7 +9,9 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import {
+import { qos150ViewportList } from "./overview-layout-probe.mjs";
+
+export {
   QOS150_PROBE_HEIGHTS,
   QOS150_PROBE_WIDTHS,
   ZOOM_VIEWPORTS,
