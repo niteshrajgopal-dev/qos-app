@@ -1,4 +1,4 @@
-/* QOS Portal interior screens (Catalogue, product editor).
+/* QOS Portal interior screens (Catalogue, product editor, Menus).
    Ported from the approved prototype's app/globals.css (content-header, stats-grid,
    stat-card, table-toolbar, filter-tabs, search-field, badge, product-grid,
    product-card, notice, form fields, dialog/sheet surfaces). Deliberate deviations,
@@ -957,4 +957,230 @@ article.qosp-subcard > .qosp-button-row {
 }
 .qosp-catalogue-management {
   margin-top: 32px;
+}
+
+/* ---------- Menus (prototype .menu-grid / .menu-card / .menu-version) ---------- */
+.qosp-menu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  gap: 24px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.qosp-menu-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 24px 26px;
+  background: #8190aa11;
+  min-width: 0;
+}
+.qosp-menu-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.qosp-menu-icon {
+  width: 56px;
+  height: 56px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 15px;
+  border: 1px solid #b5a5d43d;
+  background: #baa1d718;
+  color: #d6c5e9;
+}
+.qosp-menu-icon[data-variant="alt"] {
+  border-color: #9fd3e03d;
+  background: #9fd3e014;
+  color: #c4e6ee;
+}
+.qosp-menu-card-title {
+  font-family: var(--portal-display);
+  font-weight: 400;
+  font-size: clamp(22px, 2vw, 26px);
+  line-height: 1.2;
+  letter-spacing: -.02em;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.qosp-menu-card-sub {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--portal-muted);
+}
+.qosp-menu-facts {
+  margin: 12px 0 18px;
+}
+.qosp-menu-fact {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 12px 0;
+  border-top: 1px solid #ffffff13;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.qosp-menu-fact dt {
+  color: var(--portal-label);
+}
+.qosp-menu-fact dd {
+  margin: 0;
+  color: var(--portal-text);
+  text-align: end;
+}
+.qosp-menu-card > .qos-btn {
+  margin-top: auto;
+}
+.qosp-menus-notice {
+  margin-top: 28px;
+}
+.qosp-menus-notice svg {
+  flex: none;
+  margin-top: 3px;
+}
+
+/* ---------- Menu editor ---------- */
+.qosp-section-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px 16px;
+}
+.qosp-section-head > div {
+  min-width: 0;
+  flex: 1 1 260px;
+}
+.qosp-choice-group {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.qosp-choice-group > legend {
+  padding: 0;
+  margin-bottom: 10px;
+}
+.qosp-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 24px;
+}
+.qosp-plain-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.qosp-details > summary {
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--portal-label);
+}
+.qosp-details > summary:hover {
+  color: var(--portal-text);
+}
+.qosp-details > summary:focus-visible {
+  outline: 2px solid var(--portal-focus);
+  outline-offset: 2px;
+}
+.qosp-details[open] > summary {
+  margin-bottom: 14px;
+}
+.qosp-align-end {
+  align-self: end;
+}
+.qosp-preview-status {
+  margin: 6px 0 12px;
+}
+.qosp-preview-list {
+  display: grid;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 13px;
+  color: var(--portal-text-soft);
+}
+.qosp-preview-list li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 8px 0;
+  border-top: 1px solid #ffffff10;
+}
+.qosp-preview-price {
+  display: grid;
+  justify-items: end;
+  font-variant-numeric: tabular-nums;
+}
+.qosp-savebar-stack {
+  position: sticky;
+  bottom: 16px;
+  z-index: 10;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+.qosp-savebar-stack > .qosp-savebar {
+  position: static;
+}
+.qosp-area .qos-menu-section {
+  border-color: #ffffff17;
+  background: #ffffff05;
+  border-radius: 14px;
+}
+.qosp-area .qos-menu-section-body {
+  border-top-color: #ffffff12;
+  background: transparent;
+}
+.qosp-area .qos-menu-row {
+  border-color: #ffffff14;
+  background: #ffffff06;
+  border-radius: 12px;
+}
+.qosp-area .qos-thumb-tag {
+  background: #151b24d9;
+  color: var(--portal-violet-soft);
+  border: 1px solid #b3a1ef55;
+}
+.qosp-area .qos-ai-bar {
+  color: var(--portal-text);
+  border: 1px solid #b3a1ef45;
+  background: linear-gradient(130deg, #3a3552f2, #262d3df5);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 18px 48px #050b1966;
+}
+.qosp-area .qos-ai-bar-icon {
+  background: #b3a1ef24;
+  color: var(--portal-violet-soft);
+}
+.qosp-area .qos-ai-bar-sub {
+  opacity: 1;
+  color: var(--portal-text-soft);
+}
+.qosp-area .qos-ai-bar .qos-btn {
+  color: var(--text-on-brand);
+}
+.qosp-area .qos-ai-kind,
+.qosp-area .qos-ai-claim-kind {
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+@media (max-width: 680px) {
+  .qosp-menu-grid { gap: 14px; }
+  .qosp-menu-card { padding: 20px 18px; }
+  .qosp-menu-icon { width: 48px; height: 48px; border-radius: 13px; }
+  .qosp-savebar-stack { bottom: 10px; }
+  .qosp-area .qos-menu-row { flex-wrap: wrap; }
+  .qosp-area .qos-menu-row-main { flex: 1 1 160px; }
+  .qosp-area .qos-menu-row-actions { flex-wrap: wrap; margin-inline-start: auto; }
 }

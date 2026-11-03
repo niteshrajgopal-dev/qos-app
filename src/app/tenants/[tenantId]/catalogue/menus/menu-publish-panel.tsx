@@ -2,6 +2,14 @@
 
 import { useCallback, useMemo, useState } from "react";
 
+import {
+  formatMenuPrice,
+  menusCopy,
+  type MenusCopyKey,
+} from "@/app/tenants/[tenantId]/catalogue/menus/menus-copy";
+import { PortalField, PortalNotice } from "@/components/portal/workspace/PortalWorkspace";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
+import { Checkbox } from "@/design-system/components/primitives/Checkbox";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 
 type LocationOption = {
@@ -34,9 +42,11 @@ type MenuPublishPanelProps = {
   locations: LocationOption[];
 };
 
-function minorToMajor(value: number) {
-  return (value / 100).toFixed(2);
-}
+const PUBLISH_STATUS_KEY: Record<string, MenusCopyKey> = {
+  completed: "publishCompleted",
+  partial: "publishPartial",
+  failed: "publishFailed",
+};
 
 export function MenuPublishPanel({
   tenantId,
@@ -45,6 +55,9 @@ export function MenuPublishPanel({
   assignedLocationIds,
   locations,
 }: MenuPublishPanelProps) {
+  const { locale } = useStaffLocale();
+  const copy = (key: MenusCopyKey, values?: Record<string, string | number>) =>
+    menusCopy(locale, key, values);
   const [selectedLocationIds, setSelectedLocationIds] = useState<string[]>([]);
   const [previewTargets, setPreviewTargets] = useState<PublishPreviewTarget[]>(
     [],
@@ -69,7 +82,7 @@ export function MenuPublishPanel({
 
   const loadPreview = useCallback(async () => {
     if (selectedLocationIds.length === 0) {
-      setError("Select at least one publish target location.");
+      setError(menusCopy(locale, "selectAtLeastOneLocation"));
       return;
     }
 
@@ -92,7 +105,7 @@ export function MenuPublishPanel({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to load publish preview.");
+        throw new Error(payload.error ?? menusCopy(locale, "unableToLoadPreview"));
       }
 
       setPreviewTargets(payload.preview?.targets ?? []);
@@ -100,16 +113,16 @@ export function MenuPublishPanel({
       setError(
         previewError instanceof Error
           ? previewError.message
-          : "Unable to load publish preview.",
+          : menusCopy(locale, "unableToLoadPreview"),
       );
     } finally {
       setBusy(false);
     }
-  }, [menuPublicId, selectedLocationIds, tenantId]);
+  }, [locale, menuPublicId, selectedLocationIds, tenantId]);
 
   const publishMenu = useCallback(async () => {
     if (selectedLocationIds.length === 0) {
-      setError("Select at least one publish target location.");
+      setError(menusCopy(locale, "selectAtLeastOneLocation"));
       return;
     }
 
@@ -142,12 +155,12 @@ export function MenuPublishPanel({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to publish menu.");
+        throw new Error(payload.error ?? menusCopy(locale, "unableToPublish"));
       }
 
       const publish = payload.publish;
       if (!publish) {
-        throw new Error("Publish response was incomplete.");
+        throw new Error(menusCopy(locale, "publishIncomplete"));
       }
 
       setOperationId(publish.operationId);
@@ -155,122 +168,131 @@ export function MenuPublishPanel({
       const summary = publish.results
         .map((result) =>
           result.success
-            ? `${result.locationPublicId}: published`
-            : `${result.locationPublicId}: ${result.error ?? "failed"}`,
+            ? menusCopy(locale, "publishResultPublished", { location: result.locationPublicId })
+            : menusCopy(locale, "publishResultFailed", {
+                location: result.locationPublicId,
+                error: result.error ?? menusCopy(locale, "publishResultFailedFallback"),
+              }),
         )
         .join(" · ");
+      const statusKey = PUBLISH_STATUS_KEY[publish.status] ?? "publishCompleted";
 
-      setMessage(`Publish ${publish.status}. ${summary}`);
+      setMessage(`${menusCopy(locale, statusKey)} ${summary}`);
     } catch (publishError) {
       setError(
         publishError instanceof Error
           ? publishError.message
-          : "Unable to publish menu.",
+          : menusCopy(locale, "unableToPublish"),
       );
     } finally {
       setBusy(false);
     }
-  }, [menuPublicId, operationId, selectedLocationIds, tenantId]);
+  }, [locale, menuPublicId, operationId, selectedLocationIds, tenantId]);
 
   return (
-    <section className="qos-card" data-padding="md">
-      <div>
-        <h2 className="text-lg font-semibold">Publish draft</h2>
-        <p className="mt-1 text-sm text-zinc-600">
-          Select one or more authorized locations explicitly. Unselected
-          locations keep their current live release unchanged.
-        </p>
-      </div>
+    <section className="qosp-editor-section qosp-glass" aria-labelledby="menu-publish-title">
+      <h2 id="menu-publish-title" className="qosp-panel-title">
+        {copy("publishTitle")}
+      </h2>
+      <p className="qosp-panel-help">{copy("publishHelp")}</p>
 
-      <div className="space-y-2">
-        {assignedLocations.map((location) => (
-          <label
-            key={location.id}
-            className="flex items-center gap-3 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm"
-          >
+      <div className="qosp-panel-body qosp-stack">
+        <fieldset className="qosp-choice-group">
+          <legend className="qosp-field-label">{copy("publishTargets")}</legend>
+          {assignedLocations.length > 0 ? (
+            <div className="qosp-choice-row">
+              {assignedLocations.map((location) => (
+                <Checkbox
+                  key={location.id}
+                  label={location.name}
+                  checked={selectedLocationIds.includes(location.id)}
+                  onChange={() => toggleLocation(location.id)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="qosp-meta-line">{copy("noAssignedLocations")}</p>
+          )}
+        </fieldset>
+
+        <div className="qosp-form-grid" data-columns="2">
+          <PortalField label={copy("operationId")}>
             <input
-              type="checkbox"
-              checked={selectedLocationIds.includes(location.id)}
-              onChange={() => toggleLocation(location.id)}
+              className="qos-input"
+              dir="ltr"
+              value={operationId}
+              onChange={(event) => setOperationId(event.target.value)}
+              placeholder={copy("operationIdPlaceholder")}
             />
-            <span>{location.name}</span>
-          </label>
-        ))}
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Operation id (retry)</span>
-          <input
-            className="qos-input"
-            value={operationId}
-            onChange={(event) => setOperationId(event.target.value)}
-            placeholder="Optional idempotency key"
-          />
-        </label>
-        <div className="flex items-end text-sm text-zinc-600">
-          Draft version {menuVersion}
+          </PortalField>
+          <p className="qosp-meta-line qosp-align-end">
+            {copy("draftVersion", { version: menuVersion })}
+          </p>
         </div>
-      </div>
 
-      <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void loadPreview()}
-          className="qos-btn" data-variant="secondary"
-        >
-          Preview selected targets
-        </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={() => void publishMenu()}
-          className="qos-btn" data-variant="primary"
-        >
-          Publish to selected locations
-        </button>
-      </div>
-
-      {previewTargets.length > 0 ? (
-        <div className="space-y-3">
-          {previewTargets.map((target) => (
-            <article
-              key={target.locationId}
-              className="qos-card" data-padding="sm"
-            >
-              <p className="font-medium">
-                {target.locationName}{" "}
-                <span className="text-zinc-500">({target.locationPublicId})</span>
-              </p>
-              <p className="mt-1 text-zinc-600">
-                Current live v{target.currentSourceVersion ?? "none"} ·{" "}
-                {target.willChange ? "Will update" : "Already at draft version"}
-              </p>
-              <ul className="mt-2 space-y-1 text-zinc-700">
-                {target.products.map((product) => (
-                  <li key={product.productPublicId}>
-                    {product.displayName}: {minorToMajor(product.price.amountMinor)}{" "}
-                    {product.price.currency} ({product.price.inheritanceMode})
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ))}
+        <div className="qosp-button-row">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void loadPreview()}
+            className="qos-btn"
+            data-variant="secondary"
+          >
+            {copy("previewTargets")}
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void publishMenu()}
+            className="qos-btn"
+            data-variant="primary"
+          >
+            {copy("publishToSelected")}
+          </button>
         </div>
-      ) : null}
 
-      {error ? (
-        <p className="qos-alert" data-tone="error">
-          {error}
-        </p>
-      ) : null}
+        {previewTargets.length > 0 ? (
+          <div className="qosp-stack">
+            {previewTargets.map((target) => (
+              <article key={target.locationId} className="qosp-subcard">
+                <h3 className="qosp-subcard-title">
+                  {target.locationName}{" "}
+                  <span className="qosp-code" dir="ltr">
+                    {target.locationPublicId}
+                  </span>
+                </h3>
+                <p className="qosp-meta-line qosp-preview-status">
+                  {target.currentSourceVersion === null
+                    ? copy("previewNotLive")
+                    : copy("previewCurrentLive", { version: target.currentSourceVersion })}
+                  {" · "}
+                  {copy(target.willChange ? "previewWillUpdate" : "previewAlreadyCurrent")}
+                </p>
+                <ul className="qosp-preview-list">
+                  {target.products.map((product) => (
+                    <li key={product.productPublicId}>
+                      <span>{product.displayName}</span>
+                      <span className="qosp-preview-price">
+                        {formatMenuPrice(locale, product.price.amountMinor, product.price.currency)}
+                        <span className="qosp-meta-line">
+                          {copy(
+                            product.price.inheritanceMode === "override"
+                              ? "priceOverride"
+                              : "priceInherited",
+                          )}
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </article>
+            ))}
+          </div>
+        ) : null}
 
-      {message ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {message}
-        </p>
-      ) : null}
+        {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
+        {message ? <PortalNotice tone="success">{message}</PortalNotice> : null}
+      </div>
     </section>
   );
 }
