@@ -1,6 +1,7 @@
 @import "../design-system/styles.css";
 @import "./qos-app-extras.css";
 @import "./qos-portal.css";
+@import "./qos-portal-workspace.css";
 @import "tailwindcss";
 
 :root {

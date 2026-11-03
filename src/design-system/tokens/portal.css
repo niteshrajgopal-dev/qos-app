@@ -14,8 +14,12 @@
 
   /* Ink */
   --portal-text: #f4f3f5;
+  --portal-text-soft: #d1d7e3; /* table cells, secondary body copy */
+  --portal-label: #c6cede;     /* form labels, eyebrows, filter tabs */
   --portal-muted: #b7bfcd;
   --portal-faint: #96a1b3;
+  --portal-tab-active: #e5dbf8;
+  --portal-badge-neutral: #c3cbd8;
 
   /* Accents */
   --portal-violet: #b3a1ef;
