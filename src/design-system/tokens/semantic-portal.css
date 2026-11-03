@@ -31,7 +31,8 @@
   --text-link-hover: var(--portal-cyan);
   --text-intelligence: var(--portal-violet-soft);
   --text-disabled: rgba(244, 243, 245, .38);
-  --text-on-brand: #fff;
+  /* Dark ink: white on the lavender and rose fills is below WCAG AA. */
+  --text-on-brand: var(--portal-night);
   --text-placeholder: #a2aabb;
 
   --border-subtle: var(--portal-line-subtle);

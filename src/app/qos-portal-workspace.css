@@ -1,0 +1,960 @@
+/* QOS Portal interior screens (Catalogue, product editor).
+   Ported from the approved prototype's app/globals.css (content-header, stats-grid,
+   stat-card, table-toolbar, filter-tabs, search-field, badge, product-grid,
+   product-card, notice, form fields, dialog/sheet surfaces). Deliberate deviations,
+   listed so they are not "fixed" back:
+   - No text-transform: uppercase. Eyebrows and meta labels are sentence case.
+   - Page titles are capped at 44px (prototype: 58px) and card titles at 26px
+     (prototype: 35px) so long Arabic titles and 200% zoom do not crowd the page.
+   - Text on lavender/rose fills uses dark ink, not white, to meet WCAG AA.
+   - Physical left/right is written logically so Arabic mirrors. */
+
+.qosp-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  min-width: 0;
+  color: var(--portal-text);
+}
+
+[dir="rtl"] .qosp-flip-rtl {
+  transform: scaleX(-1);
+}
+
+/* ---------- Content header ---------- */
+.qosp-content-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin: 12px 0 28px;
+}
+.qosp-content-heading {
+  min-width: 0;
+  flex: 1 1 320px;
+}
+.qosp-content-eyebrow,
+.qosp-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: .01em;
+  color: var(--portal-label);
+  margin: 0;
+}
+.qosp-back-link {
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+.qosp-back-link:hover,
+.qosp-back-link:focus-visible {
+  color: var(--portal-text);
+  border-bottom-color: var(--portal-line-strong);
+}
+.qosp-content-title {
+  font-family: var(--portal-display);
+  font-weight: 400;
+  font-size: clamp(30px, 3vw, 44px);
+  line-height: 1.12;
+  letter-spacing: -.03em;
+  margin: 6px 0 10px;
+  overflow-wrap: anywhere;
+}
+.qosp-content-desc {
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--portal-muted);
+  margin: 0;
+  max-width: 62ch;
+}
+.qosp-content-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--portal-muted);
+}
+.qosp-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+/* ---------- Buttons inside portal areas (prototype .primary-button / .secondary-button) ---------- */
+.qosp-area .qos-btn {
+  border-radius: 12px;
+  font-weight: 400;
+  gap: 10px;
+}
+.qosp-area .qos-btn[data-size="sm"] {
+  border-radius: 10px;
+}
+.qosp-area .qos-btn[data-variant="primary"] {
+  background: var(--portal-gradient-primary);
+  border: 1px solid #d8d6f459;
+  box-shadow: inset 0 1px 0 #ffffff3c, 0 0 24px #a397d617;
+  transition: transform .25s, box-shadow .25s;
+}
+.qosp-area .qos-btn[data-variant="primary"]:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 28px #ad9fe638;
+}
+.qosp-area .qos-btn[data-variant="secondary"] {
+  border: 1px solid #ffffff25;
+  background: #ffffff06;
+  color: #e6e7ef;
+  box-shadow: none;
+}
+.qosp-area .qos-btn[data-variant="secondary"]:hover:not(:disabled) {
+  background: #ffffff10;
+  transform: translateY(-1px);
+}
+.qosp-area .qos-btn:disabled {
+  background: #ffffff08;
+  color: var(--portal-faint);
+  border-color: #ffffff14;
+  transform: none;
+}
+
+/* ---------- Form controls (prototype .form-grid / .field-label) ---------- */
+.qosp-area .qos-input,
+.qosp-area .qos-textarea,
+.qosp-area .qos-select {
+  background: #ffffff08;
+  border: 1px solid #ffffff24;
+  border-radius: var(--portal-radius-control);
+  color: var(--portal-text);
+  font-size: 14px;
+}
+.qosp-area .qos-input,
+.qosp-area .qos-select {
+  min-height: 42px;
+}
+.qosp-area .qos-input:focus,
+.qosp-area .qos-textarea:focus,
+.qosp-area .qos-select:focus {
+  border-color: #b2a5df;
+  box-shadow: 0 0 0 3px #b2a5df33;
+}
+.qosp-area .qos-input:disabled,
+.qosp-area .qos-textarea:disabled,
+.qosp-area .qos-select:disabled {
+  background: #ffffff05;
+  color: var(--portal-muted);
+  border-color: #ffffff14;
+}
+.qosp-area .qos-select option {
+  background: var(--portal-overlay);
+  color: var(--portal-text);
+}
+.qosp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.qosp-field-label {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--portal-label);
+}
+.qosp-field-help {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--portal-muted);
+}
+.qosp-form-grid {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.qosp-form-grid[data-columns="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.qosp-meta-line {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--portal-muted);
+  margin: 0;
+}
+
+/* ---------- Stats (prototype .stats-grid / .stat-card) ---------- */
+.qosp-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 27px;
+}
+.qosp-stat {
+  padding: 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  min-height: 132px;
+  background: #a5b4cf0b;
+  min-width: 0;
+}
+.qosp-stat-label {
+  font-size: 13px;
+  color: var(--portal-label);
+}
+.qosp-stat-value {
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: -.04em;
+  line-height: 1.1;
+}
+.qosp-stat-sub {
+  color: var(--portal-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+/* ---------- Toolbar, filter tabs, search (prototype .table-toolbar.standalone) ---------- */
+.qosp-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px 20px;
+  flex-wrap: wrap;
+  margin: 0 0 24px;
+}
+.qosp-filter-tabs {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
+  background: #ffffff05;
+  border: 1px solid #ffffff0f;
+  padding: 4px;
+  border-radius: 10px;
+  max-width: 100%;
+}
+.qosp-filter-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  padding: 7px 13px;
+  min-height: 32px;
+  border-radius: 7px;
+  border: 0;
+  background: none;
+  color: var(--portal-label);
+  cursor: pointer;
+  font-family: inherit;
+}
+.qosp-filter-tab:hover {
+  color: var(--portal-text);
+}
+.qosp-filter-tab[aria-pressed="true"] {
+  background: #ad9ece25;
+  color: var(--portal-tab-active);
+}
+.qosp-filter-tab:focus-visible,
+.qosp-icon-control:focus-visible,
+.qosp-text-link:focus-visible {
+  outline: 2px solid var(--portal-focus);
+  outline-offset: 2px;
+}
+.qosp-filter-count {
+  font-size: 12px;
+  color: var(--portal-muted);
+  font-variant-numeric: tabular-nums;
+}
+.qosp-filter-tab[aria-pressed="true"] .qosp-filter-count {
+  color: var(--portal-tab-active);
+}
+.qosp-search-field {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #ffffff24;
+  background: #ffffff05;
+  padding: 0 12px;
+  border-radius: 9px;
+  min-height: 40px;
+  color: var(--portal-muted);
+  width: 280px;
+  max-width: 100%;
+}
+.qosp-search-field svg {
+  flex: none;
+}
+.qosp-search-field input {
+  padding: 9px 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  font-size: 13px;
+  width: 100%;
+  min-width: 0;
+  outline: none;
+  color: var(--portal-text);
+  font-family: inherit;
+}
+.qosp-search-field input::placeholder {
+  color: var(--portal-muted);
+}
+.qosp-search-field:focus-within {
+  border-color: #b2a5df;
+  box-shadow: 0 0 0 3px #b2a5df33;
+}
+
+/* ---------- Badges (prototype .badge) ---------- */
+.qosp-badge {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.4;
+  border: 1px solid #b7bed32b;
+  background: #b7bed30a;
+  color: var(--portal-badge-neutral);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-weight: 400;
+}
+.qosp-badge[data-tone="positive"] {
+  color: var(--portal-mint);
+  background: #7dd2b50b;
+  border-color: #8cbda240;
+}
+.qosp-badge[data-tone="warm"] {
+  color: var(--portal-amber);
+  background: #d9bda20b;
+  border-color: #cbb18e40;
+}
+.qosp-badge[data-tone="danger"] {
+  color: var(--portal-rose);
+  background: #f3939314;
+  border-color: #f3939340;
+}
+
+/* ---------- Notices ---------- */
+.qosp-notice {
+  margin: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 10px;
+  border: 1px solid #c3b2de2e;
+  background: #c3b2de0a;
+  color: var(--portal-text-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.qosp-notice[data-tone="success"] {
+  border-color: #8cbda24d;
+  background: #7dd2b512;
+  color: var(--portal-mint);
+}
+.qosp-notice[data-tone="warning"] {
+  border-color: #cbb18e4d;
+  background: #d9bda212;
+  color: var(--portal-amber);
+}
+.qosp-notice[data-tone="error"] {
+  border-color: #f3939366;
+  background: #f393931a;
+  color: var(--portal-rose);
+}
+.qosp-stack {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---------- Glass panels ---------- */
+.qosp-panel-glass {
+  padding: 24px;
+  background: #6d7a9510;
+  min-width: 0;
+}
+.qosp-panel-glass > h2,
+.qosp-panel-title {
+  font-size: 17px;
+  font-weight: 400;
+  line-height: 1.4;
+  margin: 0;
+  color: var(--portal-text);
+}
+.qosp-panel-help {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--portal-muted);
+  margin: 6px 0 0;
+}
+.qosp-panel-body {
+  margin-top: 20px;
+  min-width: 0;
+}
+.qosp-subcard {
+  border: 1px solid #ffffff17;
+  background: #ffffff05;
+  border-radius: 14px;
+  padding: 18px;
+  min-width: 0;
+}
+.qosp-subcard[data-muted="true"] {
+  background: transparent;
+  border-color: #ffffff10;
+}
+.qosp-subcard[data-dashed="true"] {
+  border-style: dashed;
+  border-color: #ffffff2b;
+}
+.qosp-subcard-title {
+  font-size: 15px;
+  font-weight: 400;
+  margin: 0;
+  color: var(--portal-text);
+}
+.qosp-divider {
+  border: 0;
+  border-top: 1px solid #ffffff14;
+  margin: 26px 0;
+}
+.qosp-code {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--portal-text-soft);
+  background: #ffffff0d;
+  border-radius: 6px;
+  padding: 2px 7px;
+  overflow-wrap: anywhere;
+}
+.qosp-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.qosp-button-row[data-align="end"] {
+  justify-content: flex-end;
+}
+.qosp-meta-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+article.qosp-subcard > .qosp-button-row {
+  margin-top: 16px;
+}
+.qosp-attached-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.qosp-attached-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.qosp-attached-body {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  flex: 1 1 200px;
+}
+.qosp-attach-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.qosp-attach-row > .qosp-field {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+.qosp-text-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--portal-violet-soft);
+  text-decoration: none;
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+}
+.qosp-text-link:hover {
+  color: var(--portal-text);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* ---------- File control ---------- */
+.qosp-file {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  min-width: 0;
+}
+.qosp-file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.qosp-file-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  border: 1px solid #ffffff2e;
+  background: #ffffff0d;
+  color: var(--portal-text);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .2s, border-color .2s;
+}
+.qosp-file-button:hover {
+  background: #ffffff17;
+  border-color: #ffffff45;
+}
+.qosp-file-input:focus-visible + .qosp-file-button {
+  outline: 2px solid var(--portal-focus);
+  outline-offset: 2px;
+}
+.qosp-file-input:disabled + .qosp-file-button {
+  cursor: not-allowed;
+  color: var(--portal-faint);
+  background: #ffffff05;
+  border-color: #ffffff14;
+}
+.qosp-file-name {
+  font-size: 13px;
+  color: var(--portal-muted);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Product grid (prototype .product-grid / .product-card) ---------- */
+.qosp-product-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr));
+  gap: 23px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.qosp-product-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #7988a113;
+  transition: transform .3s, border-color .3s;
+  min-width: 0;
+}
+.qosp-product-card:hover,
+.qosp-product-card:focus-within {
+  transform: translateY(-4px);
+  border-color: #c2b1e566;
+}
+.qosp-product-visual {
+  height: 172px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(ellipse at 50% 90%, #aaa0d430, transparent 75%),
+    linear-gradient(135deg, #ffffff05, transparent);
+  color: #d5c6dd;
+  overflow: hidden;
+}
+.qosp-product-visual img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.qosp-product-visual-empty {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--portal-muted);
+}
+.qosp-product-visual-empty svg {
+  filter: drop-shadow(0 4px 20px #bdacdc22);
+}
+.qosp-product-arrow {
+  position: absolute;
+  inset-inline-end: 14px;
+  top: 14px;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #151b24b3;
+  border: 1px solid #ffffff26;
+  color: var(--portal-text);
+  pointer-events: none;
+}
+.qosp-product-info {
+  padding: 20px 22px 22px;
+  border-top: 1px solid #ffffff12;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.qosp-product-meta {
+  font-size: 12px;
+  color: var(--portal-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.qosp-product-name {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.35;
+  margin: 0 0 8px;
+  overflow-wrap: anywhere;
+}
+.qosp-product-link {
+  color: inherit;
+  text-decoration: none;
+}
+.qosp-product-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+}
+.qosp-product-link:focus-visible {
+  outline: none;
+}
+.qosp-product-card:has(.qosp-product-link:focus-visible) {
+  outline: 2px solid var(--portal-focus);
+  outline-offset: 3px;
+}
+.qosp-product-foot {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.qosp-product-foot .qos-btn {
+  position: relative;
+  z-index: 2;
+}
+.qosp-empty-panel {
+  padding: 48px 24px;
+  text-align: center;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+.qosp-empty-panel h2 {
+  font-size: 17px;
+  font-weight: 400;
+  margin: 0;
+}
+.qosp-empty-panel p {
+  margin: 0;
+  color: var(--portal-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* ---------- Pagination ---------- */
+.qosp-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  color: var(--portal-muted);
+  font-size: 13px;
+}
+.qosp-pagination-buttons {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.qosp-pagination-page {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--portal-text-soft);
+}
+.qosp-icon-control {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  border: 1px solid #ffffff24;
+  background: #ffffff06;
+  color: var(--portal-text);
+  cursor: pointer;
+}
+.qosp-icon-control:hover:not(:disabled) {
+  background: #ffffff12;
+}
+.qosp-icon-control:disabled {
+  color: var(--portal-faint);
+  cursor: not-allowed;
+  opacity: .6;
+}
+
+/* ---------- Link list panel ---------- */
+.qosp-link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------- Product editor ---------- */
+.qosp-editor {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  padding-bottom: 112px;
+}
+.qosp-editor > fieldset {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.qosp-editor-section {
+  padding: 26px 28px;
+  background: #6d7a9510;
+  min-width: 0;
+  scroll-margin-top: 24px;
+}
+.qosp-editor-section > h2 {
+  font-size: 18px;
+  font-weight: 400;
+  line-height: 1.4;
+  margin: 0;
+}
+.qosp-photo-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+  min-width: 0;
+}
+.qosp-photo {
+  position: relative;
+  width: 132px;
+  height: 132px;
+  flex: none;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid #ffffff1f;
+  background: #ffffff08;
+}
+.qosp-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.qosp-photo[data-size="sm"] {
+  width: 72px;
+  height: 72px;
+  border-radius: 10px;
+}
+.qosp-photo-tag {
+  position: absolute;
+  inset-inline-start: 6px;
+  bottom: 6px;
+  font-size: 11px;
+  line-height: 1;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: #151b24d9;
+  color: var(--portal-violet-soft);
+  border: 1px solid #b3a1ef55;
+}
+.qosp-area video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  max-height: 400px;
+  border-radius: 12px;
+  border: 1px solid #ffffff1f;
+  background: var(--portal-night);
+}
+.qosp-history {
+  display: grid;
+  gap: 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.qosp-history li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+}
+.qosp-history-body {
+  display: grid;
+  gap: 4px;
+  flex: 1 1 200px;
+  min-width: 0;
+}
+.qosp-history-source {
+  margin: 0;
+  font-size: 14px;
+  color: var(--portal-text-soft);
+}
+.qosp-prewrap {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--portal-text-soft);
+}
+.qosp-span-full {
+  grid-column: 1 / -1;
+}
+.qosp-diff {
+  display: grid;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--portal-text-soft);
+  overflow-wrap: anywhere;
+}
+.qosp-diff li[data-kind="added"] {
+  color: var(--portal-mint);
+  background: #7dd2b514;
+}
+.qosp-diff li[data-kind="removed"] {
+  color: var(--portal-rose);
+  background: #f3939314;
+  text-decoration: line-through;
+}
+.qosp-savebar {
+  position: sticky;
+  bottom: 16px;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 16px;
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid #c4c6df36;
+  background: linear-gradient(130deg, #2c3442f2, #202938f5);
+  backdrop-filter: blur(24px);
+  box-shadow: 0 18px 48px #050b1966;
+}
+.qosp-savebar p {
+  margin: 0;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--portal-text-soft);
+  overflow-wrap: anywhere;
+}
+
+/* ---------- Breakpoints (1200 / 960 / 680 as supplied) ---------- */
+@media (max-width: 1200px) {
+  .qosp-product-grid { gap: 18px; }
+}
+
+@media (max-width: 960px) {
+  .qosp-content-title { font-size: clamp(30px, 4.4vw, 40px); }
+}
+
+@media (max-width: 680px) {
+  .qosp-content-header { margin: 4px 0 22px; align-items: flex-start; }
+  .qosp-content-title { font-size: 32px; }
+  .qosp-content-desc { font-size: 13px; }
+  .qosp-header-actions { width: 100%; }
+  .qosp-stats-grid { grid-template-columns: 1fr 1fr; gap: 11px; margin-bottom: 22px; }
+  .qosp-stats-grid > :last-child:nth-child(odd) { grid-column: span 2; }
+  .qosp-stat { padding: 18px; border-radius: 14px; min-height: 118px; }
+  .qosp-stat-value { font-size: 24px; }
+  .qosp-toolbar { gap: 14px; }
+  .qosp-filter-tabs { width: 100%; }
+  .qosp-filter-tab { padding: 6px 10px; }
+  .qosp-search-field { width: 100%; }
+  .qosp-product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; }
+  .qosp-product-visual { height: 126px; }
+  .qosp-product-arrow { width: 26px; height: 26px; inset-inline-end: 10px; top: 10px; }
+  .qosp-product-info { padding: 14px 13px 15px; gap: 6px; }
+  .qosp-product-name { font-size: 15px; }
+  .qosp-product-foot { flex-direction: column; align-items: flex-start; }
+  .qosp-form-grid[data-columns="2"] { grid-template-columns: 1fr; }
+  .qosp-editor-section,
+  .qosp-panel-glass { padding: 20px 18px; }
+  .qosp-savebar { bottom: 10px; padding: 12px 14px; }
+  .qosp-savebar .qosp-button-row { width: 100%; }
+  .qosp-savebar .qos-btn { flex: 1 1 auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qosp-product-card,
+  .qosp-area .qos-btn {
+    transition: none;
+  }
+  .qosp-product-card:hover,
+  .qosp-product-card:focus-within,
+  .qosp-area .qos-btn:hover {
+    transform: none;
+  }
+}
+[data-qos-motion="off"] .qosp-product-card,
+[data-qos-motion="off"] .qosp-area .qos-btn {
+  transition: none;
+}
+
+/* ---------- Catalogue list spacing ---------- */
+.qosp-area > .qosp-stack:not(:empty) {
+  margin-bottom: 20px;
+}
+.qosp-results-summary {
+  margin: 0 0 14px;
+}
+.qosp-catalogue-management {
+  margin-top: 32px;
+}
