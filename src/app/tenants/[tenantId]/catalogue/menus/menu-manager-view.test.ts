@@ -143,6 +143,43 @@ describe("findingClaims", () => {
     );
     expect(other).toEqual([{ kind: "AI recommendation", text: "Shorter names." }]);
   });
+
+  it("keeps the same fact and AI split in Arabic", () => {
+    const claims = findingClaims(
+      { type: "missing_photo", severity: "warning", title: "Photos", detail: "Latte has none.", recommendation: "Add one.", productPublicIds: [] },
+      report,
+      "ar",
+    );
+    expect(claims).toEqual([
+      { kind: "حقيقة من النظام", text: "فحوصات QOS: 3 أصناف في «صور ناقصة»." },
+      { kind: "تفسير الذكاء الاصطناعي", text: "Latte has none." },
+      { kind: "توصية الذكاء الاصطناعي", text: "Add one." },
+    ]);
+  });
+});
+
+describe("menu manager Arabic copy", () => {
+  it("presents a local stop as QOS stopping in Arabic too", () => {
+    const stopped = runStatusCopy(
+      run({ status: "failed", failureCode: "qos_wait_deadline", remoteOutcomeUnknown: true }),
+      "ar",
+    );
+    expect(stopped.tone).toBe("warning");
+    expect(stopped.title).toBe("توقف QOS عن الانتظار");
+    expect(runStatusCopy(run({ waitingOn: "service_unavailable" }), "ar").title).toBe("المراجعة معلّقة");
+    expect(failureCopy(null, "ar")).toBe("تعذّر على خدمة الوكيل إكمال هذه المراجعة.");
+    expect(failureCopy("something_new", "ar")).toBe(failureCopy(null, "ar"));
+  });
+
+  it("labels the ask button with Arabic dual and plural forms", () => {
+    expect(askButtonLabel(0, "ar")).toBe("اطلب من QOS مراجعة هذه القائمة");
+    expect(askButtonLabel(1, "ar")).toBe("اطلب من QOS مراجعة الصنف المحدد");
+    expect(askButtonLabel(2, "ar")).toBe("اطلب من QOS مراجعة الصنفين المحددين");
+    expect(askButtonLabel(3, "ar")).toBe("اطلب من QOS مراجعة 3 أصناف محددة");
+    expect(askButtonLabel(11, "ar")).toBe("اطلب من QOS مراجعة 11 صنفًا محددًا");
+    expect(unavailableHint("disabled", true, "ar")).toContain("الإعدادات › الذكاء الاصطناعي والوكلاء");
+    expect(unavailableHint("disabled", false, "ar")).toBeNull();
+  });
 });
 
 describe("menu manager copy", () => {

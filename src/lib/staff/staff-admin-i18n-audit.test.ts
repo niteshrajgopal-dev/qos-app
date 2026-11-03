@@ -16,6 +16,17 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/products/product-new-screen.tsx",
   "app/tenants/[tenantId]/catalogue/products/new/page.tsx",
   "components/portal/workspace/PortalWorkspace.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-management.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-editor-screen.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-publish-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-health-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-manager-section.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/ai-photo-generator.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/page.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/new/page.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/[menuPublicId]/edit/page.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-manager-view.ts",
+  "app/tenants/[tenantId]/catalogue/menus/ai-photo-view.ts",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -30,6 +41,16 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-removed-photo-history.tsx",
   "app/tenants/[tenantId]/catalogue/products/ai-description-review.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-editor.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-management.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-editor-screen.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-publish-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-health-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-manager-section.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/ai-photo-generator.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/page.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/new/page.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/[menuPublicId]/edit/page.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -75,6 +96,13 @@ const FORBIDDEN_LITERALS = [
   '"Catalogue management"',
   '"No file chosen"',
   '"Previous page"',
+  '"Menu completeness"',
+  '>Publish draft<',
+  '"Save draft"',
+  '"Ask QOS to review this menu"',
+  '"Select items to generate"',
+  'kind: "System fact"',
+  '>Generate with AI, then review before use<',
 ];
 
 describe("staff admin audited surfaces", () => {

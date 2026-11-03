@@ -4,9 +4,11 @@ export type IntelligenceCardProps = {
 
   /** Names what this is: Insight, Anomaly, Recommendation, Summary, Mapping. */
   kind?: string;
+  /** Replaces the "QOS Intelligence · {kind}" heading, e.g. with localized copy. */
+  kindLabel?: string;
   title?: React.ReactNode;
   /** Ordered claims. kind is the epistemic label: "System fact", "AI interpretation", "AI recommendation". */
-  claims?: Array<{ kind: string; text: React.ReactNode }>;
+  claims?: Array<{ kind: string; text: React.ReactNode; isFact?: boolean }>;
   children?: React.ReactNode;
   actions?: React.ReactNode;
   confidence?: string;
@@ -28,12 +30,12 @@ import { Icon } from "../primitives/Icon";
    - kind names what the panel is: Insight, Anomaly, Recommendation, Summary, Mapping.
    - claims separate SYSTEM FACT from AI INTERPRETATION from AI RECOMMENDATION.
    - nothing is applied until the operator approves; the footer always shows the approval action. */
-export function IntelligenceCard({ kind = "Insight", title, claims = [], children, actions, confidence, ...rest }: IntelligenceCardProps) {
+export function IntelligenceCard({ kind = "Insight", kindLabel, title, claims = [], children, actions, confidence, ...rest }: IntelligenceCardProps) {
   return (
     <section className="qos-ai" {...rest}>
       <div className="qos-ai-head">
         <span className="qos-ai-mark"><Icon name="sparkles" size={13} /></span>
-        <span className="qos-ai-kind">QOS Intelligence · {kind}</span>
+        <span className="qos-ai-kind">{kindLabel ?? `QOS Intelligence · ${kind}`}</span>
         {confidence ? (
           <span style={{ marginLeft: "auto", fontSize: "var(--text-meta-size)", color: "var(--text-secondary)" }}>Confidence {confidence}</span>
         ) : null}
@@ -45,7 +47,7 @@ export function IntelligenceCard({ kind = "Insight", title, claims = [], childre
             {claims.map((c, i) => (
               <React.Fragment key={i}>
                 <span className="qos-ai-claim-kind">{c.kind}</span>
-                <span style={{ color: c.kind && c.kind.toLowerCase().includes("fact") ? "var(--text-primary)" : "var(--text-secondary)" }}>{c.text}</span>
+                <span style={{ color: (c.isFact ?? (c.kind && c.kind.toLowerCase().includes("fact"))) ? "var(--text-primary)" : "var(--text-secondary)" }}>{c.text}</span>
               </React.Fragment>
             ))}
           </div>

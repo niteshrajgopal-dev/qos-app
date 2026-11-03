@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
-  MENU_HEALTH_ISSUE_COPY,
   SEVERITY_BADGE_TONE,
   menuHealthHeadline,
+  menuHealthIssueCopy,
   productFixHref,
   productsForIssueType,
   visibleIssueGroups,
@@ -14,11 +14,17 @@ import {
 import { menuPhotoSummary } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-view";
 import { MenuManagerSection } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-section";
 import { unavailableHint } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-view";
+import {
+  formatMenuTime,
+  menusCopy,
+  menusCount,
+  type MenusCopyKey,
+} from "@/app/tenants/[tenantId]/catalogue/menus/menus-copy";
 import { Alert } from "@/components/Alert";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
-import { Card } from "@/components/Card";
 import { Drawer } from "@/components/Drawer";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { ProgressBar } from "@/design-system/components/data/ProgressBar";
 import { Checkbox } from "@/design-system/components/primitives/Checkbox";
 import type { TenantAgentSettingsView } from "@/lib/agents/tenant-agent-settings";
@@ -45,6 +51,10 @@ export function MenuHealthPanel({
   refreshKey = 0,
   onReport,
 }: MenuHealthPanelProps) {
+  const { locale } = useStaffLocale();
+  const copy = (key: MenusCopyKey, values?: Record<string, string | number>) =>
+    menusCopy(locale, key, values);
+  const issueCopy = (type: MenuHealthIssueType) => menuHealthIssueCopy(type, locale);
   const [report, setReport] = useState<MenuHealthReport | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -79,7 +89,7 @@ export function MenuHealthPanel({
 
   const menuManagerAvailable = agents?.menuManager.available ?? false;
   const agentHint = agents
-    ? unavailableHint(agents.menuManager.unavailableReason, agents.canManage)
+    ? unavailableHint(agents.menuManager.unavailableReason, agents.canManage, locale)
     : null;
 
   function toggleSelected(productPublicId: string) {
@@ -102,7 +112,7 @@ export function MenuHealthPanel({
       };
 
       if (!response.ok || !payload.health) {
-        throw new Error(payload.error ?? "Unable to check menu health.");
+        throw new Error(payload.error ?? menusCopy(locale, "healthUnableToCheck"));
       }
 
       setReport(payload.health);
@@ -112,12 +122,12 @@ export function MenuHealthPanel({
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Unable to check menu health.",
+          : menusCopy(locale, "healthUnableToCheck"),
       );
     } finally {
       setLoading(false);
     }
-  }, [menuPublicId, tenantId]);
+  }, [locale, menuPublicId, tenantId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -139,215 +149,220 @@ export function MenuHealthPanel({
 
   return (
     <>
-    <Card
-      header="Menu completeness"
-      subtitle={
-        report
-          ? `Checked against saved draft v${report.menuVersion} · ${new Date(report.evaluatedAt).toLocaleTimeString()}`
-          : "Deterministic QOS checks of the saved draft"
-      }
-      actions={
-        <Button
-          variant="ghost"
-          size="sm"
-          icon="refresh-cw"
-          loading={loading}
-          onClick={() => void loadHealth()}
-        >
-          Re-check
-        </Button>
-      }
-    >
-      {error ? (
-        <Alert tone="error" title="Menu health unavailable">
-          {error}
-        </Alert>
-      ) : null}
-
-      {!report && !error ? (
-        <p className="qos-card-sub">Checking menu health…</p>
-      ) : null}
-
-      {report && photos ? (
-        <div style={{ display: "grid", gap: 12 }}>
-          <div className="qos-menu-summary">
-            <div className="qos-menu-summary-head">
-              <span className="qos-card-sub">
-                {groups.length > 0
-                  ? `${report.completeness.passedChecks} of ${report.completeness.totalChecks} checks passed`
-                  : menuHealthHeadline(report)}
-              </span>
-              <span className="qos-menu-summary-pct">
-                {report.completeness.percent === null ? "—" : `${report.completeness.percent}%`}
-              </span>
-            </div>
-            <ProgressBar tone="intelligence" value={report.completeness.percent ?? 0} />
-            {photos.totalItems > 0 ? (
-              <div className="qos-legend" aria-label="Photo coverage">
-                <span className="qos-legend-item">
-                  <span className="qos-legend-dot" aria-hidden="true" />
-                  {photos.withPhotos} with photos
-                </span>
-                <span className="qos-legend-item">
-                  <span className="qos-legend-dot" data-tone="intelligence" aria-hidden="true" />
-                  {photos.needPhotos} need photos
-                </span>
-              </div>
-            ) : null}
+      <section className="qosp-editor-section qosp-glass" aria-labelledby="menu-health-title">
+        <div className="qosp-section-head">
+          <div>
+            <h2 id="menu-health-title" className="qosp-panel-title">
+              {copy("healthTitle")}
+            </h2>
+            <p className="qosp-panel-help">
+              {report
+                ? copy("healthCheckedAgainst", {
+                    version: report.menuVersion,
+                    time: formatMenuTime(locale, report.evaluatedAt),
+                  })
+                : copy("healthDeterministic")}
+            </p>
           </div>
+          <Button
+            variant="secondary"
+            size="sm"
+            icon="refresh-cw"
+            loading={loading}
+            onClick={() => void loadHealth()}
+          >
+            {copy("healthRecheck")}
+          </Button>
+        </div>
 
-          {groups.length > 0 ? (
-            <Alert
-              tone="warning"
-              title={menuHealthHeadline(report)}
-              actions={
-                <Button size="sm" variant="secondary" onClick={() => openDrawer(null)}>
-                  Review issues
-                </Button>
-              }
-            >
-              Fixes are made in the product editor; nothing here changes the
-              menu automatically.
+        <div className="qosp-panel-body qosp-stack">
+          {error ? (
+            <Alert tone="error" title={copy("healthUnavailable")}>
+              {error}
             </Alert>
           ) : null}
 
-          {groups.length > 0 ? (
-            <div
-              aria-label="Menu health issues"
-              style={{ display: "flex", flexWrap: "wrap", gap: 8 }}
-            >
-              {groups.map((group) => (
-                <button
-                  key={group.type}
-                  type="button"
-                  className="qos-btn"
-                  data-variant="secondary"
-                  data-size="sm"
-                  onClick={() => openDrawer(group.type)}
+          {!report && !error ? (
+            <p className="qosp-meta-line" role="status">
+              {copy("healthChecking")}
+            </p>
+          ) : null}
+
+          {report && photos ? (
+            <>
+              <div className="qos-menu-summary">
+                <div className="qos-menu-summary-head">
+                  <span className="qosp-meta-line">
+                    {groups.length > 0
+                      ? menusCount(locale, "checksPassed", report.completeness.totalChecks, {
+                          passed: report.completeness.passedChecks,
+                        })
+                      : menuHealthHeadline(report, locale)}
+                  </span>
+                  <span className="qos-menu-summary-pct" dir="ltr">
+                    {report.completeness.percent === null ? "—" : `${report.completeness.percent}%`}
+                  </span>
+                </div>
+                <ProgressBar tone="intelligence" value={report.completeness.percent ?? 0} />
+                {photos.totalItems > 0 ? (
+                  <div className="qos-legend" aria-label={copy("healthPhotoCoverage")}>
+                    <span className="qos-legend-item">
+                      <span className="qos-legend-dot" aria-hidden="true" />
+                      {menusCount(locale, "itemsWithPhotos", photos.withPhotos)}
+                    </span>
+                    <span className="qos-legend-item">
+                      <span className="qos-legend-dot" data-tone="intelligence" aria-hidden="true" />
+                      {menusCount(locale, "itemsNeedPhotos", photos.needPhotos)}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+
+              {groups.length > 0 ? (
+                <Alert
+                  tone="warning"
+                  title={menuHealthHeadline(report, locale)}
+                  actions={
+                    <Button size="sm" variant="secondary" onClick={() => openDrawer(null)}>
+                      {copy("healthReviewIssues")}
+                    </Button>
+                  }
                 >
-                  {MENU_HEALTH_ISSUE_COPY[group.type].title}
-                  <Badge tone={SEVERITY_BADGE_TONE[group.severity]}>
-                    {group.productCount}
-                  </Badge>
-                </button>
+                  {copy("healthFixesNote")}
+                </Alert>
+              ) : null}
+
+              {groups.length > 0 ? (
+                <div aria-label={copy("healthIssuesLabel")} className="qosp-button-row">
+                  {groups.map((group) => (
+                    <button
+                      key={group.type}
+                      type="button"
+                      className="qos-btn"
+                      data-variant="secondary"
+                      data-size="sm"
+                      onClick={() => openDrawer(group.type)}
+                    >
+                      {issueCopy(group.type).title}
+                      <Badge tone={SEVERITY_BADGE_TONE[group.severity]}>
+                        {group.productCount}
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {report.availability.closedLocations.length > 0 ? (
+                <p className="qosp-meta-line">
+                  {menusCount(locale, "stopSaleNotChecked", report.availability.closedLocations.length, {
+                    names: report.availability.closedLocations
+                      .map((location) => location.name)
+                      .join(locale === "ar" ? "، " : ", "),
+                  })}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+
+          {agentHint ? <p className="qosp-meta-line">{agentHint}</p> : null}
+        </div>
+
+        <Drawer
+          open={drawerOpen && Boolean(report)}
+          width={520}
+          title={focusType ? issueCopy(focusType).title : copy("healthIssuesLabel")}
+          description={report ? menuHealthHeadline(report, locale) : undefined}
+          onClose={() => setDrawerOpen(false)}
+          footer={
+            (focusType && groups.length > 1) || (menuManagerAvailable && selected.length > 0) ? (
+              <>
+                {menuManagerAvailable && selected.length > 0 ? (
+                  <span className="qos-card-sub">
+                    {menusCount(locale, "selectedForManager", selected.length)}
+                  </span>
+                ) : null}
+                {focusType && groups.length > 1 ? (
+                  <Button variant="secondary" onClick={() => setFocusType(null)}>
+                    {copy("healthShowAllIssues")}
+                  </Button>
+                ) : null}
+              </>
+            ) : undefined
+          }
+        >
+          {report ? (
+            <div style={{ display: "grid", gap: 20 }}>
+              {drawerGroups.map((group) => (
+                <section key={group.type} style={{ display: "grid", gap: 8 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <strong>{issueCopy(group.type).title}</strong>
+                    <Badge tone={SEVERITY_BADGE_TONE[group.severity]}>
+                      {group.productCount}
+                    </Badge>
+                  </div>
+                  <p className="qos-card-sub">{issueCopy(group.type).description}</p>
+                  <ul style={{ display: "grid", gap: 8, listStyle: "none", padding: 0, margin: 0 }}>
+                    {productsForIssueType(report, group.type).map((product) => (
+                      <li
+                        key={product.productPublicId}
+                        className="qos-card"
+                        data-padding="sm"
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          gap: 12,
+                          alignItems: "flex-start",
+                        }}
+                      >
+                        {menuManagerAvailable ? (
+                          <Checkbox
+                            label={
+                              <span className="sr-only">
+                                {copy("healthSelectForManager", { name: product.displayName })}
+                              </span>
+                            }
+                            checked={selected.includes(product.productPublicId)}
+                            onChange={() => toggleSelected(product.productPublicId)}
+                          />
+                        ) : null}
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div>{product.displayName}</div>
+                          <div className="qos-card-sub">
+                            <code dir="ltr">{product.productPublicId}</code>
+                          </div>
+                          {product.messages.map((message) => (
+                            <div key={message} className="qos-card-sub">
+                              {message}
+                            </div>
+                          ))}
+                        </div>
+                        <Link
+                          href={productFixHref(tenantId, product.productPublicId, group.type)}
+                          className="qos-btn"
+                          data-variant="ghost"
+                          data-size="sm"
+                        >
+                          {issueCopy(group.type).fixLabel}
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
               ))}
             </div>
           ) : null}
-
-          {report.availability.closedLocations.length > 0 ? (
-            <p className="qos-card-sub">
-              Stop-sale status not checked for{" "}
-              {report.availability.closedLocations
-                .map((location) => location.name)
-                .join(", ")}{" "}
-              because {report.availability.closedLocations.length === 1 ? "it is" : "they are"}{" "}
-              closed right now.
-            </p>
-          ) : null}
-        </div>
+        </Drawer>
+      </section>
+      {menuManagerAvailable ? (
+        <MenuManagerSection
+          tenantId={tenantId}
+          menuPublicId={menuPublicId}
+          menuVersion={menuVersion}
+          report={report}
+          selectedProductPublicIds={selected}
+          onClearSelection={() => setSelected([])}
+        />
       ) : null}
-
-      <Drawer
-        open={drawerOpen && Boolean(report)}
-        width={520}
-        title={
-          focusType ? MENU_HEALTH_ISSUE_COPY[focusType].title : "Menu health issues"
-        }
-        description={report ? menuHealthHeadline(report) : undefined}
-        onClose={() => setDrawerOpen(false)}
-        footer={
-          (focusType && groups.length > 1) || (menuManagerAvailable && selected.length > 0) ? (
-            <>
-              {menuManagerAvailable && selected.length > 0 ? (
-                <span className="qos-card-sub">
-                  {selected.length} selected for Menu Manager
-                </span>
-              ) : null}
-              {focusType && groups.length > 1 ? (
-                <Button variant="secondary" onClick={() => setFocusType(null)}>
-                  Show all issues
-                </Button>
-              ) : null}
-            </>
-          ) : undefined
-        }
-      >
-        {report ? (
-          <div style={{ display: "grid", gap: 20 }}>
-            {drawerGroups.map((group) => (
-              <section key={group.type} style={{ display: "grid", gap: 8 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <strong>{MENU_HEALTH_ISSUE_COPY[group.type].title}</strong>
-                  <Badge tone={SEVERITY_BADGE_TONE[group.severity]}>
-                    {group.productCount}
-                  </Badge>
-                </div>
-                <p className="qos-card-sub">
-                  {MENU_HEALTH_ISSUE_COPY[group.type].description}
-                </p>
-                <ul style={{ display: "grid", gap: 8, listStyle: "none", padding: 0, margin: 0 }}>
-                  {productsForIssueType(report, group.type).map((product) => (
-                    <li
-                      key={product.productPublicId}
-                      className="qos-card"
-                      data-padding="sm"
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 12,
-                        alignItems: "flex-start",
-                      }}
-                    >
-                      {menuManagerAvailable ? (
-                        <Checkbox
-                          label={
-                            <span className="sr-only">
-                              Select {product.displayName} for Menu Manager
-                            </span>
-                          }
-                          checked={selected.includes(product.productPublicId)}
-                          onChange={() => toggleSelected(product.productPublicId)}
-                        />
-                      ) : null}
-                      <div style={{ minWidth: 0, flex: 1 }}>
-                        <div>{product.displayName}</div>
-                        <div className="qos-card-sub">
-                          <code>{product.productPublicId}</code>
-                        </div>
-                        {product.messages.map((message) => (
-                          <div key={message} className="qos-card-sub">
-                            {message}
-                          </div>
-                        ))}
-                      </div>
-                      <Link
-                        href={productFixHref(tenantId, product.productPublicId, group.type)}
-                        className="qos-btn"
-                        data-variant="ghost"
-                        data-size="sm"
-                      >
-                        {MENU_HEALTH_ISSUE_COPY[group.type].fixLabel}
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </div>
-        ) : null}
-      </Drawer>
-      {agentHint ? <p className="qos-card-sub">{agentHint}</p> : null}
-    </Card>
-    {menuManagerAvailable ? (
-      <MenuManagerSection
-        tenantId={tenantId}
-        menuPublicId={menuPublicId}
-        menuVersion={menuVersion}
-        report={report}
-        selectedProductPublicIds={selected}
-        onClearSelection={() => setSelected([])}
-      />
-    ) : null}
     </>
   );
 }

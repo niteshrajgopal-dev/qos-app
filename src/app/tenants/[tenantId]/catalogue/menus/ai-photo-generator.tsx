@@ -17,6 +17,11 @@ import {
   selectAllState,
   type ItemProgress,
 } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-view";
+import {
+  menusCopy,
+  menusCount,
+  type MenusCopyKey,
+} from "@/app/tenants/[tenantId]/catalogue/menus/menus-copy";
 import { Alert } from "@/components/Alert";
 import { Button } from "@/components/Button";
 import { Drawer } from "@/components/Drawer";
@@ -76,6 +81,8 @@ export function AiPhotoGenerator({
   onChanged,
 }: AiPhotoGeneratorProps) {
   const { locale } = useStaffLocale();
+  const copy = (key: MenusCopyKey, values?: Record<string, string | number>) =>
+    menusCopy(locale, key, values);
   const attachedGeneration = aiPhotos?.attachedAiPhotoGenerationByProductPublicId ?? {};
   const [selected, setSelected] = useState<string[]>([]);
   const [generating, setGenerating] = useState(false);
@@ -115,7 +122,7 @@ export function AiPhotoGenerator({
     .map((item) => item.productPublicId);
   const chosen = selected.filter((id) => selectable.includes(id));
   const allState = selectAllState(chosen, selectable);
-  const action = generateActionState(chosen.length, availability, generating, aiPhotosError);
+  const action = generateActionState(chosen.length, availability, generating, aiPhotosError, locale);
   const ready = readyCandidates(progress);
   const needsReplace = Object.values(progress).filter((entry) => entry.state === "needs_replace").length;
 
@@ -143,12 +150,12 @@ export function AiPhotoGenerator({
       } else {
         onProgress(productPublicId, {
           state: "failed",
-          message: failureMessage(candidate?.failureCode, payload.error),
+          message: failureMessage(candidate?.failureCode, payload.error, locale),
           candidate,
         });
       }
     } catch {
-      onProgress(productPublicId, { state: "failed", message: "Network error. Try again." });
+      onProgress(productPublicId, { state: "failed", message: copy("aiNetworkError") });
     }
   }
 
@@ -161,16 +168,16 @@ export function AiPhotoGenerator({
       const payload = (await response.json().catch(() => ({}))) as BatchPayload;
       if (!response.ok || !payload.items) {
         for (const id of queue) {
-          onProgress(id, { state: "failed", message: payload.error ?? "These photos could not be queued." });
+          onProgress(id, { state: "failed", message: payload.error ?? copy("aiCouldNotQueueBatch") });
         }
         return;
       }
       for (const item of payload.items) {
-        onProgress(item.productPublicId, progressFromBatchItem(item));
+        onProgress(item.productPublicId, progressFromBatchItem(item, locale));
       }
     } catch {
       for (const id of queue) {
-        onProgress(id, { state: "failed", message: "Network error. Try again." });
+        onProgress(id, { state: "failed", message: copy("aiNetworkError") });
       }
     }
   }
@@ -213,12 +220,12 @@ export function AiPhotoGenerator({
       if (payload.code === "existing_photo") {
         onProgress(candidate.productPublicId, {
           state: "needs_replace",
-          message: payload.error ?? "This item already has a photo.",
+          message: payload.error ?? copy("aiAlreadyHasPhoto"),
           candidate,
         });
       } else if (payload.code === "accuracy_review_required") {
         onProgress(candidate.productPublicId, { state: "ready", candidate });
-        setError(payload.error ?? "Confirm the images before using them.");
+        setError(payload.error ?? copy("aiConfirmBeforeUse"));
       } else if (payload.code === "stale_candidate") {
         onProgress(candidate.productPublicId, {
           state: "stale",
@@ -228,13 +235,13 @@ export function AiPhotoGenerator({
       } else {
         onProgress(candidate.productPublicId, {
           state: "failed",
-          message: payload.error ?? "The photo could not be saved.",
+          message: payload.error ?? copy("aiCouldNotSave"),
           candidate,
         });
       }
     } catch {
       onProgress(candidate.productPublicId, { state: "ready", candidate });
-      setError("Network error. Try again.");
+      setError(copy("aiNetworkError"));
     }
     return false;
   }
@@ -263,28 +270,28 @@ export function AiPhotoGenerator({
         onProgress(candidate.productPublicId, { state: "rejected" });
       } else {
         onProgress(candidate.productPublicId, { state: "ready", candidate });
-        setError(payload.error ?? "The photo could not be discarded.");
+        setError(payload.error ?? copy("aiCouldNotDiscard"));
       }
     } catch {
       onProgress(candidate.productPublicId, { state: "ready", candidate });
-      setError("Network error. Try again.");
+      setError(copy("aiNetworkError"));
     }
   }
 
   function statusLine(productPublicId: string, entry: ItemProgress | undefined) {
     switch (entry?.state) {
       case "queued":
-        return "Waiting…";
+        return copy("aiStatusWaiting");
       case "generating":
-        return "Generating…";
+        return copy("aiStatusGenerating");
       case "ready":
-        return "Ready to review · AI-generated";
+        return copy("aiStatusReady");
       case "saving":
-        return "Saving…";
+        return copy("aiStatusSaving");
       case "accepted":
-        return "Added to draft · AI-generated";
+        return copy("aiStatusAdded");
       case "rejected":
-        return "Discarded";
+        return copy("aiStatusDiscarded");
       case "failed":
       case "needs_replace":
         return entry.message;
@@ -305,7 +312,7 @@ export function AiPhotoGenerator({
       onChanged();
     } catch (removeError) {
       setError(
-        removeError instanceof Error ? removeError.message : "Unable to remove product photo.",
+        removeError instanceof Error ? removeError.message : copy("unableToRemovePhoto"),
       );
     } finally {
       setRemovingProductPublicId(null);
@@ -373,10 +380,10 @@ export function AiPhotoGenerator({
           <span className="qos-thumb" style={{ width: 36, height: 36, background: "var(--intelligence-surface)", color: "var(--text-intelligence)" }}>
             <Icon name="sparkles" size={18} />
           </span>
-          AI photo generator
+          {copy("aiGeneratorTitle")}
         </span>
       }
-      description={`${needCount} ${needCount === 1 ? "item" : "items"} missing photos`}
+      description={menusCount(locale, "itemsMissingPhotos", needCount)}
       onClose={onClose}
       footer={
         <div className="qos-ai-foot">
@@ -384,17 +391,17 @@ export function AiPhotoGenerator({
             <div className="qos-credit-cell">
               <Icon name="receipt" size={16} />
               <div>
-                <div className="qos-credit-label">Left today</div>
+                <div className="qos-credit-label">{copy("aiLeftToday")}</div>
                 <div className="qos-credit-value">
-                  {allowanceLabel(availability, aiPhotosError)}
+                  {allowanceLabel(availability, aiPhotosError, locale)}
                 </div>
               </div>
             </div>
             <div className="qos-credit-cell">
               <Icon name="sparkles" size={16} />
               <div>
-                <div className="qos-credit-label">Cost</div>
-                <div className="qos-credit-value">{costLabel(chosen.length)}</div>
+                <div className="qos-credit-label">{copy("aiCost")}</div>
+                <div className="qos-credit-value">{costLabel(chosen.length, locale)}</div>
               </div>
             </div>
           </div>
@@ -416,17 +423,14 @@ export function AiPhotoGenerator({
         {ready.length + needsReplace > 0 ? (
           <Alert
             tone="intelligence"
-            title={`${ready.length + needsReplace} ${ready.length + needsReplace === 1 ? "image" : "images"} ready to review`}
+            title={menusCount(locale, "imagesReadyToReview", ready.length + needsReplace)}
           >
             <div style={{ display: "grid", gap: 10 }}>
-              <span>
-                AI images are illustrations, not photos of your actual items. Accepted images are
-                added to the draft menu; customers only see them after you publish.
-              </span>
+              <span>{copy("aiIllustrationNotice")}</span>
               {canAccept ? (
                 <>
                   <Checkbox
-                    label="I've checked these images fairly represent the items"
+                    label={copy("aiAccuracyConfirm")}
                     checked={accuracyConfirmed}
                     onChange={() => setAccuracyConfirmed((current) => !current)}
                   />
@@ -439,13 +443,13 @@ export function AiPhotoGenerator({
                         disabled={!accuracyConfirmed}
                         onClick={() => void acceptAll()}
                       >
-                        Use all {ready.length}
+                        {copy("aiUseAll", { count: ready.length })}
                       </Button>
                     </div>
                   ) : null}
                 </>
               ) : (
-                <span>An administrator needs to accept these images.</span>
+                <span>{copy("aiAdminMustAccept")}</span>
               )}
             </div>
           </Alert>
@@ -454,29 +458,30 @@ export function AiPhotoGenerator({
         {error ? <Alert tone="error">{error}</Alert> : null}
 
         {items.length === 0 ? (
-          <p className="qos-card-sub">Every item on this menu has a photo.</p>
+          <p className="qos-card-sub">{copy("aiEveryItemHasPhoto")}</p>
         ) : (
           <>
             <Checkbox
-              label="Select all"
+              label={copy("aiSelectAll")}
               checked={allState === "all"}
               indeterminate={allState === "some"}
               disabled={selectable.length === 0 || generating}
               onChange={() => setSelected(allState === "all" ? [] : selectable)}
             />
-            <ul className="qos-ai-list" aria-label="Items missing photos">
+            <ul className="qos-ai-list" aria-label={copy("aiItemsMissingPhotosLabel")}>
               {items.map((item) => {
                 const entry = effectiveAiPhotoItemProgress(
                   item.productPublicId,
                   progress[item.productPublicId],
                   aiPhotos,
+                  locale,
                 );
                 const isSelectable = selectable.includes(item.productPublicId);
                 const line = statusLine(item.productPublicId, entry);
                 return (
                   <li key={item.productPublicId} className="qos-ai-item">
                     <Checkbox
-                      label={<span className="sr-only">Select {item.displayName}</span>}
+                      label={<span className="sr-only">{copy("aiSelectItem", { name: item.displayName })}</span>}
                       checked={chosen.includes(item.productPublicId)}
                       disabled={!isSelectable || generating}
                       onChange={() => toggle(item.productPublicId)}
@@ -511,17 +516,17 @@ export function AiPhotoGenerator({
                           disabled={!accuracyConfirmed}
                           onClick={() => void acceptOne(entry.candidate)}
                         >
-                          Use
+                          {copy("aiUse")}
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => void reject(entry.candidate)}>
-                          Discard
+                          {staffUiCopy(locale, "discard")}
                         </Button>
                       </div>
                     ) : null}
                     {entry?.state === "ready" && !canAccept ? (
                       <div className="qos-ai-item-actions">
                         <Button size="sm" variant="ghost" onClick={() => void reject(entry.candidate)}>
-                          Discard
+                          {staffUiCopy(locale, "discard")}
                         </Button>
                       </div>
                     ) : null}
@@ -533,17 +538,17 @@ export function AiPhotoGenerator({
                           disabled={!accuracyConfirmed}
                           onClick={() => void acceptOne(entry.candidate, true)}
                         >
-                          Replace
+                          {copy("aiReplace")}
                         </Button>
                         <Button size="sm" variant="ghost" onClick={() => void reject(entry.candidate)}>
-                          Discard
+                          {staffUiCopy(locale, "discard")}
                         </Button>
                       </div>
                     ) : null}
                     {entry?.state === "stale" ? (
                       <div className="qos-ai-item-actions">
                         <Button size="sm" variant="ghost" onClick={() => void reject(entry.candidate)}>
-                          Discard
+                          {staffUiCopy(locale, "discard")}
                         </Button>
                       </div>
                     ) : null}

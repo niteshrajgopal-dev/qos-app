@@ -16,12 +16,23 @@ import {
 } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-view";
 import { MenuHealthPanel } from "@/app/tenants/[tenantId]/catalogue/menus/menu-health-panel";
 import { MenuPublishPanel } from "@/app/tenants/[tenantId]/catalogue/menus/menu-publish-panel";
+import {
+  menusCopy,
+  menusCount,
+  type MenusCopyKey,
+} from "@/app/tenants/[tenantId]/catalogue/menus/menus-copy";
 import { Button } from "@/components/Button";
 import { Icon } from "@/components/Icon";
 import { IconButton } from "@/components/IconButton";
 import { ConfirmDialog } from "@/components/Modal";
 import { publicProductThumbnailUrl } from "@/components/platform/catalogue-products-list";
+import {
+  PortalField,
+  PortalNotice,
+  PortalPanel,
+} from "@/components/portal/workspace/PortalWorkspace";
 import { Toast, ToastStack } from "@/components/Toast";
+import { Checkbox } from "@/design-system/components/primitives/Checkbox";
 import { Switch } from "@/design-system/components/primitives/Switch";
 import type { MenuHealthReport } from "@/lib/catalogue/menu-health";
 import type { MenuAiPhotosView } from "@/lib/media/ai-photos/ai-photo-candidates";
@@ -126,6 +137,8 @@ function normalizeSections(sections: SectionState[]) {
 
 export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
   const { locale } = useStaffLocale();
+  const copy = (key: MenusCopyKey, values?: Record<string, string | number>) =>
+    menusCopy(locale, key, values);
   const isEditMode = Boolean(menuPublicId);
   const [form, setForm] = useState<MenuEditorState>(createInitialState);
   const [baseline, setBaseline] = useState("");
@@ -241,16 +254,16 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
     };
 
     if (!productsResponse.ok) {
-      throw new Error(productsPayload.error ?? "Unable to load products.");
+      throw new Error(productsPayload.error ?? menusCopy(locale, "unableToLoadProducts"));
     }
 
     if (!locationsResponse.ok) {
-      throw new Error(locationsPayload.error ?? "Unable to load locations.");
+      throw new Error(locationsPayload.error ?? menusCopy(locale, "unableToLoadLocations"));
     }
 
     setProducts(productsPayload.products ?? []);
     setLocations(locationsPayload.locations ?? []);
-  }, [tenantId]);
+  }, [locale, tenantId]);
 
   const loadMenu = useCallback(async () => {
     if (!menuPublicId) {
@@ -272,18 +285,34 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to load menu.");
+        throw new Error(payload.error ?? menusCopy(locale, "unableToLoadMenu"));
       }
 
       if (!payload.menu) {
-        throw new Error("Menu payload is missing.");
+        throw new Error(menusCopy(locale, "menuPayloadMissing"));
       }
 
       applyMenuPayload(payload.menu);
     } finally {
       setLoading(false);
     }
-  }, [applyMenuPayload, loadSupportData, menuPublicId, tenantId]);
+  }, [applyMenuPayload, loadSupportData, locale, menuPublicId, tenantId]);
+
+  useEffect(() => {
+    if (isEditMode) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void loadSupportData().catch((supportError: unknown) => {
+        setError(
+          supportError instanceof Error
+            ? supportError.message
+            : menusCopy(locale, "unableToPrepareEditor"),
+        );
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isEditMode, loadSupportData, locale]);
 
   const savedMenuPublicId = isEditMode ? form.publicId : null;
 
@@ -303,17 +332,24 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         const view = payload.aiPhotos;
         setAiPhotos(view);
         setAiPhotosError(null);
-        setPhotoProgress((current) => mergeServerProgress(current, progressFromCandidates(view.candidates)));
+        setPhotoProgress((current) =>
+          mergeServerProgress(current, progressFromCandidates(view.candidates, locale)),
+        );
       } else {
         setAiPhotosError(
-          `AI photos could not be loaded (HTTP ${response.status}${payload.error ? `: ${payload.error}` : ""}).`,
+          payload.error
+            ? menusCopy(locale, "aiPhotosLoadFailedHttpDetail", {
+                status: response.status,
+                detail: payload.error,
+              })
+            : menusCopy(locale, "aiPhotosLoadFailedHttp", { status: response.status }),
         );
       }
     } catch {
       // AI photos are optional; the editor works without them.
-      setAiPhotosError("AI photos could not be loaded. Check your connection and try again.");
+      setAiPhotosError(menusCopy(locale, "aiPhotosLoadFailedNetwork"));
     }
-  }, [savedMenuPublicId, tenantId]);
+  }, [locale, savedMenuPublicId, tenantId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => void loadAiPhotos(), 0);
@@ -344,7 +380,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       refreshPhotos();
     } catch (removeError) {
       setError(
-        removeError instanceof Error ? removeError.message : "Unable to remove product photo.",
+        removeError instanceof Error ? removeError.message : copy("unableToRemovePhoto"),
       );
     } finally {
       setRemovingRowPhoto(null);
@@ -396,7 +432,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       setError(
         prepareError instanceof Error
           ? prepareError.message
-          : "Unable to prepare menu editor.",
+          : copy("unableToPrepareEditor"),
       );
     } finally {
       setLoading(false);
@@ -502,15 +538,15 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         };
 
         if (!response.ok) {
-          throw new Error(payload.error ?? "Unable to save menu.");
+          throw new Error(payload.error ?? copy("unableToSaveMenu"));
         }
 
         if (!payload.menu) {
-          throw new Error("Saved menu payload is missing.");
+          throw new Error(copy("savedPayloadMissing"));
         }
 
         applyMenuPayload(payload.menu);
-        setSavedMessage("Draft menu saved.");
+        setSavedMessage(copy("draftMenuSaved"));
         return;
       }
 
@@ -530,18 +566,18 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to create menu.");
+        throw new Error(payload.error ?? copy("unableToCreateMenu"));
       }
 
       if (!payload.menu) {
-        throw new Error("Created menu payload is missing.");
+        throw new Error(copy("createdPayloadMissing"));
       }
 
       applyMenuPayload(payload.menu);
-      setSavedMessage(`Draft menu ${payload.menu.publicId} created.`);
+      setSavedMessage(copy("draftMenuCreated", { id: payload.menu.publicId }));
     } catch (saveError) {
       setError(
-        saveError instanceof Error ? saveError.message : "Unable to save menu.",
+        saveError instanceof Error ? saveError.message : copy("unableToSaveMenu"),
       );
     } finally {
       setSaving(false);
@@ -550,44 +586,49 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
 
   if (!hasLoaded && !loading) {
     return (
-      <div className="space-y-4">
-        <p className="text-sm text-zinc-600">
-          {isEditMode
-            ? "Load the draft menu to begin editing."
-            : "Prepare the menu editor to begin."}
-        </p>
-        <button
-          type="button"
-          onClick={() =>
-            void (isEditMode ? loadMenu() : prepareNewMenu()).catch(
-              (loadError) => {
-                setError(
-                  loadError instanceof Error
-                    ? loadError.message
-                    : "Unable to load menu editor.",
-                );
-              },
-            )
-          }
-          className="qos-btn" data-variant="secondary"
-        >
-          {isEditMode ? "Load menu" : "Start new menu"}
-        </button>
-        {error ? (
-          <p className="qos-alert" data-tone="error">
-            {error}
+      <PortalPanel>
+        <div className="qosp-stack">
+          <p className="qosp-meta-line">
+            {copy(isEditMode ? "loadPromptEdit" : "loadPromptNew")}
           </p>
-        ) : null}
-      </div>
+          <div className="qosp-button-row">
+            <button
+              type="button"
+              onClick={() =>
+                void (isEditMode ? loadMenu() : prepareNewMenu()).catch(
+                  (loadError) => {
+                    setError(
+                      loadError instanceof Error
+                        ? loadError.message
+                        : copy("unableToLoadEditor"),
+                    );
+                  },
+                )
+              }
+              className="qos-btn"
+              data-variant="secondary"
+            >
+              {copy(isEditMode ? "loadMenu" : "startNewMenu")}
+            </button>
+          </div>
+          {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
+        </div>
+      </PortalPanel>
     );
   }
 
   if (loading) {
-    return <p className="text-sm text-zinc-600">Loading menu…</p>;
+    return (
+      <PortalPanel>
+        <p className="qosp-meta-line" role="status">
+          {copy("loadingMenu")}
+        </p>
+      </PortalPanel>
+    );
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="qosp-editor">
       {isEditMode && form.publicId ? (
         <MenuHealthPanel
           tenantId={tenantId}
@@ -598,15 +639,16 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         />
       ) : null}
 
-      <section className="qos-card" data-padding="md">
-        <h2 className="text-lg font-semibold">Menu details</h2>
-        <div className="mt-4 grid gap-4">
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-700">
-              Internal name
-            </span>
+      <section className="qosp-editor-section qosp-glass" aria-labelledby="menu-details-title">
+        <h2 id="menu-details-title" className="qosp-panel-title">
+          {copy("menuDetails")}
+        </h2>
+        <p className="qosp-panel-help">{copy("menuDetailsHelp")}</p>
+        <div className="qosp-panel-body qosp-form-grid">
+          <PortalField label={copy("internalName")}>
             <input
               className="qos-input"
+              dir="ltr"
               value={form.internalName}
               onChange={(event) =>
                 setForm((current) => ({
@@ -615,14 +657,13 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                 }))
               }
             />
-          </label>
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">
-                English menu name
-              </span>
+          </PortalField>
+          <div className="qosp-form-grid" data-columns="2">
+            <PortalField label={copy("englishMenuName")}>
               <input
                 className="qos-input"
+                dir="ltr"
+                lang="en"
                 value={form.translations.en.displayName}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -637,14 +678,12 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                   }))
                 }
               />
-            </label>
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">
-                Arabic menu name
-              </span>
+            </PortalField>
+            <PortalField label={copy("arabicMenuName")}>
               <input
-                dir="rtl"
                 className="qos-input"
+                dir="rtl"
+                lang="ar"
                 value={form.translations.ar.displayName}
                 onChange={(event) =>
                   setForm((current) => ({
@@ -659,17 +698,18 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                   }))
                 }
               />
-            </label>
+            </PortalField>
           </div>
-          <div>
-            <p className="text-sm font-medium text-zinc-700">Locations</p>
-            <div className="mt-2 flex flex-wrap gap-3">
-              {locations.map((location) => {
-                const checked = form.locationIds.includes(location.id);
-                return (
-                  <label key={location.id} className="flex items-center gap-2 text-sm">
-                    <input
-                      type="checkbox"
+          <fieldset className="qosp-choice-group">
+            <legend className="qosp-field-label">{copy("locations")}</legend>
+            {locations.length > 0 ? (
+              <div className="qosp-choice-row">
+                {locations.map((location) => {
+                  const checked = form.locationIds.includes(location.id);
+                  return (
+                    <Checkbox
+                      key={location.id}
+                      label={location.name}
                       checked={checked}
                       onChange={() =>
                         setForm((current) => ({
@@ -680,18 +720,24 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                         }))
                       }
                     />
-                    {location.name}
-                  </label>
-                );
-              })}
-            </div>
-          </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="qosp-meta-line">{copy("noLocations")}</p>
+            )}
+          </fieldset>
         </div>
       </section>
 
-      <section className="space-y-4">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-semibold">Sections</h2>
+      <section className="qosp-editor-section qosp-glass" aria-labelledby="menu-sections-title">
+        <div className="qosp-section-head">
+          <div>
+            <h2 id="menu-sections-title" className="qosp-panel-title">
+              {copy("sections")}
+            </h2>
+            <p className="qosp-panel-help">{copy("sectionsHelp")}</p>
+          </div>
           <button
             type="button"
             onClick={() =>
@@ -703,244 +749,242 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
                 ]),
               }))
             }
-            className="qos-btn" data-variant="secondary"
+            className="qos-btn"
+            data-variant="secondary"
           >
-            Add section
+            {copy("addSection")}
           </button>
         </div>
 
-        {form.sections.map((section, sectionIndex) => {
-          const sectionName =
-            section.translations.en.displayName || section.internalName || "Untitled section";
-          return (
-          <article key={section.publicId ?? `new-${sectionIndex}`} className="qos-menu-section">
-            <div className="qos-menu-section-head">
-              <button
-                type="button"
-                className="qos-menu-section-title"
-                aria-expanded={!section.collapsed}
-                onClick={() => updateSection(sectionIndex, (item) => ({ ...item, collapsed: !item.collapsed }))}
-              >
-                <div className="qos-menu-section-name">
-                  <span className="qos-status-dot" data-off={section.archived || undefined} aria-hidden="true" />
-                  {sectionName}
-                </div>
-                <div className="qos-menu-row-meta">
-                  {section.products.length} {section.products.length === 1 ? "item" : "items"}
-                  {section.archived ? " · Hidden" : ""}
-                </div>
-              </button>
-              <Switch
-                label={<span className="sr-only">Show {sectionName} on the menu</span>}
-                checked={!section.archived}
-                onChange={() => updateSection(sectionIndex, (item) => ({ ...item, archived: !item.archived }))}
-              />
-              <IconButton icon="arrow-up" label={`Move ${sectionName} up`} size="sm" disabled={sectionIndex === 0} onClick={() => moveSection(sectionIndex, -1)} />
-              <IconButton icon="arrow-down" label={`Move ${sectionName} down`} size="sm" disabled={sectionIndex === form.sections.length - 1} onClick={() => moveSection(sectionIndex, 1)} />
-              <IconButton
-                icon={section.collapsed ? "chevron-down" : "chevron-up"}
-                label={section.collapsed ? `Expand ${sectionName}` : `Collapse ${sectionName}`}
-                size="sm"
-                onClick={() => updateSection(sectionIndex, (item) => ({ ...item, collapsed: !item.collapsed }))}
-              />
-            </div>
-
-            {!section.collapsed ? (
-              <div className="qos-menu-section-body">
-                {section.products.length > 0 ? (
-                  <ul className="qos-menu-rows" style={{ listStyle: "none", margin: 0, padding: 0 }}>
-                    {section.products.map((product, productIndex) => {
-                      const thumbnailPublicId = thumbnails.get(product.productPublicId) ?? null;
-                      return (
-                        <li
-                          key={`${product.productPublicId}-${productIndex}`}
-                          className="qos-menu-row"
-                          data-muted={product.archived || undefined}
-                        >
-                          {thumbnailPublicId ? (
-                            <span className="qos-thumb">
-                              {/* eslint-disable-next-line @next/next/no-img-element -- matches catalogue thumbnails */}
-                              <img src={publicProductThumbnailUrl(thumbnailPublicId)} alt="" />
-                              {aiPhotoProducts.has(product.productPublicId) ? (
-                                <span className="qos-thumb-tag" title="AI-generated image">AI</span>
-                              ) : null}
-                            </span>
-                          ) : (
-                            <span className="qos-thumb" data-empty="true" title="No photo">
-                              <Icon name="camera" size={16} />
-                            </span>
-                          )}
-                          <div className="qos-menu-row-main">
-                            <div className="qos-menu-row-name">
-                              <span className="qos-status-dot" data-off={product.archived || undefined} aria-hidden="true" />
-                              {product.displayName}
-                            </div>
-                            <div className="qos-menu-row-meta">
-                              {product.archived ? "Hidden · " : ""}
-                              {thumbnailPublicId ? "" : "No photo · "}
-                              <code>{product.productPublicId}</code>
-                            </div>
-                          </div>
-                          <div className="qos-menu-row-actions">
-                            {thumbnailPublicId && aiPhotoProducts.has(product.productPublicId) ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                loading={removingRowPhoto === product.productPublicId}
-                                onClick={() => setPendingRemoveRowPhotoProductId(product.productPublicId)}
-                              >
-                                {staffUiCopy(locale, "removeProductPhoto")}
-                              </Button>
-                            ) : null}
-                            <Switch
-                              label={<span className="sr-only">Show {product.displayName} on the menu</span>}
-                              checked={!product.archived}
-                              onChange={() =>
-                                updateSection(sectionIndex, (item) => ({
-                                  ...item,
-                                  products: item.products.map((entry, idx) =>
-                                    idx === productIndex ? { ...entry, archived: !entry.archived } : entry,
-                                  ),
-                                }))
-                              }
-                            />
-                            <IconButton icon="arrow-up" label={`Move ${product.displayName} up`} size="sm" disabled={productIndex === 0} onClick={() => moveProduct(sectionIndex, productIndex, -1)} />
-                            <IconButton icon="arrow-down" label={`Move ${product.displayName} down`} size="sm" disabled={productIndex === section.products.length - 1} onClick={() => moveProduct(sectionIndex, productIndex, 1)} />
-                            <IconButton
-                              icon="trash-2"
-                              label={`Remove ${product.displayName}`}
-                              size="sm"
-                              onClick={() =>
-                                updateSection(sectionIndex, (item) => ({
-                                  ...item,
-                                  products: item.products.filter((_, idx) => idx !== productIndex),
-                                }))
-                              }
-                            />
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="qos-card-sub">No items in this section yet.</p>
-                )}
-
-                <div className="flex flex-wrap items-end gap-2">
-                  <label className="block min-w-0 flex-1 space-y-2">
-                    <span className="text-sm font-medium text-zinc-700">
-                      Add product
-                    </span>
-                    <select
-                      className="qos-input"
-                      defaultValue=""
-                      onChange={(event) => {
-                        const selected = products.find(
-                          (product) => product.publicId === event.target.value,
-                        );
-                        if (!selected) {
-                          return;
-                        }
-
-                        updateSection(sectionIndex, (item) => ({
-                          ...item,
-                          products: [
-                            ...item.products,
-                            {
-                              productPublicId: selected.publicId,
-                              displayName: selected.displayName,
-                              sortOrder: item.products.length,
-                              archived: false,
-                            },
-                          ],
-                        }));
-                        event.target.value = "";
-                      }}
-                    >
-                      <option value="">Select a product…</option>
-                      {products.map((product) => (
-                        <option key={product.publicId} value={product.publicId}>
-                          {product.displayName}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <Link
-                    href={`/tenants/${tenantId}/catalogue/products/new`}
-                    className="qos-btn" data-variant="secondary"
+        <div className="qosp-panel-body qosp-stack">
+          {form.sections.map((section, sectionIndex) => {
+            const sectionName =
+              (locale === "ar" ? section.translations.ar.displayName : "") ||
+              section.translations.en.displayName ||
+              section.internalName ||
+              copy("untitledSection");
+            const itemCount = menusCount(locale, "items", section.products.length);
+            return (
+              <article key={section.publicId ?? `new-${sectionIndex}`} className="qos-menu-section">
+                <div className="qos-menu-section-head">
+                  <button
+                    type="button"
+                    className="qos-menu-section-title"
+                    aria-expanded={!section.collapsed}
+                    onClick={() => updateSection(sectionIndex, (item) => ({ ...item, collapsed: !item.collapsed }))}
                   >
-                    New product
-                  </Link>
+                    <div className="qos-menu-section-name">
+                      <span className="qos-status-dot" data-off={section.archived || undefined} aria-hidden="true" />
+                      {sectionName}
+                    </div>
+                    <div className="qos-menu-row-meta">
+                      {section.archived ? `${itemCount} · ${copy("hidden")}` : itemCount}
+                    </div>
+                  </button>
+                  <Switch
+                    label={<span className="sr-only">{copy("showOnMenu", { name: sectionName })}</span>}
+                    checked={!section.archived}
+                    onChange={() => updateSection(sectionIndex, (item) => ({ ...item, archived: !item.archived }))}
+                  />
+                  <IconButton icon="arrow-up" label={copy("moveNamedUp", { name: sectionName })} size="sm" disabled={sectionIndex === 0} onClick={() => moveSection(sectionIndex, -1)} />
+                  <IconButton icon="arrow-down" label={copy("moveNamedDown", { name: sectionName })} size="sm" disabled={sectionIndex === form.sections.length - 1} onClick={() => moveSection(sectionIndex, 1)} />
+                  <IconButton
+                    icon={section.collapsed ? "chevron-down" : "chevron-up"}
+                    label={copy(section.collapsed ? "expandNamed" : "collapseNamed", { name: sectionName })}
+                    size="sm"
+                    onClick={() => updateSection(sectionIndex, (item) => ({ ...item, collapsed: !item.collapsed }))}
+                  />
                 </div>
 
-                <details>
-                  <summary className="cursor-pointer text-sm font-medium text-zinc-700">
-                    Section names
-                  </summary>
-                  <div className="mt-3 grid gap-4 md:grid-cols-2">
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-zinc-700">
-                        Internal section name
-                      </span>
-                      <input
-                        className="qos-input"
-                        value={section.internalName}
-                        onChange={(event) =>
-                          updateSection(sectionIndex, (item) => ({ ...item, internalName: event.target.value }))
-                        }
-                      />
-                    </label>
-                    <label className="block space-y-2">
-                      <span className="text-sm font-medium text-zinc-700">
-                        English section label
-                      </span>
-                      <input
-                        className="qos-input"
-                        value={section.translations.en.displayName}
-                        onChange={(event) =>
-                          updateSection(sectionIndex, (item) => ({
-                            ...item,
-                            translations: {
-                              ...item.translations,
-                              en: { ...item.translations.en, displayName: event.target.value },
-                            },
-                          }))
-                        }
-                      />
-                    </label>
-                    <label className="block space-y-2 md:col-span-2">
-                      <span className="text-sm font-medium text-zinc-700">
-                        Arabic section label
-                      </span>
-                      <input
-                        dir="rtl"
-                        className="qos-input"
-                        value={section.translations.ar.displayName}
-                        onChange={(event) =>
-                          updateSection(sectionIndex, (item) => ({
-                            ...item,
-                            translations: {
-                              ...item.translations,
-                              ar: { ...item.translations.ar, displayName: event.target.value },
-                            },
-                          }))
-                        }
-                      />
-                    </label>
+                {!section.collapsed ? (
+                  <div className="qos-menu-section-body">
+                    {section.products.length > 0 ? (
+                      <ul className="qos-menu-rows qosp-plain-list">
+                        {section.products.map((product, productIndex) => {
+                          const thumbnailPublicId = thumbnails.get(product.productPublicId) ?? null;
+                          const rowMeta = [
+                            product.archived ? copy("hidden") : null,
+                            thumbnailPublicId ? null : copy("noPhoto"),
+                          ].filter(Boolean);
+                          return (
+                            <li
+                              key={`${product.productPublicId}-${productIndex}`}
+                              className="qos-menu-row"
+                              data-muted={product.archived || undefined}
+                            >
+                              {thumbnailPublicId ? (
+                                <span className="qos-thumb">
+                                  {/* eslint-disable-next-line @next/next/no-img-element -- matches catalogue thumbnails */}
+                                  <img src={publicProductThumbnailUrl(thumbnailPublicId)} alt="" />
+                                  {aiPhotoProducts.has(product.productPublicId) ? (
+                                    <span className="qos-thumb-tag" title={staffUiCopy(locale, "aiGeneratedImageTitle")}>AI</span>
+                                  ) : null}
+                                </span>
+                              ) : (
+                                <span className="qos-thumb" data-empty="true" title={copy("noPhoto")}>
+                                  <Icon name="camera" size={16} />
+                                </span>
+                              )}
+                              <div className="qos-menu-row-main">
+                                <div className="qos-menu-row-name">
+                                  <span className="qos-status-dot" data-off={product.archived || undefined} aria-hidden="true" />
+                                  {product.displayName}
+                                </div>
+                                <div className="qos-menu-row-meta">
+                                  {rowMeta.length > 0 ? `${rowMeta.join(" · ")} · ` : ""}
+                                  <code dir="ltr">{product.productPublicId}</code>
+                                </div>
+                              </div>
+                              <div className="qos-menu-row-actions">
+                                {thumbnailPublicId && aiPhotoProducts.has(product.productPublicId) ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    loading={removingRowPhoto === product.productPublicId}
+                                    onClick={() => setPendingRemoveRowPhotoProductId(product.productPublicId)}
+                                  >
+                                    {staffUiCopy(locale, "removeProductPhoto")}
+                                  </Button>
+                                ) : null}
+                                <Switch
+                                  label={<span className="sr-only">{copy("showOnMenu", { name: product.displayName })}</span>}
+                                  checked={!product.archived}
+                                  onChange={() =>
+                                    updateSection(sectionIndex, (item) => ({
+                                      ...item,
+                                      products: item.products.map((entry, idx) =>
+                                        idx === productIndex ? { ...entry, archived: !entry.archived } : entry,
+                                      ),
+                                    }))
+                                  }
+                                />
+                                <IconButton icon="arrow-up" label={copy("moveNamedUp", { name: product.displayName })} size="sm" disabled={productIndex === 0} onClick={() => moveProduct(sectionIndex, productIndex, -1)} />
+                                <IconButton icon="arrow-down" label={copy("moveNamedDown", { name: product.displayName })} size="sm" disabled={productIndex === section.products.length - 1} onClick={() => moveProduct(sectionIndex, productIndex, 1)} />
+                                <IconButton
+                                  icon="trash-2"
+                                  label={copy("removeNamed", { name: product.displayName })}
+                                  size="sm"
+                                  onClick={() =>
+                                    updateSection(sectionIndex, (item) => ({
+                                      ...item,
+                                      products: item.products.filter((_, idx) => idx !== productIndex),
+                                    }))
+                                  }
+                                />
+                              </div>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    ) : (
+                      <p className="qosp-meta-line">{copy("noItemsInSection")}</p>
+                    )}
+
+                    <div className="qosp-attach-row">
+                      <PortalField label={copy("addProduct")}>
+                        <select
+                          className="qos-input"
+                          defaultValue=""
+                          onChange={(event) => {
+                            const selected = products.find(
+                              (product) => product.publicId === event.target.value,
+                            );
+                            if (!selected) {
+                              return;
+                            }
+
+                            updateSection(sectionIndex, (item) => ({
+                              ...item,
+                              products: [
+                                ...item.products,
+                                {
+                                  productPublicId: selected.publicId,
+                                  displayName: selected.displayName,
+                                  sortOrder: item.products.length,
+                                  archived: false,
+                                },
+                              ],
+                            }));
+                            event.target.value = "";
+                          }}
+                        >
+                          <option value="">{copy("selectProduct")}</option>
+                          {products.map((product) => (
+                            <option key={product.publicId} value={product.publicId}>
+                              {product.displayName}
+                            </option>
+                          ))}
+                        </select>
+                      </PortalField>
+                      <Link
+                        href={`/tenants/${tenantId}/catalogue/products/new`}
+                        className="qos-btn"
+                        data-variant="secondary"
+                      >
+                        {staffUiCopy(locale, "newProduct")}
+                      </Link>
+                    </div>
+
+                    <details className="qosp-details">
+                      <summary>{copy("sectionNames")}</summary>
+                      <div className="qosp-form-grid" data-columns="2">
+                        <PortalField label={copy("internalSectionName")}>
+                          <input
+                            className="qos-input"
+                            dir="ltr"
+                            value={section.internalName}
+                            onChange={(event) =>
+                              updateSection(sectionIndex, (item) => ({ ...item, internalName: event.target.value }))
+                            }
+                          />
+                        </PortalField>
+                        <PortalField label={copy("englishSectionLabel")}>
+                          <input
+                            className="qos-input"
+                            dir="ltr"
+                            lang="en"
+                            value={section.translations.en.displayName}
+                            onChange={(event) =>
+                              updateSection(sectionIndex, (item) => ({
+                                ...item,
+                                translations: {
+                                  ...item.translations,
+                                  en: { ...item.translations.en, displayName: event.target.value },
+                                },
+                              }))
+                            }
+                          />
+                        </PortalField>
+                        <div className="qosp-span-full">
+                          <PortalField label={copy("arabicSectionLabel")}>
+                            <input
+                              className="qos-input"
+                              dir="rtl"
+                              lang="ar"
+                              value={section.translations.ar.displayName}
+                              onChange={(event) =>
+                                updateSection(sectionIndex, (item) => ({
+                                  ...item,
+                                  translations: {
+                                    ...item.translations,
+                                    ar: { ...item.translations.ar, displayName: event.target.value },
+                                  },
+                                }))
+                              }
+                            />
+                          </PortalField>
+                        </div>
+                      </div>
+                    </details>
                   </div>
-                </details>
-              </div>
-            ) : null}
-          </article>
-          );
-        })}
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
       </section>
 
-      {error ? (
-        <p className="qos-alert" data-tone="error">
-          {error}
-        </p>
-      ) : null}
+      {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
 
       {savedMessage ? (
         <ToastStack>
@@ -1005,52 +1049,56 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         />
       ) : null}
 
-      <div className="sticky bottom-4 z-20 grid min-w-0 grid-cols-1 gap-3">
-      {isEditMode && photoSummary && photoSummary.needPhotos > 0 && !photoSheetOpen ? (
-        <div className="qos-ai-bar" role="region" aria-label="AI photos">
-          <span className="qos-ai-bar-icon" aria-hidden="true">
-            <Icon name="sparkles" size={20} />
-          </span>
-          <div className="qos-ai-bar-text">
-            <div className="qos-ai-bar-title">{itemsNeedPhotosLabel(photoSummary.needPhotos)}</div>
-            <div className="qos-ai-bar-sub">Generate with AI, then review before use</div>
+      <div className="qosp-savebar-stack">
+        {isEditMode && photoSummary && photoSummary.needPhotos > 0 && !photoSheetOpen ? (
+          <div className="qos-ai-bar" role="region" aria-label={copy("aiPhotosRegion")}>
+            <span className="qos-ai-bar-icon" aria-hidden="true">
+              <Icon name="sparkles" size={20} />
+            </span>
+            <div className="qos-ai-bar-text">
+              <div className="qos-ai-bar-title">{itemsNeedPhotosLabel(photoSummary.needPhotos, locale)}</div>
+              <div className="qos-ai-bar-sub">{copy("aiBarSub")}</div>
+            </div>
+            <Button size="sm" icon="sparkles" onClick={() => setPhotoSheetOpen(true)}>
+              {copy("generate")}
+            </Button>
           </div>
-          <Button size="sm" icon="sparkles" onClick={() => setPhotoSheetOpen(true)}>
-            Generate
-          </Button>
+        ) : null}
+        <div className="qosp-savebar">
+          <p>
+            {isDirty
+              ? staffUiCopy(locale, "productEditorUnsavedChanges")
+              : staffUiCopy(locale, "productEditorAllSavedLocally")}
+            {form.publicId ? (
+              <>
+                {" "}
+                · {copy("menuLabel")}{" "}
+                <code className="qosp-code" dir="ltr">{form.publicId}</code> ·{" "}
+                {copy("versionLabel")} {form.version}
+              </>
+            ) : null}
+          </p>
+          <div className="qosp-button-row">
+            <button
+              type="button"
+              onClick={requestResetForm}
+              disabled={!isDirty || saving}
+              className="qos-btn"
+              data-variant="secondary"
+            >
+              {staffUiCopy(locale, "cancel")}
+            </button>
+            <button
+              type="button"
+              disabled={saving}
+              onClick={() => void saveMenu()}
+              className="qos-btn"
+              data-variant="primary"
+            >
+              {saving ? copy("saving") : copy("saveDraft")}
+            </button>
+          </div>
         </div>
-      ) : null}
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
-        <p className="min-w-0 text-sm text-zinc-600">
-          {isDirty
-            ? staffUiCopy(locale, "productEditorUnsavedChanges")
-            : staffUiCopy(locale, "productEditorAllSavedLocally")}
-          {form.publicId ? (
-            <>
-              {" "}
-              · Menu <code className="break-all">{form.publicId}</code> · Version {form.version}
-            </>
-          ) : null}
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={requestResetForm}
-            disabled={!isDirty || saving}
-            className="qos-btn" data-variant="secondary"
-          >
-            {staffUiCopy(locale, "cancel")}
-          </button>
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void saveMenu()}
-            className="qos-btn" data-variant="primary"
-          >
-            {saving ? "Saving…" : "Save draft"}
-          </button>
-        </div>
-      </div>
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import {
   productFixHref,
+  severityLabel,
   SEVERITY_BADGE_TONE,
 } from "@/app/tenants/[tenantId]/catalogue/menus/menu-health-view";
 import {
@@ -20,19 +21,25 @@ import {
   productNameLookup,
   readMenuManagerResult,
   runStatusCopy,
+  suggestionFieldLabel,
   suggestionIdentityKey,
-  SUGGESTION_FIELD_LABEL,
-  UNRESOLVED_RESTART_COPY,
+  unresolvedRestartCopy,
   type MenuManagerRunLike,
   type MenuManagerSuggestion,
 } from "@/app/tenants/[tenantId]/catalogue/menus/menu-manager-view";
+import {
+  menusCopy,
+  menusCount,
+  type MenusCopyKey,
+} from "@/app/tenants/[tenantId]/catalogue/menus/menus-copy";
 import { Alert } from "@/components/Alert";
 import { Badge } from "@/components/Badge";
 import { Button } from "@/components/Button";
-import { Card } from "@/components/Card";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { IntelligenceCard } from "@/design-system/components/intelligence/IntelligenceCard";
 import type { MenuHealthReport } from "@/lib/catalogue/menu-health";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type MenuManagerSectionProps = {
   tenantId: string;
@@ -81,6 +88,9 @@ export function MenuManagerSection({
   selectedProductPublicIds,
   onClearSelection,
 }: MenuManagerSectionProps) {
+  const { locale } = useStaffLocale();
+  const copy = (key: MenusCopyKey, values?: Record<string, string | number>) =>
+    menusCopy(locale, key, values);
   const [run, setRun] = useState<MenuManagerRunLike | null>(null);
   const [readyRun, setReadyRun] = useState<MenuManagerRunLike | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -101,12 +111,12 @@ export function MenuManagerSection({
       const response = await staffApiFetch(`${runsPath}/${runPublicId}`);
       const payload = await readPayload(response);
       if (!response.ok || !payload.run) {
-        throw new Error(payload.error ?? "Unable to load the review.");
+        throw new Error(payload.error ?? menusCopy(locale, "managerUnableToLoadReview"));
       }
       applyRunsPayload(payload, setRun, setReadyRun, setAccepted);
       setError(null);
     },
-    [runsPath],
+    [locale, runsPath],
   );
 
   useEffect(() => {
@@ -143,11 +153,13 @@ export function MenuManagerSection({
     }
     const timer = window.setTimeout(() => {
       loadRun(run.publicId).catch((pollError: unknown) => {
-        setError(pollError instanceof Error ? pollError.message : "Unable to load the review.");
+        setError(
+          pollError instanceof Error ? pollError.message : menusCopy(locale, "managerUnableToLoadReview"),
+        );
       });
     }, delay);
     return () => window.clearTimeout(timer);
-  }, [loadRun, run, visible]);
+  }, [loadRun, locale, run, visible]);
 
   async function ask(acknowledgeUnresolvedRunPublicId?: string) {
     const idempotencyKey = pendingKey ?? newIdempotencyKey();
@@ -174,9 +186,7 @@ export function MenuManagerSection({
         return;
       }
       if (payload.code === "run_in_progress" && payload.activeRunPublicId) {
-        setError(
-          "A review is already in progress for this menu. QOS reconnected to it; wait for it to finish or fail before starting another.",
-        );
+        setError(copy("managerRunInProgress"));
         await loadRun(payload.activeRunPublicId);
         return;
       }
@@ -184,9 +194,9 @@ export function MenuManagerSection({
         setUnresolvedRunPublicId(payload.unresolvedRunPublicId);
         return;
       }
-      setError(payload.error ?? "Unable to start the review.");
+      setError(payload.error ?? copy("managerUnableToStart"));
     } catch {
-      setError("QOS could not be reached. Try again; the same request will be reused.");
+      setError(copy("managerUnreachable"));
     } finally {
       setAsking(false);
     }
@@ -215,20 +225,20 @@ export function MenuManagerSection({
         acceptedSuggestionKeys?: string[];
       };
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to apply the suggestion.");
+        throw new Error(payload.error ?? copy("managerUnableToApply"));
       }
       setAccepted({
         runPublicId: acceptRun.publicId,
         keys: new Set(payload.acceptedSuggestionKeys ?? [key]),
       });
     } catch (acceptError: unknown) {
-      setError(acceptError instanceof Error ? acceptError.message : "Unable to apply the suggestion.");
+      setError(acceptError instanceof Error ? acceptError.message : copy("managerUnableToApply"));
     } finally {
       setAcceptingKey(null);
     }
   }
 
-  async function copy(text: string, id: string) {
+  async function copyText(text: string, id: string) {
     try {
       await navigator.clipboard.writeText(text);
       setCopied(id);
@@ -243,7 +253,7 @@ export function MenuManagerSection({
     runStatus: run?.status ?? null,
     unresolvedRunPublicId,
   });
-  const status = run ? runStatusCopy(run) : null;
+  const status = run ? runStatusCopy(run, locale) : null;
   const reviewRun = readyRun ?? (run?.status === "completed" ? run : null);
   const result = reviewRun ? readMenuManagerResult(reviewRun.result) : null;
   const showingReadyAfterFailure = readyRun !== null && run?.status === "failed";
@@ -251,11 +261,21 @@ export function MenuManagerSection({
   const productName = productNameLookup(report);
   const selectedCount = selectedProductPublicIds.length;
 
+  const intelligenceLabel = (kindKey: MenusCopyKey) =>
+    copy("managerIntelligenceKind", { kind: copy(kindKey) });
+  const factKind = copy("claimSystemFact");
+  const markFacts = (claims: Array<{ kind: string; text: string }>) =>
+    claims.map((claim) => ({ ...claim, isFact: claim.kind === factKind }));
+
   return (
-    <Card
-      header="Menu Manager"
-      subtitle="AI review of the saved draft. QOS sends a snapshot of this menu and changes nothing automatically."
-      actions={
+    <section className="qosp-editor-section qosp-glass" aria-labelledby="menu-manager-title">
+      <div className="qosp-section-head">
+        <div>
+          <h2 id="menu-manager-title" className="qosp-panel-title">
+            {copy("managerTitle")}
+          </h2>
+          <p className="qosp-panel-help">{copy("managerSubtitle")}</p>
+        </div>
         <Button
           variant="intelligence"
           size="sm"
@@ -268,26 +288,26 @@ export function MenuManagerSection({
         >
           {run && !active
             ? selectedCount > 0
-              ? askButtonLabel(selectedCount)
+              ? askButtonLabel(selectedCount, locale)
               : run.remoteOutcomeUnknown
-                ? "Start a new review"
-                : "Ask again"
-            : askButtonLabel(selectedCount)}
+                ? copy("managerStartNewReview")
+                : copy("managerAskAgain")
+            : askButtonLabel(selectedCount, locale)}
         </Button>
-      }
-    >
-      <div style={{ display: "grid", gap: 12 }}>
+      </div>
+
+      <div className="qosp-panel-body qosp-stack">
         {selectedCount > 0 ? (
-          <p className="qos-card-sub">
-            {selectedCount} {selectedCount === 1 ? "item" : "items"} selected from menu health.{" "}
+          <p className="qosp-meta-line">
+            {menusCount(locale, "selectedFromHealth", selectedCount)}{" "}
             <button type="button" className="qos-btn" data-variant="ghost" data-size="sm" onClick={onClearSelection}>
-              Clear selection
+              {copy("managerClearSelection")}
             </button>
           </p>
         ) : null}
 
         {error ? (
-          <Alert tone="error" title="Menu Manager">
+          <Alert tone="error" title={copy("managerTitle")}>
             {error}
           </Alert>
         ) : null}
@@ -295,7 +315,7 @@ export function MenuManagerSection({
         {unresolvedRunPublicId ? (
           <Alert
             tone="warning"
-            title="Start a new review?"
+            title={copy("managerStartNewReviewQuestion")}
             actions={
               <>
                 <Button
@@ -304,15 +324,15 @@ export function MenuManagerSection({
                   loading={asking}
                   onClick={() => void ask(unresolvedRunPublicId)}
                 >
-                  Start a new review
+                  {copy("managerStartNewReview")}
                 </Button>
                 <Button variant="ghost" size="sm" onClick={() => setUnresolvedRunPublicId(null)}>
-                  Cancel
+                  {staffUiCopy(locale, "cancel")}
                 </Button>
               </>
             }
           >
-            {UNRESOLVED_RESTART_COPY}
+            {unresolvedRestartCopy(locale)}
           </Alert>
         ) : null}
 
@@ -321,55 +341,51 @@ export function MenuManagerSection({
             {run.status === "failed" && run.remoteOutcomeUnknown
               ? status.description
               : run.status === "failed"
-                ? failureCopy(run.failureCode)
+                ? failureCopy(run.failureCode, locale)
                 : status.description}
           </Alert>
         ) : null}
 
         {showingReadyAfterFailure ? (
-          <Alert tone="info" title="Showing your last successful review">
-            The latest attempt failed (above). Suggestions below are from your last ready review and can still be
-            accepted when they match the current draft.
+          <Alert tone="info" title={copy("managerShowingLastTitle")}>
+            {copy("managerShowingLastBody")}
           </Alert>
         ) : null}
 
-        {!run && !error ? (
-          <p className="qos-card-sub">
-            Ask QOS for a second opinion on missing photos, descriptions, translations, pricing,
-            categories, modifiers, availability and duplicates.
-          </p>
-        ) : null}
+        {!run && !error ? <p className="qosp-meta-line">{copy("managerIntro")}</p> : null}
 
         {result ? (
-          <div style={{ display: "grid", gap: 12 }}>
+          <div className="qosp-stack">
             {isReviewOutdated(result, menuVersion) ? (
-              <Alert tone="info" title="The draft changed since this review">
-                This review used draft v{result.menuVersion}. Ask again to review the latest save.
+              <Alert tone="info" title={copy("managerOutdatedTitle")}>
+                {copy("managerOutdatedBody", { version: result.menuVersion ?? "" })}
               </Alert>
             ) : null}
 
             <IntelligenceCard
               kind="Summary"
-              title="Menu Manager review"
-              claims={[{ kind: "AI interpretation", text: result.summary }]}
+              kindLabel={intelligenceLabel("managerKindSummary")}
+              title={copy("managerReviewTitle")}
+              claims={[{ kind: copy("claimAiInterpretation"), text: result.summary }]}
             />
 
             {result.findings.map((finding, index) => (
               <IntelligenceCard
                 key={`finding-${index}`}
                 kind="Recommendation"
+                kindLabel={intelligenceLabel("managerKindRecommendation")}
                 title={
-                  <span style={{ display: "inline-flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ display: "inline-flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                     {finding.title}
                     <Badge tone={SEVERITY_BADGE_TONE[finding.severity]}>
-                      {finding.severity}
+                      {severityLabel(finding.severity, locale)}
                     </Badge>
                   </span>
                 }
-                claims={findingClaims(finding, report)}
+                claims={markFacts(findingClaims(finding, report, locale))}
               >
                 {finding.productPublicIds.length > 0 ? (
-                  <ul style={{ display: "flex", flexWrap: "wrap", gap: 8, listStyle: "none", padding: 0, margin: "8px 0 0" }}>
+                  <ul className="qosp-button-row qosp-plain-list" style={{ marginTop: 8 }}>
                     {finding.productPublicIds.map((productPublicId) => (
                       <li key={productPublicId}>
                         <Link
@@ -402,10 +418,13 @@ export function MenuManagerSection({
                 <IntelligenceCard
                   key={id}
                   kind="Draft suggestion"
-                  title={`${productName(suggestion.productPublicId)} · ${SUGGESTION_FIELD_LABEL[suggestion.field]}`}
+                  kindLabel={intelligenceLabel("managerKindDraftSuggestion")}
+                  title={`${productName(suggestion.productPublicId)} · ${suggestionFieldLabel(suggestion.field, locale)}`}
                   claims={[
-                    { kind: "AI recommendation", text: suggestion.proposedText },
-                    ...(suggestion.rationale ? [{ kind: "AI interpretation", text: suggestion.rationale }] : []),
+                    { kind: copy("claimAiRecommendation"), text: suggestion.proposedText },
+                    ...(suggestion.rationale
+                      ? [{ kind: copy("claimAiInterpretation"), text: suggestion.rationale }]
+                      : []),
                   ]}
                   actions={
                     <>
@@ -416,10 +435,10 @@ export function MenuManagerSection({
                         disabled={!acceptEnabled || applied || acceptingKey !== null}
                         onClick={() => void acceptSuggestion(suggestion)}
                       >
-                        {applied ? "Applied to draft" : "Accept"}
+                        {applied ? copy("managerAppliedToDraft") : copy("managerAccept")}
                       </Button>
-                      <Button variant="secondary" size="sm" onClick={() => void copy(suggestion.proposedText, id)}>
-                        {copied === id ? "Copied" : "Copy text"}
+                      <Button variant="secondary" size="sm" onClick={() => void copyText(suggestion.proposedText, id)}>
+                        {copied === id ? copy("managerCopied") : copy("managerCopyText")}
                       </Button>
                       <Link
                         href={productFixHref(tenantId, suggestion.productPublicId, "missing_description")}
@@ -427,7 +446,7 @@ export function MenuManagerSection({
                         data-variant="ghost"
                         data-size="sm"
                       >
-                        Open item
+                        {copy("managerOpenItem")}
                       </Link>
                     </>
                   }
@@ -436,17 +455,17 @@ export function MenuManagerSection({
             })}
 
             {result.findings.length === 0 && result.suggestions.length === 0 ? (
-              <p className="qos-card-sub">The Menu Manager found nothing to add.</p>
+              <p className="qosp-meta-line">{copy("managerNothingToAdd")}</p>
             ) : null}
           </div>
         ) : null}
 
         {reviewRun?.status === "completed" && !result ? (
-          <Alert tone="warning" title="Review could not be shown">
-            The stored review is not in a format this screen can display.
+          <Alert tone="warning" title={copy("managerCannotShowTitle")}>
+            {copy("managerCannotShowBody")}
           </Alert>
         ) : null}
       </div>
-    </Card>
+    </section>
   );
 }
