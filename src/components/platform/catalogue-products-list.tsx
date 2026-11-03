@@ -32,6 +32,12 @@ import {
   type StaffLocale,
 } from "@/lib/staff/locale";
 import {
+  ProductCardCategory,
+  ProductCardPrice,
+  type ProductSummaryCategory,
+  type ProductSummaryPrice,
+} from "./catalogue-product-card-facts";
+import {
   filterProducts,
   paginateProducts,
 } from "./catalogue-products-filter";
@@ -42,6 +48,8 @@ export type ProductSummary = {
   displayName: string;
   status: string;
   thumbnailPublicId: string | null;
+  defaultPrice: ProductSummaryPrice | null;
+  category: ProductSummaryCategory | null;
 };
 
 export function publicProductThumbnailUrl(thumbnailPublicId: string) {
@@ -370,7 +378,11 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
                   </span>
                 </div>
                 <div className="qosp-product-info">
-                  <span className="qosp-product-meta">{product.internalName}</span>
+                  <ProductCardCategory
+                    locale={locale}
+                    category={product.category}
+                    fallback={product.internalName}
+                  />
                   <h2 className="qosp-product-name">
                     <Link
                       className="qosp-product-link"
@@ -380,6 +392,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
                     </Link>
                   </h2>
                   <div className="qosp-product-foot">
+                    <ProductCardPrice locale={locale} price={product.defaultPrice} />
                     <PortalBadge tone={badge.tone}>{badge.label}</PortalBadge>
                     {isArchivedTab ? (
                       <Button

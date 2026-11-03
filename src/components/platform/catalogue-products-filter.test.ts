@@ -16,6 +16,8 @@ const mockActiveProducts: ProductSummary[] = [
     displayName: "Flat White",
     status: "active",
     thumbnailPublicId: null,
+    defaultPrice: null,
+    category: null,
   },
   {
     publicId: "prd_2",
@@ -23,6 +25,8 @@ const mockActiveProducts: ProductSummary[] = [
     displayName: "Latte",
     status: "draft",
     thumbnailPublicId: null,
+    defaultPrice: null,
+    category: null,
   },
   {
     publicId: "prd_3",
@@ -30,6 +34,8 @@ const mockActiveProducts: ProductSummary[] = [
     displayName: "Cortado",
     status: "active",
     thumbnailPublicId: null,
+    defaultPrice: null,
+    category: null,
   },
   {
     publicId: "prd_5",
@@ -37,6 +43,8 @@ const mockActiveProducts: ProductSummary[] = [
     displayName: "Demo Latte",
     status: "draft",
     thumbnailPublicId: null,
+    defaultPrice: null,
+    category: null,
   },
 ];
 
@@ -47,6 +55,8 @@ const mockArchivedProducts: ProductSummary[] = [
     displayName: "Cold Brew",
     status: "archived",
     thumbnailPublicId: null,
+    defaultPrice: null,
+    category: null,
   },
 ];
 

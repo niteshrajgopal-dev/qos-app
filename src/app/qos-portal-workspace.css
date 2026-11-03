@@ -663,6 +663,15 @@ article.qosp-subcard > .qosp-button-row {
   justify-content: space-between;
   gap: 10px;
 }
+.qosp-product-price {
+  font-size: 15px;
+  color: var(--portal-text);
+  font-variant-numeric: tabular-nums;
+}
+.qosp-product-price[data-empty="true"] {
+  font-size: 12px;
+  color: var(--portal-muted);
+}
 .qosp-product-foot .qos-btn {
   position: relative;
   z-index: 2;
