@@ -29,8 +29,9 @@ import {
   fetchCatalogueProductVersion,
   removeProductPrimaryPhotoClient,
 } from "@/lib/media/remove-product-primary-photo-client";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type TranslationState = {
   displayName: string;
@@ -124,7 +125,7 @@ function normalizeSections(sections: SectionState[]) {
 }
 
 export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
-  const locale = readStoredStaffLocale();
+  const { locale } = useStaffLocale();
   const isEditMode = Boolean(menuPublicId);
   const [form, setForm] = useState<MenuEditorState>(createInitialState);
   const [baseline, setBaseline] = useState("");
@@ -954,10 +955,10 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       <ConfirmDialog
         open={discardOpen}
         tone="danger"
-        title="Discard unsaved changes to this draft menu?"
-        description="The current draft will revert to the last saved version."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        title={staffUiCopy(locale, "discardUnsavedMenuTitle")}
+        description={staffUiCopy(locale, "discardUnsavedProductDescription")}
+        confirmLabel={staffUiCopy(locale, "discard")}
+        cancelLabel={staffUiCopy(locale, "keepEditing")}
         onClose={() => setDiscardOpen(false)}
         onConfirm={resetForm}
       />
@@ -968,7 +969,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
         title={staffUiCopy(locale, "removeProductPhotoConfirmTitle")}
         description={staffUiCopy(locale, "removeProductPhotoConfirmDescription")}
         confirmLabel={staffUiCopy(locale, "removeProductPhotoConfirmLabel")}
-        cancelLabel="Cancel"
+        cancelLabel={staffUiCopy(locale, "cancel")}
         onClose={() => setPendingRemoveRowPhotoProductId(null)}
         onConfirm={() => {
           const productPublicId = pendingRemoveRowPhotoProductId;
@@ -1021,7 +1022,9 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
       ) : null}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
         <p className="min-w-0 text-sm text-zinc-600">
-          {isDirty ? "Unsaved changes" : "All changes saved locally"}
+          {isDirty
+            ? staffUiCopy(locale, "productEditorUnsavedChanges")
+            : staffUiCopy(locale, "productEditorAllSavedLocally")}
           {form.publicId ? (
             <>
               {" "}
@@ -1036,7 +1039,7 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
             disabled={!isDirty || saving}
             className="qos-btn" data-variant="secondary"
           >
-            Cancel
+            {staffUiCopy(locale, "cancel")}
           </button>
           <button
             type="button"

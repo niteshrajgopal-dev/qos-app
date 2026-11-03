@@ -1,8 +1,16 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
+import { useEffect } from "react";
+
 import { PortalOverview } from "@/components/portal/PortalOverview";
 import { PortalScene } from "@/components/portal/PortalScene";
 import { PortalTopBar } from "@/components/portal/PortalTopBar";
+import {
+  isStaffLocale,
+  setStoredStaffLocale,
+  type StaffLocale,
+} from "@/lib/staff/locale";
 import type { TenantOverview, TenantOverviewBranch } from "@/lib/staff/overview";
 
 const FIXTURE_OVERVIEW: TenantOverview = {
@@ -31,10 +39,21 @@ const FIXTURE_BRANCHES: TenantOverviewBranch[] = [
   },
 ];
 
+function harnessLocale(value: string | null): StaffLocale {
+  return isStaffLocale(value) ? value : "en";
+}
+
 /** Static overview shell for layout measurement (non-production only). */
 export function OverviewLayoutHarnessClient() {
+  const searchParams = useSearchParams();
+  const locale = harnessLocale(searchParams.get("locale"));
+
+  useEffect(() => {
+    setStoredStaffLocale(locale);
+  }, [locale]);
+
   return (
-    <div className="qosp-app" data-portal-surface="overview">
+    <div className="qosp-app" data-portal-surface="overview" lang={locale}>
       <PortalScene motion={false} />
       <PortalTopBar
         tenantId="harness"
@@ -43,7 +62,7 @@ export function OverviewLayoutHarnessClient() {
         activeId="home"
         personName="Harness"
         roleLabel="Harness"
-        locale="en"
+        locale={locale}
         onToggleLocale={() => undefined}
         onOpenSearch={() => undefined}
         onSelectTenant={() => undefined}

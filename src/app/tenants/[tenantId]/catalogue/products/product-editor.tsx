@@ -29,8 +29,8 @@ import type {
   StaffRemovedPrimaryPhotoView,
 } from "@/lib/media/ai-photos/staff-media-provenance";
 import { ProductRemovedPhotoHistory } from "@/app/tenants/[tenantId]/catalogue/products/product-removed-photo-history";
-import { ProductModifierGroupsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel";
 import { ProductEditorSection } from "@/app/tenants/[tenantId]/catalogue/products/product-editor-section";
+import { ProductModifierGroupsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel";
 import { ProductVariantsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";

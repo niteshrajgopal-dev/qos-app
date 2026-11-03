@@ -53,25 +53,3 @@ export function paginateProducts(
   return products.slice(start, start + pageSize);
 }
 
-export function formatSubtitle(
-  count: number,
-  activeTab: string,
-  hasSearchQuery: boolean,
-): string {
-  if (hasSearchQuery) {
-    return count === 1 ? "1 product matches" : `${count} products match`;
-  }
-
-  switch (activeTab) {
-    case "all":
-      return count === 1 ? "1 product" : `${count} products`;
-    case "active":
-      return count === 1 ? "1 active" : `${count} active`;
-    case "draft":
-      return count === 1 ? "1 draft" : `${count} drafts`;
-    case "archived":
-      return count === 1 ? "1 archived" : `${count} archived`;
-    default:
-      return count === 1 ? "1 product" : `${count} products`;
-  }
-}

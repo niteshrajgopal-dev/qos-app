@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { staffProductsListSubtitle } from "@/lib/staff/locale";
+
 import {
   filterProducts,
   paginateProducts,
-  formatSubtitle,
 } from "./catalogue-products-filter";
 
 import type { ProductSummary } from "./catalogue-products-list";
@@ -159,34 +160,46 @@ describe("paginateProducts", () => {
   });
 });
 
-describe("formatSubtitle", () => {
+describe("staffProductsListSubtitle", () => {
   it("formats all tab without search", () => {
-    expect(formatSubtitle(1, "all", false)).toBe("1 product");
-    expect(formatSubtitle(5, "all", false)).toBe("5 products");
+    expect(staffProductsListSubtitle("en", 1, "all", false)).toBe("1 product");
+    expect(staffProductsListSubtitle("en", 5, "all", false)).toBe("5 products");
   });
 
   it("formats active tab", () => {
-    expect(formatSubtitle(1, "active", false)).toBe("1 active");
-    expect(formatSubtitle(5, "active", false)).toBe("5 active");
+    expect(staffProductsListSubtitle("en", 1, "active", false)).toBe("1 active");
+    expect(staffProductsListSubtitle("en", 5, "active", false)).toBe("5 active");
   });
 
   it("formats draft tab", () => {
-    expect(formatSubtitle(1, "draft", false)).toBe("1 draft");
-    expect(formatSubtitle(5, "draft", false)).toBe("5 drafts");
+    expect(staffProductsListSubtitle("en", 1, "draft", false)).toBe("1 draft");
+    expect(staffProductsListSubtitle("en", 5, "draft", false)).toBe("5 drafts");
   });
 
   describe("Archived tab", () => {
     it("formats archived singular", () => {
-      expect(formatSubtitle(1, "archived", false)).toBe("1 archived");
+      expect(staffProductsListSubtitle("en", 1, "archived", false)).toBe(
+        "1 archived",
+      );
     });
 
     it("formats archived plural", () => {
-      expect(formatSubtitle(5, "archived", false)).toBe("5 archived");
+      expect(staffProductsListSubtitle("en", 5, "archived", false)).toBe(
+        "5 archived",
+      );
     });
   });
 
   it("formats search results", () => {
-    expect(formatSubtitle(1, "all", true)).toBe("1 product matches");
-    expect(formatSubtitle(3, "all", true)).toBe("3 products match");
+    expect(staffProductsListSubtitle("en", 1, "all", true)).toBe(
+      "1 product matches",
+    );
+    expect(staffProductsListSubtitle("en", 3, "all", true)).toBe(
+      "3 products match",
+    );
+  });
+
+  it("returns Arabic subtitles for the products list", () => {
+    expect(staffProductsListSubtitle("ar", 5, "all", false)).toBe("5 منتجات");
   });
 });

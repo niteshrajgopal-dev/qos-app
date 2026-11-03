@@ -8,6 +8,7 @@ import {
   staffDocumentDirection,
   staffNavLabel,
   staffUiCopy,
+  subscribeStaffLocale,
 } from "@/lib/staff/locale";
 
 describe("staff locale", () => {
@@ -44,6 +45,7 @@ describe("staff locale", () => {
     expect(staffUiCopy("ar", "home")).toBe("الرئيسية");
     expect(staffNavLabel("ar", "menus", "Menus")).toBe("القوائم");
     expect(staffNavLabel("ar", "catalogue", "Products")).toBe("المنتجات");
+    expect(staffNavLabel("ar", "home", "Overview")).toBe("نظرة عامة");
     expect(staffNavLabel("en", "unknown", "Fallback")).toBe("Fallback");
   });
 
@@ -53,10 +55,45 @@ describe("staff locale", () => {
     expect(arKeys).toEqual(enKeys);
   });
 
+  it("notifies locale subscribers when the stored locale changes", () => {
+    const store = new Map<string, string>();
+    let notifications = 0;
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: (key: string) => store.get(key) ?? null,
+          setItem: (key: string, value: string) => {
+            store.set(key, value);
+          },
+        },
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+      },
+    });
+
+    const unsubscribe = subscribeStaffLocale(() => {
+      notifications += 1;
+    });
+    setStoredStaffLocale("ar");
+    expect(notifications).toBe(1);
+    unsubscribe();
+  });
+
   it("provides bilingual product editor section labels", () => {
     expect(staffUiCopy("en", "productEditorSectionIdentityTitle")).toBe("Identity");
     expect(staffUiCopy("ar", "productEditorSectionIdentityTitle")).toBe("الهوية");
     expect(staffUiCopy("en", "productEditorSectionStatusTitle")).toBe("Status");
     expect(staffUiCopy("ar", "productEditorSectionStatusTitle")).toBe("الحالة");
+  });
+
+  it("provides bilingual remove-photo confirm copy (QOS-151)", () => {
+    expect(staffUiCopy("en", "removeProductPhotoConfirmTitle")).toBe(
+      "Remove this photo?",
+    );
+    expect(staffUiCopy("ar", "removeProductPhotoConfirmTitle")).toBe(
+      "إزالة هذه الصورة؟",
+    );
+    expect(staffUiCopy("ar", "removedPhotoHistoryTitle")).toBe("الصور المُزالة");
   });
 });

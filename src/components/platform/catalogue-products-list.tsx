@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -19,13 +19,19 @@ import {
   EmptyState,
   Alert,
 } from "@/design-system";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import {
+  staffNavLabel,
+  staffProductsListSubtitle,
+  staffProductsSearchEmptyBody,
+  staffProductsSearchPlaceholder,
+  staffUiCopy,
+} from "@/lib/staff/locale";
 import {
   filterProducts,
   paginateProducts,
-  formatSubtitle,
 } from "./catalogue-products-filter";
-import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
 
 export type ProductSummary = {
   publicId: string;
@@ -56,7 +62,7 @@ type LoadingState =
 export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const locale = readStoredStaffLocale();
+  const { locale } = useStaffLocale();
   const [state, setState] = useState<LoadingState>({ status: "loading" });
   const showArchivedNotice = searchParams.get("productArchived") === "1";
   const [searchQuery, setSearchQuery] = useState("");
@@ -64,6 +70,14 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [restoreError, setRestoreError] = useState<string | null>(null);
+
+  const breadcrumbItems = useMemo(
+    () => [
+      { label: staffUiCopy(locale, "catalogue") },
+      { label: staffUiCopy(locale, "productsTitle") },
+    ],
+    [locale],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -83,7 +97,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
             status: "error",
             message:
               ("error" in body && body.error) ||
-              "Unable to load catalogue products.",
+              staffUiCopy(locale, "unableToLoadCatalogueProducts"),
           });
           return;
         }
@@ -100,7 +114,10 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
         if (!cancelled) {
           setState({
             status: "error",
-            message: error instanceof Error ? error.message : "Network error",
+            message:
+              error instanceof Error
+                ? error.message
+                : staffUiCopy(locale, "networkError"),
           });
         }
       });
@@ -108,7 +125,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [tenantId]);
+  }, [tenantId, locale]);
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
@@ -124,16 +141,14 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     return (
       <>
         <PageHeader
-          breadcrumbs={
-            <Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />
-          }
-          title="Products"
-          subtitle="Loading products..."
+          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
+          title={staffUiCopy(locale, "productsTitle")}
+          subtitle={staffUiCopy(locale, "loadingProductsSubtitle")}
         />
         <div style={{ marginTop: 20 }}>
           <Card>
             <p style={{ color: "var(--text-secondary)" }}>
-              Loading catalogue products...
+              {staffUiCopy(locale, "loadingCatalogueProducts")}
             </p>
           </Card>
         </div>
@@ -145,10 +160,8 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     return (
       <>
         <PageHeader
-          breadcrumbs={
-            <Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />
-          }
-          title="Products"
+          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
+          title={staffUiCopy(locale, "productsTitle")}
         />
         <div style={{ marginTop: 20 }}>
           <Alert tone="error">{state.message}</Alert>
@@ -178,7 +191,9 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
       const body = (await response.json()) as { error?: string };
 
       if (!response.ok) {
-        throw new Error(body.error ?? "Unable to restore product.");
+        throw new Error(
+          body.error ?? staffUiCopy(locale, "unableToRestoreProduct"),
+        );
       }
 
       setState((current) => {
@@ -206,7 +221,9 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
       });
     } catch (error) {
       setRestoreError(
-        error instanceof Error ? error.message : "Unable to restore product.",
+        error instanceof Error
+          ? error.message
+          : staffUiCopy(locale, "unableToRestoreProduct"),
       );
     } finally {
       setRestoringId(null);
@@ -214,11 +231,43 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   }
 
   const tabs = [
-    { id: "all", label: "All", count: counts.all },
-    { id: "active", label: "Active", count: counts.active },
-    { id: "draft", label: "Drafts", count: counts.draft },
-    { id: "archived", label: "Archived", count: counts.archived },
+    { id: "all", label: staffUiCopy(locale, "tabAll"), count: counts.all },
+    {
+      id: "active",
+      label: staffUiCopy(locale, "tabActive"),
+      count: counts.active,
+    },
+    {
+      id: "draft",
+      label: staffUiCopy(locale, "tabDrafts"),
+      count: counts.draft,
+    },
+    {
+      id: "archived",
+      label: staffUiCopy(locale, "tabArchived"),
+      count: counts.archived,
+    },
   ];
+
+  const listActions = (
+    <>
+      <Button
+        variant="secondary"
+        icon="upload"
+        onClick={() => router.push(`/tenants/${tenantId}/catalogue/import`)}
+      >
+        {staffNavLabel(locale, "import", "Import")}
+      </Button>
+      <Button
+        icon="plus"
+        onClick={() =>
+          router.push(`/tenants/${tenantId}/catalogue/products/new`)
+        }
+      >
+        {staffUiCopy(locale, "newProduct")}
+      </Button>
+    </>
+  );
 
   const hasSearchQuery = Boolean(searchQuery.trim());
   const noSearchResults = hasSearchQuery && filtered.length === 0;
@@ -231,38 +280,16 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     return (
       <>
         <PageHeader
-          breadcrumbs={
-            <Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />
-          }
-          title="Products"
-          subtitle="No products yet"
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                icon="upload"
-                onClick={() =>
-                  router.push(`/tenants/${tenantId}/catalogue/import`)
-                }
-              >
-                Import
-              </Button>
-              <Button
-                icon="plus"
-                onClick={() =>
-                  router.push(`/tenants/${tenantId}/catalogue/products/new`)
-                }
-              >
-                New product
-              </Button>
-            </>
-          }
+          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
+          title={staffUiCopy(locale, "productsTitle")}
+          subtitle={staffUiCopy(locale, "noProductsYet")}
+          actions={listActions}
         />
         <div style={{ marginTop: 20 }}>
           <EmptyState
             icon="package"
-            title="No catalogue products"
-            body="Products you create or import will appear here."
+            title={staffUiCopy(locale, "noCatalogueProductsTitle")}
+            body={staffUiCopy(locale, "noCatalogueProductsBody")}
             actions={
               <Button
                 icon="plus"
@@ -270,7 +297,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
                   router.push(`/tenants/${tenantId}/catalogue/products/new`)
                 }
               >
-                New product
+                {staffUiCopy(locale, "newProduct")}
               </Button>
             }
           />
@@ -288,36 +315,15 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     return (
       <>
         <PageHeader
-          breadcrumbs={
-            <Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />
-          }
-          title="Products"
-          subtitle={formatSubtitle(
+          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
+          title={staffUiCopy(locale, "productsTitle")}
+          subtitle={staffProductsListSubtitle(
+            locale,
             filtered.length,
             activeTab,
             hasSearchQuery,
           )}
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                icon="upload"
-                onClick={() =>
-                  router.push(`/tenants/${tenantId}/catalogue/import`)
-                }
-              >
-                Import
-              </Button>
-              <Button
-                icon="plus"
-                onClick={() =>
-                  router.push(`/tenants/${tenantId}/catalogue/products/new`)
-                }
-              >
-                New product
-              </Button>
-            </>
-          }
+          actions={listActions}
           tabs={
             <Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />
           }
@@ -326,7 +332,10 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
           <Card padding="none">
             <TableToolbar>
               <SearchInput
-                placeholder={`Search ${activeProducts.length} products`}
+                placeholder={staffProductsSearchPlaceholder(
+                  locale,
+                  activeProducts.length,
+                )}
                 value={searchQuery}
                 onChange={handleSearchChange}
                 style={{ width: 240 }}
@@ -335,14 +344,14 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
             <div style={{ padding: "64px 24px", textAlign: "center" }}>
               <EmptyState
                 icon="search"
-                title="No products match your search"
-                body={`No products found for "${searchQuery}".`}
+                title={staffUiCopy(locale, "noProductsMatchSearch")}
+                body={staffProductsSearchEmptyBody(locale, searchQuery)}
                 actions={
                   <Button
                     variant="secondary"
                     onClick={() => setSearchQuery("")}
                   >
-                    Clear search
+                    {staffUiCopy(locale, "clearSearch")}
                   </Button>
                 }
               />
@@ -356,57 +365,39 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   if (emptyTab) {
     const emptyMessages = {
       active: {
-        title: "No active products",
-        body: "Active products will appear here once published.",
+        title: staffUiCopy(locale, "noActiveProductsTitle"),
+        body: staffUiCopy(locale, "noActiveProductsBody"),
       },
       draft: {
-        title: "No draft products",
-        body: "Products you create or import will start as drafts.",
+        title: staffUiCopy(locale, "noDraftProductsTitle"),
+        body: staffUiCopy(locale, "noDraftProductsBody"),
       },
       archived: {
-        title: "No archived products",
-        body: "Archived products will appear here.",
+        title: staffUiCopy(locale, "noArchivedProductsTitle"),
+        body: staffUiCopy(locale, "noArchivedProductsBody"),
       },
     };
 
     const message =
       activeTab === "active" || activeTab === "draft" || activeTab === "archived"
         ? emptyMessages[activeTab]
-        : { title: "No products", body: "No products to display." };
+        : {
+            title: staffUiCopy(locale, "noProductsTitle"),
+            body: staffUiCopy(locale, "noProductsBody"),
+          };
 
     return (
       <>
         <PageHeader
-          breadcrumbs={
-            <Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />
-          }
-          title="Products"
-          subtitle={formatSubtitle(
+          breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
+          title={staffUiCopy(locale, "productsTitle")}
+          subtitle={staffProductsListSubtitle(
+            locale,
             filtered.length,
             activeTab,
             hasSearchQuery,
           )}
-          actions={
-            <>
-              <Button
-                variant="secondary"
-                icon="upload"
-                onClick={() =>
-                  router.push(`/tenants/${tenantId}/catalogue/import`)
-                }
-              >
-                Import
-              </Button>
-              <Button
-                icon="plus"
-                onClick={() =>
-                  router.push(`/tenants/${tenantId}/catalogue/products/new`)
-                }
-              >
-                New product
-              </Button>
-            </>
-          }
+          actions={listActions}
           tabs={
             <Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />
           }
@@ -429,7 +420,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   const columns = [
     {
       key: "name",
-      header: "Product",
+      header: staffUiCopy(locale, "columnProduct"),
       sortable: true,
       render: (r: ProductSummary) => (
         <span style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -465,7 +456,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     },
     {
       key: "internalName",
-      header: "Internal name",
+      header: staffUiCopy(locale, "columnInternalName"),
       render: (r: ProductSummary) => (
         <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>
           {r.internalName}
@@ -474,14 +465,14 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
     },
     {
       key: "state",
-      header: "Status",
+      header: staffUiCopy(locale, "columnStatus"),
       render: (r: ProductSummary) => <StatusBadge state={r.status} />,
     },
     ...(isArchivedTab
       ? [
           {
             key: "restore",
-            header: "Actions",
+            header: staffUiCopy(locale, "columnActions"),
             render: (r: ProductSummary) => (
               <Button
                 variant="secondary"
@@ -492,7 +483,9 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
                   void restoreArchivedProduct(r.publicId);
                 }}
               >
-                {restoringId === r.publicId ? "Restoring…" : "Restore to draft"}
+                {restoringId === r.publicId
+                  ? staffUiCopy(locale, "restoring")
+                  : staffUiCopy(locale, "restoreToDraft")}
               </Button>
             ),
           },
@@ -500,7 +493,8 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
       : []),
   ];
 
-  const subtitleText = formatSubtitle(
+  const subtitleText = staffProductsListSubtitle(
+    locale,
     totalProducts,
     activeTab,
     Boolean(searchQuery),
@@ -509,35 +503,11 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
   return (
     <>
       <PageHeader
-        breadcrumbs={
-          <Breadcrumbs items={[{ label: "Catalogue" }, { label: "Products" }]} />
-        }
-        title="Products"
+        breadcrumbs={<Breadcrumbs items={breadcrumbItems} />}
+        title={staffUiCopy(locale, "productsTitle")}
         subtitle={subtitleText}
-        actions={
-          <>
-            <Button
-              variant="secondary"
-              icon="upload"
-              onClick={() =>
-                router.push(`/tenants/${tenantId}/catalogue/import`)
-              }
-            >
-              Import
-            </Button>
-            <Button
-              icon="plus"
-              onClick={() =>
-                router.push(`/tenants/${tenantId}/catalogue/products/new`)
-              }
-            >
-              New product
-            </Button>
-          </>
-        }
-        tabs={
-          <Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />
-        }
+        actions={listActions}
+        tabs={<Tabs tabs={tabs} value={activeTab} onChange={handleTabChange} />}
       />
       {showArchivedNotice ? (
         <div style={{ marginTop: 20 }}>
@@ -555,7 +525,10 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
         <Card padding="none">
           <TableToolbar>
             <SearchInput
-              placeholder={`Search ${isArchivedTab ? archivedProducts.length : activeProducts.length} products`}
+              placeholder={staffProductsSearchPlaceholder(
+                locale,
+                isArchivedTab ? archivedProducts.length : activeProducts.length,
+              )}
               value={searchQuery}
               onChange={handleSearchChange}
               style={{ width: 240 }}

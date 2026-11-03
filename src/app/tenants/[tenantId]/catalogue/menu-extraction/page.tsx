@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 
 import { MenuExtractionReview } from "@/app/tenants/[tenantId]/catalogue/menu-extraction/menu-extraction-review";
-import { readStoredStaffLocale } from "@/lib/staff/locale";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 
 type PageProps = {
   params: Promise<{ tenantId: string }>;
 };
 
 export default function MenuExtractionPage({ params }: PageProps) {
+  const { locale } = useStaffLocale();
   const [tenantId, setTenantId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,7 +25,7 @@ export default function MenuExtractionPage({ params }: PageProps) {
 
   return (
     <div style={{ display: "grid", gap: "var(--space-6)" }}>
-      <MenuExtractionReview tenantId={tenantId} uiLocale={readStoredStaffLocale()} />
+      <MenuExtractionReview tenantId={tenantId} uiLocale={locale} />
     </div>
   );
 }

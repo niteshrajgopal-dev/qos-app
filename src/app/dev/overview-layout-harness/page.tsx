@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { Suspense } from "react";
 
 import { OverviewLayoutHarnessClient } from "@/app/dev/overview-layout-harness/overview-layout-harness-client";
 
@@ -14,5 +15,9 @@ export default function OverviewLayoutHarnessPage() {
     notFound();
   }
 
-  return <OverviewLayoutHarnessClient />;
+  return (
+    <Suspense fallback={null}>
+      <OverviewLayoutHarnessClient />
+    </Suspense>
+  );
 }

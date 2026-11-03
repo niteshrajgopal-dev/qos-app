@@ -5,20 +5,34 @@ import { describe, expect, it } from "vitest";
 const ROOT = path.join(process.cwd(), "src");
 
 const AUDITED_SURFACES = [
+  "components/platform/catalogue-products-list.tsx",
+  "components/portal/PortalTopBar.tsx",
+  "components/staff/StaffAppShell.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-editor.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-edit-screen.tsx",
+  "app/tenants/[tenantId]/catalogue/menus/menu-editor.tsx",
 ];
 
 const FORBIDDEN_LITERALS = [
   '"Cancel"',
+  '"Confirm"',
   '"Keep editing"',
   '"Discard"',
+  'title="Products"',
+  '"New product"',
+  '"Clear search"',
+  '"Restore to draft"',
+  ">More<",
+  ">Overview<",
+  '"Sign out"',
   "readStoredStaffLocale(",
   '"General information"',
   '"English copy"',
   '"Arabic copy"',
   '"Internal name"',
   '"Unsaved changes"',
+  '"Remove this photo?"',
+  '"Removed photos"',
 ];
 
 describe("staff admin audited surfaces", () => {
