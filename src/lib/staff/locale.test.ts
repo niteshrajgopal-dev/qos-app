@@ -4,7 +4,10 @@ import {
   isStaffLocale,
   readStoredStaffLocale,
   setStoredStaffLocale,
+  STAFF_COUNT_COPY,
   STAFF_UI_COPY,
+  staffCopyWith,
+  staffCount,
   staffDocumentDirection,
   staffNavLabel,
   staffUiCopy,
@@ -53,6 +56,49 @@ describe("staff locale", () => {
     const enKeys = Object.keys(STAFF_UI_COPY.en).sort();
     const arKeys = Object.keys(STAFF_UI_COPY.ar).sort();
     expect(arKeys).toEqual(enKeys);
+  });
+
+  it("keeps the same {placeholders} in Arabic and English copy", () => {
+    const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    const mismatched = Object.entries(STAFF_UI_COPY.en)
+      .filter(([key, en]) => {
+        const ar = STAFF_UI_COPY.ar[key as keyof typeof STAFF_UI_COPY.ar];
+        return placeholders(en).join() !== placeholders(ar).join();
+      })
+      .map(([key]) => key);
+    expect(mismatched).toEqual([]);
+  });
+
+  it("keeps count copy keys in parity and gives Arabic every plural form", () => {
+    expect(Object.keys(STAFF_COUNT_COPY.ar).sort()).toEqual(Object.keys(STAFF_COUNT_COPY.en).sort());
+    for (const [key, forms] of Object.entries(STAFF_COUNT_COPY.ar)) {
+      expect(Object.keys(forms).sort(), key).toEqual(["few", "many", "one", "other", "two", "zero"]);
+    }
+  });
+
+  it("uses Arabic plural forms for product counts", () => {
+    expect(staffCount("ar", "products", 0)).toBe("لا توجد منتجات");
+    expect(staffCount("ar", "products", 1)).toBe("منتج واحد");
+    expect(staffCount("ar", "products", 2)).toBe("منتجان");
+    expect(staffCount("ar", "products", 3)).toBe("3 منتجات");
+    expect(staffCount("ar", "products", 10)).toBe("10 منتجات");
+    expect(staffCount("ar", "products", 11)).toBe("11 منتجًا");
+    expect(staffCount("ar", "products", 99)).toBe("99 منتجًا");
+    expect(staffCount("ar", "products", 100)).toBe("100 منتج");
+    expect(staffCount("ar", "products", 103)).toBe("103 منتجات");
+  });
+
+  it("uses English singular and plural for counts", () => {
+    expect(staffCount("en", "products", 0)).toBe("0 products");
+    expect(staffCount("en", "products", 1)).toBe("1 product");
+    expect(staffCount("en", "modifierOptions", 4)).toBe("4 options");
+  });
+
+  it("fills named placeholders in staff copy", () => {
+    expect(staffCopyWith("en", "paginationRange", { from: 1, to: 24, total: 148 })).toBe(
+      "1–24 of 148",
+    );
+    expect(staffCopyWith("en", "workspaceEyebrow", { name: "Quotes" })).toBe("Quotes workspace");
   });
 
   it("notifies locale subscribers when the stored locale changes", () => {
