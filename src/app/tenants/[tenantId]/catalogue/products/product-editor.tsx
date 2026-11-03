@@ -29,8 +29,12 @@ import type {
   StaffRemovedPrimaryPhotoView,
 } from "@/lib/media/ai-photos/staff-media-provenance";
 import { ProductRemovedPhotoHistory } from "@/app/tenants/[tenantId]/catalogue/products/product-removed-photo-history";
+import { ProductModifierGroupsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel";
+import { ProductEditorSection } from "@/app/tenants/[tenantId]/catalogue/products/product-editor-section";
+import { ProductVariantsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-import { readStoredStaffLocale, staffUiCopy } from "@/lib/staff/locale";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type TranslationFormState = {
   displayName: string;
@@ -114,7 +118,7 @@ export function ProductEditor({
   onStatusChange,
 }: ProductEditorProps) {
   const router = useRouter();
-  const locale = readStoredStaffLocale();
+  const { locale } = useStaffLocale();
   const isEditMode = Boolean(productPublicId);
   const [form, setForm] = useState<ProductEditorState>(() =>
     createEmptyFormState(initialBusinessProfile),
@@ -166,6 +170,19 @@ export function ProductEditor({
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
+
+  const productStatusLabel = useMemo(() => {
+    if (productStatus === "active") {
+      return staffUiCopy(locale, "productEditorStatusActive");
+    }
+    if (productStatus === "archived") {
+      return staffUiCopy(locale, "productEditorStatusArchived");
+    }
+    if (productStatus === "draft") {
+      return staffUiCopy(locale, "productEditorStatusDraft");
+    }
+    return "—";
+  }, [locale, productStatus]);
 
   const loadApprovedVideoUrls = useCallback(async () => {
     if (!productPublicId) {
@@ -545,7 +562,7 @@ export function ProductEditor({
       setThumbnailPublicId(thumbnail?.publicDerivativeId ?? null);
       setPrimaryMediaSource("operator_entered");
       void loadMediaProvenance(productPublicId);
-      setImageStatus("Product image approved and ready for menu publish.");
+      setImageStatus(staffUiCopy(locale, "productEditorPhotoApproved"));
     } catch (uploadError) {
       setError(
         uploadError instanceof Error
@@ -697,7 +714,7 @@ export function ProductEditor({
 
       if (attempts >= maxAttempts) {
         if (activeCorrelationIdRef.current === correlationId) {
-          setVideoStatus("Processing took too long. Check back later.");
+          setVideoStatus(staffUiCopy(locale, "productEditorVideoProcessingTimeout"));
         }
         return;
       }
@@ -770,7 +787,7 @@ export function ProductEditor({
     const amountMinor = majorToMinor(form.priceMajor);
     if (amountMinor == null) {
       setFieldError("defaultVariant.amountMinor");
-      setError("Enter a valid AED price.");
+      setError(staffUiCopy(locale, "productEditorInvalidPrice"));
       setSaving(false);
       return;
     }
@@ -827,7 +844,7 @@ export function ProductEditor({
         }
 
         applyProductPayload(payload.product);
-        setSavedMessage("Draft product saved.");
+        setSavedMessage(staffUiCopy(locale, "productEditorSavedDraftNotice"));
         return;
       }
 
@@ -877,7 +894,9 @@ export function ProductEditor({
       }
 
       applyProductPayload(payload.product);
-      setSavedMessage(`Draft product ${payload.product.publicId} created.`);
+      setSavedMessage(
+        `${staffUiCopy(locale, "productEditorCreatedDraftNotice")} ${payload.product.publicId}`,
+      );
     } catch (saveError) {
       setError(
         saveError instanceof Error
@@ -920,385 +939,530 @@ export function ProductEditor({
   }
 
   if (loading) {
-    return <p className="text-sm text-zinc-600">Loading product…</p>;
+    return <p className="text-sm text-zinc-600">{staffUiCopy(locale, "productEditorLoading")}</p>;
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-w-0 space-y-4 pb-28">
       {isEditMode ? (
-        <button
-          type="button"
-          onClick={() =>
-            void loadProduct().catch((loadError) => {
-              setError(
-                loadError instanceof Error
-                  ? loadError.message
-                  : "Unable to reload product.",
-              );
-            })
-          }
-          className="qos-btn" data-variant="secondary"
-        >
-          {productEditorLoadButtonLabel(locale, true)}
-        </button>
+        <div className="flex flex-wrap justify-end">
+          <button
+            type="button"
+            onClick={() =>
+              void loadProduct().catch((loadError) => {
+                setError(
+                  loadError instanceof Error
+                    ? loadError.message
+                    : "Unable to reload product.",
+                );
+              })
+            }
+            className="qos-btn"
+            data-variant="secondary"
+            data-size="sm"
+          >
+            {productEditorLoadButtonLabel(locale, true)}
+          </button>
+        </div>
       ) : null}
 
-      <fieldset className="space-y-6 border-0 p-0 m-0" disabled={isReadOnly}>
-      <section className="qos-card" data-padding="md">
-        <h2 className="text-lg font-semibold">General information</h2>
-        <div className="mt-4 grid gap-4">
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-700">
-              Internal name
-            </span>
-            <input
-              className="qos-input"
-              value={form.internalName}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  internalName: event.target.value,
-                }))
-              }
-            />
-          </label>
-          <div className="grid gap-4 md:grid-cols-2">
+      <fieldset
+        className="m-0 min-w-0 space-y-4 border-0 p-0"
+        disabled={isReadOnly}
+      >
+        <ProductEditorSection
+          id="identity"
+          titleKey="productEditorSectionIdentityTitle"
+          helperKey="productEditorSectionIdentityHelp"
+          locale={locale}
+        >
+          <div className="grid gap-4">
             <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">SKU</span>
+              <span className="text-sm font-medium text-zinc-700">
+                {staffUiCopy(locale, "productEditorInternalNameLabel")}
+              </span>
+              <span className="block text-xs text-zinc-500">
+                {staffUiCopy(locale, "productEditorInternalNameHelp")}
+              </span>
               <input
                 className="qos-input"
-                value={form.sku}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, sku: event.target.value }))
-                }
-              />
-            </label>
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">Barcode</span>
-              <input
-                className="qos-input"
-                value={form.barcode}
+                value={form.internalName}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    barcode: event.target.value,
+                    internalName: event.target.value,
                   }))
                 }
               />
             </label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-zinc-700">
+                  {staffUiCopy(locale, "productEditorSkuLabel")}
+                </span>
+                <span className="block text-xs text-zinc-500">
+                  {staffUiCopy(locale, "productEditorSkuHelp")}
+                </span>
+                <input
+                  className="qos-input"
+                  value={form.sku}
+                  onChange={(event) =>
+                    setForm((current) => ({ ...current, sku: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-zinc-700">
+                  {staffUiCopy(locale, "productEditorBarcodeLabel")}
+                </span>
+                <span className="block text-xs text-zinc-500">
+                  {staffUiCopy(locale, "productEditorBarcodeHelp")}
+                </span>
+                <input
+                  className="qos-input"
+                  value={form.barcode}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      barcode: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
           </div>
-        </div>
-      </section>
+        </ProductEditorSection>
 
-      <section className="qos-card" data-padding="md">
-        <h2 className="text-lg font-semibold">English copy</h2>
-        <div className="mt-4 grid gap-4">
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-700">
-              Display name
-            </span>
-            <input
-              className="qos-input"
-              value={form.translations.en.displayName}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  translations: {
-                    ...current.translations,
-                    en: {
-                      ...current.translations.en,
-                      displayName: event.target.value,
-                    },
-                  },
-                }))
-              }
-            />
-          </label>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-700">
-              Description
-            </span>
-            <textarea
-              className="qos-textarea"
-              value={form.translations.en.description}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  translations: {
-                    ...current.translations,
-                    en: {
-                      ...current.translations.en,
-                      description: event.target.value,
-                    },
-                  },
-                }))
-              }
-            />
-          </label>
-          <p className="text-xs text-zinc-500">
-            Translation version: {form.translations.en.translationVersion}
-          </p>
-          {isEditMode && productPublicId ? (
-            <AiDescriptionReview
-              tenantId={tenantId}
-              productPublicId={productPublicId}
-              uiLocale={locale}
-              mutationsDisabled={childMutationsDisabled}
-              onAccepted={() => {
-                void loadProduct().catch((loadError) => {
-                  setError(
-                    loadError instanceof Error
-                      ? loadError.message
-                      : "Unable to reload product after accepting the description.",
-                  );
-                });
-              }}
-            />
-          ) : null}
-        </div>
-      </section>
-
-      <section className="qos-card" data-padding="md">
-        <h2 className="text-lg font-semibold">Arabic copy</h2>
-        <div className="mt-4 grid gap-4">
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-700">
-              Display name
-            </span>
-            <input
-              dir="rtl"
-              className="qos-input"
-              value={form.translations.ar.displayName}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  translations: {
-                    ...current.translations,
-                    ar: {
-                      ...current.translations.ar,
-                      displayName: event.target.value,
-                    },
-                  },
-                }))
-              }
-            />
-          </label>
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-700">
-              Description
-            </span>
-            <textarea
-              dir="rtl"
-              className="qos-textarea"
-              value={form.translations.ar.description}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  translations: {
-                    ...current.translations,
-                    ar: {
-                      ...current.translations.ar,
-                      description: event.target.value,
-                    },
-                  },
-                }))
-              }
-            />
-          </label>
-          <p className="text-xs text-zinc-500">
-            Translation version: {form.translations.ar.translationVersion}
-          </p>
-        </div>
-      </section>
-
-      <section className="qos-card" data-padding="md">
-        <h2 className="text-lg font-semibold">Pricing</h2>
-        <div className="mt-4 grid gap-4 md:grid-cols-2">
-          <label className="block space-y-2">
-            <span className="text-sm font-medium text-zinc-700">
-              Default variant price (AED)
-            </span>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              disabled={!form.canEditPrice}
-              className="qos-select"
-              value={form.priceMajor}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  priceMajor: event.target.value,
-                }))
-              }
-            />
-            {!form.canEditPrice ? (
-              <span className="text-xs text-zinc-500">
-                Price changes require an administrator.
-              </span>
-            ) : null}
-          </label>
-          {form.businessProfile === "hospitality" ? (
+        <ProductEditorSection
+          id="english"
+          titleKey="productEditorSectionEnglishTitle"
+          helperKey="productEditorSectionEnglishHelp"
+          locale={locale}
+        >
+          <div className="grid gap-4">
             <label className="block space-y-2">
               <span className="text-sm font-medium text-zinc-700">
-                Calories (optional)
+                {staffUiCopy(locale, "productEditorDisplayNameLabel")}
+              </span>
+              <input
+                className="qos-input"
+                value={form.translations.en.displayName}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    translations: {
+                      ...current.translations,
+                      en: {
+                        ...current.translations.en,
+                        displayName: event.target.value,
+                      },
+                    },
+                  }))
+                }
+              />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-zinc-700">
+                {staffUiCopy(locale, "productEditorDescriptionLabel")}
+              </span>
+              <textarea
+                className="qos-textarea"
+                value={form.translations.en.description}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    translations: {
+                      ...current.translations,
+                      en: {
+                        ...current.translations.en,
+                        description: event.target.value,
+                      },
+                    },
+                  }))
+                }
+              />
+            </label>
+            <p className="text-xs text-zinc-500">
+              {staffUiCopy(locale, "productEditorTranslationVersionLabel")}:{" "}
+              {form.translations.en.translationVersion}
+            </p>
+            {isEditMode && productPublicId ? (
+              <AiDescriptionReview
+                tenantId={tenantId}
+                productPublicId={productPublicId}
+                uiLocale={locale}
+                mutationsDisabled={childMutationsDisabled}
+                onAccepted={() => {
+                  void loadProduct().catch((loadError) => {
+                    setError(
+                      loadError instanceof Error
+                        ? loadError.message
+                        : "Unable to reload product after accepting the description.",
+                    );
+                  });
+                }}
+              />
+            ) : null}
+          </div>
+        </ProductEditorSection>
+
+        <ProductEditorSection
+          id="arabic"
+          titleKey="productEditorSectionArabicTitle"
+          helperKey="productEditorSectionArabicHelp"
+          locale={locale}
+        >
+          <div className="grid gap-4">
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-zinc-700">
+                {staffUiCopy(locale, "productEditorDisplayNameLabel")}
+              </span>
+              <input
+                dir="rtl"
+                className="qos-input"
+                value={form.translations.ar.displayName}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    translations: {
+                      ...current.translations,
+                      ar: {
+                        ...current.translations.ar,
+                        displayName: event.target.value,
+                      },
+                    },
+                  }))
+                }
+              />
+            </label>
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-zinc-700">
+                {staffUiCopy(locale, "productEditorDescriptionLabel")}
+              </span>
+              <textarea
+                dir="rtl"
+                className="qos-textarea"
+                value={form.translations.ar.description}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    translations: {
+                      ...current.translations,
+                      ar: {
+                        ...current.translations.ar,
+                        description: event.target.value,
+                      },
+                    },
+                  }))
+                }
+              />
+            </label>
+            <p className="text-xs text-zinc-500">
+              {staffUiCopy(locale, "productEditorTranslationVersionLabel")}:{" "}
+              {form.translations.ar.translationVersion}
+            </p>
+          </div>
+        </ProductEditorSection>
+
+        <ProductEditorSection
+          id="pricing"
+          titleKey="productEditorSectionPricingTitle"
+          helperKey="productEditorSectionPricingHelp"
+          locale={locale}
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
+            <label className="block space-y-2">
+              <span className="text-sm font-medium text-zinc-700">
+                {staffUiCopy(locale, "productEditorDefaultPriceLabel")}
+              </span>
+              <span className="block text-xs text-zinc-500">
+                {staffUiCopy(locale, "productEditorDefaultPriceHelp")}
               </span>
               <input
                 type="number"
                 min="0"
-                step="1"
-                className="qos-input"
-                value={form.nutritionCalories}
+                step="0.01"
+                disabled={!form.canEditPrice}
+                className="qos-select"
+                value={form.priceMajor}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
-                    nutritionCalories: event.target.value,
+                    priceMajor: event.target.value,
                   }))
                 }
               />
+              {!form.canEditPrice ? (
+                <span className="text-xs text-zinc-500">
+                  {staffUiCopy(locale, "productEditorPriceAdminNotice")}
+                </span>
+              ) : null}
             </label>
-          ) : null}
-        </div>
-      </section>
-
-      {isEditMode && productPublicId ? (
-        <section className="qos-card" data-padding="md">
-          <h2 className="text-lg font-semibold">Product image</h2>
-          <p className="mt-2 text-sm text-zinc-600">
-            Upload a JPEG or PNG image. It is quarantined, validated, and
-            converted to approved public derivatives for menu publish.
-          </p>
-          <div className="mt-4 space-y-3">
-            <input
-              type="file"
-              accept="image/jpeg,image/png"
-              disabled={imageUploading || childMutationsDisabled}
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) {
-                  void uploadProductImage(file);
-                }
-                event.target.value = "";
-              }}
-              className="block w-full text-sm text-zinc-700 file:mr-4 file:rounded-full file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium"
-            />
-            {imageUploading ? (
-              <p className="text-sm text-zinc-600">Uploading and processing…</p>
-            ) : null}
-            {imageStatus ? (
-              <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                {imageStatus}
-              </p>
-            ) : null}
-            {thumbnailPublicId ? (
-              <div className="flex flex-wrap items-start gap-4">
-                <span className="qos-thumb" data-size="lg">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- catalogue thumbnail */}
-                  <img src={publicProductThumbnailUrl(thumbnailPublicId)} alt="" />
-                  {primaryMediaSource === "ai_generated" ? (
-                    <span
-                      className="qos-thumb-tag"
-                      title={staffUiCopy(locale, "aiGeneratedImageTitle")}
-                    >
-                      AI
-                    </span>
-                  ) : null}
+            {form.businessProfile === "hospitality" ? (
+              <label className="block space-y-2">
+                <span className="text-sm font-medium text-zinc-700">
+                  {staffUiCopy(locale, "productEditorCaloriesLabel")}
                 </span>
-                <div className="min-w-0 flex-1 space-y-2">
-                  <AiPhotoProvenanceMeta
-                    locale={locale}
-                    generation={mediaProvenance?.generation ?? null}
-                  />
-                  {productEditorCanRemovePrimaryPhoto(editorStatus) && !childMutationsDisabled ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      loading={removingPhoto}
-                      disabled={imageUploading}
-                      onClick={() => setRemovePhotoConfirmOpen(true)}
-                    >
-                      {removingPhoto
-                        ? staffUiCopy(locale, "removingProductPhoto")
-                        : staffUiCopy(locale, "removeProductPhoto")}
-                    </Button>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-            {isAdministrator ? (
-              <ProductRemovedPhotoHistory locale={locale} entries={removedPhotoHistory} />
-            ) : null}
-          </div>
-        </section>
-      ) : null}
-
-      {isEditMode && productPublicId ? (
-        <section className="qos-card" data-padding="md">
-          <h2 className="text-lg font-semibold">{staffUiCopy(locale, "productVideoLabel")}</h2>
-          <p className="mt-2 text-sm text-zinc-600">
-            {staffUiCopy(locale, "videoDescription")}
-          </p>
-          <div className="mt-4 space-y-3">
-            {approvedVideoUrls ? (
-              <div className="space-y-3">
-                <video
-                  controls
-                  poster={approvedVideoUrls.posterUrl}
-                  className="w-full rounded-lg border border-zinc-200"
-                  style={{ maxHeight: "400px" }}
-                >
-                  <source src={approvedVideoUrls.playbackUrl} type="video/mp4" />
-                  {staffUiCopy(locale, "videoPlayerFallback")}
-                </video>
-                <p className="text-sm text-zinc-600">
-                  {staffUiCopy(locale, "videoReadyForPublish")}
-                </p>
-              </div>
-            ) : null}
-            {videoRejectionReason ? (
-              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                {videoRejectionReason}
-              </div>
-            ) : null}
-            {videoStatus ? (
-              <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                {videoStatus}
-              </p>
-            ) : null}
-            <div className="relative">
-              <input
-                type="file"
-                accept="video/mp4"
-                disabled={videoUploading || childMutationsDisabled}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) {
-                    setVideoRejectionReason(null);
-                    void uploadProductVideo(file);
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  className="qos-input"
+                  value={form.nutritionCalories}
+                  onChange={(event) =>
+                    setForm((current) => ({
+                      ...current,
+                      nutritionCalories: event.target.value,
+                    }))
                   }
-                  event.target.value = "";
-                }}
-                id="video-file-input"
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-              />
-              <label
-                htmlFor="video-file-input"
-                className="block w-full text-sm text-zinc-700 cursor-pointer"
-              >
-                <span className="inline-flex items-center gap-2 rounded-full border-0 bg-zinc-100 px-4 py-2 text-sm font-medium hover:bg-zinc-200 transition-colors">
-                  {staffUiCopy(locale, "chooseFile")}
-                </span>
-                <span className="ml-3 text-zinc-500">
-                  {selectedVideoFilename || staffUiCopy(locale, "noFileChosen")}
-                </span>
+                />
               </label>
-            </div>
-            {videoUploading ? (
-              <p className="text-sm text-zinc-600">{staffUiCopy(locale, "videoUploadingStatus")}</p>
             ) : null}
           </div>
-        </section>
-      ) : null}
+        </ProductEditorSection>
+
+        {isEditMode && productPublicId ? (
+          <ProductEditorSection
+            id="media"
+            titleKey="productEditorSectionMediaTitle"
+            helperKey="productEditorSectionMediaHelp"
+            locale={locale}
+          >
+            <div className="space-y-8">
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium text-zinc-900">
+                  {staffUiCopy(locale, "productEditorPhotoLabel")}
+                </h3>
+                <p className="text-sm text-zinc-600">
+                  {staffUiCopy(locale, "productEditorPhotoHelp")}
+                </p>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png"
+                  disabled={imageUploading || childMutationsDisabled}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (file) {
+                      void uploadProductImage(file);
+                    }
+                    event.target.value = "";
+                  }}
+                  className="block w-full min-w-0 text-sm text-zinc-700 file:mr-4 file:rounded-full file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium"
+                />
+                {imageUploading ? (
+                  <p className="text-sm text-zinc-600">
+                    {staffUiCopy(locale, "productEditorUploadingPhoto")}
+                  </p>
+                ) : null}
+                {imageStatus ? (
+                  <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                    {imageStatus}
+                  </p>
+                ) : null}
+                {thumbnailPublicId ? (
+                  <div className="flex flex-wrap items-start gap-4">
+                    <span className="qos-thumb" data-size="lg">
+                      {/* eslint-disable-next-line @next/next/no-img-element -- catalogue thumbnail */}
+                      <img src={publicProductThumbnailUrl(thumbnailPublicId)} alt="" />
+                      {primaryMediaSource === "ai_generated" ? (
+                        <span
+                          className="qos-thumb-tag"
+                          title={staffUiCopy(locale, "aiGeneratedImageTitle")}
+                        >
+                          AI
+                        </span>
+                      ) : null}
+                    </span>
+                    <div className="min-w-0 flex-1 space-y-2">
+                      <AiPhotoProvenanceMeta
+                        locale={locale}
+                        generation={mediaProvenance?.generation ?? null}
+                      />
+                      {productEditorCanRemovePrimaryPhoto(editorStatus) &&
+                      !childMutationsDisabled ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          loading={removingPhoto}
+                          disabled={imageUploading}
+                          onClick={() => setRemovePhotoConfirmOpen(true)}
+                        >
+                          {removingPhoto
+                            ? staffUiCopy(locale, "removingProductPhoto")
+                            : staffUiCopy(locale, "removeProductPhoto")}
+                        </Button>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
+                {isAdministrator ? (
+                  <ProductRemovedPhotoHistory
+                    locale={locale}
+                    entries={removedPhotoHistory}
+                  />
+                ) : null}
+              </div>
+
+              <div className="space-y-3 border-t border-zinc-100 pt-6">
+                <h3 className="text-sm font-medium text-zinc-900">
+                  {staffUiCopy(locale, "productVideoLabel")}
+                </h3>
+                <p className="text-sm text-zinc-600">
+                  {staffUiCopy(locale, "videoDescription")}
+                </p>
+                {approvedVideoUrls ? (
+                  <div className="space-y-3">
+                    <video
+                      controls
+                      poster={approvedVideoUrls.posterUrl}
+                      className="w-full max-w-full rounded-lg border border-zinc-200"
+                      style={{ maxHeight: "400px" }}
+                    >
+                      <source src={approvedVideoUrls.playbackUrl} type="video/mp4" />
+                      {staffUiCopy(locale, "videoPlayerFallback")}
+                    </video>
+                    <p className="text-sm text-zinc-600">
+                      {staffUiCopy(locale, "videoReadyForPublish")}
+                    </p>
+                  </div>
+                ) : null}
+                {videoRejectionReason ? (
+                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    {videoRejectionReason}
+                  </div>
+                ) : null}
+                {videoStatus ? (
+                  <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                    {videoStatus}
+                  </p>
+                ) : null}
+                <div className="relative min-h-[2.75rem]">
+                  <input
+                    type="file"
+                    accept="video/mp4"
+                    disabled={videoUploading || childMutationsDisabled}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (file) {
+                        setVideoRejectionReason(null);
+                        void uploadProductVideo(file);
+                      }
+                      event.target.value = "";
+                    }}
+                    id="video-file-input"
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+                  />
+                  <label
+                    htmlFor="video-file-input"
+                    className="block w-full min-w-0 cursor-pointer text-sm text-zinc-700"
+                  >
+                    <span className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border-0 bg-zinc-100 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-200">
+                      {staffUiCopy(locale, "chooseFile")}
+                    </span>
+                    <span className="ms-3 text-zinc-500">
+                      {selectedVideoFilename || staffUiCopy(locale, "noFileChosen")}
+                    </span>
+                  </label>
+                </div>
+                {videoUploading ? (
+                  <p className="text-sm text-zinc-600">
+                    {staffUiCopy(locale, "videoUploadingStatus")}
+                  </p>
+                ) : null}
+              </div>
+            </div>
+          </ProductEditorSection>
+        ) : null}
+
+        {isEditMode && productPublicId ? (
+          <ProductEditorSection
+            id="variants"
+            titleKey="productEditorSectionVariantsTitle"
+            helperKey="productEditorSectionVariantsHelp"
+            locale={locale}
+          >
+            <ProductVariantsPanel
+              tenantId={tenantId}
+              productPublicId={productPublicId}
+              productStatus={editorStatus}
+              embedded
+            />
+          </ProductEditorSection>
+        ) : null}
+
+        {isEditMode && productPublicId ? (
+          <ProductEditorSection
+            id="modifier-groups"
+            titleKey="productEditorSectionModifierGroupsTitle"
+            helperKey="productEditorSectionModifierGroupsHelp"
+            locale={locale}
+          >
+            <ProductModifierGroupsPanel
+              tenantId={tenantId}
+              productPublicId={productPublicId}
+              productStatus={editorStatus}
+              embedded
+            />
+          </ProductEditorSection>
+        ) : null}
+
+        {isEditMode && productPublicId ? (
+          <ProductEditorSection
+            id="status"
+            titleKey="productEditorSectionStatusTitle"
+            helperKey="productEditorSectionStatusHelp"
+            locale={locale}
+          >
+            <div className="space-y-4">
+              <p className="text-sm text-zinc-700">
+                <span className="font-medium text-zinc-900">
+                  {staffUiCopy(locale, "productEditorCurrentStatus")}:{" "}
+                </span>
+                {productStatusLabel}
+              </p>
+
+              {showRestoreAction ? (
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="text-sm text-zinc-600">
+                    {staffUiCopy(locale, "productEditorRestoreHelp")}
+                  </p>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      className="qos-btn"
+                      data-variant="secondary"
+                      disabled={restoring}
+                      onClick={() => void restoreProduct()}
+                    >
+                      {productEditorRestoreLabel(locale, restoring)}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {showArchiveAction ? (
+                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                  <p className="text-sm text-zinc-600">
+                    {staffUiCopy(locale, "archiveDraftProductDescription")}
+                  </p>
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      className="qos-btn"
+                      data-variant="secondary"
+                      disabled={archiving || saving}
+                      onClick={() => setArchiveOpen(true)}
+                    >
+                      {archiving
+                        ? staffUiCopy(locale, "archiveDraftProductArchiving")
+                        : staffUiCopy(locale, "archiveDraftProduct")}
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </ProductEditorSection>
+        ) : null}
       </fieldset>
 
       {error ? (
@@ -1321,10 +1485,10 @@ export function ProductEditor({
       <ConfirmDialog
         open={discardOpen}
         tone="danger"
-        title="Discard unsaved changes to this draft product?"
-        description="The current draft will revert to the last saved version."
-        confirmLabel="Discard"
-        cancelLabel="Keep editing"
+        title={staffUiCopy(locale, "discardUnsavedProductTitle")}
+        description={staffUiCopy(locale, "discardUnsavedProductDescription")}
+        confirmLabel={staffUiCopy(locale, "discard")}
+        cancelLabel={staffUiCopy(locale, "keepEditing")}
         onClose={() => setDiscardOpen(false)}
         onConfirm={resetForm}
       />
@@ -1335,7 +1499,7 @@ export function ProductEditor({
         title={staffUiCopy(locale, "archiveDraftProductConfirmTitle")}
         description={staffUiCopy(locale, "archiveDraftProductConfirmDescription")}
         confirmLabel={staffUiCopy(locale, "archiveDraftProductConfirmLabel")}
-        cancelLabel="Cancel"
+        cancelLabel={staffUiCopy(locale, "cancel")}
         onClose={() => setArchiveOpen(false)}
         onConfirm={() => void archiveProduct()}
       />
@@ -1346,7 +1510,7 @@ export function ProductEditor({
         title={staffUiCopy(locale, "removeProductPhotoConfirmTitle")}
         description={staffUiCopy(locale, "removeProductPhotoConfirmDescription")}
         confirmLabel={staffUiCopy(locale, "removeProductPhotoConfirmLabel")}
-        cancelLabel="Cancel"
+        cancelLabel={staffUiCopy(locale, "cancel")}
         onClose={() => setRemovePhotoConfirmOpen(false)}
         onConfirm={() => {
           setRemovePhotoConfirmOpen(false);
@@ -1354,60 +1518,18 @@ export function ProductEditor({
         }}
       />
 
-      {showRestoreAction ? (
-        <section className="qos-card" data-padding="md">
-          <h2 className="text-base font-medium text-zinc-900">
-            {productEditorRestoreLabel(locale, false)}
-          </h2>
-          <p className="mt-2 text-sm text-zinc-600">
-            Return this archived product to draft status so it can be edited again.
-          </p>
-          <div className="mt-4">
-            <button
-              type="button"
-              className="qos-btn"
-              data-variant="secondary"
-              disabled={restoring}
-              onClick={() => void restoreProduct()}
-            >
-              {productEditorRestoreLabel(locale, restoring)}
-            </button>
-          </div>
-        </section>
-      ) : null}
-
-      {showArchiveAction ? (
-        <section className="qos-card" data-padding="md">
-          <h2 className="text-base font-medium text-zinc-900">
-            {staffUiCopy(locale, "archiveDraftProduct")}
-          </h2>
-          <p className="mt-2 text-sm text-zinc-600">
-            {staffUiCopy(locale, "archiveDraftProductDescription")}
-          </p>
-          <div className="mt-4">
-            <button
-              type="button"
-              className="qos-btn"
-              data-variant="secondary"
-              disabled={archiving || saving}
-              onClick={() => setArchiveOpen(true)}
-            >
-              {archiving
-                ? staffUiCopy(locale, "archiveDraftProductArchiving")
-                : staffUiCopy(locale, "archiveDraftProduct")}
-            </button>
-          </div>
-        </section>
-      ) : null}
-
       {!isReadOnly ? (
-        <div className="sticky bottom-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur">
-          <p className="text-sm text-zinc-600">
-            {isDirty ? "Unsaved changes" : "All changes saved locally"}
+        <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
+          <p className="min-w-0 text-sm text-zinc-600">
+            {isDirty
+              ? staffUiCopy(locale, "productEditorUnsavedChanges")
+              : staffUiCopy(locale, "productEditorAllSavedLocally")}
             {form.publicId ? (
               <>
                 {" "}
-                · Product <code>{form.publicId}</code> · Version {form.version}
+                · {staffUiCopy(locale, "productEditorProductLabel")}{" "}
+                <code>{form.publicId}</code> ·{" "}
+                {staffUiCopy(locale, "productEditorVersionLabel")} {form.version}
               </>
             ) : null}
           </p>
@@ -1416,15 +1538,17 @@ export function ProductEditor({
               type="button"
               onClick={requestResetForm}
               disabled={!isDirty || saving}
-              className="qos-btn" data-variant="secondary"
+              className="qos-btn"
+              data-variant="secondary"
             >
-              Cancel
+              {staffUiCopy(locale, "cancel")}
             </button>
             <button
               type="button"
               disabled={saving}
               onClick={() => void saveProduct()}
-              className="qos-btn" data-variant="primary"
+              className="qos-btn"
+              data-variant="primary"
             >
               {productEditorSaveLabel(productStatus, locale, saving)}
             </button>

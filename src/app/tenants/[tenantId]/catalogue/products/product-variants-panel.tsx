@@ -39,6 +39,7 @@ type ProductVariantsPanelProps = {
   tenantId: string;
   productPublicId: string;
   productStatus: CatalogueProductEditorStatus;
+  embedded?: boolean;
 };
 
 type NewVariantForm = {
@@ -80,6 +81,7 @@ export function ProductVariantsPanel({
   tenantId,
   productPublicId,
   productStatus,
+  embedded = false,
 }: ProductVariantsPanelProps) {
   const productReadOnly = productStatus === "archived";
   const [view, setView] = useState<VariantsResponse | null>(null);
@@ -291,25 +293,38 @@ export function ProductVariantsPanel({
     }
   }
 
-  return (
-    <section className="mt-10 border-t border-zinc-200 pt-8">
-      <div className="mb-4 flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-xl font-semibold">Sellable variants</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Maintain size or style choices under one product. Archived variants
-            stay referenced by history but are not offered for new purchases.
-          </p>
+  const panelBody = (
+    <>
+      {!embedded ? (
+        <div className="mb-4 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">Sellable variants</h2>
+            <p className="mt-1 text-sm text-zinc-600">
+              Maintain size or style choices under one product. Archived variants
+              stay referenced by history but are not offered for new purchases.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void loadVariants()}
+            disabled={productVariantControlDisabled(productReadOnly, false, busy)}
+            className="qos-btn" data-variant="secondary" data-size="sm"
+          >
+            Reload
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void loadVariants()}
-          disabled={productVariantControlDisabled(productReadOnly, false, busy)}
-          className="qos-btn" data-variant="secondary" data-size="sm"
-        >
-          Reload
-        </button>
-      </div>
+      ) : (
+        <div className="mb-4 flex justify-end">
+          <button
+            type="button"
+            onClick={() => void loadVariants()}
+            disabled={productVariantControlDisabled(productReadOnly, false, busy)}
+            className="qos-btn" data-variant="secondary" data-size="sm"
+          >
+            Reload
+          </button>
+        </div>
+      )}
 
       {error ? (
         <p className="qos-alert" data-tone="error">
@@ -594,6 +609,14 @@ export function ProductVariantsPanel({
           </button>
         </form>
       ) : null}
-    </section>
+    </>
+  );
+
+  if (embedded) {
+    return <div className="min-w-0">{panelBody}</div>;
+  }
+
+  return (
+    <section className="mt-10 border-t border-zinc-200 pt-8">{panelBody}</section>
   );
 }

@@ -4,6 +4,7 @@ import {
   isStaffLocale,
   readStoredStaffLocale,
   setStoredStaffLocale,
+  STAFF_UI_COPY,
   staffDocumentDirection,
   staffNavLabel,
   staffUiCopy,
@@ -44,5 +45,18 @@ describe("staff locale", () => {
     expect(staffNavLabel("ar", "menus", "Menus")).toBe("القوائم");
     expect(staffNavLabel("ar", "catalogue", "Products")).toBe("المنتجات");
     expect(staffNavLabel("en", "unknown", "Fallback")).toBe("Fallback");
+  });
+
+  it("keeps Arabic staff UI keys in parity with English", () => {
+    const enKeys = Object.keys(STAFF_UI_COPY.en).sort();
+    const arKeys = Object.keys(STAFF_UI_COPY.ar).sort();
+    expect(arKeys).toEqual(enKeys);
+  });
+
+  it("provides bilingual product editor section labels", () => {
+    expect(staffUiCopy("en", "productEditorSectionIdentityTitle")).toBe("Identity");
+    expect(staffUiCopy("ar", "productEditorSectionIdentityTitle")).toBe("الهوية");
+    expect(staffUiCopy("en", "productEditorSectionStatusTitle")).toBe("Status");
+    expect(staffUiCopy("ar", "productEditorSectionStatusTitle")).toBe("الحالة");
   });
 });
