@@ -116,6 +116,26 @@ describe("generator selection", () => {
     expect(allowanceLabel(available, null)).toBe(`${available.remainingToday} of ${available.dailyLimit}`);
     expect(allowanceLabel({ ...available, remainingToday: 0 }, null)).toBe(`0 of ${available.dailyLimit}`);
   });
+
+  it("labels the generator in Arabic", () => {
+    expect(itemsNeedPhotosLabel(1, "ar")).toBe("صنف واحد يحتاج إلى صورة");
+    expect(itemsNeedPhotosLabel(2, "ar")).toBe("صنفان يحتاجان إلى صور");
+    expect(generateActionState(0, available, false, null, "ar")).toMatchObject({
+      disabled: true,
+      label: "اختر أصنافًا للتوليد",
+    });
+    expect(generateActionState(2, available, false, null, "ar")).toEqual({
+      disabled: false,
+      label: "توليد صورتين",
+      hint: null,
+    });
+    expect(generateActionState(4, available, false, null, "ar")).toMatchObject({
+      disabled: true,
+      hint: "المتبقي اليوم 3 فقط. اختر أصنافًا أقل.",
+    });
+    expect(allowanceLabel(available, null, "ar")).toBe("3 من 20");
+    expect(allowanceLabel(null, "تعذّر التحميل", "ar")).toBe("غير متاح");
+  });
 });
 
 describe("progress", () => {

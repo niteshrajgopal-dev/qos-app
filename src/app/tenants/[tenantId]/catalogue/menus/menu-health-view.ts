@@ -4,6 +4,11 @@ import type {
   MenuHealthReport,
   MenuHealthSeverity,
 } from "@/lib/catalogue/menu-health";
+import type { StaffLocale } from "@/lib/staff/locale";
+
+import { menusCopy, menusCount } from "./menus-copy";
+
+type IssueCopy = { title: string; description: string; fixLabel: string };
 
 export const MENU_HEALTH_ISSUE_COPY: Record<
   MenuHealthIssueType,
@@ -59,6 +64,65 @@ export const MENU_HEALTH_ISSUE_COPY: Record<
   },
 };
 
+const MENU_HEALTH_ISSUE_COPY_AR: Record<MenuHealthIssueType, IssueCopy> = {
+  missing_photo: {
+    title: "صور ناقصة",
+    description: "لا توجد صورة معتمدة، لذا يظهر الصنف بلا صورة.",
+    fixLabel: "إضافة صورة",
+  },
+  missing_description: {
+    title: "أوصاف ناقصة",
+    description: "الوصف بالإنجليزية أو بالعربية فارغ.",
+    fixLabel: "تعديل الصنف",
+  },
+  missing_translation: {
+    title: "ترجمات غير جاهزة",
+    description: "الترجمات الناقصة أو غير المعتمدة أو القديمة تمنع النشر.",
+    fixLabel: "مراجعة الترجمات",
+  },
+  modifier_issue: {
+    title: "إعداد الإضافات",
+    description: "مجموعات إضافات لا يستطيع العملاء إكمالها بإعدادها الحالي.",
+    fixLabel: "تعديل الصنف",
+  },
+  missing_price: {
+    title: "أسعار ناقصة",
+    description: "لا يوجد متغيّر نشط له سعر.",
+    fixLabel: "تعديل الصنف",
+  },
+  uncategorised: {
+    title: "بلا تصنيف",
+    description: "غير مُسند إلى أي تصنيف في الكتالوج.",
+    fixLabel: "تعديل الصنف",
+  },
+  duplicate_name: {
+    title: "تكرارات محتملة",
+    description: "أصناف في هذه القائمة تحمل الاسم الإنجليزي نفسه.",
+    fixLabel: "تعديل الصنف",
+  },
+  stop_sale: {
+    title: "موقوفة عن البيع",
+    description: "موقوف عن البيع حاليًا في أحد فروع هذه القائمة.",
+    fixLabel: "تعديل الصنف",
+  },
+};
+
+export function menuHealthIssueCopy(
+  type: MenuHealthIssueType,
+  locale: StaffLocale = "en",
+): IssueCopy {
+  return locale === "ar" ? MENU_HEALTH_ISSUE_COPY_AR[type] : MENU_HEALTH_ISSUE_COPY[type];
+}
+
+export function severityLabel(severity: MenuHealthSeverity, locale: StaffLocale = "en") {
+  if (severity === "blocking") {
+    return menusCopy(locale, "severityBlocking");
+  }
+  return severity === "warning"
+    ? menusCopy(locale, "severityWarning")
+    : menusCopy(locale, "severityInfo");
+}
+
 const SEVERITY_ORDER: Record<MenuHealthSeverity, number> = {
   blocking: 0,
   warning: 1,
@@ -99,18 +163,18 @@ export function productsForIssueType(
     }));
 }
 
-export function menuHealthHeadline(report: MenuHealthReport) {
+export function menuHealthHeadline(report: MenuHealthReport, locale: StaffLocale = "en") {
   const { products, productsWithIssues } = report.totals;
 
   if (products === 0) {
-    return "This menu has no items to check yet.";
+    return menusCopy(locale, "healthNoItems");
   }
 
   if (productsWithIssues === 0) {
-    return `All ${products} ${products === 1 ? "item passes" : "items pass"} the menu health checks.`;
+    return menusCount(locale, "allItemsPass", products);
   }
 
-  return `${productsWithIssues} of ${products} ${products === 1 ? "item needs" : "items need"} attention.`;
+  return menusCount(locale, "itemsNeedAttention", products, { issues: productsWithIssues });
 }
 
 export function productFixHref(

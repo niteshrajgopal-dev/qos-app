@@ -4,7 +4,9 @@ import type { MenuHealthReport } from "@/lib/catalogue/menu-health";
 
 import {
   menuHealthHeadline,
+  menuHealthIssueCopy,
   productFixHref,
+  severityLabel,
   productsForIssueType,
   visibleIssueGroups,
 } from "./menu-health-view";
@@ -90,6 +92,25 @@ describe("menu health view helpers", () => {
         report({ totals: { products: 0, sections: 0, locations: 1, productsWithIssues: 0 } }),
       ),
     ).toBe("This menu has no items to check yet.");
+  });
+
+  it("summarises the menu in Arabic with the right plural forms", () => {
+    expect(menuHealthHeadline(report(), "ar")).toBe("يحتاج 2 من أصل 3 أصناف إلى مراجعة.");
+    expect(
+      menuHealthHeadline(
+        report({ totals: { products: 1, sections: 1, locations: 1, productsWithIssues: 0 } }),
+        "ar",
+      ),
+    ).toBe("اجتاز الصنف الوحيد فحوصات القائمة.");
+    expect(
+      menuHealthHeadline(
+        report({ totals: { products: 0, sections: 0, locations: 1, productsWithIssues: 0 } }),
+        "ar",
+      ),
+    ).toBe("لا توجد أصناف في هذه القائمة لفحصها بعد.");
+    expect(menuHealthIssueCopy("missing_photo", "ar").title).toBe("صور ناقصة");
+    expect(menuHealthIssueCopy("missing_photo").title).toBe("Missing photos");
+    expect(severityLabel("blocking", "ar")).toBe("مانع");
   });
 
   it("links translation issues to the translations screen and the rest to edit", () => {
