@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 
 import { ProductEditor } from "@/app/tenants/[tenantId]/catalogue/products/product-editor";
 import { ButtonLink } from "@/components/ButtonLink";
-import { StaffScreen } from "@/components/staff/StaffScreen";
+import {
+  PortalArea,
+  PortalPageHeader,
+} from "@/components/portal/workspace/PortalWorkspace";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import {
   productEditorPageTitle,
@@ -53,34 +56,39 @@ export function ProductEditScreen({
   }, [productPublicId, tenantId]);
 
   return (
-    <StaffScreen
-      title={productEditorPageTitle(status, locale)}
-      subtitle={productPublicId}
-      actions={
-        <>
-          <ButtonLink
-            href={`/tenants/${tenantId}/catalogue/products/${productPublicId}/translations`}
-            variant="secondary"
-            size="sm"
-          >
-            {staffUiCopy(locale, "productEditorTranslationReview")}
-          </ButtonLink>
-          <ButtonLink
-            href={`/tenants/${tenantId}/catalogue/products/${productPublicId}/location-prices`}
-            variant="secondary"
-            size="sm"
-          >
-            {staffUiCopy(locale, "productEditorLocationPrices")}
-          </ButtonLink>
-        </>
-      }
-    >
+    <PortalArea>
+      <PortalPageHeader
+        back={{
+          href: `/tenants/${tenantId}/catalogue`,
+          label: staffUiCopy(locale, "catalogue"),
+        }}
+        title={productEditorPageTitle(status, locale)}
+        meta={<span className="qosp-code">{productPublicId}</span>}
+        actions={
+          <>
+            <ButtonLink
+              href={`/tenants/${tenantId}/catalogue/products/${productPublicId}/translations`}
+              variant="secondary"
+              size="sm"
+            >
+              {staffUiCopy(locale, "productEditorTranslationReview")}
+            </ButtonLink>
+            <ButtonLink
+              href={`/tenants/${tenantId}/catalogue/products/${productPublicId}/location-prices`}
+              variant="secondary"
+              size="sm"
+            >
+              {staffUiCopy(locale, "productEditorLocationPrices")}
+            </ButtonLink>
+          </>
+        }
+      />
       <ProductEditor
         tenantId={tenantId}
         productPublicId={productPublicId}
         catalogueProductStatusHint={status}
         onStatusChange={setStatus}
       />
-    </StaffScreen>
+    </PortalArea>
   );
 }

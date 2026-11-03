@@ -7,8 +7,15 @@ import {
   productVariantPriceDisabled,
   productVariantsPanelShowsAddForm,
 } from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel-state";
+import {
+  PortalBadge,
+  PortalField,
+  PortalNotice,
+} from "@/components/portal/workspace/PortalWorkspace";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type VariantTranslation = {
   displayName: string;
@@ -39,7 +46,6 @@ type ProductVariantsPanelProps = {
   tenantId: string;
   productPublicId: string;
   productStatus: CatalogueProductEditorStatus;
-  embedded?: boolean;
 };
 
 type NewVariantForm = {
@@ -81,8 +87,9 @@ export function ProductVariantsPanel({
   tenantId,
   productPublicId,
   productStatus,
-  embedded = false,
 }: ProductVariantsPanelProps) {
+  const { locale } = useStaffLocale();
+  const copy = (key: Parameters<typeof staffUiCopy>[1]) => staffUiCopy(locale, key);
   const productReadOnly = productStatus === "archived";
   const [view, setView] = useState<VariantsResponse | null>(null);
   const [newVariant, setNewVariant] = useState<NewVariantForm>(emptyNewVariant);
@@ -109,18 +116,18 @@ export function ProductVariantsPanel({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to load variants.");
+        throw new Error(payload.error ?? staffUiCopy(locale, "variantsLoadError"));
       }
 
       setView(payload);
     } catch (loadError) {
       setError(
-        loadError instanceof Error ? loadError.message : "Unable to load variants.",
+        loadError instanceof Error ? loadError.message : staffUiCopy(locale, "variantsLoadError"),
       );
     } finally {
       setBusy(false);
     }
-  }, [productPublicId, tenantId]);
+  }, [locale, productPublicId, tenantId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -161,16 +168,16 @@ export function ProductVariantsPanel({
       if (!response.ok) {
         throw new Error(
           payload.field
-            ? `${payload.error ?? "Unable to save variant."} (${payload.field})`
-            : payload.error ?? "Unable to save variant.",
+            ? `${payload.error ?? copy("variantSaveError")} (${payload.field})`
+            : payload.error ?? copy("variantSaveError"),
         );
       }
 
       setView(payload);
-      setMessage("Variant saved.");
+      setMessage(copy("variantSaved"));
     } catch (saveError) {
       setError(
-        saveError instanceof Error ? saveError.message : "Unable to save variant.",
+        saveError instanceof Error ? saveError.message : copy("variantSaveError"),
       );
     } finally {
       setBusy(false);
@@ -217,19 +224,19 @@ export function ProductVariantsPanel({
       if (!response.ok) {
         throw new Error(
           payload.field
-            ? `${payload.error ?? "Unable to create variant."} (${payload.field})`
-            : payload.error ?? "Unable to create variant.",
+            ? `${payload.error ?? copy("variantCreateError")} (${payload.field})`
+            : payload.error ?? copy("variantCreateError"),
         );
       }
 
       setView(payload);
       setNewVariant(emptyNewVariant());
-      setMessage("Variant added.");
+      setMessage(copy("variantAdded"));
     } catch (createError) {
       setError(
         createError instanceof Error
           ? createError.message
-          : "Unable to create variant.",
+          : copy("variantCreateError"),
       );
     } finally {
       setBusy(false);
@@ -277,215 +284,141 @@ export function ProductVariantsPanel({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to reorder variants.");
+        throw new Error(payload.error ?? copy("variantReorderError"));
       }
 
       setView(payload);
-      setMessage("Variant order updated.");
+      setMessage(copy("variantOrderUpdated"));
     } catch (reorderError) {
       setError(
         reorderError instanceof Error
           ? reorderError.message
-          : "Unable to reorder variants.",
+          : copy("variantReorderError"),
       );
     } finally {
       setBusy(false);
     }
   }
 
-  const panelBody = (
-    <>
-      {!embedded ? (
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold">Sellable variants</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Maintain size or style choices under one product. Archived variants
-              stay referenced by history but are not offered for new purchases.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => void loadVariants()}
-            disabled={productVariantControlDisabled(productReadOnly, false, busy)}
-            className="qos-btn" data-variant="secondary" data-size="sm"
-          >
-            Reload
-          </button>
-        </div>
-      ) : (
-        <div className="mb-4 flex justify-end">
-          <button
-            type="button"
-            onClick={() => void loadVariants()}
-            disabled={productVariantControlDisabled(productReadOnly, false, busy)}
-            className="qos-btn" data-variant="secondary" data-size="sm"
-          >
-            Reload
-          </button>
-        </div>
-      )}
+  function updateVariant(variantPublicId: string, patch: (entry: VariantRow) => VariantRow) {
+    if (!view) {
+      return;
+    }
 
-      {error ? (
-        <p className="qos-alert" data-tone="error">
-          {error}
-        </p>
-      ) : null}
-      {message ? (
-        <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          {message}
-        </p>
-      ) : null}
+    setView({
+      ...view,
+      variants: view.variants.map((entry) =>
+        entry.publicId === variantPublicId ? patch(entry) : entry,
+      ),
+    });
+  }
 
-      <div className="space-y-4">
-        {(view?.variants ?? []).map((variant) => (
-          <article
-            key={variant.publicId}
-            className={`rounded-xl border p-4 ${
-              variant.status === "archived"
-                ? "border-zinc-200 bg-zinc-50 opacity-80"
-                : "border-zinc-200 bg-white"
-            }`}
-          >
-            <div className="mb-3 flex flex-wrap items-center gap-2">
-              <code className="rounded bg-zinc-100 px-2 py-0.5 text-xs">
-                {variant.publicId}
-              </code>
+  return (
+    <div className="qosp-stack">
+      <div className="qosp-button-row" data-align="end">
+        <button
+          type="button"
+          onClick={() => void loadVariants()}
+          disabled={productVariantControlDisabled(productReadOnly, false, busy)}
+          className="qos-btn" data-variant="secondary" data-size="sm"
+        >
+          {copy("reload")}
+        </button>
+      </div>
+
+      {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
+      {message ? <PortalNotice tone="success">{message}</PortalNotice> : null}
+
+      {(view?.variants ?? []).map((variant) => {
+        const archived = variant.status === "archived";
+        const fieldDisabled = productVariantControlDisabled(productReadOnly, archived, busy);
+
+        return (
+          <article key={variant.publicId} className="qosp-subcard" data-muted={archived}>
+            <div className="qosp-meta-row">
+              <code className="qosp-code">{variant.publicId}</code>
               {variant.isDefault ? (
-                <span className="rounded-full bg-zinc-900 px-2 py-0.5 text-xs font-medium text-white">
-                  Default
-                </span>
+                <PortalBadge tone="positive">{copy("variantDefault")}</PortalBadge>
               ) : null}
-              {variant.status === "archived" ? (
-                <span className="rounded-full bg-zinc-200 px-2 py-0.5 text-xs font-medium text-zinc-700">
-                  Archived
-                </span>
+              {archived ? (
+                <PortalBadge tone="neutral">{copy("productEditorStatusArchived")}</PortalBadge>
               ) : null}
             </div>
 
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="block text-sm">
-                <span className="font-medium text-zinc-700">English label</span>
+            <div className="qosp-form-grid" data-columns="2">
+              <PortalField label={copy("variantEnglishLabel")}>
                 <input
                   className="qos-input"
+                  dir="ltr"
                   value={variant.translations.en.displayName}
-                  disabled={productVariantControlDisabled(
-                    productReadOnly,
-                    variant.status === "archived",
-                    busy,
-                  )}
-                  onChange={(event) => {
-                    if (!view) {
-                      return;
-                    }
-
-                    setView({
-                      ...view,
-                      variants: view.variants.map((entry) =>
-                        entry.publicId === variant.publicId
-                          ? {
-                              ...entry,
-                              translations: {
-                                ...entry.translations,
-                                en: { displayName: event.target.value },
-                              },
-                            }
-                          : entry,
-                      ),
-                    });
-                  }}
+                  disabled={fieldDisabled}
+                  onChange={(event) =>
+                    updateVariant(variant.publicId, (entry) => ({
+                      ...entry,
+                      translations: {
+                        ...entry.translations,
+                        en: { displayName: event.target.value },
+                      },
+                    }))
+                  }
                 />
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-zinc-700">Arabic label</span>
+              </PortalField>
+              <PortalField label={copy("variantArabicLabel")}>
                 <input
                   className="qos-input"
+                  dir="rtl"
+                  lang="ar"
                   value={variant.translations.ar.displayName}
-                  disabled={productVariantControlDisabled(
-                    productReadOnly,
-                    variant.status === "archived",
-                    busy,
-                  )}
-                  onChange={(event) => {
-                    if (!view) {
-                      return;
-                    }
-
-                    setView({
-                      ...view,
-                      variants: view.variants.map((entry) =>
-                        entry.publicId === variant.publicId
-                          ? {
-                              ...entry,
-                              translations: {
-                                ...entry.translations,
-                                ar: { displayName: event.target.value },
-                              },
-                            }
-                          : entry,
-                      ),
-                    });
-                  }}
+                  disabled={fieldDisabled}
+                  onChange={(event) =>
+                    updateVariant(variant.publicId, (entry) => ({
+                      ...entry,
+                      translations: {
+                        ...entry.translations,
+                        ar: { displayName: event.target.value },
+                      },
+                    }))
+                  }
                 />
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-zinc-700">AED price</span>
+              </PortalField>
+              <PortalField label={copy("variantPriceLabel")}>
                 <input
                   className="qos-input"
+                  inputMode="decimal"
+                  dir="ltr"
                   value={minorToMajor(variant.amountMinor)}
                   disabled={productVariantPriceDisabled(
                     productReadOnly,
-                    variant.status === "archived",
+                    archived,
                     busy,
                     view?.canEditPrice ?? false,
                   )}
-                  onChange={(event) => {
-                    if (!view) {
-                      return;
-                    }
-
-                    const amountMinor = majorToMinor(event.target.value);
-                    setView({
-                      ...view,
-                      variants: view.variants.map((entry) =>
-                        entry.publicId === variant.publicId
-                          ? { ...entry, amountMinor }
-                          : entry,
-                      ),
-                    });
-                  }}
+                  onChange={(event) =>
+                    updateVariant(variant.publicId, (entry) => ({
+                      ...entry,
+                      amountMinor: majorToMinor(event.target.value),
+                    }))
+                  }
                 />
-              </label>
-              <label className="block text-sm">
-                <span className="font-medium text-zinc-700">SKU</span>
+              </PortalField>
+              <PortalField label={copy("productEditorSkuLabel")}>
                 <input
                   className="qos-input"
+                  dir="ltr"
                   value={variant.sku ?? ""}
-                  disabled={productVariantControlDisabled(
-                    productReadOnly,
-                    variant.status === "archived",
-                    busy,
-                  )}
-                  onChange={(event) => {
-                    if (!view) {
-                      return;
-                    }
-
-                    setView({
-                      ...view,
-                      variants: view.variants.map((entry) =>
-                        entry.publicId === variant.publicId
-                          ? { ...entry, sku: event.target.value }
-                          : entry,
-                      ),
-                    });
-                  }}
+                  disabled={fieldDisabled}
+                  onChange={(event) =>
+                    updateVariant(variant.publicId, (entry) => ({
+                      ...entry,
+                      sku: event.target.value,
+                    }))
+                  }
                 />
-              </label>
+              </PortalField>
             </div>
 
             {variant.status === "active" && !productReadOnly ? (
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="qosp-button-row">
                 <button
                   type="button"
                   disabled={busy}
@@ -499,18 +432,16 @@ export function ProductVariantsPanel({
                   }
                   className="qos-btn" data-variant="primary" data-size="sm"
                 >
-                  Save variant
+                  {copy("variantSave")}
                 </button>
                 {!variant.isDefault ? (
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() =>
-                      void saveVariant(variant.publicId, { isDefault: true })
-                    }
+                    onClick={() => void saveVariant(variant.publicId, { isDefault: true })}
                     className="qos-btn" data-variant="secondary" data-size="sm"
                   >
-                    Make default
+                    {copy("variantMakeDefault")}
                   </button>
                 ) : null}
                 <button
@@ -519,7 +450,7 @@ export function ProductVariantsPanel({
                   onClick={() => void handleReorder(variant.publicId, "up")}
                   className="qos-btn" data-variant="secondary" data-size="sm"
                 >
-                  Move up
+                  {copy("variantMoveUp")}
                 </button>
                 <button
                   type="button"
@@ -527,70 +458,67 @@ export function ProductVariantsPanel({
                   onClick={() => void handleReorder(variant.publicId, "down")}
                   className="qos-btn" data-variant="secondary" data-size="sm"
                 >
-                  Move down
+                  {copy("variantMoveDown")}
                 </button>
                 {!variant.isDefault ? (
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() =>
-                      void saveVariant(variant.publicId, { status: "archived" })
-                    }
+                    onClick={() => void saveVariant(variant.publicId, { status: "archived" })}
                     className="qos-btn" data-variant="danger" data-size="sm"
                   >
-                    Archive
+                    {copy("variantArchive")}
                   </button>
                 ) : null}
               </div>
             ) : null}
           </article>
-        ))}
-      </div>
+        );
+      })}
 
       {productVariantsPanelShowsAddForm(productReadOnly) ? (
         <form
           onSubmit={(event) => void handleCreateVariant(event)}
-          className="mt-8 rounded-xl border border-dashed border-zinc-300 p-4"
+          className="qosp-subcard qosp-stack"
+          data-dashed="true"
         >
-          <h3 className="text-lg font-medium">Add variant</h3>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <label className="block text-sm">
-              <span className="font-medium text-zinc-700">English label</span>
+          <h3 className="qosp-subcard-title">{copy("variantAddTitle")}</h3>
+          <div className="qosp-form-grid" data-columns="2">
+            <PortalField label={copy("variantEnglishLabel")}>
               <input
                 className="qos-input"
+                dir="ltr"
                 value={newVariant.enLabel}
                 disabled={busy}
-                onChange={(event) =>
-                  setNewVariant({ ...newVariant, enLabel: event.target.value })
-                }
+                onChange={(event) => setNewVariant({ ...newVariant, enLabel: event.target.value })}
               />
-            </label>
-            <label className="block text-sm">
-              <span className="font-medium text-zinc-700">Arabic label</span>
+            </PortalField>
+            <PortalField label={copy("variantArabicLabel")}>
               <input
                 className="qos-input"
+                dir="rtl"
+                lang="ar"
                 value={newVariant.arLabel}
                 disabled={busy}
-                onChange={(event) =>
-                  setNewVariant({ ...newVariant, arLabel: event.target.value })
-                }
+                onChange={(event) => setNewVariant({ ...newVariant, arLabel: event.target.value })}
               />
-            </label>
-            <label className="block text-sm">
-              <span className="font-medium text-zinc-700">AED price</span>
+            </PortalField>
+            <PortalField label={copy("variantPriceLabel")}>
               <input
                 className="qos-input"
+                inputMode="decimal"
+                dir="ltr"
                 value={newVariant.priceMajor}
                 disabled={busy || view?.canEditPrice === false}
                 onChange={(event) =>
                   setNewVariant({ ...newVariant, priceMajor: event.target.value })
                 }
               />
-            </label>
-            <label className="block text-sm">
-              <span className="font-medium text-zinc-700">Optional public ID</span>
+            </PortalField>
+            <PortalField label={copy("variantPublicIdLabel")}>
               <input
                 className="qos-input"
+                dir="ltr"
                 placeholder="var_medium_abc12345"
                 value={newVariant.publicId}
                 disabled={busy}
@@ -598,25 +526,15 @@ export function ProductVariantsPanel({
                   setNewVariant({ ...newVariant, publicId: event.target.value })
                 }
               />
-            </label>
+            </PortalField>
           </div>
-          <button
-            type="submit"
-            disabled={busy || !view}
-            className="qos-btn" data-variant="primary"
-          >
-            Add variant
-          </button>
+          <div className="qosp-button-row">
+            <button type="submit" disabled={busy || !view} className="qos-btn" data-variant="primary">
+              {copy("variantAddTitle")}
+            </button>
+          </div>
         </form>
       ) : null}
-    </>
-  );
-
-  if (embedded) {
-    return <div className="min-w-0">{panelBody}</div>;
-  }
-
-  return (
-    <section className="mt-10 border-t border-zinc-200 pt-8">{panelBody}</section>
+    </div>
   );
 }

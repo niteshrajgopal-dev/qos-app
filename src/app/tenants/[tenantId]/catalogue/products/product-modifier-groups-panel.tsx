@@ -3,15 +3,22 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { ArrowUpRight } from "lucide-react";
+
+import {
+  PortalField,
+  PortalNotice,
+} from "@/components/portal/workspace/PortalWorkspace";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
 import { productEditorChildMutationsDisabled } from "@/lib/catalogue/product-editor-mutation-ui";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import { staffCount, staffUiCopy } from "@/lib/staff/locale";
 
 type ProductModifierGroupsPanelProps = {
   tenantId: string;
   productPublicId: string;
   productStatus: CatalogueProductEditorStatus;
-  embedded?: boolean;
 };
 
 type AvailableGroup = {
@@ -36,8 +43,9 @@ export function ProductModifierGroupsPanel({
   tenantId,
   productPublicId,
   productStatus,
-  embedded = false,
 }: ProductModifierGroupsPanelProps) {
+  const { locale } = useStaffLocale();
+  const copy = (key: Parameters<typeof staffUiCopy>[1]) => staffUiCopy(locale, key);
   const mutationsDisabled = productEditorChildMutationsDisabled(productStatus);
   const [view, setView] = useState<ProductModifierView | null>(null);
   const [availableGroups, setAvailableGroups] = useState<AvailableGroup[]>([]);
@@ -68,11 +76,11 @@ export function ProductModifierGroupsPanel({
       };
 
       if (!productResponse.ok) {
-        throw new Error(productPayload.error ?? "Unable to load product modifiers.");
+        throw new Error(productPayload.error ?? staffUiCopy(locale, "modifierLoadError"));
       }
 
       if (!groupsResponse.ok) {
-        throw new Error(groupsPayload.error ?? "Unable to load modifier groups.");
+        throw new Error(groupsPayload.error ?? staffUiCopy(locale, "modifierLoadError"));
       }
 
       setView(productPayload);
@@ -81,12 +89,12 @@ export function ProductModifierGroupsPanel({
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Unable to load modifier assignments.",
+          : staffUiCopy(locale, "modifierLoadError"),
       );
     } finally {
       setBusy(false);
     }
-  }, [productPublicId, tenantId]);
+  }, [locale, productPublicId, tenantId]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -121,17 +129,17 @@ export function ProductModifierGroupsPanel({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to attach modifier group.");
+        throw new Error(payload.error ?? copy("modifierAttachError"));
       }
 
       setView(payload);
       setSelectedGroupPublicId("");
-      setMessage("Modifier group attached.");
+      setMessage(copy("modifierAttached"));
     } catch (attachError) {
       setError(
         attachError instanceof Error
           ? attachError.message
-          : "Unable to attach modifier group.",
+          : copy("modifierAttachError"),
       );
     } finally {
       setBusy(false);
@@ -162,16 +170,16 @@ export function ProductModifierGroupsPanel({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to detach modifier group.");
+        throw new Error(payload.error ?? copy("modifierDetachError"));
       }
 
       setView(payload);
-      setMessage("Modifier group detached.");
+      setMessage(copy("modifierDetached"));
     } catch (detachError) {
       setError(
         detachError instanceof Error
           ? detachError.message
-          : "Unable to detach modifier group.",
+          : copy("modifierDetachError"),
       );
     } finally {
       setBusy(false);
@@ -185,58 +193,30 @@ export function ProductModifierGroupsPanel({
       ),
   );
 
-  const panelBody = (
-    <>
-      {!embedded ? (
-        <div className="mb-4 flex items-center justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold">Modifier groups</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Attach reusable choice groups to this product.
-            </p>
-          </div>
-          <Link
-            href={`/tenants/${tenantId}/catalogue/modifier-groups`}
-            className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
-          >
-            Manage groups
-          </Link>
-        </div>
-      ) : (
-        <div className="mb-4 flex justify-end">
-          <Link
-            href={`/tenants/${tenantId}/catalogue/modifier-groups`}
-            className="text-sm font-medium text-zinc-600 underline-offset-4 hover:underline"
-          >
-            Manage groups
-          </Link>
-        </div>
-      )}
+  return (
+    <div className="qosp-stack">
+      <div className="qosp-button-row" data-align="end">
+        <Link href={`/tenants/${tenantId}/catalogue/modifier-groups`} className="qosp-text-link">
+          {copy("modifierManageGroups")}
+          <ArrowUpRight size={14} aria-hidden="true" className="qosp-flip-rtl" />
+        </Link>
+      </div>
 
-      {error ? (
-        <p className="qos-alert" data-tone="error">
-          {error}
-        </p>
-      ) : null}
-      {message ? (
-        <p className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-          {message}
-        </p>
-      ) : null}
+      {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
+      {message ? <PortalNotice tone="success">{message}</PortalNotice> : null}
 
-      <div className="space-y-3">
-        {(view?.modifierGroups ?? []).map((group) => (
-          <article
-            key={group.modifierGroupPublicId}
-            className="qos-card" data-padding="sm"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h3 className="font-medium">
+      {(view?.modifierGroups ?? []).length > 0 ? (
+        <ul className="qosp-attached-list">
+          {(view?.modifierGroups ?? []).map((group) => (
+            <li key={group.modifierGroupPublicId} className="qosp-subcard qosp-attached-row">
+              <div className="qosp-attached-body">
+                <h3 className="qosp-subcard-title">
                   {group.translations.en.displayName || group.modifierGroupPublicId}
                 </h3>
-                <p className="mt-1 text-sm text-zinc-600">
-                  {group.modifierGroupPublicId} · {group.options.length} option(s)
+                <p className="qosp-meta-line">
+                  <span dir="ltr">{group.modifierGroupPublicId}</span>
+                  {" · "}
+                  {staffCount(locale, "modifierOptions", group.options.length)}
                 </p>
               </div>
               <button
@@ -245,49 +225,40 @@ export function ProductModifierGroupsPanel({
                 onClick={() => void detachGroup(group.modifierGroupPublicId)}
                 className="qos-btn" data-variant="danger" data-size="sm"
               >
-                Detach
+                {copy("modifierDetach")}
               </button>
-            </div>
-          </article>
-        ))}
-      </div>
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       {!mutationsDisabled ? (
-        <div className="mt-6 flex flex-wrap items-end gap-3">
-          <label className="block text-sm">
-            <span className="font-medium text-zinc-700">Attach group</span>
+        <div className="qosp-attach-row">
+          <PortalField label={copy("modifierAttachGroupLabel")}>
             <select
               className="qos-select"
               value={selectedGroupPublicId}
               disabled={busy || unattachedGroups.length === 0}
               onChange={(event) => setSelectedGroupPublicId(event.target.value)}
             >
-              <option value="">Select a modifier group</option>
+              <option value="">{copy("modifierSelectGroup")}</option>
               {unattachedGroups.map((group) => (
                 <option key={group.publicId} value={group.publicId}>
                   {group.translations.en.displayName || group.internalName}
                 </option>
               ))}
             </select>
-          </label>
+          </PortalField>
           <button
             type="button"
             disabled={busy || !selectedGroupPublicId || !view}
             onClick={() => void attachGroup()}
             className="qos-btn" data-variant="primary"
           >
-            Attach
+            {copy("modifierAttach")}
           </button>
         </div>
       ) : null}
-    </>
-  );
-
-  if (embedded) {
-    return <div className="min-w-0">{panelBody}</div>;
-  }
-
-  return (
-    <section className="mt-10 border-t border-zinc-200 pt-8">{panelBody}</section>
+    </div>
   );
 }

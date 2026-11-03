@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { ConfirmDialog } from "@/components/Modal";
 import { shouldShowArchiveDraftProductAction } from "@/lib/catalogue/product-archive-action";
@@ -23,7 +23,16 @@ import { mapVideoErrorToFriendlyMessage } from "@/lib/media/video-error-messages
 import { AiPhotoProvenanceMeta } from "@/app/tenants/[tenantId]/catalogue/menus/ai-photo-provenance-meta";
 import { AiDescriptionReview } from "@/app/tenants/[tenantId]/catalogue/products/ai-description-review";
 import { Button } from "@/components/Button";
-import { publicProductThumbnailUrl } from "@/components/platform/catalogue-products-list";
+import {
+  productStatusBadge,
+  publicProductThumbnailUrl,
+} from "@/components/platform/catalogue-products-list";
+import {
+  PortalBadge,
+  PortalField,
+  PortalFileInput,
+  PortalNotice,
+} from "@/components/portal/workspace/PortalWorkspace";
 import type {
   StaffMediaProvenanceView,
   StaffRemovedPrimaryPhotoView,
@@ -166,23 +175,13 @@ export function ProductEditor({
   const [videoRejectionReason, setVideoRejectionReason] = useState<string | null>(null);
   const [approvedVideoUrls, setApprovedVideoUrls] = useState<{ playbackUrl: string; posterUrl: string } | null>(null);
   const [selectedVideoFilename, setSelectedVideoFilename] = useState<string | null>(null);
+  const [selectedPhotoFilename, setSelectedPhotoFilename] = useState<string | null>(null);
+  const photoHelpId = useId();
+  const videoHelpId = useId();
   const activeCorrelationIdRef = useRef<string | null>(null);
 
   const serializedForm = useMemo(() => JSON.stringify(form), [form]);
   const isDirty = baseline !== "" && serializedForm !== baseline;
-
-  const productStatusLabel = useMemo(() => {
-    if (productStatus === "active") {
-      return staffUiCopy(locale, "productEditorStatusActive");
-    }
-    if (productStatus === "archived") {
-      return staffUiCopy(locale, "productEditorStatusArchived");
-    }
-    if (productStatus === "draft") {
-      return staffUiCopy(locale, "productEditorStatusDraft");
-    }
-    return "—";
-  }, [locale, productStatus]);
 
   const loadApprovedVideoUrls = useCallback(async () => {
     if (!productPublicId) {
@@ -910,42 +909,48 @@ export function ProductEditor({
 
   if (isEditMode && !hasLoadedProduct && !loading) {
     return (
-      <div className="space-y-4">
-        <p className="text-sm text-zinc-600">
+      <div className="qosp-stack">
+        <p className="qosp-meta-line">
           {productEditorLoadPrompt(editorStatus, locale)}
         </p>
-        <button
-          type="button"
-          onClick={() =>
-            void loadProduct().catch((loadError) => {
-              setError(
-                loadError instanceof Error
-                  ? loadError.message
-                  : "Unable to load product.",
-              );
-            })
-          }
-          className="qos-btn" data-variant="secondary"
-        >
-          {productEditorLoadButtonLabel(locale, false)}
-        </button>
-        {error ? (
-          <p className="qos-alert" data-tone="error">
-            {error}
-          </p>
-        ) : null}
+        <div>
+          <button
+            type="button"
+            onClick={() =>
+              void loadProduct().catch((loadError) => {
+                setError(
+                  loadError instanceof Error
+                    ? loadError.message
+                    : "Unable to load product.",
+                );
+              })
+            }
+            className="qos-btn" data-variant="secondary"
+          >
+            {productEditorLoadButtonLabel(locale, false)}
+          </button>
+        </div>
+        {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
       </div>
     );
   }
 
   if (loading) {
-    return <p className="text-sm text-zinc-600">{staffUiCopy(locale, "productEditorLoading")}</p>;
+    return (
+      <p className="qosp-meta-line" role="status">
+        {staffUiCopy(locale, "productEditorLoading")}
+      </p>
+    );
   }
 
+  const statusBadge = productStatus
+    ? productStatusBadge(locale, productStatus)
+    : null;
+
   return (
-    <div className="min-w-0 space-y-4 pb-28">
+    <div className="qosp-editor">
       {isEditMode ? (
-        <div className="flex flex-wrap justify-end">
+        <div className="qosp-button-row" data-align="end">
           <button
             type="button"
             onClick={() =>
@@ -966,24 +971,18 @@ export function ProductEditor({
         </div>
       ) : null}
 
-      <fieldset
-        className="m-0 min-w-0 space-y-4 border-0 p-0"
-        disabled={isReadOnly}
-      >
+      <fieldset disabled={isReadOnly}>
         <ProductEditorSection
           id="identity"
           titleKey="productEditorSectionIdentityTitle"
           helperKey="productEditorSectionIdentityHelp"
           locale={locale}
         >
-          <div className="grid gap-4">
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">
-                {staffUiCopy(locale, "productEditorInternalNameLabel")}
-              </span>
-              <span className="block text-xs text-zinc-500">
-                {staffUiCopy(locale, "productEditorInternalNameHelp")}
-              </span>
+          <div className="qosp-form-grid">
+            <PortalField
+              label={staffUiCopy(locale, "productEditorInternalNameLabel")}
+              help={staffUiCopy(locale, "productEditorInternalNameHelp")}
+            >
               <input
                 className="qos-input"
                 value={form.internalName}
@@ -994,15 +993,12 @@ export function ProductEditor({
                   }))
                 }
               />
-            </label>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-zinc-700">
-                  {staffUiCopy(locale, "productEditorSkuLabel")}
-                </span>
-                <span className="block text-xs text-zinc-500">
-                  {staffUiCopy(locale, "productEditorSkuHelp")}
-                </span>
+            </PortalField>
+            <div className="qosp-form-grid" data-columns="2">
+              <PortalField
+                label={staffUiCopy(locale, "productEditorSkuLabel")}
+                help={staffUiCopy(locale, "productEditorSkuHelp")}
+              >
                 <input
                   className="qos-input"
                   value={form.sku}
@@ -1010,14 +1006,11 @@ export function ProductEditor({
                     setForm((current) => ({ ...current, sku: event.target.value }))
                   }
                 />
-              </label>
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-zinc-700">
-                  {staffUiCopy(locale, "productEditorBarcodeLabel")}
-                </span>
-                <span className="block text-xs text-zinc-500">
-                  {staffUiCopy(locale, "productEditorBarcodeHelp")}
-                </span>
+              </PortalField>
+              <PortalField
+                label={staffUiCopy(locale, "productEditorBarcodeLabel")}
+                help={staffUiCopy(locale, "productEditorBarcodeHelp")}
+              >
                 <input
                   className="qos-input"
                   value={form.barcode}
@@ -1028,7 +1021,7 @@ export function ProductEditor({
                     }))
                   }
                 />
-              </label>
+              </PortalField>
             </div>
           </div>
         </ProductEditorSection>
@@ -1039,12 +1032,11 @@ export function ProductEditor({
           helperKey="productEditorSectionEnglishHelp"
           locale={locale}
         >
-          <div className="grid gap-4">
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">
-                {staffUiCopy(locale, "productEditorDisplayNameLabel")}
-              </span>
+          <div className="qosp-form-grid">
+            <PortalField label={staffUiCopy(locale, "productEditorDisplayNameLabel")}>
               <input
+                dir="ltr"
+                lang="en"
                 className="qos-input"
                 value={form.translations.en.displayName}
                 onChange={(event) =>
@@ -1060,12 +1052,11 @@ export function ProductEditor({
                   }))
                 }
               />
-            </label>
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">
-                {staffUiCopy(locale, "productEditorDescriptionLabel")}
-              </span>
+            </PortalField>
+            <PortalField label={staffUiCopy(locale, "productEditorDescriptionLabel")}>
               <textarea
+                dir="ltr"
+                lang="en"
                 className="qos-textarea"
                 value={form.translations.en.description}
                 onChange={(event) =>
@@ -1081,8 +1072,8 @@ export function ProductEditor({
                   }))
                 }
               />
-            </label>
-            <p className="text-xs text-zinc-500">
+            </PortalField>
+            <p className="qosp-meta-line">
               {staffUiCopy(locale, "productEditorTranslationVersionLabel")}:{" "}
               {form.translations.en.translationVersion}
             </p>
@@ -1112,13 +1103,11 @@ export function ProductEditor({
           helperKey="productEditorSectionArabicHelp"
           locale={locale}
         >
-          <div className="grid gap-4">
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">
-                {staffUiCopy(locale, "productEditorDisplayNameLabel")}
-              </span>
+          <div className="qosp-form-grid">
+            <PortalField label={staffUiCopy(locale, "productEditorDisplayNameLabel")}>
               <input
                 dir="rtl"
+                lang="ar"
                 className="qos-input"
                 value={form.translations.ar.displayName}
                 onChange={(event) =>
@@ -1134,13 +1123,11 @@ export function ProductEditor({
                   }))
                 }
               />
-            </label>
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">
-                {staffUiCopy(locale, "productEditorDescriptionLabel")}
-              </span>
+            </PortalField>
+            <PortalField label={staffUiCopy(locale, "productEditorDescriptionLabel")}>
               <textarea
                 dir="rtl"
+                lang="ar"
                 className="qos-textarea"
                 value={form.translations.ar.description}
                 onChange={(event) =>
@@ -1156,8 +1143,8 @@ export function ProductEditor({
                   }))
                 }
               />
-            </label>
-            <p className="text-xs text-zinc-500">
+            </PortalField>
+            <p className="qosp-meta-line">
               {staffUiCopy(locale, "productEditorTranslationVersionLabel")}:{" "}
               {form.translations.ar.translationVersion}
             </p>
@@ -1170,21 +1157,25 @@ export function ProductEditor({
           helperKey="productEditorSectionPricingHelp"
           locale={locale}
         >
-          <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block space-y-2">
-              <span className="text-sm font-medium text-zinc-700">
-                {staffUiCopy(locale, "productEditorDefaultPriceLabel")}
-              </span>
-              <span className="block text-xs text-zinc-500">
-                {staffUiCopy(locale, "productEditorDefaultPriceHelp")}
-              </span>
+          <div className="qosp-form-grid" data-columns="2">
+            <PortalField
+              label={staffUiCopy(locale, "productEditorDefaultPriceLabel")}
+              help={
+                form.canEditPrice
+                  ? staffUiCopy(locale, "productEditorDefaultPriceHelp")
+                  : `${staffUiCopy(locale, "productEditorDefaultPriceHelp")} ${staffUiCopy(locale, "productEditorPriceAdminNotice")}`
+              }
+            >
               <input
                 type="number"
+                inputMode="decimal"
                 min="0"
                 step="0.01"
+                dir="ltr"
                 disabled={!form.canEditPrice}
-                className="qos-select"
+                className="qos-input"
                 value={form.priceMajor}
+                aria-invalid={fieldError === "defaultVariant.amountMinor" || undefined}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
@@ -1192,21 +1183,15 @@ export function ProductEditor({
                   }))
                 }
               />
-              {!form.canEditPrice ? (
-                <span className="text-xs text-zinc-500">
-                  {staffUiCopy(locale, "productEditorPriceAdminNotice")}
-                </span>
-              ) : null}
-            </label>
+            </PortalField>
             {form.businessProfile === "hospitality" ? (
-              <label className="block space-y-2">
-                <span className="text-sm font-medium text-zinc-700">
-                  {staffUiCopy(locale, "productEditorCaloriesLabel")}
-                </span>
+              <PortalField label={staffUiCopy(locale, "productEditorCaloriesLabel")}>
                 <input
                   type="number"
+                  inputMode="numeric"
                   min="0"
                   step="1"
+                  dir="ltr"
                   className="qos-input"
                   value={form.nutritionCalories}
                   onChange={(event) =>
@@ -1216,7 +1201,7 @@ export function ProductEditor({
                     }))
                   }
                 />
-              </label>
+              </PortalField>
             ) : null}
           </div>
         </ProductEditorSection>
@@ -1228,61 +1213,38 @@ export function ProductEditor({
             helperKey="productEditorSectionMediaHelp"
             locale={locale}
           >
-            <div className="space-y-8">
-              <div className="space-y-3">
-                <h3 className="text-sm font-medium text-zinc-900">
-                  {staffUiCopy(locale, "productEditorPhotoLabel")}
-                </h3>
-                <p className="text-sm text-zinc-600">
-                  {staffUiCopy(locale, "productEditorPhotoHelp")}
-                </p>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png"
-                  disabled={imageUploading || childMutationsDisabled}
-                  onChange={(event) => {
-                    const file = event.target.files?.[0];
-                    if (file) {
-                      void uploadProductImage(file);
-                    }
-                    event.target.value = "";
-                  }}
-                  className="block w-full min-w-0 text-sm text-zinc-700 file:mr-4 file:rounded-full file:border-0 file:bg-zinc-100 file:px-4 file:py-2 file:text-sm file:font-medium"
-                />
-                {imageUploading ? (
-                  <p className="text-sm text-zinc-600">
-                    {staffUiCopy(locale, "productEditorUploadingPhoto")}
-                  </p>
-                ) : null}
-                {imageStatus ? (
-                  <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-                    {imageStatus}
-                  </p>
-                ) : null}
-                {thumbnailPublicId ? (
-                  <div className="flex flex-wrap items-start gap-4">
-                    <span className="qos-thumb" data-size="lg">
-                      {/* eslint-disable-next-line @next/next/no-img-element -- catalogue thumbnail */}
-                      <img src={publicProductThumbnailUrl(thumbnailPublicId)} alt="" />
-                      {primaryMediaSource === "ai_generated" ? (
-                        <span
-                          className="qos-thumb-tag"
-                          title={staffUiCopy(locale, "aiGeneratedImageTitle")}
-                        >
-                          AI
-                        </span>
-                      ) : null}
-                    </span>
-                    <div className="min-w-0 flex-1 space-y-2">
-                      <AiPhotoProvenanceMeta
-                        locale={locale}
-                        generation={mediaProvenance?.generation ?? null}
-                      />
-                      {productEditorCanRemovePrimaryPhoto(editorStatus) &&
-                      !childMutationsDisabled ? (
+            <div className="qosp-stack">
+              <h3 className="qosp-subcard-title">
+                {staffUiCopy(locale, "productEditorPhotoLabel")}
+              </h3>
+              <p className="qosp-meta-line" id={photoHelpId}>
+                {staffUiCopy(locale, "productEditorPhotoHelp")}
+              </p>
+              {thumbnailPublicId ? (
+                <div className="qosp-photo-row">
+                  <span className="qosp-photo">
+                    {/* eslint-disable-next-line @next/next/no-img-element -- catalogue thumbnail */}
+                    <img src={publicProductThumbnailUrl(thumbnailPublicId)} alt="" />
+                    {primaryMediaSource === "ai_generated" ? (
+                      <span
+                        className="qosp-photo-tag"
+                        title={staffUiCopy(locale, "aiGeneratedImageTitle")}
+                      >
+                        AI
+                      </span>
+                    ) : null}
+                  </span>
+                  <div className="qosp-stack" style={{ flex: "1 1 200px", gap: 10 }}>
+                    <AiPhotoProvenanceMeta
+                      locale={locale}
+                      generation={mediaProvenance?.generation ?? null}
+                    />
+                    {productEditorCanRemovePrimaryPhoto(editorStatus) &&
+                    !childMutationsDisabled ? (
+                      <div>
                         <Button
                           size="sm"
-                          variant="ghost"
+                          variant="secondary"
                           loading={removingPhoto}
                           disabled={imageUploading}
                           onClick={() => setRemovePhotoConfirmOpen(true)}
@@ -1291,85 +1253,74 @@ export function ProductEditor({
                             ? staffUiCopy(locale, "removingProductPhoto")
                             : staffUiCopy(locale, "removeProductPhoto")}
                         </Button>
-                      ) : null}
-                    </div>
+                      </div>
+                    ) : null}
                   </div>
-                ) : null}
-                {isAdministrator ? (
-                  <ProductRemovedPhotoHistory
-                    locale={locale}
-                    entries={removedPhotoHistory}
-                  />
-                ) : null}
-              </div>
-
-              <div className="space-y-3 border-t border-zinc-100 pt-6">
-                <h3 className="text-sm font-medium text-zinc-900">
-                  {staffUiCopy(locale, "productVideoLabel")}
-                </h3>
-                <p className="text-sm text-zinc-600">
-                  {staffUiCopy(locale, "videoDescription")}
-                </p>
-                {approvedVideoUrls ? (
-                  <div className="space-y-3">
-                    <video
-                      controls
-                      poster={approvedVideoUrls.posterUrl}
-                      className="w-full max-w-full rounded-lg border border-zinc-200"
-                      style={{ maxHeight: "400px" }}
-                    >
-                      <source src={approvedVideoUrls.playbackUrl} type="video/mp4" />
-                      {staffUiCopy(locale, "videoPlayerFallback")}
-                    </video>
-                    <p className="text-sm text-zinc-600">
-                      {staffUiCopy(locale, "videoReadyForPublish")}
-                    </p>
-                  </div>
-                ) : null}
-                {videoRejectionReason ? (
-                  <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-                    {videoRejectionReason}
-                  </div>
-                ) : null}
-                {videoStatus ? (
-                  <p className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-                    {videoStatus}
-                  </p>
-                ) : null}
-                <div className="relative min-h-[2.75rem]">
-                  <input
-                    type="file"
-                    accept="video/mp4"
-                    disabled={videoUploading || childMutationsDisabled}
-                    onChange={(event) => {
-                      const file = event.target.files?.[0];
-                      if (file) {
-                        setVideoRejectionReason(null);
-                        void uploadProductVideo(file);
-                      }
-                      event.target.value = "";
-                    }}
-                    id="video-file-input"
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
-                  />
-                  <label
-                    htmlFor="video-file-input"
-                    className="block w-full min-w-0 cursor-pointer text-sm text-zinc-700"
-                  >
-                    <span className="inline-flex max-w-full flex-wrap items-center gap-2 rounded-full border-0 bg-zinc-100 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-200">
-                      {staffUiCopy(locale, "chooseFile")}
-                    </span>
-                    <span className="ms-3 text-zinc-500">
-                      {selectedVideoFilename || staffUiCopy(locale, "noFileChosen")}
-                    </span>
-                  </label>
                 </div>
-                {videoUploading ? (
-                  <p className="text-sm text-zinc-600">
-                    {staffUiCopy(locale, "videoUploadingStatus")}
+              ) : null}
+              <PortalFileInput
+                accept="image/jpeg,image/png"
+                disabled={imageUploading || childMutationsDisabled}
+                fileName={selectedPhotoFilename}
+                describedBy={photoHelpId}
+                onFile={(file) => {
+                  setSelectedPhotoFilename(file.name);
+                  void uploadProductImage(file);
+                }}
+              />
+              {imageUploading ? (
+                <p className="qosp-meta-line" role="status">
+                  {staffUiCopy(locale, "productEditorUploadingPhoto")}
+                </p>
+              ) : null}
+              {imageStatus ? <PortalNotice tone="success">{imageStatus}</PortalNotice> : null}
+              {isAdministrator ? (
+                <ProductRemovedPhotoHistory
+                  locale={locale}
+                  entries={removedPhotoHistory}
+                />
+              ) : null}
+            </div>
+
+            <hr className="qosp-divider" />
+
+            <div className="qosp-stack">
+              <h3 className="qosp-subcard-title">
+                {staffUiCopy(locale, "productVideoLabel")}
+              </h3>
+              <p className="qosp-meta-line" id={videoHelpId}>
+                {staffUiCopy(locale, "videoDescription")}
+              </p>
+              {approvedVideoUrls ? (
+                <div className="qosp-stack" style={{ gap: 10 }}>
+                  <video controls poster={approvedVideoUrls.posterUrl}>
+                    <source src={approvedVideoUrls.playbackUrl} type="video/mp4" />
+                    {staffUiCopy(locale, "videoPlayerFallback")}
+                  </video>
+                  <p className="qosp-meta-line">
+                    {staffUiCopy(locale, "videoReadyForPublish")}
                   </p>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
+              {videoRejectionReason ? (
+                <PortalNotice tone="error">{videoRejectionReason}</PortalNotice>
+              ) : null}
+              {videoStatus ? <PortalNotice tone="info">{videoStatus}</PortalNotice> : null}
+              <PortalFileInput
+                accept="video/mp4"
+                disabled={videoUploading || childMutationsDisabled}
+                fileName={selectedVideoFilename}
+                describedBy={videoHelpId}
+                onFile={(file) => {
+                  setVideoRejectionReason(null);
+                  void uploadProductVideo(file);
+                }}
+              />
+              {videoUploading ? (
+                <p className="qosp-meta-line" role="status">
+                  {staffUiCopy(locale, "videoUploadingStatus")}
+                </p>
+              ) : null}
             </div>
           </ProductEditorSection>
         ) : null}
@@ -1385,7 +1336,6 @@ export function ProductEditor({
               tenantId={tenantId}
               productPublicId={productPublicId}
               productStatus={editorStatus}
-              embedded
             />
           </ProductEditorSection>
         ) : null}
@@ -1401,7 +1351,6 @@ export function ProductEditor({
               tenantId={tenantId}
               productPublicId={productPublicId}
               productStatus={editorStatus}
-              embedded
             />
           </ProductEditorSection>
         ) : null}
@@ -1413,20 +1362,22 @@ export function ProductEditor({
             helperKey="productEditorSectionStatusHelp"
             locale={locale}
           >
-            <div className="space-y-4">
-              <p className="text-sm text-zinc-700">
-                <span className="font-medium text-zinc-900">
-                  {staffUiCopy(locale, "productEditorCurrentStatus")}:{" "}
-                </span>
-                {productStatusLabel}
+            <div className="qosp-stack">
+              <p className="qosp-meta-line" style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 10 }}>
+                <span>{staffUiCopy(locale, "productEditorCurrentStatus")}</span>
+                {statusBadge ? (
+                  <PortalBadge tone={statusBadge.tone}>{statusBadge.label}</PortalBadge>
+                ) : (
+                  <span>—</span>
+                )}
               </p>
 
               {showRestoreAction ? (
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                  <p className="text-sm text-zinc-600">
+                <div className="qosp-subcard qosp-stack" style={{ gap: 12 }}>
+                  <p className="qosp-meta-line">
                     {staffUiCopy(locale, "productEditorRestoreHelp")}
                   </p>
-                  <div className="mt-3">
+                  <div>
                     <button
                       type="button"
                       className="qos-btn"
@@ -1441,11 +1392,11 @@ export function ProductEditor({
               ) : null}
 
               {showArchiveAction ? (
-                <div className="rounded-lg border border-zinc-200 bg-zinc-50 p-4">
-                  <p className="text-sm text-zinc-600">
+                <div className="qosp-subcard qosp-stack" style={{ gap: 12 }}>
+                  <p className="qosp-meta-line">
                     {staffUiCopy(locale, "archiveDraftProductDescription")}
                   </p>
-                  <div className="mt-3">
+                  <div>
                     <button
                       type="button"
                       className="qos-btn"
@@ -1466,10 +1417,10 @@ export function ProductEditor({
       </fieldset>
 
       {error ? (
-        <p className="qos-alert" data-tone="error">
+        <PortalNotice tone="error">
           {error}
           {fieldError ? ` (${fieldError})` : ""}
-        </p>
+        </PortalNotice>
       ) : null}
 
       {savedMessage ? (
@@ -1519,8 +1470,8 @@ export function ProductEditor({
       />
 
       {!isReadOnly ? (
-        <div className="sticky bottom-0 z-10 -mx-1 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white/95 p-4 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-white/80">
-          <p className="min-w-0 text-sm text-zinc-600">
+        <div className="qosp-savebar">
+          <p>
             {isDirty
               ? staffUiCopy(locale, "productEditorUnsavedChanges")
               : staffUiCopy(locale, "productEditorAllSavedLocally")}
@@ -1528,12 +1479,12 @@ export function ProductEditor({
               <>
                 {" "}
                 · {staffUiCopy(locale, "productEditorProductLabel")}{" "}
-                <code>{form.publicId}</code> ·{" "}
+                <code className="qosp-code" dir="ltr">{form.publicId}</code> ·{" "}
                 {staffUiCopy(locale, "productEditorVersionLabel")} {form.version}
               </>
             ) : null}
           </p>
-          <div className="flex flex-wrap gap-2">
+          <div className="qosp-button-row">
             <button
               type="button"
               onClick={requestResetForm}

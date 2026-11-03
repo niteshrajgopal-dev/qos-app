@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 
 import {
   staffUiCopy,
@@ -28,17 +28,19 @@ export function ProductEditorSection({
   locale,
   children,
 }: ProductEditorSectionProps) {
+  const headingId = useId();
+
   return (
     <section
-      className="qos-card min-w-0"
-      data-padding="md"
+      className="qosp-editor-section qosp-glass"
+      aria-labelledby={headingId}
       data-testid={productEditorSectionTestId(id)}
     >
-      <h2 className="text-base font-medium text-zinc-900">
+      <h2 id={headingId} className="qosp-panel-title">
         {staffUiCopy(locale, titleKey)}
       </h2>
-      <p className="mt-1 text-sm text-zinc-600">{staffUiCopy(locale, helperKey)}</p>
-      <div className="mt-4 min-w-0">{children}</div>
+      <p className="qosp-panel-help">{staffUiCopy(locale, helperKey)}</p>
+      <div className="qosp-panel-body">{children}</div>
     </section>
   );
 }

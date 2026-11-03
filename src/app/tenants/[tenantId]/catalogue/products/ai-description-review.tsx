@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { PortalNotice } from "@/components/portal/workspace/PortalWorkspace";
 import { AI_DESCRIPTION_REVIEW_ACCEPTED_COPY } from "@/lib/catalogue/ai-description-review-copy";
 import { shouldShowDescriptionAcceptedBanner } from "@/lib/catalogue/ai-description-review-ui";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
@@ -56,10 +57,14 @@ const COPY = {
     none: "No description review yet.",
     mock: "Mock result (development only).",
     timeout: "The request timed out. Try again.",
+    loadError: "Unable to load description review.",
+    requestError: "Unable to request description help.",
+    acceptError: "Unable to accept description.",
+    rejectError: "Unable to reject description.",
   },
   ar: {
     title: "مسودة وصف بالذكاء الاصطناعي",
-    subtitle: "اطلب اقتراحًا للوصف بالإنجليزية، راجع الفروقات، ثم قبول أو رفض.",
+    subtitle: "اطلب اقتراحًا للوصف بالإنجليزية، وراجع الفروقات، ثم اقبله أو ارفضه.",
     request: "تحسين الوصف",
     source: "الوصف الحالي",
     suggestion: "الوصف المقترح",
@@ -76,6 +81,10 @@ const COPY = {
     none: "لا توجد مراجعة للوصف بعد.",
     mock: "نتيجة تجريبية (للتطوير فقط).",
     timeout: "انتهت مهلة الطلب. حاول مرة أخرى.",
+    loadError: "تعذّر تحميل مراجعة الوصف.",
+    requestError: "تعذّر طلب المساعدة في الوصف.",
+    acceptError: "تعذّر قبول الوصف.",
+    rejectError: "تعذّر رفض الوصف.",
   },
 } as const;
 
@@ -108,7 +117,7 @@ export function AiDescriptionReview({
       error?: string;
     };
     if (!response.ok) {
-      throw new Error(payload.error ?? "Unable to load description review.");
+      throw new Error(payload.error ?? t.loadError);
     }
     setReview(payload.review ?? null);
     setAcceptedThisSession(false);
@@ -119,18 +128,18 @@ export function AiDescriptionReview({
     } else if (payload.review?.suggestion === null && payload.review?.editableSuggestion === null) {
       setDescription("");
     }
-  }, [base]);
+  }, [base, t]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadReview().catch((loadError) => {
         setError(
-          loadError instanceof Error ? loadError.message : "Unable to load description review.",
+          loadError instanceof Error ? loadError.message : t.loadError,
         );
       });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadReview]);
+  }, [loadReview, t]);
 
   useEffect(() => {
     if (!review || review.status === "completed" || review.status === "failed") {
@@ -163,7 +172,7 @@ export function AiDescriptionReview({
       });
       const payload = (await response.json()) as { review?: Review; error?: string };
       if (!response.ok) {
-        const message = payload.error ?? "Unable to request description help.";
+        const message = payload.error ?? t.requestError;
         if (response.status === 503 && message.toLowerCase().includes("spend")) {
           throw new Error(t.quotaExceeded);
         }
@@ -176,7 +185,7 @@ export function AiDescriptionReview({
       }
     } catch (requestError) {
       setError(
-        requestError instanceof Error ? requestError.message : "Unable to request description help.",
+        requestError instanceof Error ? requestError.message : t.requestError,
       );
     } finally {
       setBusy(false);
@@ -200,7 +209,7 @@ export function AiDescriptionReview({
       });
       const payload = (await response.json()) as { review?: Review; error?: string };
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to accept description.");
+        throw new Error(payload.error ?? t.acceptError);
       }
       setReview(payload.review ?? null);
       if (payload.review?.suggestionState === "accepted") {
@@ -208,7 +217,7 @@ export function AiDescriptionReview({
         onAccepted?.();
       }
     } catch (acceptError) {
-      setError(acceptError instanceof Error ? acceptError.message : "Unable to accept description.");
+      setError(acceptError instanceof Error ? acceptError.message : t.acceptError);
     } finally {
       setBusy(false);
     }
@@ -227,11 +236,11 @@ export function AiDescriptionReview({
       });
       const payload = (await response.json()) as { review?: Review; error?: string };
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to reject description.");
+        throw new Error(payload.error ?? t.rejectError);
       }
       setReview(payload.review ?? null);
     } catch (rejectError) {
-      setError(rejectError instanceof Error ? rejectError.message : "Unable to reject description.");
+      setError(rejectError instanceof Error ? rejectError.message : t.rejectError);
     } finally {
       setBusy(false);
     }
@@ -241,13 +250,17 @@ export function AiDescriptionReview({
     !gateReady && review?.gateReason === "spend_policy_unset" ? false : !gateReady;
 
   return (
-    <section className="mt-4 space-y-4 rounded-lg border border-zinc-200 p-4" dir={uiLocale === "ar" ? "rtl" : "ltr"} lang={uiLocale}>
+    <section
+      className="qosp-subcard qosp-stack"
+      dir={uiLocale === "ar" ? "rtl" : "ltr"}
+      lang={uiLocale}
+    >
       <header>
-        <h3 className="text-sm font-semibold text-zinc-800">{t.title}</h3>
-        <p className="text-xs text-zinc-600">{t.subtitle}</p>
+        <h3 className="qosp-subcard-title">{t.title}</h3>
+        <p className="qosp-panel-help">{t.subtitle}</p>
       </header>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="qosp-button-row">
         <button
           type="button"
           className="qos-btn"
@@ -260,66 +273,50 @@ export function AiDescriptionReview({
         </button>
       </div>
 
-      {showQuotaWarning ? (
-        <p className="qos-alert" data-tone="warning" role="status">
-          {t.notConfigured}
-        </p>
-      ) : null}
-
-      {review?.isMockResult ? (
-        <p className="text-xs font-medium text-amber-700" role="status">{t.mock}</p>
-      ) : null}
-
-      {error ? (
-        <p className="qos-alert" data-tone="error" role="alert">
-          {error}
-        </p>
-      ) : null}
-
+      {showQuotaWarning ? <PortalNotice tone="warning">{t.notConfigured}</PortalNotice> : null}
+      {review?.isMockResult ? <PortalNotice tone="warning">{t.mock}</PortalNotice> : null}
+      {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
       {review?.failureCode === "qos_wait_deadline" || review?.failureCode === "timeout" ? (
-        <p className="qos-alert" data-tone="warning" role="status">{t.timeout}</p>
+        <PortalNotice tone="warning">{t.timeout}</PortalNotice>
       ) : null}
-
       {review?.suggestionState === "stale" ? (
-        <p className="qos-alert" data-tone="warning" role="status">{t.stale}</p>
+        <PortalNotice tone="warning">{t.stale}</PortalNotice>
       ) : null}
       {review?.suggestionState === "failed" ? (
-        <p className="qos-alert" data-tone="error" role="alert">
-          {review.failureMessage ?? t.failed}
-        </p>
+        <PortalNotice tone="error">{review.failureMessage ?? t.failed}</PortalNotice>
       ) : null}
       {shouldShowDescriptionAcceptedBanner(review?.suggestionState, acceptedThisSession) ? (
-        <p className="qos-card-sub" role="status">{t.accepted}</p>
+        <p className="qosp-meta-line" role="status">{t.accepted}</p>
       ) : null}
       {review?.suggestionState === "rejected" ? (
-        <p className="qos-card-sub" role="status">{t.rejected}</p>
+        <p className="qosp-meta-line" role="status">{t.rejected}</p>
       ) : null}
       {review && review.status !== "completed" && review.suggestionState === "pending" ? (
-        <p className="qos-card-sub" role="status">{t.pending}</p>
+        <p className="qosp-meta-line" role="status">{t.pending}</p>
       ) : null}
-      {!review ? <p className="qos-card-sub">{t.none}</p> : null}
+      {!review ? <p className="qosp-meta-line">{t.none}</p> : null}
 
       {review ? (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <article className="qos-card" data-padding="sm" dir="ltr" lang="en">
-            <h4 className="mb-2 text-xs font-medium text-zinc-700">{t.source}</h4>
-            <p className="whitespace-pre-wrap text-sm text-zinc-800">
-              {review.sourceDescription ?? "—"}
-            </p>
+        <div className="qosp-form-grid" data-columns="2">
+          <article className="qosp-subcard" dir="ltr" lang="en">
+            <h4 className="qosp-field-label">{t.source}</h4>
+            <p className="qosp-prewrap">{review.sourceDescription ?? "—"}</p>
           </article>
 
-          <article className="qos-card" data-padding="sm" dir="ltr" lang="en">
-            <h4 className="mb-2 text-xs font-medium text-zinc-700">{t.suggestion}</h4>
+          <article className="qosp-subcard" dir="ltr" lang="en">
+            <h4 className="qosp-field-label">{t.suggestion}</h4>
             {canEdit ? (
-              <div className="space-y-3">
+              <div className="qosp-stack">
                 <textarea
-                  className="qos-input min-h-[96px] w-full"
+                  className="qos-textarea"
+                  rows={4}
+                  aria-label={t.suggestion}
                   value={description}
                   disabled={mutationsDisabled}
                   onChange={(event) => setDescription(event.target.value)}
                   dir="ltr"
                 />
-                <div className="flex gap-2">
+                <div className="qosp-button-row">
                   <button
                     type="button"
                     className="qos-btn"
@@ -343,27 +340,18 @@ export function AiDescriptionReview({
                 </div>
               </div>
             ) : (
-              <p className="whitespace-pre-wrap text-sm text-zinc-800">
+              <p className="qosp-prewrap">
                 {review.editableSuggestion ?? review.suggestion ?? "—"}
               </p>
             )}
           </article>
 
           {review.descriptionDiff.length > 0 ? (
-            <article className="qos-card lg:col-span-2" data-padding="sm" dir="ltr" lang="en">
-              <h4 className="mb-2 text-xs font-medium text-zinc-700">{t.diff}</h4>
-              <ul className="space-y-1 font-mono text-xs">
+            <article className="qosp-subcard qosp-span-full" dir="ltr" lang="en">
+              <h4 className="qosp-field-label">{t.diff}</h4>
+              <ul className="qosp-diff">
                 {review.descriptionDiff.map((line, index) => (
-                  <li
-                    key={`${line.kind}-${index}`}
-                    className={
-                      line.kind === "added"
-                        ? "bg-emerald-50 text-emerald-900"
-                        : line.kind === "removed"
-                          ? "bg-rose-50 text-rose-900 line-through"
-                          : "text-zinc-700"
-                    }
-                  >
+                  <li key={`${line.kind}-${index}`} data-kind={line.kind}>
                     {line.kind === "added" ? "+ " : line.kind === "removed" ? "- " : "  "}
                     {line.text || " "}
                   </li>

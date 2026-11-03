@@ -28,11 +28,11 @@ export function ProductRemovedPhotoHistory({ locale, entries }: ProductRemovedPh
   }
 
   return (
-    <div className="space-y-3">
-      <h3 className="text-sm font-medium text-zinc-900">
+    <div className="qosp-stack">
+      <h3 className="qosp-subcard-title">
         {staffUiCopy(locale, "removedPhotoHistoryTitle")}
       </h3>
-      <ul className="space-y-3" style={{ listStyle: "none", margin: 0, padding: 0 }}>
+      <ul className="qosp-history">
         {entries.map((entry) => {
           const sourceLabel = formatStaffMediaSourceLabel(entry.sourceProvenance, locale);
           const removedAt = formatStaffMediaTimestamp(entry.removedAt, locale);
@@ -40,24 +40,22 @@ export function ProductRemovedPhotoHistory({ locale, entries }: ProductRemovedPh
           const removedLine = [removedAt, removedBy].filter(Boolean).join(" · ");
 
           return (
-            <li key={`${entry.assetPublicId}-${entry.removedAt}`} className="flex flex-wrap items-start gap-3">
-              <span className="qos-thumb" data-size="lg">
+            <li key={`${entry.assetPublicId}-${entry.removedAt}`}>
+              <span className="qosp-photo" data-size="sm">
                 {/* eslint-disable-next-line @next/next/no-img-element -- catalogue thumbnail */}
                 <img src={publicProductThumbnailUrl(entry.assetPublicId)} alt="" />
                 {entry.sourceProvenance === "ai_generated" ? (
-                  <span className="qos-thumb-tag" title={staffUiCopy(locale, "aiGeneratedImageTitle")}>
+                  <span className="qosp-photo-tag" title={staffUiCopy(locale, "aiGeneratedImageTitle")}>
                     AI
                   </span>
                 ) : null}
               </span>
-              <div className="min-w-0 flex-1 space-y-1">
-                {sourceLabel ? (
-                  <div className="text-sm text-zinc-700">{sourceLabel}</div>
-                ) : null}
+              <div className="qosp-history-body">
+                {sourceLabel ? <p className="qosp-history-source">{sourceLabel}</p> : null}
                 {removedLine ? (
-                  <div className="qos-menu-row-meta" style={{ whiteSpace: "normal" }}>
+                  <p className="qosp-meta-line">
                     {staffUiCopy(locale, "removedPhotoHistoryRemovedPrefix")} {removedLine}
-                  </div>
+                  </p>
                 ) : null}
                 <AiPhotoProvenanceMeta locale={locale} generation={entry.generation} />
               </div>

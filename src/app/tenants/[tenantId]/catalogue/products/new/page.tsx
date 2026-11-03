@@ -1,5 +1,4 @@
-import { ProductEditor } from "@/app/tenants/[tenantId]/catalogue/products/product-editor";
-import { StaffScreen } from "@/components/staff/StaffScreen";
+import { ProductNewScreen } from "@/app/tenants/[tenantId]/catalogue/products/product-new-screen";
 import { db } from "@/db";
 import { findTenantById } from "@/lib/tenant/repository";
 
@@ -12,14 +11,9 @@ export default async function NewCatalogueProductPage({ params }: PageProps) {
   const tenant = await findTenantById(db, tenantId);
 
   return (
-    <StaffScreen
-      title="New draft product"
-      subtitle="Create bilingual EN and AR copy. Both translations must be approved before the item can go live."
-    >
-      <ProductEditor
-        tenantId={tenantId}
-        initialBusinessProfile={tenant?.businessProfile ?? "generic_retail"}
-      />
-    </StaffScreen>
+    <ProductNewScreen
+      tenantId={tenantId}
+      businessProfile={tenant?.businessProfile ?? "generic_retail"}
+    />
   );
 }
