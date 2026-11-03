@@ -2,6 +2,7 @@
 @import "./qos-app-extras.css";
 @import "./qos-portal.css";
 @import "./qos-portal-workspace.css";
+@import "./qos-portal-storefronts.css";
 @import "tailwindcss";
 
 :root {

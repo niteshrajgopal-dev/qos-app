@@ -1,23 +1,21 @@
 "use client";
 
 import { useCallback, useState } from "react";
+import { History, Rocket, Undo2 } from "lucide-react";
 
+import {
+  releaseOutcomeMessage,
+  type StorefrontSummary,
+} from "@/app/tenants/[tenantId]/channels/online-store/storefront-view";
+import {
+  formatStorefrontDateTime,
+  storefrontsCopy,
+  type StorefrontsCopyKey,
+} from "@/app/tenants/[tenantId]/channels/online-store/storefronts-copy";
+import { PortalBadge, PortalNotice } from "@/components/portal/workspace/PortalWorkspace";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-
-type StorefrontSummary = {
-  publicId: string;
-  internalName: string;
-  slug: string;
-  status: "draft" | "active" | "archived";
-  draftVersion: number;
-  primaryHostname: string | null;
-  activeRelease: {
-    releasePublicId: string;
-    releaseVersion: number;
-    publishedAt: string;
-    publishedBySubject: string;
-  } | null;
-};
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type ReleaseRow = {
   publicId: string;
@@ -34,28 +32,26 @@ type StorefrontPublishPanelProps = {
   onStorefrontUpdated: () => Promise<void>;
 };
 
-function formatTimestamp(value: string | Date) {
-  const date = value instanceof Date ? value : new Date(value);
-  return date.toLocaleString();
-}
-
 export function StorefrontPublishPanel({
   tenantId,
   storefront,
   isAdministrator,
   onStorefrontUpdated,
 }: StorefrontPublishPanelProps) {
-  const [releases, setReleases] = useState<ReleaseRow[]>([]);
+  const { locale } = useStaffLocale();
+  const copy = (key: StorefrontsCopyKey, values?: Record<string, string | number>) =>
+    storefrontsCopy(locale, key, values);
+  const [releases, setReleases] = useState<ReleaseRow[] | null>(null);
   const [rollbackTarget, setRollbackTarget] = useState<ReleaseRow | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [validationIssues, setValidationIssues] = useState<
     Array<{ field: string; message: string }>
   >([]);
   const [message, setMessage] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<"history" | "publish" | "rollback" | null>(null);
 
   const loadReleases = useCallback(async () => {
-    setBusy(true);
+    setBusy("history");
     setError(null);
     setValidationIssues([]);
 
@@ -69,7 +65,7 @@ export function StorefrontPublishPanel({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to load release history.");
+        throw new Error(payload.error ?? storefrontsCopy(locale, "unableToLoadHistory"));
       }
 
       setReleases(
@@ -81,20 +77,20 @@ export function StorefrontPublishPanel({
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Unable to load release history.",
+          : storefrontsCopy(locale, "unableToLoadHistory"),
       );
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
-  }, [storefront.publicId, tenantId]);
+  }, [locale, storefront.publicId, tenantId]);
 
   const publishDraft = useCallback(async () => {
     if (!isAdministrator) {
-      setError("Administrator membership is required to publish.");
+      setError(storefrontsCopy(locale, "adminRequiredPublish"));
       return;
     }
 
-    setBusy(true);
+    setBusy("publish");
     setError(null);
     setValidationIssues([]);
     setMessage(null);
@@ -116,19 +112,15 @@ export function StorefrontPublishPanel({
 
       if (!response.ok) {
         setValidationIssues(payload.issues ?? []);
-        throw new Error(payload.error ?? "Unable to publish storefront.");
+        throw new Error(payload.error ?? storefrontsCopy(locale, "unableToPublish"));
       }
 
       const publish = payload.publish;
       if (!publish) {
-        throw new Error("Publish response was incomplete.");
+        throw new Error(storefrontsCopy(locale, "publishIncomplete"));
       }
 
-      setMessage(
-        publish.idempotentReplay
-          ? `Release v${publish.releaseVersion} is already live (idempotent replay).`
-          : `Release v${publish.releaseVersion} is now live.`,
-      );
+      setMessage(releaseOutcomeMessage(locale, "publish", publish));
 
       await loadReleases();
       await onStorefrontUpdated();
@@ -136,14 +128,15 @@ export function StorefrontPublishPanel({
       setError(
         publishError instanceof Error
           ? publishError.message
-          : "Unable to publish storefront.",
+          : storefrontsCopy(locale, "unableToPublish"),
       );
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }, [
     isAdministrator,
     loadReleases,
+    locale,
     onStorefrontUpdated,
     storefront.publicId,
     tenantId,
@@ -155,11 +148,11 @@ export function StorefrontPublishPanel({
     }
 
     if (!isAdministrator) {
-      setError("Administrator membership is required to roll back.");
+      setError(storefrontsCopy(locale, "adminRequiredRollback"));
       return;
     }
 
-    setBusy(true);
+    setBusy("rollback");
     setError(null);
     setValidationIssues([]);
     setMessage(null);
@@ -184,19 +177,15 @@ export function StorefrontPublishPanel({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to roll back storefront.");
+        throw new Error(payload.error ?? storefrontsCopy(locale, "unableToRollback"));
       }
 
       const rollback = payload.rollback;
       if (!rollback) {
-        throw new Error("Rollback response was incomplete.");
+        throw new Error(storefrontsCopy(locale, "rollbackIncomplete"));
       }
 
-      setMessage(
-        rollback.idempotentReplay
-          ? `Release v${rollback.releaseVersion} was already active.`
-          : `Rolled back to release v${rollback.releaseVersion}.`,
-      );
+      setMessage(releaseOutcomeMessage(locale, "rollback", rollback));
       setRollbackTarget(null);
 
       await loadReleases();
@@ -205,205 +194,192 @@ export function StorefrontPublishPanel({
       setError(
         rollbackError instanceof Error
           ? rollbackError.message
-          : "Unable to roll back storefront.",
+          : storefrontsCopy(locale, "unableToRollback"),
       );
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }, [
     isAdministrator,
     loadReleases,
+    locale,
     onStorefrontUpdated,
     rollbackTarget,
     storefront.publicId,
     tenantId,
   ]);
 
+  const rollbackTitleId = `storefront-rollback-${storefront.publicId}`;
+
   return (
-    <section className="space-y-6 rounded-xl border border-zinc-200 bg-zinc-50 p-5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h2 className="text-lg font-semibold">{storefront.internalName}</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            {storefront.publicId} · {storefront.status} · draft v
-            {storefront.draftVersion}
-          </p>
-          {storefront.primaryHostname ? (
-            <p className="mt-1 text-sm text-zinc-600">
-              Primary domain{" "}
-              <a
-                href={`https://${storefront.primaryHostname}`}
-                className="font-medium text-zinc-900 underline-offset-4 hover:underline"
-                target="_blank"
-                rel="noreferrer"
-              >
-                {storefront.primaryHostname}
-              </a>
-            </p>
-          ) : null}
+    <section
+      className="qosp-glass qosp-sf-section qosp-sf-releases"
+      aria-labelledby={`storefront-releases-${storefront.publicId}`}
+    >
+      <div className="qosp-sf-head">
+        <div className="qosp-sf-head-text">
+          <h2 id={`storefront-releases-${storefront.publicId}`} className="qosp-panel-title">
+            {copy("releasesTitle")}
+          </h2>
+          <p className="qosp-panel-help">{copy("releasesHelp")}</p>
         </div>
-        {storefront.activeRelease ? (
-          <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
-            <p className="font-medium">
-              Live release v{storefront.activeRelease.releaseVersion}
-            </p>
-            <p className="mt-1 text-emerald-800">
-              {formatTimestamp(storefront.activeRelease.publishedAt)} ·{" "}
-              {storefront.activeRelease.publishedBySubject}
-            </p>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            No active release yet. Draft edits are not visible to customers.
-          </div>
-        )}
       </div>
 
-      <p className="text-sm text-zinc-600">
-        Publishing creates an immutable release and switches the live manifest
-        without redeploying the shared storefront renderer. Rollback reactivates
-        a prior release; nothing is deleted.
-      </p>
+      {storefront.activeRelease ? (
+        <div className="qosp-sf-live">
+          <PortalBadge tone="positive">{copy("statusLive")}</PortalBadge>
+          <div className="qosp-sf-live-text">
+            <p className="qosp-subcard-title">
+              {copy("liveReleaseTitle", { version: storefront.activeRelease.releaseVersion })}
+            </p>
+            <p className="qosp-meta-line">
+              {copy("liveReleasePublished", {
+                date: formatStorefrontDateTime(locale, storefront.activeRelease.publishedAt),
+              })}
+            </p>
+            <p className="qosp-meta-line">
+              {copy("historyBy")}{" "}
+              <bdi dir="ltr">{storefront.activeRelease.publishedBySubject}</bdi>
+            </p>
+          </div>
+        </div>
+      ) : (
+        <PortalNotice tone="warning">{copy("noLiveRelease")}</PortalNotice>
+      )}
 
-      <div className="flex flex-wrap gap-2">
+      <div className="qosp-button-row">
         <button
           type="button"
-          disabled={busy}
-          onClick={() => void loadReleases()}
-          className="qos-btn" data-variant="secondary"
+          disabled={busy !== null || !isAdministrator}
+          onClick={() => void publishDraft()}
+          className="qos-btn"
+          data-variant="primary"
         >
-          Load publishing history
+          <Rocket size={16} aria-hidden="true" />
+          {busy === "publish" ? copy("publishing") : copy("publishDraft")}
         </button>
         <button
           type="button"
-          disabled={busy || !isAdministrator}
-          onClick={() => void publishDraft()}
-          className="qos-btn" data-variant="primary"
+          disabled={busy !== null}
+          onClick={() => void loadReleases()}
+          className="qos-btn"
+          data-variant="secondary"
         >
-          Publish draft
+          <History size={16} aria-hidden="true" />
+          {busy === "history" ? copy("loadingHistory") : copy("loadHistory")}
         </button>
       </div>
 
       {!isAdministrator ? (
-        <p className="qos-alert" data-tone="warning">
-          Signed-in staff can view history. Administrator membership is required
-          to publish or roll back.
-        </p>
+        <PortalNotice tone="info">{copy("nonAdminPublishNotice")}</PortalNotice>
       ) : null}
 
-      {releases.length > 0 ? (
-        <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-zinc-200 bg-zinc-100 text-zinc-600">
-              <tr>
-                <th className="px-4 py-3 font-medium">Release</th>
-                <th className="px-4 py-3 font-medium">Published</th>
-                <th className="px-4 py-3 font-medium">By</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {releases.map((release) => (
-                <tr key={release.publicId} className="border-b border-zinc-100">
-                  <td className="px-4 py-3 font-medium">
-                    v{release.releaseVersion}
-                    <span className="mt-1 block font-normal text-zinc-500">
-                      {release.publicId}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-600">
-                    {formatTimestamp(release.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-600">
-                    {release.publishedBySubject}
-                  </td>
-                  <td className="px-4 py-3">
-                    {release.isActive ? (
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800">
-                        Live
-                      </span>
-                    ) : (
-                      <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700">
-                        Archived
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    {!release.isActive && isAdministrator ? (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => setRollbackTarget(release)}
-                        className="qos-btn" data-variant="secondary" data-size="sm"
-                      >
-                        Roll back
-                      </button>
-                    ) : (
-                      <span className="text-xs text-zinc-400">—</span>
-                    )}
-                  </td>
-                </tr>
+      {validationIssues.length > 0 ? (
+        <div className="qosp-notice" data-tone="error" role="alert">
+          <div>
+            <p className="qosp-sf-notice-title">{copy("publishBlocked")}</p>
+            <ul className="qosp-sf-issues">
+              {validationIssues.map((issue) => (
+                <li key={`${issue.field}:${issue.message}`}>
+                  {copy("issueLine", { field: issue.field, message: issue.message })}
+                </li>
               ))}
-            </tbody>
-          </table>
-        </div>
-      ) : null}
-
-      {rollbackTarget ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-          <p className="font-medium">
-            Roll back to release v{rollbackTarget.releaseVersion}?
-          </p>
-          <p className="mt-2">
-            Customers on{" "}
-            {storefront.primaryHostname ?? "this storefront"} will see the prior
-            immutable release. The current live release stays in history.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void rollbackRelease()}
-              className="rounded-full bg-amber-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-60"
-            >
-              Confirm rollback
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => setRollbackTarget(null)}
-              className="rounded-full border border-amber-300 px-4 py-2 text-sm font-medium disabled:opacity-60"
-            >
-              Cancel
-            </button>
+            </ul>
           </div>
         </div>
       ) : null}
 
-      {validationIssues.length > 0 ? (
-        <div className="qos-alert" data-tone="error">
-          <p className="font-medium">Publish blocked</p>
-          <ul className="mt-2 list-disc space-y-1 pl-5">
-            {validationIssues.map((issue) => (
-              <li key={`${issue.field}:${issue.message}`}>
-                {issue.field}: {issue.message}
-              </li>
-            ))}
-          </ul>
+      {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
+      {message ? <PortalNotice tone="success">{message}</PortalNotice> : null}
+
+      {releases ? (
+        <div className="qosp-sf-history">
+          <h3 className="qosp-subcard-title">{copy("historyTitle")}</h3>
+          {releases.length === 0 ? (
+            <p className="qosp-meta-line">{copy("historyEmpty")}</p>
+          ) : (
+            <ul className="qosp-sf-release-list">
+              {releases.map((release) => (
+                <li key={release.publicId} className="qosp-sf-release">
+                  <div className="qosp-sf-release-main">
+                    <div className="qosp-sf-release-head">
+                      <span className="qosp-sf-release-version">
+                        {copy("versionValue", { version: release.releaseVersion })}
+                      </span>
+                      <PortalBadge tone={release.isActive ? "positive" : "neutral"}>
+                        {release.isActive ? copy("releaseLive") : copy("releaseArchived")}
+                      </PortalBadge>
+                    </div>
+                    <dl className="qosp-sf-release-meta">
+                      <div>
+                        <dt>{copy("historyPublished")}</dt>
+                        <dd>{formatStorefrontDateTime(locale, release.createdAt)}</dd>
+                      </div>
+                      <div>
+                        <dt>{copy("historyBy")}</dt>
+                        <dd dir="ltr">{release.publishedBySubject}</dd>
+                      </div>
+                    </dl>
+                    <span className="qosp-code" dir="ltr">
+                      {release.publicId}
+                    </span>
+                  </div>
+                  {!release.isActive && isAdministrator ? (
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() => setRollbackTarget(release)}
+                      className="qos-btn"
+                      data-variant="secondary"
+                      data-size="sm"
+                      aria-label={copy("rollBackTo", { version: release.releaseVersion })}
+                    >
+                      <Undo2 size={14} aria-hidden="true" />
+                      {copy("rollBack")}
+                    </button>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       ) : null}
 
-      {error ? (
-        <p className="qos-alert" data-tone="error">
-          {error}
-        </p>
-      ) : null}
-
-      {message ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {message}
-        </p>
+      {rollbackTarget ? (
+        <div
+          className="qosp-subcard qosp-sf-confirm"
+          role="group"
+          aria-labelledby={rollbackTitleId}
+        >
+          <p id={rollbackTitleId} className="qosp-subcard-title">
+            {copy("rollbackConfirmTitle", { version: rollbackTarget.releaseVersion })}
+          </p>
+          <p className="qosp-panel-help">
+            {copy("rollbackConfirmBody", {
+              host: storefront.primaryHostname ?? copy("thisStorefront"),
+            })}
+          </p>
+          <div className="qosp-button-row">
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void rollbackRelease()}
+              className="qos-btn"
+              data-variant="primary"
+            >
+              {busy === "rollback" ? copy("rollingBack") : copy("confirmRollback")}
+            </button>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => setRollbackTarget(null)}
+              className="qos-btn"
+              data-variant="secondary"
+            >
+              {staffUiCopy(locale, "cancel")}
+            </button>
+          </div>
+        </div>
       ) : null}
     </section>
   );

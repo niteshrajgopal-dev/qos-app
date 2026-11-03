@@ -5,6 +5,13 @@ import { describe, expect, it } from "vitest";
 const ROOT = path.join(process.cwd(), "src");
 
 const AUDITED_SURFACES = [
+  "app/tenants/[tenantId]/channels/online-store/page.tsx",
+  "app/tenants/[tenantId]/channels/online-store/online-store-management.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-overview-card.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-publish-panel.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-theme-panel.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-content-blocks-panel.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-view.ts",
   "components/platform/catalogue-products-list.tsx",
   "components/portal/PortalTopBar.tsx",
   "components/staff/StaffAppShell.tsx",
@@ -19,6 +26,13 @@ const AUDITED_SURFACES = [
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
+  "app/tenants/[tenantId]/channels/online-store/page.tsx",
+  "app/tenants/[tenantId]/channels/online-store/online-store-management.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-overview-card.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-publish-panel.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-theme-panel.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-content-blocks-panel.tsx",
+  "app/tenants/[tenantId]/channels/online-store/storefront-view.ts",
   "components/platform/catalogue-products-list.tsx",
   "components/portal/workspace/PortalWorkspace.tsx",
   "app/tenants/[tenantId]/catalogue/page.tsx",
@@ -37,6 +51,12 @@ const LIGHT_PALETTE_CLASS =
   /\b(?:text|bg|border|ring|divide|placeholder)-(?:white|black|(?:zinc|gray|slate|neutral|stone|emerald|rose|amber|red|green)-\d{2,3})\b/g;
 
 const FORBIDDEN_LITERALS = [
+  'title="Online Store"',
+  '"Unable to load storefronts."',
+  '"Unable to load release history."',
+  '"Theme draft saved. Publish to update the live storefront."',
+  '"Unable to load content blocks."',
+  '`Release v${',
   '"Cancel"',
   '"Confirm"',
   '"Keep editing"',
