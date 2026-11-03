@@ -100,4 +100,21 @@ describe("portal colour tokens meet WCAG AA", () => {
       expect(contrast(resolveHex("--text-on-brand"), stop)).toBeGreaterThanOrEqual(WCAG_AA_BODY);
     }
   });
+
+  it("Overview hero primary button text on every stop of its gradient", () => {
+    const portalCss = readFileSync(path.join(process.cwd(), "src/app/qos-portal.css"), "utf8");
+    const rule = portalCss.match(/\.qosp-btn\[data-variant="primary"\]\s*\{([^}]*)\}/)?.[1] ?? "";
+    expect(rule).toContain("var(--portal-gradient-primary)");
+    const color = rule.match(/(?:^|;|\s)color:\s*([^;]+);/)?.[1].trim() ?? "";
+    const reference = color.match(/^var\((--[\w-]+)\)$/);
+    const literal = /^#[0-9a-f]{3}$/i.test(color)
+      ? `#${[...color.slice(1)].map((digit) => digit + digit).join("")}`
+      : color;
+    const textHex = reference ? resolveHex(reference[1]) : literal;
+
+    const stops = tokens.get("--portal-gradient-primary")?.match(/#[0-9a-f]{6}/gi) ?? [];
+    for (const stop of stops) {
+      expect(contrast(textHex, stop)).toBeGreaterThanOrEqual(WCAG_AA_BODY);
+    }
+  });
 });

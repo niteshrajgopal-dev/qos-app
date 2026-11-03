@@ -317,7 +317,7 @@
 }
 .qosp-btn[data-variant="primary"] {
   background: var(--portal-gradient-primary);
-  color: #fff;
+  color: var(--text-on-brand);
   border: 1px solid #d8d6f459;
   border-radius: 99px;
   padding: 8px 8px 8px 22px;
