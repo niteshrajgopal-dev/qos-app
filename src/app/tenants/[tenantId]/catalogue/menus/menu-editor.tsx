@@ -298,6 +298,22 @@ export function MenuEditor({ tenantId, menuPublicId }: MenuEditorProps) {
     }
   }, [applyMenuPayload, loadSupportData, locale, menuPublicId, tenantId]);
 
+  useEffect(() => {
+    if (isEditMode) {
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void loadSupportData().catch((supportError: unknown) => {
+        setError(
+          supportError instanceof Error
+            ? supportError.message
+            : menusCopy(locale, "unableToPrepareEditor"),
+        );
+      });
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [isEditMode, loadSupportData, locale]);
+
   const savedMenuPublicId = isEditMode ? form.publicId : null;
 
   const loadAiPhotos = useCallback(async () => {
