@@ -2,32 +2,37 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { BookOpen, RefreshCw, Store } from "lucide-react";
 
-import { StorefrontPublishPanel } from "@/app/tenants/[tenantId]/channels/online-store/storefront-publish-panel";
 import { StorefrontContentBlocksPanel } from "@/app/tenants/[tenantId]/channels/online-store/storefront-content-blocks-panel";
+import { StorefrontOverviewCard } from "@/app/tenants/[tenantId]/channels/online-store/storefront-overview-card";
+import { StorefrontPublishPanel } from "@/app/tenants/[tenantId]/channels/online-store/storefront-publish-panel";
 import { StorefrontThemePanel } from "@/app/tenants/[tenantId]/channels/online-store/storefront-theme-panel";
+import type {
+  ContentBlocksPreview,
+  StorefrontSummary,
+  ThemeDraft,
+} from "@/app/tenants/[tenantId]/channels/online-store/storefront-view";
+import {
+  storefrontsCopy,
+  type StorefrontsCopyKey,
+} from "@/app/tenants/[tenantId]/channels/online-store/storefronts-copy";
+import {
+  PortalArea,
+  PortalField,
+  PortalNotice,
+  PortalPageHeader,
+  PortalPanel,
+} from "@/components/portal/workspace/PortalWorkspace";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-
-type StorefrontSummary = {
-  publicId: string;
-  internalName: string;
-  slug: string;
-  status: "draft" | "active" | "archived";
-  draftVersion: number;
-  primaryHostname: string | null;
-  activeRelease: {
-    releasePublicId: string;
-    releaseVersion: number;
-    publishedAt: string;
-    publishedBySubject: string;
-  } | null;
-};
+import type { StaffLocale } from "@/lib/staff/locale";
 
 type OnlineStoreManagementProps = {
   tenantId: string;
 };
 
-async function fetchIsAdministrator(tenantId: string) {
+async function fetchIsAdministrator(tenantId: string, locale: StaffLocale) {
   const response = await staffApiFetch("/api/staff/me/memberships");
   const payload = (await response.json()) as {
     memberships?: Array<{
@@ -38,7 +43,7 @@ async function fetchIsAdministrator(tenantId: string) {
   };
 
   if (!response.ok) {
-    throw new Error(payload.error ?? "Unable to load staff membership.");
+    throw new Error(payload.error ?? storefrontsCopy(locale, "unableToLoadMembership"));
   }
 
   const membership = payload.memberships?.find(
@@ -48,7 +53,7 @@ async function fetchIsAdministrator(tenantId: string) {
   return membership?.role === "administrator";
 }
 
-async function fetchStorefronts(tenantId: string) {
+async function fetchStorefronts(tenantId: string, locale: StaffLocale) {
   const response = await staffApiFetch(`/api/tenants/${tenantId}/storefronts`);
   const payload = (await response.json()) as {
     storefronts?: StorefrontSummary[];
@@ -56,18 +61,23 @@ async function fetchStorefronts(tenantId: string) {
   };
 
   if (!response.ok) {
-    throw new Error(payload.error ?? "Unable to load storefronts.");
+    throw new Error(payload.error ?? storefrontsCopy(locale, "unableToLoadStorefronts"));
   }
 
   return payload.storefronts ?? [];
 }
 
 export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) {
+  const { locale } = useStaffLocale();
+  const copy = (key: StorefrontsCopyKey, values?: Record<string, string | number>) =>
+    storefrontsCopy(locale, key, values);
   const [storefronts, setStorefronts] = useState<StorefrontSummary[]>([]);
   const [selectedPublicId, setSelectedPublicId] = useState<string | null>(null);
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [themePreview, setThemePreview] = useState<ThemeDraft | null>(null);
+  const [contentPreview, setContentPreview] = useState<ContentBlocksPreview | null>(null);
 
   const applyStorefronts = useCallback((nextStorefronts: StorefrontSummary[]) => {
     setError(null);
@@ -82,22 +92,22 @@ export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) 
   }, []);
 
   const loadStorefronts = useCallback(async () => {
-    applyStorefronts(await fetchStorefronts(tenantId));
-  }, [applyStorefronts, tenantId]);
+    applyStorefronts(await fetchStorefronts(tenantId, locale));
+  }, [applyStorefronts, locale, tenantId]);
 
   const refresh = useCallback(async () => {
     const [administrator, nextStorefronts] = await Promise.all([
-      fetchIsAdministrator(tenantId),
-      fetchStorefronts(tenantId),
+      fetchIsAdministrator(tenantId, locale),
+      fetchStorefronts(tenantId, locale),
     ]);
     setIsAdministrator(administrator);
     applyStorefronts(nextStorefronts);
-  }, [applyStorefronts, tenantId]);
+  }, [applyStorefronts, locale, tenantId]);
 
   useEffect(() => {
     let cancelled = false;
 
-    Promise.all([fetchIsAdministrator(tenantId), fetchStorefronts(tenantId)])
+    Promise.all([fetchIsAdministrator(tenantId, locale), fetchStorefronts(tenantId, locale)])
       .then(([administrator, nextStorefronts]) => {
         if (!cancelled) {
           setIsAdministrator(administrator);
@@ -109,7 +119,7 @@ export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) 
           setError(
             loadError instanceof Error
               ? loadError.message
-              : "Unable to load online store.",
+              : storefrontsCopy(locale, "unableToLoadOnlineStore"),
           );
         }
       })
@@ -122,85 +132,124 @@ export function OnlineStoreManagement({ tenantId }: OnlineStoreManagementProps) 
     return () => {
       cancelled = true;
     };
-  }, [applyStorefronts, tenantId]);
+  }, [applyStorefronts, locale, tenantId]);
 
   const selectedStorefront =
     storefronts.find((storefront) => storefront.publicId === selectedPublicId) ??
     null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap gap-3">
-        <button
-          type="button"
-          onClick={() =>
-            void refresh().catch((loadError) => {
-              setError(
-                loadError instanceof Error
-                  ? loadError.message
-                  : "Unable to load online store.",
-              );
-            })
-          }
-          className="qos-btn" data-variant="secondary"
-        >
-          Refresh
-        </button>
-        <Link
-          href={`/tenants/${tenantId}/catalogue/menus`}
-          className="qos-btn" data-variant="secondary"
-        >
-          Manage menus
-        </Link>
+    <PortalArea>
+      <PortalPageHeader
+        back={{ href: `/tenants/${tenantId}/channels`, label: copy("backToChannels") }}
+        title={copy("headline")}
+        description={copy("description")}
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={() =>
+                void refresh().catch((loadError) => {
+                  setError(
+                    loadError instanceof Error
+                      ? loadError.message
+                      : copy("unableToLoadOnlineStore"),
+                  );
+                })
+              }
+              className="qos-btn"
+              data-variant="secondary"
+            >
+              <RefreshCw size={16} aria-hidden="true" />
+              {copy("refresh")}
+            </button>
+            <Link
+              href={`/tenants/${tenantId}/catalogue/menus`}
+              className="qos-btn"
+              data-variant="secondary"
+            >
+              <BookOpen size={16} aria-hidden="true" />
+              {copy("manageMenus")}
+            </Link>
+          </>
+        }
+      />
+
+      <div className="qosp-sf-layout">
+        {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
+
+        {storefronts.length > 1 ? (
+          <div className="qosp-sf-picker">
+            <PortalField label={copy("storefrontPicker")}>
+              <select
+                className="qos-select"
+                value={selectedPublicId ?? ""}
+                onChange={(event) => {
+                  setThemePreview(null);
+                  setContentPreview(null);
+                  setSelectedPublicId(event.target.value);
+                }}
+              >
+                {storefronts.map((storefront) => (
+                  <option key={storefront.publicId} value={storefront.publicId}>
+                    {copy("storefrontOption", {
+                      name: storefront.internalName,
+                      slug: storefront.slug,
+                    })}
+                  </option>
+                ))}
+              </select>
+            </PortalField>
+          </div>
+        ) : null}
+
+        {!loaded && !error ? (
+          <PortalPanel>
+            <p className="qosp-meta-line" role="status">
+              {copy("loadingStorefronts")}
+            </p>
+          </PortalPanel>
+        ) : null}
+
+        {selectedStorefront ? (
+          <>
+            <div className="qosp-sf-grid">
+              <StorefrontOverviewCard
+                locale={locale}
+                storefront={selectedStorefront}
+                theme={themePreview}
+                content={contentPreview}
+              />
+              <StorefrontPublishPanel
+                key={`publish-${selectedStorefront.publicId}`}
+                tenantId={tenantId}
+                storefront={selectedStorefront}
+                isAdministrator={isAdministrator}
+                onStorefrontUpdated={loadStorefronts}
+              />
+            </div>
+            <StorefrontThemePanel
+              key={`theme-${selectedStorefront.publicId}`}
+              tenantId={tenantId}
+              storefrontPublicId={selectedStorefront.publicId}
+              isAdministrator={isAdministrator}
+              onDraftChange={setThemePreview}
+            />
+            <StorefrontContentBlocksPanel
+              key={`blocks-${selectedStorefront.publicId}`}
+              tenantId={tenantId}
+              storefrontPublicId={selectedStorefront.publicId}
+              isAdministrator={isAdministrator}
+              onDraftChange={setContentPreview}
+            />
+          </>
+        ) : loaded && !error && storefronts.length === 0 ? (
+          <PortalPanel className="qosp-empty-panel">
+            <Store size={28} aria-hidden="true" />
+            <p>{copy("noStorefronts")}</p>
+          </PortalPanel>
+        ) : null}
       </div>
-
-      {error ? (
-        <p className="qos-alert" data-tone="error">
-          {error}
-        </p>
-      ) : null}
-
-      {storefronts.length > 1 ? (
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Storefront</span>
-          <select
-            className="qos-input"
-            value={selectedPublicId ?? ""}
-            onChange={(event) => setSelectedPublicId(event.target.value)}
-          >
-            {storefronts.map((storefront) => (
-              <option key={storefront.publicId} value={storefront.publicId}>
-                {storefront.internalName} ({storefront.slug})
-              </option>
-            ))}
-          </select>
-        </label>
-      ) : null}
-
-      {selectedStorefront ? (
-        <>
-          <StorefrontThemePanel
-            tenantId={tenantId}
-            storefrontPublicId={selectedStorefront.publicId}
-            isAdministrator={isAdministrator}
-          />
-          <StorefrontContentBlocksPanel
-            tenantId={tenantId}
-            storefrontPublicId={selectedStorefront.publicId}
-            isAdministrator={isAdministrator}
-          />
-          <StorefrontPublishPanel
-            tenantId={tenantId}
-            storefront={selectedStorefront}
-            isAdministrator={isAdministrator}
-            onStorefrontUpdated={loadStorefronts}
-          />
-        </>
-      ) : loaded && !error && storefronts.length === 0 ? (
-        <p className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 text-sm text-zinc-600">
-          No storefronts found for this tenant yet.
-        </p>
-      ) : null}
-    </div>
+    </PortalArea>
   );
 }

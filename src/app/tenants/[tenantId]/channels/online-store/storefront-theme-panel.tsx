@@ -1,26 +1,20 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useState } from "react";
 
+import type { ThemeDraft } from "@/app/tenants/[tenantId]/channels/online-store/storefront-view";
+import {
+  storefrontsCopy,
+  type StorefrontsCopyKey,
+} from "@/app/tenants/[tenantId]/channels/online-store/storefronts-copy";
+import {
+  PortalField,
+  PortalNotice,
+  PortalPanel,
+} from "@/components/portal/workspace/PortalWorkspace";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-
-type ThemeDraft = {
-  schemaVersion: number;
-  preset: "hospitality_baseline" | "generic_retail_baseline";
-  colors: {
-    primary: string;
-    accent: string;
-    background: string;
-    text: string;
-  };
-  typography: {
-    body: "inter" | "system-ui";
-    display: "young-serif" | "system-ui";
-  };
-  logo?: {
-    publicDerivativeId: string;
-  };
-};
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type ThemeDraftResponse = {
   storefrontPublicId: string;
@@ -34,7 +28,18 @@ type StorefrontThemePanelProps = {
   tenantId: string;
   storefrontPublicId: string;
   isAdministrator: boolean;
+  onDraftChange?: (theme: ThemeDraft | null) => void;
 };
+
+const COLOR_TOKENS = [
+  { token: "primary", key: "colorPrimary" },
+  { token: "accent", key: "colorAccent" },
+  { token: "background", key: "colorBackground" },
+  { token: "text", key: "colorText" },
+] as const satisfies ReadonlyArray<{
+  token: keyof ThemeDraft["colors"];
+  key: StorefrontsCopyKey;
+}>;
 
 function cloneTheme(theme: ThemeDraft): ThemeDraft {
   return structuredClone(theme);
@@ -44,7 +49,11 @@ export function StorefrontThemePanel({
   tenantId,
   storefrontPublicId,
   isAdministrator,
+  onDraftChange,
 }: StorefrontThemePanelProps) {
+  const { locale } = useStaffLocale();
+  const copy = (key: StorefrontsCopyKey, values?: Record<string, string | number>) =>
+    storefrontsCopy(locale, key, values);
   const [loaded, setLoaded] = useState<ThemeDraftResponse | null>(null);
   const [draft, setDraft] = useState<ThemeDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +63,7 @@ export function StorefrontThemePanel({
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const loadThemeDraft = useCallback(async () => {
+  const loadThemeDraft = useEffectEvent(async () => {
     setBusy(true);
     setError(null);
     setIssues([]);
@@ -70,7 +79,7 @@ export function StorefrontThemePanel({
       };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Unable to load theme draft.");
+        throw new Error(payload.error ?? storefrontsCopy(locale, "unableToLoadTheme"));
       }
 
       const themeDraft = payload.themeDraft!;
@@ -80,19 +89,24 @@ export function StorefrontThemePanel({
       setError(
         loadError instanceof Error
           ? loadError.message
-          : "Unable to load theme draft.",
+          : storefrontsCopy(locale, "unableToLoadTheme"),
       );
     } finally {
       setBusy(false);
     }
-  }, [storefrontPublicId, tenantId]);
+  });
 
+  // Not keyed on locale: reloading on a language switch would discard unsaved edits.
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadThemeDraft();
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [loadThemeDraft]);
+  }, [storefrontPublicId, tenantId]);
+
+  useEffect(() => {
+    onDraftChange?.(draft);
+  }, [draft, onDraftChange]);
 
   const isDirty = useMemo(() => {
     if (!loaded || !draft) {
@@ -108,7 +122,7 @@ export function StorefrontThemePanel({
     }
 
     if (!isAdministrator) {
-      setError("Administrator membership is required to save theme drafts.");
+      setError(storefrontsCopy(locale, "adminRequiredSaveTheme"));
       return;
     }
 
@@ -141,7 +155,7 @@ export function StorefrontThemePanel({
 
       if (!response.ok) {
         setIssues(payload.issues ?? []);
-        throw new Error(payload.error ?? "Unable to save theme draft.");
+        throw new Error(payload.error ?? storefrontsCopy(locale, "unableToSaveTheme"));
       }
 
       const saved = payload.themeDraft!;
@@ -151,17 +165,17 @@ export function StorefrontThemePanel({
         theme: saved.theme,
       });
       setDraft(cloneTheme(saved.theme));
-      setMessage("Theme draft saved. Publish to update the live storefront.");
+      setMessage(storefrontsCopy(locale, "themeSaved"));
     } catch (saveError) {
       setError(
         saveError instanceof Error
           ? saveError.message
-          : "Unable to save theme draft.",
+          : storefrontsCopy(locale, "unableToSaveTheme"),
       );
     } finally {
       setBusy(false);
     }
-  }, [draft, isAdministrator, loaded, storefrontPublicId, tenantId]);
+  }, [draft, isAdministrator, loaded, locale, storefrontPublicId, tenantId]);
 
   const resetToDefault = useCallback(async () => {
     if (!loaded) {
@@ -169,7 +183,7 @@ export function StorefrontThemePanel({
     }
 
     if (!isAdministrator) {
-      setError("Administrator membership is required to reset theme drafts.");
+      setError(storefrontsCopy(locale, "adminRequiredResetTheme"));
       return;
     }
 
@@ -202,7 +216,7 @@ export function StorefrontThemePanel({
 
       if (!response.ok) {
         setIssues(payload.issues ?? []);
-        throw new Error(payload.error ?? "Unable to reset theme draft.");
+        throw new Error(payload.error ?? storefrontsCopy(locale, "unableToResetTheme"));
       }
 
       const saved = payload.themeDraft!;
@@ -212,100 +226,98 @@ export function StorefrontThemePanel({
         theme: saved.theme,
       });
       setDraft(cloneTheme(saved.theme));
-      setMessage("Theme draft reset to tenant default.");
+      setMessage(storefrontsCopy(locale, "themeReset"));
     } catch (resetError) {
       setError(
         resetError instanceof Error
           ? resetError.message
-          : "Unable to reset theme draft.",
+          : storefrontsCopy(locale, "unableToResetTheme"),
       );
     } finally {
       setBusy(false);
     }
-  }, [isAdministrator, loaded, storefrontPublicId, tenantId]);
+  }, [isAdministrator, loaded, locale, storefrontPublicId, tenantId]);
+
+  const titleId = `storefront-theme-${storefrontPublicId}`;
 
   if (!loaded || !draft) {
     return (
-      <section className="qos-card" data-padding="md">
-        <h2 className="text-lg font-semibold text-zinc-900">Theme draft</h2>
-        <p className="mt-2 text-sm text-zinc-600">
-          {error ?? "Load the online store to edit storefront branding."}
-        </p>
-      </section>
+      <PortalPanel>
+        <h2 className="qosp-panel-title">{copy("themeTitle")}</h2>
+        {error ? (
+          <div className="qosp-panel-body">
+            <PortalNotice tone="error">{error}</PortalNotice>
+          </div>
+        ) : (
+          <p className="qosp-panel-help" role="status">
+            {copy("themeLoading")}
+          </p>
+        )}
+      </PortalPanel>
     );
   }
 
   return (
-    <section className="qos-card" data-padding="md">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold text-zinc-900">Theme draft</h2>
-          <p className="mt-1 text-sm text-zinc-600">
-            Draft v{loaded.draftVersion}. Live release keeps its current theme
-            until you publish.
+    <section className="qosp-glass qosp-sf-section" aria-labelledby={titleId}>
+      <div className="qosp-sf-head">
+        <div className="qosp-sf-head-text">
+          <h2 id={titleId} className="qosp-panel-title">
+            {copy("themeTitle")}
+          </h2>
+          <p className="qosp-panel-help">
+            {copy("themeHelp", { version: loaded.draftVersion })}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="qosp-button-row">
           <button
             type="button"
-            disabled={busy}
-            onClick={() => loaded && setDraft(cloneTheme(loaded.theme))}
-            className="qos-btn" data-variant="secondary"
+            disabled={busy || !isDirty}
+            onClick={() => setDraft(cloneTheme(loaded.theme))}
+            className="qos-btn"
+            data-variant="secondary"
           >
-            Cancel
+            {staffUiCopy(locale, "cancel")}
           </button>
           <button
             type="button"
             disabled={busy || !isAdministrator}
             onClick={() => void resetToDefault()}
-            className="qos-btn" data-variant="secondary"
+            className="qos-btn"
+            data-variant="secondary"
           >
-            Reset to default
+            {copy("resetToDefault")}
           </button>
           <button
             type="button"
             disabled={busy || !isAdministrator || !isDirty}
             onClick={() => void saveDraft()}
-            className="qos-btn" data-variant="primary"
+            className="qos-btn"
+            data-variant="primary"
           >
-            Save draft
+            {busy && isDirty ? copy("saving") : copy("saveDraft")}
           </button>
         </div>
       </div>
 
-      {isDirty ? (
-        <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          You have unsaved theme changes.
-        </p>
-      ) : null}
-
-      {error ? (
-        <p className="qos-alert" data-tone="error">
-          {error}
-        </p>
-      ) : null}
-
-      {message ? (
-        <p className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {message}
-        </p>
-      ) : null}
-
+      {isDirty ? <PortalNotice tone="warning">{copy("themeUnsaved")}</PortalNotice> : null}
+      {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
+      {message ? <PortalNotice tone="success">{message}</PortalNotice> : null}
       {issues.length > 0 ? (
-        <ul className="qos-alert" data-tone="error">
-          {issues.map((issue) => (
-            <li key={`${issue.field}:${issue.message}`}>
-              <span className="font-medium">{issue.field}</span>: {issue.message}
-            </li>
-          ))}
-        </ul>
+        <div className="qosp-notice" data-tone="error" role="alert">
+          <ul className="qosp-sf-issues">
+            {issues.map((issue) => (
+              <li key={`${issue.field}:${issue.message}`}>
+                {copy("issueLine", { field: issue.field, message: issue.message })}
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Preset</span>
+      <div className="qosp-form-grid" data-columns="2">
+        <PortalField label={copy("presetLabel")}>
           <select
-            className="qos-input"
+            className="qos-select"
             value={draft.preset}
             disabled={!isAdministrator || busy}
             onChange={(event) =>
@@ -319,15 +331,15 @@ export function StorefrontThemePanel({
               )
             }
           >
-            <option value="hospitality_baseline">Hospitality baseline</option>
-            <option value="generic_retail_baseline">Retail baseline</option>
+            <option value="hospitality_baseline">{copy("presetHospitality")}</option>
+            <option value="generic_retail_baseline">{copy("presetRetail")}</option>
           </select>
-        </label>
+        </PortalField>
 
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Logo media ID</span>
+        <PortalField label={copy("logoLabel")} help={copy("logoHelp")}>
           <input
             className="qos-input"
+            dir="ltr"
             value={draft.logo?.publicDerivativeId ?? ""}
             disabled={!isAdministrator || busy}
             placeholder="mda_..."
@@ -351,41 +363,47 @@ export function StorefrontThemePanel({
               })
             }
           />
-        </label>
+        </PortalField>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {(["primary", "accent", "background", "text"] as const).map((token) => (
-          <label key={token} className="block text-sm">
-            <span className="font-medium capitalize text-zinc-700">{token}</span>
-            <input
-              type="color"
-              className="qos-input"
-              value={draft.colors[token]}
-              disabled={!isAdministrator || busy}
-              onChange={(event) =>
-                setDraft((current) =>
-                  current
-                    ? {
-                        ...current,
-                        colors: {
-                          ...current.colors,
-                          [token]: event.target.value.toUpperCase(),
-                        },
-                      }
-                    : current,
-                )
-              }
-            />
-          </label>
-        ))}
-      </div>
+      <fieldset className="qosp-sf-colors">
+        <legend className="qosp-field-label">{copy("colorsLabel")}</legend>
+        <div className="qosp-sf-color-grid">
+          {COLOR_TOKENS.map(({ token, key }) => (
+            <label key={token} className="qosp-sf-color">
+              <input
+                type="color"
+                value={draft.colors[token]}
+                disabled={!isAdministrator || busy}
+                onChange={(event) =>
+                  setDraft((current) =>
+                    current
+                      ? {
+                          ...current,
+                          colors: {
+                            ...current.colors,
+                            [token]: event.target.value.toUpperCase(),
+                          },
+                        }
+                      : current,
+                  )
+                }
+              />
+              <span className="qosp-sf-color-text">
+                <span className="qosp-field-label">{copy(key)}</span>
+                <span className="qosp-meta-line" dir="ltr">
+                  {draft.colors[token]}
+                </span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Body font</span>
+      <div className="qosp-form-grid" data-columns="2">
+        <PortalField label={copy("bodyFont")}>
           <select
-            className="qos-input"
+            className="qos-select"
             value={draft.typography.body}
             disabled={!isAdministrator || busy}
             onChange={(event) =>
@@ -403,14 +421,13 @@ export function StorefrontThemePanel({
             }
           >
             <option value="inter">Inter</option>
-            <option value="system-ui">System UI</option>
+            <option value="system-ui">{copy("fontSystem")}</option>
           </select>
-        </label>
+        </PortalField>
 
-        <label className="block text-sm">
-          <span className="font-medium text-zinc-700">Display font</span>
+        <PortalField label={copy("displayFont")}>
           <select
-            className="qos-input"
+            className="qos-select"
             value={draft.typography.display}
             disabled={!isAdministrator || busy}
             onChange={(event) =>
@@ -429,29 +446,9 @@ export function StorefrontThemePanel({
             }
           >
             <option value="young-serif">Young Serif</option>
-            <option value="system-ui">System UI</option>
+            <option value="system-ui">{copy("fontSystem")}</option>
           </select>
-        </label>
-      </div>
-
-      <div
-        className="qos-card" data-padding="sm"
-        style={{
-          background: draft.colors.background,
-          color: draft.colors.text,
-        }}
-      >
-        <p className="text-xs uppercase tracking-wide opacity-70">Draft preview</p>
-        <p
-          className="mt-2 text-2xl"
-          style={{ color: draft.colors.primary, fontFamily: "serif" }}
-        >
-          Storefront headline
-        </p>
-        <p className="mt-2 text-sm">
-          Body copy preview with accent{" "}
-          <span style={{ color: draft.colors.accent }}>highlight</span>.
-        </p>
+        </PortalField>
       </div>
     </section>
   );
