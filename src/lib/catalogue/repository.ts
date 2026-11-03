@@ -1,13 +1,17 @@
 import { and, asc, eq, inArray } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 import type { DbClient } from "@/db/client";
 import {
+  catalogueCategories,
+  catalogueCategoryTranslations,
   catalogueMediaAssets,
   catalogueMediaDerivatives,
   catalogueModifierGroupTranslations,
   catalogueModifierGroups,
   catalogueModifierOptionTranslations,
   catalogueModifierOptions,
+  catalogueProductCategories,
   catalogueProductModifierGroups,
   catalogueProducts,
   catalogueProductTranslations,
@@ -253,13 +257,23 @@ export async function listCatalogueProductPublicIds(
   });
 }
 
-type CatalogueProductSummaryRow = {
+export const CATALOGUE_SUMMARY_PRICE_CURRENCY = "AED";
+
+export type CatalogueProductSummaryRow = {
   publicId: string;
   internalName: string;
   displayName: string;
   status: string;
   thumbnailPublicId: string | null;
+  defaultPrice: { amountMinor: number; currency: string } | null;
+  category: {
+    publicId: string;
+    displayName: { en: string | null; ar: string | null };
+  } | null;
 };
+
+const categoryTranslationsEn = alias(catalogueCategoryTranslations, "category_translations_en");
+const categoryTranslationsAr = alias(catalogueCategoryTranslations, "category_translations_ar");
 
 async function listCatalogueProductSummariesWithStatuses(
   tx: TenantDbExecutor,
@@ -267,8 +281,14 @@ async function listCatalogueProductSummariesWithStatuses(
   statuses: Array<"draft" | "active" | "archived">,
   locale: string,
 ): Promise<CatalogueProductSummaryRow[]> {
+  const productsInScope = and(
+    eq(catalogueProducts.tenantId, tenantId),
+    inArray(catalogueProducts.status, statuses),
+  );
+
   const rows = await tx
     .select({
+      id: catalogueProducts.id,
       publicId: catalogueProducts.publicId,
       internalName: catalogueProducts.internalName,
       displayName: catalogueProductTranslations.displayName,
@@ -300,21 +320,121 @@ async function listCatalogueProductSummariesWithStatuses(
         eq(catalogueMediaDerivatives.derivativeKind, "thumbnail"),
       ),
     )
-    .where(
-      and(
-        eq(catalogueProducts.tenantId, tenantId),
-        inArray(catalogueProducts.status, statuses),
-      ),
-    )
+    .where(productsInScope)
     .orderBy(asc(catalogueProducts.publicId));
 
-  return rows.map((row) => ({
-    publicId: row.publicId,
-    internalName: row.internalName,
-    displayName: row.displayName ?? row.internalName,
-    status: row.status,
-    thumbnailPublicId: row.thumbnailPublicId ?? null,
-  }));
+  if (rows.length === 0) {
+    return [];
+  }
+
+  // One batched query each for prices and categories keeps the list at three
+  // queries regardless of catalogue size.
+  const priceRows = await tx
+    .select({
+      productId: catalogueVariants.productId,
+      amountMinor: catalogueVariantPrices.amountMinor,
+      currency: catalogueVariantPrices.currency,
+    })
+    .from(catalogueVariants)
+    .innerJoin(
+      catalogueProducts,
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        eq(catalogueProducts.id, catalogueVariants.productId),
+      ),
+    )
+    .innerJoin(
+      catalogueVariantPrices,
+      and(
+        eq(catalogueVariantPrices.tenantId, tenantId),
+        eq(catalogueVariantPrices.variantId, catalogueVariants.id),
+        eq(catalogueVariantPrices.currency, CATALOGUE_SUMMARY_PRICE_CURRENCY),
+      ),
+    )
+    .where(
+      and(
+        productsInScope,
+        eq(catalogueVariants.tenantId, tenantId),
+        eq(catalogueVariants.isDefault, true),
+        eq(catalogueVariants.status, "active"),
+      ),
+    );
+
+  // A product can sit in several categories; the card shows the first one in
+  // category order.
+  const categoryRows = await tx
+    .selectDistinctOn([catalogueProductCategories.productId], {
+      productId: catalogueProductCategories.productId,
+      publicId: catalogueCategories.publicId,
+      displayNameEn: categoryTranslationsEn.displayName,
+      displayNameAr: categoryTranslationsAr.displayName,
+    })
+    .from(catalogueProductCategories)
+    .innerJoin(
+      catalogueProducts,
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        eq(catalogueProducts.id, catalogueProductCategories.productId),
+      ),
+    )
+    .innerJoin(
+      catalogueCategories,
+      and(
+        eq(catalogueCategories.tenantId, tenantId),
+        eq(catalogueCategories.id, catalogueProductCategories.categoryId),
+        eq(catalogueCategories.status, "active"),
+      ),
+    )
+    .leftJoin(
+      categoryTranslationsEn,
+      and(
+        eq(categoryTranslationsEn.tenantId, tenantId),
+        eq(categoryTranslationsEn.categoryId, catalogueCategories.id),
+        eq(categoryTranslationsEn.locale, "en"),
+      ),
+    )
+    .leftJoin(
+      categoryTranslationsAr,
+      and(
+        eq(categoryTranslationsAr.tenantId, tenantId),
+        eq(categoryTranslationsAr.categoryId, catalogueCategories.id),
+        eq(categoryTranslationsAr.locale, "ar"),
+      ),
+    )
+    .where(and(productsInScope, eq(catalogueProductCategories.tenantId, tenantId)))
+    .orderBy(
+      asc(catalogueProductCategories.productId),
+      asc(catalogueCategories.sortOrder),
+      asc(catalogueCategories.publicId),
+    );
+
+  const priceByProduct = new Map(priceRows.map((row) => [row.productId, row]));
+  const categoryByProduct = new Map(categoryRows.map((row) => [row.productId, row]));
+
+  return rows.map((row) => {
+    const price = priceByProduct.get(row.id);
+    const category = categoryByProduct.get(row.id);
+
+    return {
+      publicId: row.publicId,
+      internalName: row.internalName,
+      displayName: row.displayName ?? row.internalName,
+      status: row.status,
+      thumbnailPublicId: row.thumbnailPublicId ?? null,
+      defaultPrice: price
+        ? { amountMinor: price.amountMinor, currency: price.currency.trim() }
+        : null,
+      category: category
+        ? {
+            publicId: category.publicId,
+            displayName: {
+              en: category.displayNameEn ?? null,
+              ar: category.displayNameAr ?? null,
+            },
+          }
+        : null,
+    };
+  });
 }
 
 export async function listCatalogueProductSummaries(
