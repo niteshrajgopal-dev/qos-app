@@ -5,6 +5,7 @@ export type ProductSummaryPrice = { amountMinor: number; currency: string };
 
 export type ProductSummaryCategory = {
   publicId: string;
+  source?: "category" | "menu_section";
   displayName: { en: string | null; ar: string | null };
 };
 
@@ -31,17 +32,19 @@ export function catalogueCardCategoryName(
 export function ProductCardCategory({
   locale,
   category,
-  fallback,
 }: {
   locale: StaffLocale;
   category: ProductSummaryCategory | null;
-  fallback: string;
 }) {
-  return (
-    <span className="qosp-product-meta">
-      {catalogueCardCategoryName(locale, category) ?? fallback}
-    </span>
-  );
+  const name = catalogueCardCategoryName(locale, category);
+  if (!name) {
+    return (
+      <span className="qosp-product-meta" data-empty="true">
+        {staffUiCopy(locale, "productNoCategory")}
+      </span>
+    );
+  }
+  return <span className="qosp-product-meta">{name}</span>;
 }
 
 export function ProductCardPrice({

@@ -63,18 +63,41 @@ describe("catalogue card category", () => {
     expect(catalogueCardCategoryName("ar", englishOnly)).toBe("Bakery");
   });
 
-  it("shows the internal name when the product has no category", () => {
-    const html = renderToStaticMarkup(
-      createElement(ProductCardCategory, { locale: "ar", category: null, fallback: "latte" }),
+  it("labels a product without a category instead of repeating its slug", () => {
+    const en = renderToStaticMarkup(
+      createElement(ProductCardCategory, { locale: "en", category: null }),
     );
-    expect(html).toBe('<span class="qosp-product-meta">latte</span>');
+    const ar = renderToStaticMarkup(
+      createElement(ProductCardCategory, { locale: "ar", category: null }),
+    );
+    expect(en).toBe('<span class="qosp-product-meta" data-empty="true">No category</span>');
+    expect(ar).toBe('<span class="qosp-product-meta" data-empty="true">بلا تصنيف</span>');
+  });
+
+  it("treats a category with no names as uncategorised", () => {
+    const unnamed = { publicId: "sec_x", displayName: { en: "", ar: null } };
+    const html = renderToStaticMarkup(
+      createElement(ProductCardCategory, { locale: "en", category: unnamed }),
+    );
+    expect(html).toContain("No category");
   });
 
   it("renders the Arabic category name on the card", () => {
     const html = renderToStaticMarkup(
-      createElement(ProductCardCategory, { locale: "ar", category: hotDrinks, fallback: "latte" }),
+      createElement(ProductCardCategory, { locale: "ar", category: hotDrinks }),
     );
-    expect(html).toContain("مشروبات ساخنة");
-    expect(html).not.toContain("latte");
+    expect(html).toBe('<span class="qosp-product-meta">مشروبات ساخنة</span>');
+  });
+
+  it("renders a menu-section fallback the same way as a category", () => {
+    const section = {
+      publicId: "sec_fd_42",
+      source: "menu_section" as const,
+      displayName: { en: "Bowls & Smoothies", ar: "أوعية وسموذي" },
+    };
+    const html = renderToStaticMarkup(
+      createElement(ProductCardCategory, { locale: "en", category: section }),
+    );
+    expect(html).toBe('<span class="qosp-product-meta">Bowls &amp; Smoothies</span>');
   });
 });

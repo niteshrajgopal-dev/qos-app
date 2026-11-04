@@ -25,6 +25,7 @@ import {
   StaffAuthorizationError,
 } from "@/lib/staff/auth";
 import { clearHostResolutionCache } from "@/lib/storefront/host-resolution";
+import { resolveStaffDisplayNames } from "@/lib/staff/staff-display-names";
 import {
   listStorefrontReleases,
   publishStorefrontReleaseInTx,
@@ -358,6 +359,7 @@ export type StorefrontAdminSummary = {
     releaseVersion: number;
     publishedAt: string;
     publishedBySubject: string;
+    publishedByName: string | null;
   } | null;
 };
 
@@ -401,6 +403,12 @@ export async function listStorefrontsForStaff(
         )
         .where(eq(storefronts.tenantId, tenantId));
 
+      const publisherNames = await resolveStaffDisplayNames(
+        tx,
+        tenantId,
+        rows.flatMap((row) => (row.publishedBySubject ? [row.publishedBySubject] : [])),
+      );
+
       return rows.map((row) => ({
         publicId: row.publicId,
         internalName: row.internalName,
@@ -415,6 +423,9 @@ export async function listStorefrontsForStaff(
                 releaseVersion: row.releaseVersion,
                 publishedAt: row.publishedAt.toISOString(),
                 publishedBySubject: row.publishedBySubject ?? "unknown",
+                publishedByName: row.publishedBySubject
+                  ? (publisherNames.get(row.publishedBySubject) ?? null)
+                  : null,
               }
             : null,
       }));
@@ -432,7 +443,18 @@ export async function listStorefrontReleasesForStaff(
 ) {
   try {
     await requireActiveStaffMembership(db, tenantId, subject);
-    return listStorefrontReleases(db, tenantId, storefrontPublicId);
+    const releases = await listStorefrontReleases(db, tenantId, storefrontPublicId);
+    const publisherNames = await withTenantContext(db, tenantId, (tx) =>
+      resolveStaffDisplayNames(
+        tx,
+        tenantId,
+        releases.map((release) => release.publishedBySubject),
+      ),
+    );
+    return releases.map((release) => ({
+      ...release,
+      publishedByName: publisherNames.get(release.publishedBySubject) ?? null,
+    }));
   } catch (error) {
     mapPublishServiceError(error);
   }
