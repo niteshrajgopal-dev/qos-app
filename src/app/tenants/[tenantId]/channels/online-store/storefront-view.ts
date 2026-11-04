@@ -14,8 +14,14 @@ export type StorefrontSummary = {
     releaseVersion: number;
     publishedAt: string;
     publishedBySubject: string;
+    publishedByName?: string | null;
   } | null;
 };
+
+/** Who published a release: the staff display name, never the raw auth subject. */
+export function storefrontPublisherLabel(locale: StaffLocale, publishedByName?: string | null) {
+  return publishedByName?.trim() || storefrontsCopy(locale, "publisherUnknown");
+}
 
 export type ThemeDraft = {
   schemaVersion: number;
