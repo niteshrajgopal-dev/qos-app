@@ -378,11 +378,7 @@ export function CatalogueProductsList({ tenantId }: { tenantId: string }) {
                   </span>
                 </div>
                 <div className="qosp-product-info">
-                  <ProductCardCategory
-                    locale={locale}
-                    category={product.category}
-                    fallback={product.internalName}
-                  />
+                  <ProductCardCategory locale={locale} category={product.category} />
                   <h2 className="qosp-product-name">
                     <Link
                       className="qosp-product-link"

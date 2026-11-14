@@ -6,6 +6,7 @@ import {
   releaseOutcomeMessage,
   storefrontFacts,
   storefrontLanguagesLabel,
+  storefrontPublisherLabel,
   storefrontStatusBadge,
   themePreviewFonts,
   type ContentBlock,
@@ -151,5 +152,18 @@ describe("storefront labels", () => {
     expect(releaseOutcomeMessage("ar", "rollback", { releaseVersion: 1, idempotentReplay: true })).toBe(
       "كان الإصدار 1 منشورًا بالفعل.",
     );
+  });
+});
+
+describe("storefrontPublisherLabel", () => {
+  it("shows the publisher's display name rather than the auth subject", () => {
+    expect(storefrontPublisherLabel("en", "Quotes Demo Admin")).toBe("Quotes Demo Admin");
+    expect(storefrontPublisherLabel("ar", "Quotes Demo Admin")).toBe("Quotes Demo Admin");
+  });
+
+  it("uses localized copy when the publisher cannot be named", () => {
+    expect(storefrontPublisherLabel("en", null)).toBe("A team member");
+    expect(storefrontPublisherLabel("ar", undefined)).toBe("أحد أعضاء الفريق");
+    expect(storefrontPublisherLabel("en", "   ")).toBe("A team member");
   });
 });

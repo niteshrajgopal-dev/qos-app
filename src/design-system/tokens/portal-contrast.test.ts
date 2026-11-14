@@ -101,20 +101,37 @@ describe("portal colour tokens meet WCAG AA", () => {
     }
   });
 
-  it("Overview hero primary button text on every stop of its gradient", () => {
+  it("Overview hero glass pill text on every stop, over the brightest possible scene", () => {
     const portalCss = readFileSync(path.join(process.cwd(), "src/app/qos-portal.css"), "utf8");
     const rule = portalCss.match(/\.qosp-btn\[data-variant="primary"\]\s*\{([^}]*)\}/)?.[1] ?? "";
-    expect(rule).toContain("var(--portal-gradient-primary)");
     const color = rule.match(/(?:^|;|\s)color:\s*([^;]+);/)?.[1].trim() ?? "";
     const reference = color.match(/^var\((--[\w-]+)\)$/);
     const literal = /^#[0-9a-f]{3}$/i.test(color)
       ? `#${[...color.slice(1)].map((digit) => digit + digit).join("")}`
       : color;
     const textHex = reference ? resolveHex(reference[1]) : literal;
+    expect(textHex).toMatch(/^#[0-9a-f]{6}$/i);
 
-    const stops = tokens.get("--portal-gradient-primary")?.match(/#[0-9a-f]{6}/gi) ?? [];
+    const background = rule.match(/background:\s*([^;]+);/)?.[1] ?? "";
+    const tint = background.match(/radial-gradient\([^,]+,\s*(#[0-9a-f]{8})/i)?.[1];
+    const stops = background.match(/linear-gradient\(([^)]*)\)/)?.[1].match(/#[0-9a-f]{6,8}\b/gi) ?? [];
+    expect(stops.length).toBeGreaterThan(1);
+
+    const rgba = (hex: string) => [1, 3, 5, 7].map((offset, index) =>
+      index === 3 && hex.length === 7 ? 1 : Number.parseInt(hex.slice(offset, offset + 2), 16) / (index === 3 ? 255 : 1),
+    );
+    const over = (top: string, bottom: string) => {
+      const [r, g, b, a] = rgba(top);
+      const base = rgba(bottom);
+      return `#${[r, g, b].map((channel, index) =>
+        Math.round(channel * a + base[index] * (1 - a)).toString(16).padStart(2, "0"),
+      ).join("")}`;
+    };
+
     for (const stop of stops) {
-      expect(contrast(textHex, stop)).toBeGreaterThanOrEqual(WCAG_AA_BODY);
+      const pill = over(stop, "#ffffff");
+      const surface = tint ? over(tint, pill) : pill;
+      expect(contrast(textHex, surface)).toBeGreaterThanOrEqual(WCAG_AA_BODY);
     }
   });
 });

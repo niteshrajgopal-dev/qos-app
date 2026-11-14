@@ -56,12 +56,50 @@
     linear-gradient(0deg, #101821a6 0%, transparent 30%, transparent 77%, #11172388);
   transition: background 800ms;
 }
+/* Arabic mirrors the scene so the hero copy keeps the dark wall behind it and
+   the sunset stays on the far side. `scale` composes with the dolly transform. */
+[dir="rtl"] .qosp-scene-image,
+[dir="rtl"] .qosp-scene-light {
+  scale: -1 1;
+}
+[dir="rtl"] .qosp-scene-shade {
+  background:
+    linear-gradient(270deg, #0c131962 0%, #0c131926 45%, transparent 62%, #11182525),
+    linear-gradient(0deg, #101821a6 0%, transparent 30%, transparent 77%, #11172388);
+}
 /* Interior screens sit on a quieter, blurred scene so data stays legible. */
 [data-portal-surface="workspace"] .qosp-scene {
   filter: blur(8px);
 }
 [data-portal-surface="workspace"] .qosp-scene-shade {
   background: linear-gradient(100deg, #101823ed, #141c29e8 55%, #171f2ce8);
+}
+/* Storefronts keep the full, vivid scene; panels switch to the darker rail
+   glass so their copy stays AA over the bright sky. */
+[data-portal-surface="workspace"][data-portal-scene="vivid"] .qosp-scene {
+  filter: none;
+}
+[data-portal-surface="workspace"][data-portal-scene="vivid"] .qosp-scene-shade {
+  background:
+    linear-gradient(90deg, #0c1319b8 0%, #0c131966 40%, #0c131926 70%, #1118252e),
+    linear-gradient(0deg, #101821b3 0%, transparent 35%, transparent 80%, #11172399);
+}
+[dir="rtl"] [data-portal-surface="workspace"][data-portal-scene="vivid"] .qosp-scene-shade {
+  background:
+    linear-gradient(270deg, #0c1319b8 0%, #0c131966 40%, #0c131926 70%, #1118252e),
+    linear-gradient(0deg, #101821b3 0%, transparent 35%, transparent 80%, #11172399);
+}
+[data-portal-scene="vivid"] .qosp-workspace .qosp-glass,
+[data-portal-scene="vivid"] .qosp-workspace .qos-card {
+  background: var(--portal-glass-rail);
+  backdrop-filter: blur(22px) saturate(120%);
+}
+[data-portal-scene="vivid"] .qosp-workspace .qos-btn:is([data-variant="secondary"], [data-variant="ghost"]) {
+  background: #1a2230d9;
+  backdrop-filter: blur(12px);
+}
+[data-portal-scene="vivid"] .qosp-workspace .qos-btn:is([data-variant="secondary"], [data-variant="ghost"]):hover {
+  background: #283142e6;
 }
 
 /* ---------- Glass ---------- */
@@ -120,7 +158,8 @@
 }
 .qosp-nav-link {
   font-size: 14px;
-  color: #c5c8d1;
+  color: #e4e7ee;
+  text-shadow: 0 1px 8px #0b1220cc;
   background: none;
   border: 0;
   padding: 14px 0;
@@ -315,14 +354,22 @@
 .qosp-btn:focus-visible::before {
   animation-duration: 3.5s;
 }
+/* Dark glass pill with white copy and a round arrow badge, as in the pack's
+   reference overview. The slate base keeps white text above 12:1. */
 .qosp-btn[data-variant="primary"] {
-  background: var(--portal-gradient-primary);
-  color: var(--text-on-brand);
-  border: 1px solid #d8d6f459;
+  background:
+    radial-gradient(ellipse at 12% 0%, #b9c4ff1f, transparent 60%),
+    linear-gradient(135deg, #2c3546f2, #1c2331f2 60%, #252b3cf2);
+  color: #fff;
+  text-shadow: none;
+  border: 1px solid #c9cdf06b;
   border-radius: 99px;
-  padding: 8px 8px 8px 22px;
+  padding-block: 8px;
+  padding-inline: 22px 8px;
   gap: 28px;
   min-width: 184px;
+  box-shadow:
+    inset 0 1px 1px #ffffff2e, inset 0 -1px 1px #ffffff0d, 0 6px 22px #07132140;
 }
 .qosp-btn[data-variant="primary"] > span {
   position: relative;
@@ -330,11 +377,10 @@
   height: 31px;
   display: grid;
   place-items: center;
-  border: 1px solid #f1f4ff44;
+  border: 1px solid #e3e1ff5c;
   border-radius: 50%;
-  background: linear-gradient(145deg, #ffffff2a, #f1eaff0c);
-  box-shadow: inset 0 1px 1px #ffffff66, inset 0 -1px 2px #d0c1ec30, 0 2px 9px #1420371c;
-  backdrop-filter: blur(8px);
+  background: linear-gradient(145deg, #aa9de63d, #ffffff12);
+  box-shadow: inset 0 1px 1px #ffffff4d, 0 2px 9px #1420372e;
   flex: none;
 }
 .qosp-btn[data-variant="secondary"] {
@@ -406,10 +452,10 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  font-size: 11px;
-  letter-spacing: .17em;
-  color: #b9c0ce;
-  text-transform: uppercase;
+  font-size: 13px;
+  letter-spacing: .04em;
+  color: #e1e5ee;
+  text-shadow: 0 1px 10px #0b1220d9;
   line-height: 1.6;
 }
 .qosp-eyebrow-star {
@@ -492,9 +538,9 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 10px;
-  letter-spacing: .12em;
-  color: #cbd0dc;
+  font-size: 12px;
+  letter-spacing: .02em;
+  color: #d9dde6;
 }
 .qosp-orbit {
   position: relative;
@@ -842,9 +888,9 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: 9px;
-  color: #b6bdc9;
-  letter-spacing: .12em;
+  font-size: 11px;
+  color: #c9cfda;
+  letter-spacing: .02em;
 }
 .qosp-overview-footer > span {
   display: flex;
@@ -858,9 +904,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 9px;
-  color: #cdd1dc;
-  letter-spacing: .1em;
+  font-size: 11px;
+  color: #d6dae4;
+  letter-spacing: .02em;
   cursor: pointer;
 }
 .qosp-caption {
@@ -870,9 +916,9 @@
   display: flex;
   align-items: center;
   gap: 13px;
-  color: #f0e5dfb0;
-  font-size: 9px;
-  letter-spacing: .17em;
+  color: #f3ebe6d9;
+  font-size: 11px;
+  letter-spacing: .06em;
   line-height: 1.8;
   text-shadow: 0 1px 10px #000;
 }
@@ -998,7 +1044,25 @@
   color: #c9bbdf;
 }
 .qosp-focus-card .qosp-eyebrow {
-  font-size: 9px;
+  font-size: 12px;
+}
+/* Arabic marks (hamza, shadda) rise above the Latin cap height. */
+[dir="rtl"] .qosp-hero h1,
+[dir="rtl"] .qosp-focus-card h3 {
+  line-height: 1.3;
+}
+/* Tracking breaks Arabic letter joining. */
+[dir="rtl"] :is(
+  .qosp-eyebrow,
+  .qosp-rail-top,
+  .qosp-overview-footer,
+  .qosp-overview-footer button,
+  .qosp-caption,
+  .qosp-hero h1,
+  .qosp-section-title h2,
+  .qosp-focus-card h3
+) {
+  letter-spacing: 0;
 }
 .qosp-focus-card h3 {
   font-family: var(--portal-display);
@@ -1197,6 +1261,11 @@
   .qosp-nav { order: 3; flex: none; width: 100%; justify-content: center; gap: 34px; height: 47px; }
   .qosp-nav-link { font-size: 13px; padding: 11px 0; }
   .qosp-topbar .qosp-top-divider { display: none; }
+  /* The wrapped nav row lands on the brightest part of the sky (200% zoom). */
+  .qosp-topbar {
+    background: linear-gradient(#131b26e6, #131b26c7);
+    backdrop-filter: blur(14px);
+  }
   .qosp-overview { height: calc(100svh - 122px); min-height: 720px; }
   .qosp-hero { top: 9%; }
   .qosp-hero h1 { font-size: 72px; }
@@ -1204,7 +1273,7 @@
   .qosp-hero-actions { gap: 19px; }
   .qosp-rail { width: 175px; padding: 19px 14px; top: 10%; }
   .qosp-orbit { width: 132px; height: 132px; }
-  .qosp-rail-top { font-size: 8px; }
+  .qosp-rail-top { font-size: 11px; }
   .qosp-rail-split strong { font-size: 24px; }
   .qosp-caption { display: none; }
   .qosp-dock { height: 118px; bottom: 78px; }
@@ -1286,8 +1355,13 @@
       linear-gradient(90deg, #131c2baa, #101a2740),
       linear-gradient(0deg, #101824ee, transparent 60%, #131d2766);
   }
+  [dir="rtl"] [data-portal-surface="overview"] .qosp-scene-shade {
+    background:
+      linear-gradient(270deg, #131c2baa, #101a2740),
+      linear-gradient(0deg, #101824ee, transparent 60%, #131d2766);
+  }
   .qosp-hero { position: relative; top: auto; }
-  .qosp-hero .qosp-eyebrow { font-size: 9px; letter-spacing: .12em; }
+  .qosp-hero .qosp-eyebrow { font-size: 12px; letter-spacing: .03em; }
   .qosp-greeting { font-size: 13px; margin: 26px 0 12px; }
   .qosp-hero h1 { font-size: clamp(49px, 12vw, 77px); line-height: 1.03; letter-spacing: -.04em; }
   .qosp-hero-description { font-size: 13px; line-height: 1.7; margin: 19px 0 25px; }
@@ -1306,7 +1380,7 @@
     border-radius: 18px;
     background: var(--portal-glass-rail-narrow);
   }
-  .qosp-rail-top { grid-column: span 2; font-size: 9px; margin-bottom: 10px; }
+  .qosp-rail-top { grid-column: span 2; font-size: 11px; margin-bottom: 10px; }
   .qosp-orbit { width: 105px; height: 105px; margin: 0; grid-row: span 2; }
   .qosp-orbit strong { font-size: 34px; }
   .qosp-orbit strong span { font-size: 20px; }

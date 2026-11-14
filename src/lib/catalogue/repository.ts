@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, notInArray } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 
 import type { DbClient } from "@/db/client";
@@ -7,6 +7,10 @@ import {
   catalogueCategoryTranslations,
   catalogueMediaAssets,
   catalogueMediaDerivatives,
+  catalogueMenuSectionProducts,
+  catalogueMenuSections,
+  catalogueMenuSectionTranslations,
+  catalogueMenus,
   catalogueModifierGroupTranslations,
   catalogueModifierGroups,
   catalogueModifierOptionTranslations,
@@ -268,12 +272,15 @@ export type CatalogueProductSummaryRow = {
   defaultPrice: { amountMinor: number; currency: string } | null;
   category: {
     publicId: string;
+    source: "category" | "menu_section";
     displayName: { en: string | null; ar: string | null };
   } | null;
 };
 
 const categoryTranslationsEn = alias(catalogueCategoryTranslations, "category_translations_en");
 const categoryTranslationsAr = alias(catalogueCategoryTranslations, "category_translations_ar");
+const sectionTranslationsEn = alias(catalogueMenuSectionTranslations, "section_translations_en");
+const sectionTranslationsAr = alias(catalogueMenuSectionTranslations, "section_translations_ar");
 
 async function listCatalogueProductSummariesWithStatuses(
   tx: TenantDbExecutor,
@@ -327,8 +334,8 @@ async function listCatalogueProductSummariesWithStatuses(
     return [];
   }
 
-  // One batched query each for prices and categories keeps the list at three
-  // queries regardless of catalogue size.
+  // One batched query each for prices, categories and menu sections keeps the
+  // list at four queries regardless of catalogue size.
   const priceRows = await tx
     .select({
       productId: catalogueVariants.productId,
@@ -408,8 +415,88 @@ async function listCatalogueProductSummariesWithStatuses(
       asc(catalogueCategories.publicId),
     );
 
+  // Imported catalogues (FineDine/HBZ) group products into menu sections and
+  // never create catalogue categories, so the card falls back to the section a
+  // product is served under, preferring published menus.
+  const categorisedProductIds = categoryRows.map((row) => row.productId);
+  const sectionRows = await tx
+    .selectDistinctOn([catalogueMenuSectionProducts.productId], {
+      productId: catalogueMenuSectionProducts.productId,
+      publicId: catalogueMenuSections.publicId,
+      displayNameEn: sectionTranslationsEn.displayName,
+      displayNameAr: sectionTranslationsAr.displayName,
+    })
+    .from(catalogueMenuSectionProducts)
+    .innerJoin(
+      catalogueProducts,
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        eq(catalogueProducts.id, catalogueMenuSectionProducts.productId),
+      ),
+    )
+    .innerJoin(
+      catalogueMenuSections,
+      and(
+        eq(catalogueMenuSections.tenantId, tenantId),
+        eq(catalogueMenuSections.id, catalogueMenuSectionProducts.sectionId),
+        eq(catalogueMenuSections.archived, false),
+      ),
+    )
+    .innerJoin(
+      catalogueMenus,
+      and(
+        eq(catalogueMenus.tenantId, tenantId),
+        eq(catalogueMenus.id, catalogueMenuSections.menuId),
+        inArray(catalogueMenus.status, ["draft", "active"]),
+      ),
+    )
+    .leftJoin(
+      sectionTranslationsEn,
+      and(
+        eq(sectionTranslationsEn.tenantId, tenantId),
+        eq(sectionTranslationsEn.sectionId, catalogueMenuSections.id),
+        eq(sectionTranslationsEn.locale, "en"),
+      ),
+    )
+    .leftJoin(
+      sectionTranslationsAr,
+      and(
+        eq(sectionTranslationsAr.tenantId, tenantId),
+        eq(sectionTranslationsAr.sectionId, catalogueMenuSections.id),
+        eq(sectionTranslationsAr.locale, "ar"),
+      ),
+    )
+    .where(
+      and(
+        productsInScope,
+        eq(catalogueMenuSectionProducts.tenantId, tenantId),
+        eq(catalogueMenuSectionProducts.archived, false),
+        categorisedProductIds.length > 0
+          ? notInArray(catalogueMenuSectionProducts.productId, categorisedProductIds)
+          : undefined,
+      ),
+    )
+    .orderBy(
+      asc(catalogueMenuSectionProducts.productId),
+      desc(isNotNull(catalogueMenus.publishedVersion)),
+      asc(catalogueMenus.publicId),
+      asc(catalogueMenuSections.sortOrder),
+      asc(catalogueMenuSections.publicId),
+    );
+
   const priceByProduct = new Map(priceRows.map((row) => [row.productId, row]));
-  const categoryByProduct = new Map(categoryRows.map((row) => [row.productId, row]));
+  const categoryByProduct = new Map<
+    string,
+    {
+      publicId: string;
+      source: "category" | "menu_section";
+      displayNameEn: string | null;
+      displayNameAr: string | null;
+    }
+  >([
+    ...sectionRows.map((row) => [row.productId, { ...row, source: "menu_section" as const }] as const),
+    ...categoryRows.map((row) => [row.productId, { ...row, source: "category" as const }] as const),
+  ]);
 
   return rows.map((row) => {
     const price = priceByProduct.get(row.id);
@@ -427,6 +514,7 @@ async function listCatalogueProductSummariesWithStatuses(
       category: category
         ? {
             publicId: category.publicId,
+            source: category.source,
             displayName: {
               en: category.displayNameEn ?? null,
               ar: category.displayNameAr ?? null,

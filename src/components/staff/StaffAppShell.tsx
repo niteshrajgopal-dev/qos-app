@@ -44,8 +44,8 @@ function personName(email: string) {
 }
 
 /* The staff portal shell: the approved 94px header over the fixed portal scene.
-   The Overview is full-bleed; every other screen renders on a blurred, quieted
-   version of the same scene so its data stays legible. */
+   The Overview and Storefronts show the scene at full strength; other screens
+   render on a blurred, quieted version so dense data stays legible. */
 export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -153,7 +153,11 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
     <PortalShellProvider
       value={{ tenantId, tenantName, personName: name, roleLabel, motion, toggleMotion }}
     >
-      <div className="qosp-app" data-portal-surface={showOverview ? "overview" : "workspace"}>
+      <div
+        className="qosp-app"
+        data-portal-surface={showOverview ? "overview" : "workspace"}
+        data-portal-scene={activeId === "store" ? "vivid" : undefined}
+      >
         <PortalScene motion={motion} />
         <PortalTopBar
           tenantId={tenantId}

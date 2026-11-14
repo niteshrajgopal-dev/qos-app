@@ -1,14 +1,29 @@
 "use client";
 
+import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { LightWave } from "@/components/portal/LightWave";
+import {
+  overviewActivityTime,
+  overviewCopy,
+  overviewCount,
+  overviewCurrencyLabel,
+  overviewDateLine,
+  overviewGreeting,
+  overviewLocationStatus,
+  type OverviewCopyKey,
+} from "@/components/portal/overview-copy";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { formatMinorAmount } from "@/lib/staff/overview";
 import type { TenantOverview, TenantOverviewBranch } from "@/lib/staff/overview";
-import { tenantAuditActionLabel } from "@/lib/audit/tenant-audit-action-label";
+import {
+  tenantAuditActionLabel,
+  tenantAuditEntityLabel,
+} from "@/lib/audit/tenant-audit-action-label";
 import { staffNavHref } from "@/lib/staff/nav";
 
 type PortalOverviewProps = {
@@ -25,20 +40,19 @@ type PortalOverviewProps = {
 };
 
 /* Dock copy and the 3.4s advance are from the approved prototype. */
-const DOCK = [
-  { id: "orders", icon: "receipt", title: "Orders", line: "Keep every order moving." },
-  { id: "catalogue", icon: "package", title: "Catalogue", line: "Curate your offering." },
-  { id: "menus", icon: "book-open", title: "Menus", line: "Make every menu yours." },
-  { id: "store", icon: "globe", title: "Storefronts", line: "Bring your brand to life." },
-] as const;
+const DOCK: ReadonlyArray<{
+  id: string;
+  icon: "receipt" | "package" | "book-open" | "globe";
+  title: OverviewCopyKey;
+  line: OverviewCopyKey;
+}> = [
+  { id: "orders", icon: "receipt", title: "dockOrdersTitle", line: "dockOrdersLine" },
+  { id: "catalogue", icon: "package", title: "dockCatalogueTitle", line: "dockCatalogueLine" },
+  { id: "menus", icon: "book-open", title: "dockMenusTitle", line: "dockMenusLine" },
+  { id: "store", icon: "globe", title: "dockStoreTitle", line: "dockStoreLine" },
+];
 
 const DOCK_ADVANCE_MS = 3400;
-
-function greetingFor(hour: number) {
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
-}
 
 export function PortalOverview({
   tenantId,
@@ -48,13 +62,15 @@ export function PortalOverview({
   onToggleMotion,
   layoutPreview,
 }: PortalOverviewProps) {
+  const { locale } = useStaffLocale();
+  const copy = (key: OverviewCopyKey) => overviewCopy(locale, key);
   const [overview, setOverview] = useState<TenantOverview | null>(
     layoutPreview?.overview ?? null,
   );
   const [branches, setBranches] = useState<TenantOverviewBranch[]>(
     layoutPreview?.branches ?? [],
   );
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [selected, setSelected] = useState(0);
   const [held, setHeld] = useState(false);
 
@@ -72,7 +88,7 @@ export function PortalOverview({
         }
 
         if (!response.ok) {
-          setError("Unable to load this business overview.");
+          setLoadFailed(true);
           return;
         }
 
@@ -85,7 +101,7 @@ export function PortalOverview({
       })
       .catch(() => {
         if (!cancelled) {
-          setError("Unable to load this business overview.");
+          setLoadFailed(true);
         }
       });
 
@@ -107,9 +123,6 @@ export function PortalOverview({
   }, [held, motion]);
 
   const now = useMemo(() => new Date(), []);
-  const dateLine = now
-    .toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })
-    .toUpperCase();
 
   /* Until the request resolves we know nothing, so the panels stay quiet rather
      than claiming a business has no locations or no activity. */
@@ -130,21 +143,22 @@ export function PortalOverview({
             <span className="qosp-eyebrow-star" aria-hidden="true">
               ✦
             </span>
-            {dateLine}
+            {overviewDateLine(locale, now)}
             <span className="qosp-eyebrow-line" aria-hidden="true" />
           </p>
           <p className="qosp-greeting">
-            {greetingFor(now.getHours())}, {personName}.
+            {overviewGreeting(locale, now.getHours(), "\u2068" + personName + "\u2069")}
           </p>
           <h1>
-            Your business.
+            {copy("heroTitleLead")}
             <br />
-            In <em>perspective.</em>
+            {copy("heroTitleBefore")}
+            <em>{copy("heroTitleEmphasis")}</em>
           </h1>
           <p className="qosp-hero-description">
-            Every order, every location, every detail.
+            {copy("heroDescriptionLead")}
             <br />
-            A clear view of what&rsquo;s next.
+            {copy("heroDescriptionTail")}
           </p>
           <div className="qosp-hero-actions">
             <Link
@@ -152,17 +166,17 @@ export function PortalOverview({
               className="qosp-btn"
               data-variant="primary"
             >
-              Manage orders
+              {copy("manageOrders")}
               <span aria-hidden="true">
-                <Icon name="arrow-right" size={15} />
+                <ArrowUpRight size={16} className="qosp-flip-rtl" />
               </span>
             </Link>
             <Link
               href={staffNavHref(tenantId, "analytics") ?? "#"}
               className="qosp-underlined"
             >
-              View performance
-              <Icon name="arrow-right" size={13} />
+              {copy("viewPerformance")}
+              <Icon name="arrow-right" size={13} className="qosp-flip-rtl" />
             </Link>
           </div>
           {menusWaiting > 0 ? (
@@ -171,8 +185,8 @@ export function PortalOverview({
               className="qosp-attention-link"
             >
               <span className="qosp-dot" aria-hidden="true" />
-              {menusWaiting} menu{menusWaiting === 1 ? "" : "s"} not live yet
-              <Icon name="arrow-right" size={13} />
+              {overviewCount(locale, "menusNotLive", menusWaiting)}
+              <Icon name="arrow-right" size={13} className="qosp-flip-rtl" />
             </Link>
           ) : storefrontsWaiting > 0 ? (
             <Link
@@ -180,16 +194,15 @@ export function PortalOverview({
               className="qosp-attention-link"
             >
               <span className="qosp-dot" aria-hidden="true" />
-              {storefrontsWaiting} storefront{storefrontsWaiting === 1 ? "" : "s"} still
-              in draft
-              <Icon name="arrow-right" size={13} />
+              {overviewCount(locale, "storefrontsInDraft", storefrontsWaiting)}
+              <Icon name="arrow-right" size={13} className="qosp-flip-rtl" />
             </Link>
           ) : null}
         </div>
 
-        <aside className="qosp-rail qosp-glass" aria-label="Business pulse">
+        <aside className="qosp-rail qosp-glass" aria-label={copy("businessPulse")}>
           <div className="qosp-rail-top">
-            <span>BUSINESS PULSE</span>
+            <span>{copy("businessPulse")}</span>
             <Icon name="bar-chart-3" size={13} />
           </div>
           <div className="qosp-orbit">
@@ -213,24 +226,24 @@ export function PortalOverview({
               {captureRate === null ? (
                 <>
                   <strong>—</strong>
-                  <small>no payments yet</small>
+                  <small>{copy("noPaymentsYet")}</small>
                 </>
               ) : (
                 <>
-                  <strong>
+                  <strong dir="ltr">
                     {captureRate}
                     <span>%</span>
                   </strong>
-                  <small>of payments captured</small>
+                  <small>{copy("paymentsCaptured")}</small>
                 </>
               )}
             </div>
           </div>
           <div className="qosp-rail-revenue" style={{ textAlign: "center" }}>
-            <span style={{ fontSize: 12, color: "#c9cbd6" }}>Revenue today</span>
+            <span style={{ fontSize: 12, color: "#c9cbd6" }}>{copy("revenueToday")}</span>
             <strong style={{ display: "block", fontSize: 29, fontWeight: 400 }}>
               <small style={{ fontSize: 12, color: "#c9cbd6" }}>
-                {overview?.currency ?? ""}
+                {overview ? overviewCurrencyLabel(locale, overview.currency) : ""}
               </small>{" "}
               {overview ? formatMinorAmount(overview.payments.revenueMinorToday) : "—"}
             </strong>
@@ -238,20 +251,20 @@ export function PortalOverview({
           <div className="qosp-rail-split">
             <div>
               <strong>{overview?.payments.capturedToday ?? "—"}</strong>
-              <span>Payments today</span>
+              <span>{copy("paymentsToday")}</span>
             </div>
             <div>
-              <strong>
+              <strong dir="ltr">
                 {overview?.locations.active ?? "—"}
                 <span>/{overview?.locations.total ?? "—"}</span>
               </strong>
-              <span>Locations active</span>
+              <span>{copy("locationsActive")}</span>
             </div>
           </div>
           <div className="qosp-rail-bottom">
             <span>
-              <span>Menus live</span>
-              <b>
+              <span>{copy("menusLive")}</span>
+              <b dir="ltr">
                 {overview?.menus.live ?? 0}/{overview?.menus.total ?? 0}
               </b>
             </span>
@@ -271,15 +284,15 @@ export function PortalOverview({
 
         <p className="qosp-caption" aria-hidden="true">
           <span className="qosp-caption-line" />
-          ONE WORKSPACE
+          {copy("captionLead")}
           <br />
-          EVERY POSSIBILITY
+          {copy("captionTail")}
         </p>
 
         <nav
           className="qosp-dock"
           data-held={held || undefined}
-          aria-label="Modules"
+          aria-label={copy("modules")}
           onMouseLeave={() => setHeld(false)}
         >
           <LightWave />
@@ -307,11 +320,11 @@ export function PortalOverview({
                   <Icon name={item.icon} size={19} />
                 </span>
                 <span className="qosp-dock-copy">
-                  <strong>{item.title}</strong>
-                  <span>{item.line}</span>
+                  <strong>{copy(item.title)}</strong>
+                  <span>{copy(item.line)}</span>
                 </span>
                 <span className="qosp-dock-arrow" aria-hidden="true">
-                  <Icon name="arrow-right" size={15} />
+                  <Icon name="arrow-right" size={15} className="qosp-flip-rtl" />
                 </span>
                 <small className="qosp-dock-index" aria-hidden="true">
                   0{index + 1}
@@ -324,11 +337,11 @@ export function PortalOverview({
         <div className="qosp-overview-footer">
           <span>
             <span className="qosp-dot" aria-hidden="true" />
-            {tenantName.toUpperCase()} · LIVE BUSINESS DATA
+            <bdi>{tenantName}</bdi> · {copy("liveBusinessData")}
           </span>
           <button type="button" onClick={onToggleMotion} aria-pressed={!motion}>
             <Icon name={motion ? "pause" : "play"} size={11} />
-            {motion ? "Ambient motion" : "Motion paused"}
+            {motion ? copy("motionOn") : copy("motionPaused")}
           </button>
         </div>
       </section>
@@ -336,21 +349,21 @@ export function PortalOverview({
       <section className="qosp-summary">
         <div className="qosp-section-title">
           <div>
-            <p className="qosp-eyebrow">THE BIG PICTURE</p>
-            <h2>Everything, connected.</h2>
+            <p className="qosp-eyebrow">{copy("bigPicture")}</p>
+            <h2>{copy("everythingConnected")}</h2>
           </div>
         </div>
 
-        {error ? (
+        {loadFailed ? (
           <div className="qos-alert" data-tone="error" role="alert">
-            <div className="qos-alert-body">{error}</div>
+            <div className="qos-alert-body">{copy("loadError")}</div>
           </div>
         ) : null}
 
         <div className="qosp-summary-grid">
           <div className="qosp-panel qosp-glass">
             <div className="qosp-panel-heading">
-              <h3>Recent activity</h3>
+              <h3>{copy("recentActivity")}</h3>
               <Icon name="clock" size={16} />
             </div>
             {overview?.activity.length ? (
@@ -360,29 +373,22 @@ export function PortalOverview({
                     <Icon name="check" size={13} />
                   </span>
                   <span>
-                    {tenantAuditActionLabel(event.action)}
+                    {tenantAuditActionLabel(event.action, locale)}
                     <small>
-                      {event.entityType.replace(/_/g, " ")} ·{" "}
-                      {new Date(event.occurredAt).toLocaleString("en-GB", {
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+                      {tenantAuditEntityLabel(event.entityType, locale)} ·{" "}
+                      {overviewActivityTime(locale, new Date(event.occurredAt))}
                     </small>
                   </span>
                 </div>
               ))
             ) : loaded ? (
-              <p className="qosp-empty">
-                The audit trail is visible to administrators. Nothing to show here yet.
-              </p>
+              <p className="qosp-empty">{copy("activityEmpty")}</p>
             ) : null}
           </div>
 
           <div className="qosp-panel qosp-glass">
             <div className="qosp-panel-heading">
-              <h3>Across your locations</h3>
+              <h3>{copy("acrossLocations")}</h3>
               <Icon name="map-pin" size={16} />
             </div>
             {branches.length ? (
@@ -393,38 +399,38 @@ export function PortalOverview({
                   href={`/tenants/${tenantId}/locations/${branch.publicId}/availability`}
                 >
                   <span>
-                    {branch.name}
-                    <small>{branch.timezone}</small>
+                    <bdi>{branch.name}</bdi>
+                    <small dir="ltr">{branch.timezone}</small>
                   </span>
                   <span
                     className="qos-badge"
                     data-tone={branch.status === "active" ? "success" : "neutral"}
                   >
-                    {branch.status}
+                    {overviewLocationStatus(locale, branch.status)}
                   </span>
                 </Link>
               ))
             ) : loaded ? (
-              <p className="qosp-empty">No locations yet.</p>
+              <p className="qosp-empty">{copy("noLocations")}</p>
             ) : null}
           </div>
 
           <div className="qosp-focus-card qosp-glass">
             <Icon name="book-open" size={26} />
-            <p className="qosp-eyebrow">READY WHEN YOU ARE</p>
+            <p className="qosp-eyebrow">{copy("readyWhenYouAre")}</p>
             <h3>
-              A fresh menu.
+              {copy("freshMenuLead")}
               <br />
-              One release away.
+              {copy("freshMenuTail")}
             </h3>
             <p>
               {menusWaiting > 0
-                ? `${menusWaiting} menu${menusWaiting === 1 ? " is" : "s are"} still in draft, ready to publish when you are.`
-                : "Every menu in this business is published."}
+                ? overviewCount(locale, "menusInDraft", menusWaiting)
+                : copy("allMenusPublished")}
             </p>
             <Link href={staffNavHref(tenantId, "menus") ?? "#"} className="qosp-text-button">
-              Open menus
-              <Icon name="arrow-right" size={14} />
+              {copy("openMenus")}
+              <Icon name="arrow-right" size={14} className="qosp-flip-rtl" />
             </Link>
           </div>
         </div>

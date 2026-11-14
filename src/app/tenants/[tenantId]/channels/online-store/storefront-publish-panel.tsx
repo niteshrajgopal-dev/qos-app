@@ -5,6 +5,7 @@ import { History, Rocket, Undo2 } from "lucide-react";
 
 import {
   releaseOutcomeMessage,
+  storefrontPublisherLabel,
   type StorefrontSummary,
 } from "@/app/tenants/[tenantId]/channels/online-store/storefront-view";
 import {
@@ -21,6 +22,7 @@ type ReleaseRow = {
   publicId: string;
   releaseVersion: number;
   publishedBySubject: string;
+  publishedByName?: string | null;
   createdAt: string | Date;
   isActive: boolean;
 };
@@ -239,7 +241,9 @@ export function StorefrontPublishPanel({
             </p>
             <p className="qosp-meta-line">
               {copy("historyBy")}{" "}
-              <bdi dir="ltr">{storefront.activeRelease.publishedBySubject}</bdi>
+              <bdi>
+                {storefrontPublisherLabel(locale, storefront.activeRelease.publishedByName)}
+              </bdi>
             </p>
           </div>
         </div>
@@ -317,7 +321,9 @@ export function StorefrontPublishPanel({
                       </div>
                       <div>
                         <dt>{copy("historyBy")}</dt>
-                        <dd dir="ltr">{release.publishedBySubject}</dd>
+                        <dd>
+                          <bdi>{storefrontPublisherLabel(locale, release.publishedByName)}</bdi>
+                        </dd>
                       </div>
                     </dl>
                     <span className="qosp-code" dir="ltr">

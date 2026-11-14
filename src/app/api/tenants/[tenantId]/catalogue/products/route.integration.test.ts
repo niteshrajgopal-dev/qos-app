@@ -3,6 +3,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { staffIdentities, staffMemberships } from "@/db/schema";
 import { grantRoleMembership, hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { assignProductToCategory, createCategory } from "@/lib/catalogue/categories";
+import { createDraftMenu } from "@/lib/catalogue/menus";
 import { archiveDraftProduct, createDraftProduct } from "@/lib/catalogue/products";
 import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
@@ -47,7 +48,7 @@ integrationDescribe("GET /catalogue/products (DB)", () => {
   });
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.catalogue_product_categories, qos.catalogue_category_translations, qos.catalogue_categories, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.catalogue_menu_section_products, qos.catalogue_menu_section_translations, qos.catalogue_menu_sections, qos.catalogue_menu_locations, qos.catalogue_menu_translations, qos.catalogue_menus, qos.catalogue_product_categories, qos.catalogue_category_translations, qos.catalogue_categories, qos.catalogue_variant_translations, qos.catalogue_variant_prices, qos.catalogue_variants, qos.catalogue_product_translations, qos.catalogue_products, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
     staffMocks.requireStaffIdentity.mockReset();
   });
 
@@ -153,7 +154,15 @@ integrationDescribe("GET /catalogue/products (DB)", () => {
       defaultVariant: { amountMinor: 9900, currency: "AED" },
     });
 
-    return { tenantId: quotes.tenant.id, latte, water, retired, roses };
+    return {
+      tenantId: quotes.tenant.id,
+      admin,
+      locationId: quotes.location.id,
+      latte,
+      water,
+      retired,
+      roses,
+    };
   }
 
   async function list(tenantId: string, subject: string) {
@@ -180,6 +189,7 @@ integrationDescribe("GET /catalogue/products (DB)", () => {
         defaultPrice: { amountMinor: 1850, currency: "AED" },
         category: {
           publicId: "cat_hot_drinks",
+          source: "category",
           displayName: { en: "Hot drinks", ar: "مشروبات ساخنة" },
         },
       },
@@ -201,6 +211,7 @@ integrationDescribe("GET /catalogue/products (DB)", () => {
         defaultPrice: { amountMinor: 2200, currency: "AED" },
         category: {
           publicId: "cat_signatures",
+          source: "category",
           displayName: { en: "Signatures", ar: "أطباق مميزة" },
         },
       }),
@@ -208,6 +219,72 @@ integrationDescribe("GET /catalogue/products (DB)", () => {
 
     const listed = [...body.products, ...body.archivedProducts].map((row) => row.publicId);
     expect(listed).not.toContain(roses.publicId);
+  });
+
+  it("falls back to the published menu section for products without a catalogue category", async () => {
+    const { tenantId, admin, locationId, latte, water } = await seedCatalogue();
+
+    async function menuWithSection(name: string, section: { en: string; ar: string }, products: string[]) {
+      return createDraftMenu(db, tenantId, admin, {
+        internalName: name,
+        locationIds: [locationId],
+        translations: { en: { displayName: name }, ar: { displayName: "قائمة" } },
+        sections: [
+          {
+            internalName: section.en.toLowerCase(),
+            sortOrder: 0,
+            translations: { en: { displayName: section.en }, ar: { displayName: section.ar } },
+            products: products.map((productPublicId, sortOrder) => ({ productPublicId, sortOrder })),
+          },
+        ],
+      });
+    }
+
+    // The draft menu sorts first by public id, so only the published preference
+    // can pick the live menu's section.
+    await menuWithSection("aaa-draft", { en: "Draft picks", ar: "مسودة" }, [water.publicId]);
+    const live = await menuWithSection(
+      "zzz-live",
+      { en: "Cold drinks", ar: "مشروبات باردة" },
+      [water.publicId, latte.publicId],
+    );
+    await sqlClient`UPDATE qos.catalogue_menus SET status = 'active', published_version = 1 WHERE public_id = ${live.publicId}`;
+
+    const response = await list(tenantId, ADMIN_SUBJECT);
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as ListBody;
+    const byId = new Map(body.products.map((row) => [row.publicId, row]));
+
+    expect(byId.get(water.publicId)?.category).toEqual({
+      publicId: live.sections[0]!.publicId,
+      source: "menu_section",
+      displayName: { en: "Cold drinks", ar: "مشروبات باردة" },
+    });
+    expect(byId.get(latte.publicId)?.category).toEqual(
+      expect.objectContaining({ publicId: "cat_hot_drinks", source: "category" }),
+    );
+  });
+
+  it("ignores archived menu sections when choosing the fallback", async () => {
+    const { tenantId, admin, locationId, water } = await seedCatalogue();
+    const menu = await createDraftMenu(db, tenantId, admin, {
+      internalName: "retired-menu",
+      locationIds: [locationId],
+      translations: { en: { displayName: "Retired" }, ar: { displayName: "قديمة" } },
+      sections: [
+        {
+          internalName: "old",
+          sortOrder: 0,
+          translations: { en: { displayName: "Old section" }, ar: { displayName: "قسم قديم" } },
+          products: [{ productPublicId: water.publicId, sortOrder: 0 }],
+        },
+      ],
+    });
+    await sqlClient`UPDATE qos.catalogue_menu_sections SET archived = true WHERE public_id = ${menu.sections[0]!.publicId}`;
+
+    const response = await list(tenantId, ADMIN_SUBJECT);
+    const body = (await response.json()) as ListBody;
+    expect(body.products.find((row) => row.publicId === water.publicId)?.category).toBeNull();
   });
 
   it("rejects staff without a membership in the tenant", async () => {
