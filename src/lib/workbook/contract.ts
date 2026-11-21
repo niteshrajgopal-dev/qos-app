@@ -6,7 +6,9 @@ import contractJson from "@/lib/workbook/qos-workbook-contract.v1.json";
    marked `since: "1.1"`; v1.2 (QOS-213) adds the three sales-channel sheets,
    each marked `sinceVersion: "1.2"`; v1.3 (QOS-214) adds eight selling-attribute
    and nutrition columns on Products, Variants and Modifier Options, marked
-   `sinceVersion: "1.3"`. It is the source of truth for sheet
+   `sinceVersion: "1.3"`; v1.4 (QOS-215) persists the Variants tax columns and
+   adds reference-cost columns to Variants and Modifier Options, marked
+   `sinceVersion: "1.4"`. It is the source of truth for sheet
    names, table names, header and data rows, columns and the manifest.
    Nothing here is inferred from a file name. */
 
@@ -30,7 +32,7 @@ export type WorkbookColumnDefinition = {
   width?: number;
   /** Contract version that introduced the column; absent means 1.0. */
   since?: string;
-  /** Contract version that introduced the column (v1.3 selling-attribute columns). */
+  /** Contract version that introduced the column (v1.3 selling-attribute and v1.4 cost columns). */
   sinceVersion?: string;
 };
 
@@ -79,7 +81,7 @@ export const WORKBOOK_PROFILE_ID = "qos-extended-v1-proposed";
 export const WORKBOOK_TEMPLATE_VERSION = WORKBOOK_CONTRACT.version;
 
 /** Template versions QOS reads. Older files lack the columns and sheets added since. */
-export const SUPPORTED_TEMPLATE_VERSIONS = ["1.0", "1.1", "1.2", "1.3"] as const;
+export const SUPPORTED_TEMPLATE_VERSIONS = ["1.0", "1.1", "1.2", "1.3", "1.4"] as const;
 
 function versionParts(version: string) {
   return version.split(".").map((part) => Number.parseInt(part, 10) || 0);
