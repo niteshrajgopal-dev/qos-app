@@ -163,7 +163,13 @@ export function toPublicMenuResponse(input: {
             sortOrder: product.sortOrder,
             displayName: productText.displayName,
             description: productText.description,
-            price: product.price,
+            // Copied field by field so nothing else on a snapshot price
+            // (tax, cost, margin) can ride along into the public payload.
+            price: {
+              amountMinor: product.price.amountMinor,
+              currency: product.price.currency,
+              inheritanceMode: product.price.inheritanceMode,
+            },
             mediaAssetId: product.mediaAssetId ?? null,
             eligibility: mapProductEligibility(
               product.productPublicId,

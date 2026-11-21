@@ -62,7 +62,16 @@ function product(overrides: Partial<DraftProductEditorView> = {}): DraftProductE
       en: { displayName: "Latte", description: "Coffee.", translationVersion: 2, approvalStatus: "draft" },
       ar: { displayName: "لاتيه قديم", description: "قهوة", translationVersion: 5, approvalStatus: "draft" },
     },
-    defaultVariant: { publicId: "var_latte_default", amountMinor: 1800, currency: "AED" },
+    defaultVariant: {
+      publicId: "var_latte_default",
+      amountMinor: 1800,
+      currency: "AED",
+      priceTaxBasis: null,
+      taxRateBasisPoints: null,
+      taxProvenance: null,
+      referenceCost: { policy: null, resolution: { status: "unavailable", reason: "no_policy" } },
+      referenceMargin: { status: "unavailable", reason: "missing_selling_tax_basis" },
+    },
     variants: [],
     ...overrides,
   };

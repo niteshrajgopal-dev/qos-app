@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type { DbClient } from "@/db/client";
@@ -12,8 +12,10 @@ import {
   catalogueVariantTranslations,
   tenants,
 } from "@/db/schema";
-import type { DraftProductVariantView } from "@/lib/catalogue/variants";
-import { variantSellingBasisFromRow } from "@/lib/catalogue/selling-attributes";
+import {
+  type DraftProductVariantView,
+  loadProductVariantsInTx,
+} from "@/lib/catalogue/variants";
 import {
   type CreateDraftProductInput,
   type ProductLocale,
@@ -116,6 +118,12 @@ export type DraftProductEditorView = {
     publicId: string;
     amountMinor: number;
     currency: string;
+    /** QOS-215: product-level tax and cost live on the default variant. */
+    priceTaxBasis: DraftProductVariantView["priceTaxBasis"];
+    taxRateBasisPoints: DraftProductVariantView["taxRateBasisPoints"];
+    taxProvenance: DraftProductVariantView["taxProvenance"];
+    referenceCost: DraftProductVariantView["referenceCost"];
+    referenceMargin: DraftProductVariantView["referenceMargin"];
   };
   variants: DraftProductVariantView[];
 };
@@ -298,96 +306,7 @@ async function loadDraftProductEditorView(
     };
   }
 
-  const variantRows = await tx
-    .select({
-      id: catalogueVariants.id,
-      publicId: catalogueVariants.publicId,
-      isDefault: catalogueVariants.isDefault,
-      sortOrder: catalogueVariants.sortOrder,
-      status: catalogueVariants.status,
-      sku: catalogueVariants.sku,
-      barcode: catalogueVariants.barcode,
-      sellingQuantityBasis: catalogueVariants.sellingQuantityBasis,
-      priceUnit: catalogueVariants.priceUnit,
-      priceUnitQuantity: catalogueVariants.priceUnitQuantity,
-      currency: catalogueVariantPrices.currency,
-      amountMinor: catalogueVariantPrices.amountMinor,
-      priceVersion: catalogueVariantPrices.version,
-    })
-    .from(catalogueVariants)
-    .leftJoin(
-      catalogueVariantPrices,
-      and(
-        eq(catalogueVariantPrices.tenantId, tenantId),
-        eq(catalogueVariantPrices.variantId, catalogueVariants.id),
-      ),
-    )
-    .where(
-      and(
-        eq(catalogueVariants.tenantId, tenantId),
-        eq(catalogueVariants.productId, product.id),
-      ),
-    )
-    .orderBy(asc(catalogueVariants.sortOrder), asc(catalogueVariants.publicId));
-
-  const variantTranslationRows =
-    variantRows.length === 0
-      ? []
-      : await tx
-          .select()
-          .from(catalogueVariantTranslations)
-          .where(
-            and(
-              eq(catalogueVariantTranslations.tenantId, tenantId),
-              inArray(
-                catalogueVariantTranslations.variantId,
-                variantRows.map((row) => row.id),
-              ),
-            ),
-          );
-
-  const translationsByVariantId = new Map<
-    string,
-    Record<ProductLocale, { displayName: string }>
-  >();
-
-  for (const row of variantRows) {
-    translationsByVariantId.set(row.id, {
-      en: { displayName: "" },
-      ar: { displayName: "" },
-    });
-  }
-
-  for (const row of variantTranslationRows) {
-    const locale = row.locale as ProductLocale;
-    if (locale !== "en" && locale !== "ar") {
-      continue;
-    }
-
-    const existing = translationsByVariantId.get(row.variantId);
-    if (!existing) {
-      continue;
-    }
-
-    existing[locale] = { displayName: row.displayName };
-  }
-
-  const variants: DraftProductVariantView[] = variantRows.map((row) => ({
-    publicId: row.publicId,
-    isDefault: row.isDefault,
-    sortOrder: row.sortOrder,
-    status: row.status === "archived" ? "archived" : "active",
-    sku: row.sku,
-    barcode: row.barcode,
-    ...variantSellingBasisFromRow(row),
-    currency: row.currency?.trim() ?? null,
-    amountMinor: row.amountMinor ?? null,
-    priceVersion: row.priceVersion ?? null,
-    translations: translationsByVariantId.get(row.id) ?? {
-      en: { displayName: "" },
-      ar: { displayName: "" },
-    },
-  }));
+  const variants = await loadProductVariantsInTx(tx, tenantId, product.id);
 
   const defaultVariant = variants.find((variant) => variant.isDefault);
 
@@ -442,6 +361,11 @@ async function loadDraftProductEditorView(
       publicId: defaultVariant.publicId,
       amountMinor: defaultVariant.amountMinor,
       currency: defaultVariant.currency,
+      priceTaxBasis: defaultVariant.priceTaxBasis,
+      taxRateBasisPoints: defaultVariant.taxRateBasisPoints,
+      taxProvenance: defaultVariant.taxProvenance,
+      referenceCost: defaultVariant.referenceCost,
+      referenceMargin: defaultVariant.referenceMargin,
     },
     variants,
   };

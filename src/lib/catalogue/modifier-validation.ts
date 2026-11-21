@@ -2,6 +2,10 @@ import {
   isSelectionCountMode,
   type SelectionCountMode,
 } from "@/lib/catalogue/modifier-assignment-policy";
+import {
+  type CostPolicyOperationInput,
+  validateCostPolicyOperation,
+} from "@/lib/catalogue/reference-cost-policies";
 import type { ProductLocale } from "@/lib/catalogue/validation";
 import {
   CatalogueValidationError,
@@ -43,6 +47,8 @@ export type CreateModifierOptionInput = {
   priceMinor?: number;
   currency?: string;
   nutritionCalories?: number | null;
+  /** QOS-215: explicit cost-policy operation; omitting it changes nothing. */
+  costPolicy?: CostPolicyOperationInput;
   translations?: Partial<Record<ProductLocale, ModifierTranslationInput>>;
 };
 
@@ -55,6 +61,8 @@ export type UpdateModifierOptionInput = {
   status?: "active" | "archived";
   priceMinor?: number;
   nutritionCalories?: number | null;
+  /** QOS-215: explicit cost-policy operation; omitting it changes nothing. */
+  costPolicy?: CostPolicyOperationInput;
   translations?: Partial<Record<ProductLocale, ModifierTranslationInput>>;
 };
 
@@ -309,6 +317,7 @@ export function validateCreateModifierOptionInput(
       businessProfile,
       "nutritionCalories",
     ),
+    costPolicy: validateCostPolicyOperation(input.costPolicy),
     translations: normalizeTranslations(input.translations),
   };
 }
@@ -366,6 +375,7 @@ export function validateUpdateModifierOptionInput(
       input.nutritionCalories === undefined
         ? undefined
         : validateNutritionCalories(input.nutritionCalories, businessProfile, "nutritionCalories"),
+    costPolicy: validateCostPolicyOperation(input.costPolicy),
     translations: normalizeTranslations(input.translations),
   };
 }
