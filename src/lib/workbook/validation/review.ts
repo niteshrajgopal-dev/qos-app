@@ -31,7 +31,7 @@ import {
   type WorkbookReview,
 } from "@/lib/workbook/validation/model";
 import { computeFieldDecisions, isDeferredColumn } from "@/lib/workbook/validation/capability";
-import { checkConditionalInputs, checkService, deferredFieldsOf, typeRow, type ServiceContext } from "@/lib/workbook/validation/rules";
+import { checkApplyParity, checkConditionalInputs, checkService, deferredFieldsOf, dropImportStatus, typeRow, type ServiceContext } from "@/lib/workbook/validation/rules";
 import { idColumnOf, type ReviewSnapshot } from "@/lib/workbook/validation/snapshot";
 import { addDiagnostic, fromSource, hasErrors, type WorkRow } from "@/lib/workbook/validation/work";
 
@@ -40,9 +40,13 @@ import { addDiagnostic, fromSource, hasErrors, type WorkRow } from "@/lib/workbo
    decisions in; every row classified with real before/after values,
    diagnostics and dependencies out. It never writes. Names never confirm
    identity: a row becomes an Update of an existing record only through a
-   QOS id, a product source link or a stored decision. */
+   QOS id, a source link (product link or typed workbook link) or a stored
+   decision. */
 
-export const REVIEW_ENGINE_VERSION = "qos194.1";
+/* qos217.1: typed workbook source links are verified identities and three
+   service-parity rules refuse what apply cannot do (QOS-217). A plan reviewed
+   under an older version must be re-reviewed before apply. */
+export const REVIEW_ENGINE_VERSION = "qos217.1";
 
 type Row = Record<string, string>;
 
@@ -233,6 +237,26 @@ function conflict(work: WorkRow, code: ReviewDiagnostic["code"], candidates: Wor
 /* Identity per row                                                    */
 /* ------------------------------------------------------------------ */
 
+/** The record a typed workbook source link (QOS-217) names for this row's key, when it exists in scope. */
+function typedLinkTarget(engine: Engine, work: WorkRow): string | null {
+  const publicId = engine.snapshot.typedLinks.get(work.sheet)?.get(work.key);
+  if (!publicId) return null;
+  const record = recordsOf(engine, work.sheet)?.get(publicId);
+  if (!record || (PARENT_COLUMN[work.sheet] && !belongsToParent(work, record))) return null;
+  return publicId;
+}
+
+/** A key QOS linked on an earlier apply is the same record: compare against it, never create it again. */
+function followTypedLink(engine: Engine, work: WorkRow, publicId: string, decision: RowDecision | undefined): "resolved" {
+  if (decision?.kind === "match_existing" && decision.targetPublicId === publicId) {
+    work.decision = decision;
+  } else if (decision) {
+    rejectDecision(work, decision, "linked");
+  }
+  setTarget(work, publicId, "source_link", recordsOf(engine, work.sheet).get(publicId));
+  return "resolved";
+}
+
 function resolveEntityTarget(engine: Engine, work: WorkRow, decision: RowDecision | undefined): "resolved" | "settled" {
   const isCreate = work.op === "create";
   const id = namedId(engine, work);
@@ -242,6 +266,10 @@ function resolveEntityTarget(engine: Engine, work: WorkRow, decision: RowDecisio
       work.classification = "invalid";
       addDiagnostic(work, { severity: "error", code: "create_with_id", column: idColumnOf(work.sheet), params: { id: work.typed[idColumnOf(work.sheet)]! } });
       return "settled";
+    }
+    const typedLinked = typedLinkTarget(engine, work);
+    if (typedLinked) {
+      return followTypedLink(engine, work, typedLinked, decision);
     }
     if (decision?.kind === "match_existing") {
       return applyMatchDecision(engine, work, decision) ? "resolved" : resolveCreateConflicts(engine, work, undefined);
@@ -261,6 +289,10 @@ function resolveEntityTarget(engine: Engine, work: WorkRow, decision: RowDecisio
   }
   if (work.op === "skip") {
     return "settled";
+  }
+  const typedLinked = typedLinkTarget(engine, work);
+  if (typedLinked) {
+    return followTypedLink(engine, work, typedLinked, decision);
   }
   if (decision?.kind === "match_existing" && applyMatchDecision(engine, work, decision)) {
     return "resolved";
@@ -767,6 +799,20 @@ function runServiceChecks(engine: Engine) {
   for (const work of engine.works) {
     if (!work.supported || hasErrors(work)) continue;
     if (work.classification !== "create" && work.classification !== "update") continue;
+    dropImportStatus(work);
+    // Link removals and central-price resets are updates with no field changes.
+    if (work.classification === "update" && work.operation === "update" && work.changes.length === 0) {
+      work.classification = "unchanged";
+      work.operation = null;
+      continue;
+    }
+    const parity = checkApplyParity(work, engine.service);
+    if (parity) {
+      addDiagnostic(work, parity);
+      work.classification = "invalid";
+      work.operation = null;
+      continue;
+    }
     if (work.operation === "remove_link" || work.operation === "reset_to_central") continue;
     const values: Row =
       work.classification === "create"

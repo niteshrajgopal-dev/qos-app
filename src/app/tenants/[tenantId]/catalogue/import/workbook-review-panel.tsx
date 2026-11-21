@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { WorkbookApplyPanel } from "@/app/tenants/[tenantId]/catalogue/import/workbook-apply-panel";
 import { WorkbookReviewRow } from "@/app/tenants/[tenantId]/catalogue/import/workbook-review-row";
 import {
   PortalBadge,
@@ -20,9 +21,12 @@ import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { staffCopyWith, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 import { attachmentFileName } from "@/lib/workbook/import-view";
 import {
+  applyEditorHref,
   describeReviewApiError,
   describeReviewDiagnostic,
   filterReviewRows,
+  indexReviewRows,
+  PLAN_STATUS_COPY,
   REVIEW_BLOCKER_COPY,
   REVIEW_CLASSIFICATION_COPY,
   REVIEW_CLASSIFICATION_SUB_COPY,
@@ -48,10 +52,12 @@ import {
    outcome, field decisions, explicit acknowledgements, and the rows with
    their before/after values and decisions. Decisions and acknowledgements
    live in this component's state until the review is re-run; nothing is
-   stored in the browser and nothing is applied (QOS-217 applies). */
+   stored in the browser. Applying (QOS-217) happens in the apply section,
+   only when the server allows it, and its outcome is shown per row. */
 
 const PAGE_SIZE = 25;
 const FIELD_DECISION_TONE = { validated: "positive", deferred: "warm", rejected: "danger", mechanics: "neutral" } as const;
+const PLAN_STATUS_TONE = { review_ready: "positive", stale: "danger", applying: "warm", applied: "positive", apply_failed: "danger" } as const;
 const FIELD_DECISION_ORDER: Array<FieldDecision["decision"]> = ["validated", "deferred", "rejected", "mechanics"];
 
 function rowId(ref: { sheet: string; row: number }) {
@@ -187,6 +193,10 @@ export function WorkbookReviewPanel({
 
   const context = result.context;
   const stale = result.plan.status === "stale" || result.stale === true;
+  const planStatus = stale && result.plan.status === "review_ready" ? "stale" : result.plan.status;
+  const applyLocked = result.plan.status === "applying" || result.plan.status === "applied";
+  const nothingApplied = (result.apply?.attempts.length ?? 0) === 0 && (planStatus === "review_ready" || planStatus === "stale");
+  const rowIndex = indexReviewRows(result.rows);
   const sheets = [...new Set(result.rows.map((row) => row.sheet))];
   const visible = filterReviewRows(result.rows, filter, sheet);
   const pageCount = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
@@ -221,7 +231,7 @@ export function WorkbookReviewPanel({
     <PortalPanel>
       <h2 className="qosp-panel-title">{t("reviewTitle")}</h2>
       <div className="qosp-meta-row">
-        <PortalBadge tone={stale ? "danger" : "positive"}>{t(stale ? "reviewStatusStale" : "reviewStatusReady")}</PortalBadge>
+        <PortalBadge tone={PLAN_STATUS_TONE[planStatus]}>{t(PLAN_STATUS_COPY[planStatus])}</PortalBadge>
         <span className="qosp-meta-line">
           {staffCopyWith(locale, "reviewPlanMeta", { plan: isolateText(result.plan.publicId), revision: result.plan.revision })}
         </span>
@@ -235,9 +245,9 @@ export function WorkbookReviewPanel({
         </code>
       </p>
       <div className="qosp-panel-body qosp-stack">
-        <PortalNotice tone="info">{t("reviewNotApplied")}</PortalNotice>
+        {nothingApplied ? <PortalNotice tone="info">{t("reviewNotApplied")}</PortalNotice> : null}
         {stale ? <PortalNotice tone="warning">{t("reviewStaleNotice")}</PortalNotice> : null}
-        {result.replayed ? <PortalNotice tone="info">{t("reviewReplayedNotice")}</PortalNotice> : null}
+        {result.replayed && (result.apply?.attempts.length ?? 0) === 0 ? <PortalNotice tone="info">{t("reviewReplayedNotice")}</PortalNotice> : null}
         {result.notices.map((notice) => (
           <PortalNotice key={notice.code} tone="info">
             {describeReviewDiagnostic(locale, notice)}
@@ -422,7 +432,7 @@ export function WorkbookReviewPanel({
       ) : null}
       {unsent > 0 ? <p className="qosp-meta-line qosp-panel-body">{staffCopyWith(locale, "reviewUnsentDecisions", { count: unsent })}</p> : null}
       <div className="qosp-button-row qosp-panel-body">
-        <button className="qos-btn" data-variant="primary" type="button" disabled={busy !== null} onClick={() => void rerun()}>
+        <button className="qos-btn" data-variant="primary" type="button" disabled={busy !== null || applyLocked} onClick={() => void rerun()}>
           {busy === "rerun" ? t("reviewRerunBusy") : t("reviewRerun")}
         </button>
         <button className="qos-btn" data-variant="secondary" type="button" disabled={busy !== null} onClick={() => void revalidate()}>
@@ -432,6 +442,15 @@ export function WorkbookReviewPanel({
           {busy === "report" ? t("reviewDownloadReportBusy") : t("reviewDownloadReport")}
         </button>
       </div>
+
+      <WorkbookApplyPanel
+        tenantId={tenantId}
+        result={result}
+        onResult={adopt}
+        onRevalidate={() => void rerun()}
+        busyElsewhere={busy !== null}
+        revalidating={busy === "rerun"}
+      />
 
       <h3 className="qosp-subcard-title qosp-panel-body">{t("reviewRowsTitle")}</h3>
       <div className="qosp-panel-body qosp-stack">
@@ -471,6 +490,7 @@ export function WorkbookReviewPanel({
               key={rowId(row)}
               row={row}
               currency={context.currency}
+              editorHref={applyEditorHref(tenantId, row, rowIndex)}
               decision={rowDecisions.get(rowId(row)) ?? null}
               onDecision={(decision) => {
                 const next = new Map(rowDecisions);

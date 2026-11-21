@@ -54,6 +54,8 @@ const AUDITED_SURFACES = [
   // QOS-194 workbook review panel and row
   "app/tenants/[tenantId]/catalogue/import/workbook-review-panel.tsx",
   "app/tenants/[tenantId]/catalogue/import/workbook-review-row.tsx",
+  // QOS-217 workbook apply section
+  "app/tenants/[tenantId]/catalogue/import/workbook-apply-panel.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -105,6 +107,8 @@ const PORTAL_RESTYLED_SURFACES = [
   // QOS-194 workbook review panel and row
   "app/tenants/[tenantId]/catalogue/import/workbook-review-panel.tsx",
   "app/tenants/[tenantId]/catalogue/import/workbook-review-row.tsx",
+  // QOS-217 workbook apply section
+  "app/tenants/[tenantId]/catalogue/import/workbook-apply-panel.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.

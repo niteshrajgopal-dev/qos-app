@@ -4,6 +4,7 @@ import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { staffErrorResponse } from "@/lib/staff/http";
 import { StaffAuthError, staffPrivateCacheControl } from "@/lib/staff/session";
 import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
+import { WorkbookApplyError } from "@/lib/workbook/apply/errors";
 import { WorkbookParseError } from "@/lib/workbook/errors";
 import { WorkbookExportError } from "@/lib/workbook/export";
 import { WORKBOOK_LIMITS } from "@/lib/workbook/limits";
@@ -24,6 +25,13 @@ export function workbookErrorResponse(error: unknown) {
   }
 
   if (error instanceof WorkbookExportError) {
+    return NextResponse.json(
+      { error: error.message, code: error.code, ...error.details },
+      { status: error.statusCode, headers },
+    );
+  }
+
+  if (error instanceof WorkbookApplyError) {
     return NextResponse.json(
       { error: error.message, code: error.code, ...error.details },
       { status: error.statusCode, headers },

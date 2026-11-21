@@ -34,6 +34,15 @@ import type {
   RowDecision,
   StoredPlanContext,
 } from "@/lib/workbook/validation/model";
+import type {
+  ApplyCounts,
+  ApplyFailure,
+  ApplyStatus,
+  ApplySummary,
+  RowApplyResult,
+  RowApplyState,
+  TypedLinkEntity,
+} from "@/lib/workbook/apply/model";
 
 export const qos = pgSchema("qos");
 
@@ -2967,7 +2976,7 @@ export const workbookImportPlans = qos.table(
     uniqueIndex("workbook_import_plans_tenant_id_id_unique").on(table.tenantId, table.id),
     uniqueIndex("workbook_import_plans_idempotency_unique").on(table.tenantId, table.idempotencyKey),
     index("workbook_import_plans_tenant_id_idx").on(table.tenantId),
-    check("workbook_import_plans_status_check", sql`${table.status} IN ('review_ready','stale')`),
+    check("workbook_import_plans_status_check", sql`${table.status} IN ('review_ready','stale','applying','applied','apply_failed')`),
     check("workbook_import_plans_profile_check", sql`${table.sourceProfile} IN ('qos_extended_v1','foodics_menu_v1')`),
     check("workbook_import_plans_role_check", sql`${table.createdByRole} IN ('administrator','user')`),
     check("workbook_import_plans_revision_check", sql`${table.revision} >= 1`),
@@ -2998,6 +3007,12 @@ export const workbookImportPlanRows = qos.table(
     detail: jsonb("detail").$type<ReviewRowDetail>().notNull(),
     provenance: jsonb("provenance").$type<ReviewProvenance>(),
     decision: jsonb("decision").$type<RowDecision>(),
+    applyState: text("apply_state").$type<RowApplyState>(),
+    appliedPublicId: text("applied_public_id"),
+    appliedAt: timestamp("applied_at", { withTimezone: true }),
+    applyId: uuid("apply_id"),
+    applyError: jsonb("apply_error").$type<ApplyFailure>(),
+    applyResult: jsonb("apply_result").$type<RowApplyResult>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -3018,6 +3033,100 @@ export const workbookImportPlanRows = qos.table(
     check(
       "workbook_import_plan_rows_operation_check",
       sql`${table.operation} IS NULL OR ${table.operation} IN ('create','update','archive','restore','remove_link','reset_to_central')`,
+    ),
+    check(
+      "workbook_import_plan_rows_apply_state_check",
+      sql`${table.applyState} IS NULL OR ${table.applyState} IN ('pending','applied','already_applied','failed','not_applied','deferred_only')`,
+    ),
+  ],
+);
+
+/* QOS-217 workbook apply (migration 0058): one row per apply attempt
+   (idempotency, history, heartbeat for recovery) and typed source links
+   (workbook key → QOS public id per entity type and namespace). */
+export const workbookImportApplies = qos.table(
+  "workbook_import_applies",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    planId: uuid("plan_id").notNull(),
+    publicId: text("public_id").notNull(),
+    status: text("status").$type<ApplyStatus>().notNull(),
+    idempotencyKey: text("idempotency_key").notNull(),
+    planRevision: integer("plan_revision").notNull(),
+    planHash: text("plan_hash").notNull(),
+    snapshotHash: text("snapshot_hash").notNull(),
+    engineVersion: text("engine_version").notNull(),
+    sourceProfile: text("source_profile").notNull(),
+    sourceNamespace: text("source_namespace").notNull(),
+    templateVersion: text("template_version").notNull(),
+    dictionaryVersion: text("dictionary_version"),
+    branchScope: jsonb("branch_scope").$type<"all" | string[]>().notNull(),
+    actorSubject: text("actor_subject").notNull(),
+    actorRole: text("actor_role").$type<"administrator" | "user">().notNull(),
+    counts: jsonb("counts").$type<Partial<ApplyCounts>>().notNull().default({}),
+    summary: jsonb("summary").$type<ApplySummary>().notNull().default({}),
+    startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+    heartbeatAt: timestamp("heartbeat_at", { withTimezone: true }).notNull().defaultNow(),
+    finishedAt: timestamp("finished_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "workbook_import_applies_plan_fk",
+      columns: [table.tenantId, table.planId],
+      foreignColumns: [workbookImportPlans.tenantId, workbookImportPlans.id],
+    }).onDelete("restrict"),
+    uniqueIndex("workbook_import_applies_public_unique").on(table.tenantId, table.publicId),
+    uniqueIndex("workbook_import_applies_tenant_id_id_unique").on(table.tenantId, table.id),
+    uniqueIndex("workbook_import_applies_idempotency_unique").on(table.tenantId, table.idempotencyKey),
+    uniqueIndex("workbook_import_applies_one_running_per_plan")
+      .on(table.tenantId, table.planId)
+      .where(sql`${table.status} = 'applying'`),
+    index("workbook_import_applies_plan_idx").on(table.tenantId, table.planId, table.startedAt),
+    index("workbook_import_applies_tenant_id_idx").on(table.tenantId),
+    check("workbook_import_applies_status_check", sql`${table.status} IN ('applying','completed','failed','interrupted')`),
+    check("workbook_import_applies_role_check", sql`${table.actorRole} IN ('administrator','user')`),
+  ],
+);
+
+export const workbookSourceLinks = qos.table(
+  "workbook_source_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    sourceNamespace: text("source_namespace").notNull(),
+    entityType: text("entity_type").$type<TypedLinkEntity>().notNull(),
+    sourceKey: text("source_key").notNull(),
+    targetPublicId: text("target_public_id").notNull(),
+    planId: uuid("plan_id"),
+    applyId: uuid("apply_id"),
+    createdBySubject: text("created_by_subject").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "workbook_source_links_plan_fk",
+      columns: [table.tenantId, table.planId],
+      foreignColumns: [workbookImportPlans.tenantId, workbookImportPlans.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "workbook_source_links_apply_fk",
+      columns: [table.tenantId, table.applyId],
+      foreignColumns: [workbookImportApplies.tenantId, workbookImportApplies.id],
+    }).onDelete("restrict"),
+    uniqueIndex("workbook_source_links_source_unique").on(table.tenantId, table.sourceNamespace, table.entityType, table.sourceKey),
+    uniqueIndex("workbook_source_links_target_unique").on(table.tenantId, table.sourceNamespace, table.entityType, table.targetPublicId),
+    index("workbook_source_links_tenant_id_idx").on(table.tenantId),
+    check(
+      "workbook_source_links_entity_check",
+      sql`${table.entityType} IN ('category','product','variant','modifier_group','modifier_option','menu','menu_section')`,
     ),
   ],
 );
@@ -3799,6 +3908,8 @@ export const schema = {
   catalogueImportOperations,
   workbookImportPlans,
   workbookImportPlanRows,
+  workbookImportApplies,
+  workbookSourceLinks,
   catalogueMediaAssets,
   catalogueMediaUploadGrants,
   catalogueMediaDerivatives,

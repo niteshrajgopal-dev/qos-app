@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 
 import { brands, workbookImportPlanRows, workbookImportPlans } from "@/db/schema";
+import type { PlanApplyView, RowApplyOutcome } from "@/lib/workbook/apply/model";
 import type { DbTransaction } from "@/lib/tenant/context";
 import { WorkbookReviewError } from "@/lib/workbook/validation/errors";
 import type {
@@ -222,6 +223,9 @@ export async function insertPlan(
   return plan!;
 }
 
+/** Statuses a re-review may start from: never while applying, never once applied (QOS-217, D-STATUS). */
+export const REVIEWABLE_STATUSES: PlanRecord["status"][] = ["review_ready", "stale", "apply_failed"];
+
 /** Revises a plan in place after a re-review: same rows, new outcome, revision + 1. */
 export async function revisePlan(
   tx: Tx,
@@ -252,7 +256,15 @@ export async function revisePlan(
       reviewedAt: now,
       updatedAt: now,
     })
-    .where(and(eq(workbookImportPlans.tenantId, tenantId), eq(workbookImportPlans.id, plan.id), eq(workbookImportPlans.revision, plan.revision)))
+    .where(
+      and(
+        eq(workbookImportPlans.tenantId, tenantId),
+        eq(workbookImportPlans.id, plan.id),
+        eq(workbookImportPlans.revision, plan.revision),
+        // An apply that started meanwhile owns the plan (QOS-217).
+        inArray(workbookImportPlans.status, REVIEWABLE_STATUSES),
+      ),
+    )
     .returning();
   if (!updated) {
     throw new WorkbookReviewError("plan_hash_mismatch", "The plan changed while it was being reviewed. Load it again.", 409);
@@ -325,8 +337,20 @@ function reviewRowOf(row: PlanRowRecord): ReviewRow {
   };
 }
 
+/** Apply state of a plan (QOS-217): the view, and the latest outcome per row by `sheet\u0000row`. */
+export type PlanApplyResultPart = { view: PlanApplyView; outcomes: Map<string, RowApplyOutcome> };
+
+function withApplyOutcome(row: ReviewRow, outcomes: Map<string, RowApplyOutcome>): ReviewRow {
+  const outcome = outcomes.get(`${row.sheet}\u0000${row.row}`);
+  return outcome ? { ...row, apply: outcome } : row;
+}
+
 /** The API result for a stored plan. Counts and readiness are recomputed from the stored rows. */
-export function resultFromPlan(plan: PlanRecord, rows: PlanRowRecord[], extra: { stale?: boolean; replayed?: boolean } = {}): WorkbookReviewResult {
+export function resultFromPlan(
+  plan: PlanRecord,
+  rows: PlanRowRecord[],
+  extra: { stale?: boolean; replayed?: boolean; apply?: PlanApplyResultPart } = {},
+): WorkbookReviewResult {
   const reviewRows = rows.map(reviewRowOf);
   const stale = extra.stale ?? plan.status === "stale";
   const given: PlanAcknowledgement[] = plan.decisions;
@@ -350,10 +374,11 @@ export function resultFromPlan(plan: PlanRecord, rows: PlanRowRecord[], extra: {
     fieldDecisions: plan.context.fieldDecisions,
     parseIssues: plan.context.input.parseIssues,
     notices: plan.context.notices,
-    rows: reviewRows,
+    rows: extra.apply ? reviewRows.map((row) => withApplyOutcome(row, extra.apply!.outcomes)) : reviewRows,
     acknowledgements: { required: summary.required, given: summary.given },
     readiness: summary.readiness,
     stale,
     ...(extra.replayed ? { replayed: true } : {}),
+    ...(extra.apply ? { apply: extra.apply.view } : {}),
   };
 }

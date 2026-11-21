@@ -20,6 +20,8 @@ const REMOVE_LINK = { operation: "remove_link" } as const;
 /** Locations are managed in Settings → Branches and provisioning (QOS-192); Branch rows only anchor references. */
 export const BRANCHES_OWNER = "Settings → Branches (QOS-192)";
 
+export const MENUS_ARCHIVE_OWNER = "Menu editor (no menu archive service yet)";
+
 export const ACTION_MATRIX: Record<SupportedEntitySheet, Partial<Record<WorkbookAction, ActionSupport>>> = {
   Branches: { create: { unsupported: BRANCHES_OWNER }, update: { unsupported: BRANCHES_OWNER }, skip: SKIP },
   Categories: { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
@@ -30,7 +32,8 @@ export const ACTION_MATRIX: Record<SupportedEntitySheet, Partial<Record<Workbook
   "Modifier Groups": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
   "Modifier Options": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
   "Product Modifiers": { create: CREATE, update: UPDATE, remove_link: REMOVE_LINK, skip: SKIP },
-  Menus: { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  // No service archives a menu (QOS-217, D-MENU-ARCHIVE); flip back when one lands.
+  Menus: { create: CREATE, update: UPDATE, archive: { unsupported: MENUS_ARCHIVE_OWNER }, skip: SKIP },
   "Menu Branches": { create: CREATE, update: UPDATE, remove_link: REMOVE_LINK, skip: SKIP },
   "Menu Sections": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
   "Menu Items": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },

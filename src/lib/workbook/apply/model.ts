@@ -1,0 +1,115 @@
+import type { ReviewOperation, RowRef } from "@/lib/workbook/validation/model";
+
+/* Shapes of a workbook apply (QOS-217). Type-only: the database schema
+   imports these for its jsonb columns, the routes return them and the staff
+   UI renders them. An apply writes drafts through the catalogue services;
+   nothing here publishes, approves a translation or posts stock. */
+
+/** One `POST …/apply` execution. */
+export const APPLY_STATUSES = ["applying", "completed", "failed", "interrupted"] as const;
+export type ApplyStatus = (typeof APPLY_STATUSES)[number];
+
+/** Where one plan row stands after the latest attempt. */
+export const ROW_APPLY_STATES = ["pending", "applied", "already_applied", "failed", "not_applied", "deferred_only"] as const;
+export type RowApplyState = (typeof ROW_APPLY_STATES)[number];
+
+/** Stable per-row failure codes; the staff UI translates them. */
+export const APPLY_FAILURE_CODES = [
+  "conflict",
+  "service_validation",
+  "forbidden",
+  "target_not_found",
+  "unique_violation",
+  "stale_revision",
+  "dependency_unresolved",
+  "branch_not_permitted",
+  "brand_mismatch",
+  "archived_target",
+  "unsupported_field",
+  "unexpected",
+] as const;
+export type ApplyFailureCode = (typeof APPLY_FAILURE_CODES)[number];
+
+export type ApplyFailure = {
+  code: ApplyFailureCode;
+  /** English, for logs and API clients; never internal detail. */
+  message: string;
+  field?: string;
+  /** Rule reason when the code alone is not specific (for example `branch_price_default_variant_only`). */
+  reason?: string;
+  /** The row whose failure this row depends on. */
+  responsible?: RowRef;
+};
+
+export type ApplyImageOutcome = { status: "uploaded" | "already_present" | "failed" | "skipped"; reason?: string };
+
+export type TypedLinkEntity = "category" | "product" | "variant" | "modifier_group" | "modifier_option" | "menu" | "menu_section";
+
+export type AppliedLink = { namespace: string; entityType: TypedLinkEntity; sourceKey: string; targetPublicId: string };
+
+export type RowApplyResult = {
+  operation: ReviewOperation | null;
+  /** Columns sent to a catalogue service. */
+  fieldsApplied: string[];
+  /** Values read and kept with the plan but not saved (QOS-212–215 and later handlers). */
+  deferred: Array<{ column: string; owner: string }>;
+  links?: AppliedLink[];
+  image?: ApplyImageOutcome;
+  /** Why a row was not applied: its review classification. */
+  reason?: string;
+};
+
+export type RowApplyOutcome = {
+  state: RowApplyState;
+  appliedPublicId: string | null;
+  appliedAt: string | null;
+  applyPublicId: string | null;
+  error: ApplyFailure | null;
+  result: RowApplyResult | null;
+};
+
+export type ApplyCounts = {
+  applied: number;
+  alreadyApplied: number;
+  failed: number;
+  notApplied: number;
+  deferredValues: number;
+};
+
+export type ApplySummary = {
+  /** Public ids saved per sheet. */
+  affected?: Record<string, string[]>;
+  failures?: Array<{ sheet: string; row: number; key: string; code: ApplyFailureCode }>;
+};
+
+export type ApplyAttempt = {
+  publicId: string;
+  status: ApplyStatus;
+  actorSubject: string;
+  actorRole: "administrator" | "user";
+  planRevision: number;
+  planHash: string;
+  startedAt: string;
+  finishedAt: string | null;
+  counts: ApplyCounts;
+  summary: ApplySummary;
+};
+
+export type ApplyBlockReason =
+  | "not_administrator"
+  | "review_incomplete"
+  | "stale"
+  | "applying"
+  | "applied"
+  | "apply_failed";
+
+export type ApplyPermissions = { canApply: boolean; reason?: ApplyBlockReason };
+
+/** What an apply of the plan as it stands would do. */
+export type ApplyPreview = { create: number; update: number; notApplied: number; deferredValues: number };
+
+export type PlanApplyView = {
+  permissions: ApplyPermissions;
+  preview: ApplyPreview;
+  attempts: ApplyAttempt[];
+};

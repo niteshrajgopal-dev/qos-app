@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
-import { catalogueImportSourceLinks, catalogueProducts, locations, tenants } from "@/db/schema";
+import { catalogueImportSourceLinks, catalogueProducts, locations, tenants, workbookSourceLinks } from "@/db/schema";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { loadBranchContext } from "@/lib/staff/branch-context";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -33,6 +33,8 @@ export type ReviewSnapshot = {
   allBranchPublicIds: Set<string>;
   /** `catalogue_import_source_links` for the review namespace: workbook key → product public id. */
   sourceLinks: Map<string, string>;
+  /** Typed workbook source links (QOS-217) for the review namespace: sheet → workbook key → public id of an existing record. */
+  typedLinks: Map<string, Map<string, string>>;
   branchScope: "all" | string[];
   exportRevision: string;
   snapshotHash: string;
@@ -47,8 +49,23 @@ export type SnapshotSource = {
   permittedBranches: Array<{ publicId: string; name: string }>;
   allBranchPublicIds: string[];
   sourceLinks?: Array<{ sourceId: string; productPublicId: string }>;
+  /** Typed workbook source links (QOS-217) for the namespace. */
+  typedLinks?: TypedSourceLink[];
   branchScope?: "all" | string[];
   exportRevision?: string;
+};
+
+export type TypedSourceLink = { entityType: string; sourceKey: string; targetPublicId: string };
+
+/** Entity sheet of each typed link entity type (QOS-217, decision D-LINKS). */
+export const TYPED_LINK_SHEETS: Record<string, SupportedEntitySheet> = {
+  category: "Categories",
+  product: "Products",
+  variant: "Variants",
+  modifier_group: "Modifier Groups",
+  modifier_option: "Modifier Options",
+  menu: "Menus",
+  menu_section: "Menu Sections",
 };
 
 /** QOS id column of a supported sheet (`qos_product_id`, `qos_location_id`, …). */
@@ -60,12 +77,28 @@ export function keyColumnOf(sheet: string) {
   return contractSheet(sheet).columns[0]!.key;
 }
 
-export function snapshotHashOf(source: Pick<SnapshotSource, "records" | "permittedBranches" | "brandPublicId" | "sourceLinks">) {
+/**
+ * Typed links whose target is one of the snapshot's records. A link to a
+ * record that no longer exists (or belongs to another brand) is no link.
+ */
+export function liveTypedLinks(source: Pick<SnapshotSource, "records" | "typedLinks">) {
+  return (source.typedLinks ?? []).filter((link) => {
+    const sheet = TYPED_LINK_SHEETS[link.entityType];
+    if (!sheet) return false;
+    const idColumn = idColumnOf(sheet);
+    return (source.records[sheet] ?? []).some((row) => row[idColumn] === link.targetPublicId);
+  });
+}
+
+export function snapshotHashOf(source: Pick<SnapshotSource, "records" | "permittedBranches" | "brandPublicId" | "sourceLinks" | "typedLinks">) {
   const tokens = SUPPORTED_ENTITY_SHEETS.flatMap((sheet) => (source.records[sheet] ?? []).map((row) => row.expected_revision ?? "")).sort();
   const branches = source.permittedBranches.map((branch) => branch.publicId).sort();
   const links = (source.sourceLinks ?? []).map((link) => `${link.sourceId}\u0000${link.productPublicId}`).sort();
+  const typed = liveTypedLinks(source)
+    .map((link) => `${link.entityType}\u0000${link.sourceKey}\u0000${link.targetPublicId}`)
+    .sort();
   return createHash("sha256")
-    .update(JSON.stringify({ tokens, branches, brand: source.brandPublicId, links }))
+    .update(JSON.stringify({ tokens, branches, brand: source.brandPublicId, links, typed }))
     .digest("hex");
 }
 
@@ -86,17 +119,30 @@ export function buildReviewSnapshot(source: SnapshotSource): ReviewSnapshot {
     permittedBranches: new Map(source.permittedBranches.map((branch) => [branch.publicId, branch.name])),
     allBranchPublicIds: new Set(source.allBranchPublicIds),
     sourceLinks: new Map((source.sourceLinks ?? []).map((link) => [link.sourceId, link.productPublicId])),
+    typedLinks: typedLinkIndex(liveTypedLinks(source)),
     branchScope: source.branchScope ?? "all",
     exportRevision: source.exportRevision ?? "",
     snapshotHash: snapshotHashOf(source),
   };
 }
 
+function typedLinkIndex(links: TypedSourceLink[]) {
+  const index = new Map<string, Map<string, string>>();
+  for (const link of links) {
+    const sheet = TYPED_LINK_SHEETS[link.entityType]!;
+    const bySheet = index.get(sheet) ?? new Map<string, string>();
+    bySheet.set(link.sourceKey, link.targetPublicId);
+    index.set(sheet, bySheet);
+  }
+  return index;
+}
+
 /**
  * Loads the snapshot for one brand and the caller's branch scope. A `branch`
  * narrows the scope to one permitted branch (403 otherwise, as the export
  * does); it never widens it. Source links are read for the review namespace
- * only and only for products, the one entity that has them today.
+ * only: the flat importer's product links, and the typed links a workbook
+ * apply writes (QOS-217) for every entity sheet.
  */
 export async function loadReviewSnapshot(
   db: DbClient,
@@ -164,7 +210,15 @@ export async function loadSnapshotSource(
         and(eq(catalogueProducts.tenantId, catalogueImportSourceLinks.tenantId), eq(catalogueProducts.id, catalogueImportSourceLinks.productId)),
       )
       .where(and(eq(catalogueImportSourceLinks.tenantId, tenantId), eq(catalogueImportSourceLinks.connectionKey, options.sourceNamespace)));
-    return { businessProfile: tenant?.businessProfile ?? "hospitality", allLocations, links };
+    const typedLinks = await tx
+      .select({
+        entityType: workbookSourceLinks.entityType,
+        sourceKey: workbookSourceLinks.sourceKey,
+        targetPublicId: workbookSourceLinks.targetPublicId,
+      })
+      .from(workbookSourceLinks)
+      .where(and(eq(workbookSourceLinks.tenantId, tenantId), eq(workbookSourceLinks.sourceNamespace, options.sourceNamespace)));
+    return { businessProfile: tenant?.businessProfile ?? "hospitality", allLocations, links, typedLinks };
   });
 
   return {
@@ -176,6 +230,7 @@ export async function loadSnapshotSource(
     permittedBranches: permitted.map((branch) => ({ publicId: branch.publicId, name: branch.name })),
     allBranchPublicIds: extra.allLocations.map((row) => row.publicId),
     sourceLinks: extra.links,
+    typedLinks: extra.typedLinks,
     branchScope:
       membership.role === "administrator" && !narrowed ? "all" : permitted.map((branch) => branch.publicId).sort(),
     exportRevision: data.manifest.export_revision,

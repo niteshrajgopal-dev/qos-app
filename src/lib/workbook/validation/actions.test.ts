@@ -16,6 +16,7 @@ describe("action matrix", () => {
     expect(resolveAction("Product Categories", "remove_link")).toMatchObject({ kind: "operation", operation: "remove_link" });
     expect(resolveAction("Branch Prices", "reset_to_central")).toMatchObject({ kind: "operation", operation: "reset_to_central" });
     expect(resolveAction("Branches", "create")).toMatchObject({ kind: "unsupported" });
+    expect(resolveAction("Menus", "archive")).toMatchObject({ kind: "unsupported" });
     expect(resolveAction("Branches", "update")).toMatchObject({ kind: "unsupported" });
     expect(resolveAction("Branches", "skip")).toMatchObject({ kind: "operation", operation: "skip" });
     expect(resolveAction("Products", "remove_link")).toMatchObject({ kind: "invalid", code: "action_not_allowed_for_sheet" });

@@ -598,6 +598,7 @@ export async function assignProductToCategory(
           tenantId,
           categoryId: category.id,
           productId: product.id,
+          ...(validated.sortOrder !== undefined ? { sortOrder: validated.sortOrder } : {}),
         })
         .onConflictDoNothing();
 
@@ -612,6 +613,80 @@ export async function assignProductToCategory(
         entityPublicId: categoryPublicId,
         entityVersion: category.version + 1,
         changeSummary: { productPublicId: validated.productPublicId },
+      });
+
+      return loadCategoryEditorView(tx, tenantId, category.id);
+    });
+  } catch (error) {
+    return mapCatalogueError(error);
+  }
+}
+
+/**
+ * Moves an assigned product within its category (QOS-217 workbook apply):
+ * the sibling of `assignProductToCategory` for the `sort_order` of an
+ * existing assignment. Validated by the same validator; 404 when the
+ * product is not assigned.
+ */
+export async function updateProductCategoryAssignment(
+  db: DbClient,
+  tenantId: string,
+  categoryPublicId: string,
+  input: AssignCategoryProductInput,
+  staffSubject: string,
+  membership: ActiveStaffMembership,
+): Promise<CategoryEditorView> {
+  try {
+    const validated = validateAssignCategoryProductInput(input);
+    if (validated.sortOrder === undefined) {
+      throw new CatalogueCategoryError("sortOrder is required.", 400, "sortOrder");
+    }
+    const sortOrder = validated.sortOrder;
+
+    return await withTenantContext(db, tenantId, async (tx) => {
+      const category = await loadCategoryByPublicId(tx, tenantId, categoryPublicId);
+      const [product] = await tx
+        .select()
+        .from(catalogueProducts)
+        .where(
+          and(
+            eq(catalogueProducts.tenantId, tenantId),
+            eq(catalogueProducts.publicId, validated.productPublicId),
+          ),
+        )
+        .limit(1);
+
+      if (!product) {
+        throw new CatalogueCategoryError("Product not found.", 404, "productPublicId");
+      }
+
+      const [assignment] = await tx
+        .update(catalogueProductCategories)
+        .set({ sortOrder })
+        .where(
+          and(
+            eq(catalogueProductCategories.tenantId, tenantId),
+            eq(catalogueProductCategories.categoryId, category.id),
+            eq(catalogueProductCategories.productId, product.id),
+          ),
+        )
+        .returning({ id: catalogueProductCategories.id });
+
+      if (!assignment) {
+        throw new CatalogueCategoryError("Product is not assigned to this category.", 404, "productPublicId");
+      }
+
+      await bumpCategoryVersion(tx, tenantId, category.id, category.version);
+
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        actorSubject: staffSubject,
+        actorClass: auditActorClassFromStaffRole(membership.role),
+        action: "catalogue.category.assignment_update",
+        entityType: "catalogue_category",
+        entityPublicId: categoryPublicId,
+        entityVersion: category.version + 1,
+        changeSummary: { productPublicId: validated.productPublicId, sortOrder },
       });
 
       return loadCategoryEditorView(tx, tenantId, category.id);

@@ -26,6 +26,8 @@ export type ReorderCategoriesInput = {
 
 export type AssignCategoryProductInput = {
   productPublicId: string;
+  /** Position of the product in the category; omitted keeps the default (QOS-217). */
+  sortOrder?: number;
 };
 
 function normalizeTranslations(
@@ -164,5 +166,15 @@ export function validateAssignCategoryProductInput(
     );
   }
 
-  return { productPublicId };
+  if (
+    input.sortOrder !== undefined &&
+    (!Number.isInteger(input.sortOrder) || input.sortOrder < 0)
+  ) {
+    throw new CatalogueValidationError(
+      "sortOrder must be a non-negative integer.",
+      "sortOrder",
+    );
+  }
+
+  return { productPublicId, sortOrder: input.sortOrder };
 }
