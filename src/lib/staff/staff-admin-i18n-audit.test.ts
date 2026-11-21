@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { STAFF_UI_COPY, type StaffUiCopyKey } from "@/lib/staff/locale";
+
 const ROOT = path.join(process.cwd(), "src");
 
 const AUDITED_SURFACES = [
@@ -60,6 +62,8 @@ const AUDITED_SURFACES = [
   "components/staff/catalogue/channel-price-grid.tsx",
   "components/staff/catalogue/channel-price-state.ts",
   "components/staff/catalogue/use-channel-price-bundle.ts",
+  // QOS-214 selling attributes and supplied nutrition fields
+  "app/tenants/[tenantId]/catalogue/products/selling-attributes-fields.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -117,6 +121,7 @@ const PORTAL_RESTYLED_SURFACES = [
   "components/staff/catalogue/channel-price-grid.tsx",
   "components/staff/catalogue/channel-price-state.ts",
   "components/staff/catalogue/use-channel-price-bundle.ts",
+  "app/tenants/[tenantId]/catalogue/products/selling-attributes-fields.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -227,7 +232,71 @@ const FORBIDDEN_LITERALS = [
   ">Add channel<",
   '"Uses base price"',
   '"Channel list"',
+  // QOS-214 selling attributes
+  ">Preparation time (minutes)<",
+  ">High in salt<",
+  ">Sold as a stock product<",
+  ">Selling basis<",
+  ">Price unit<",
+  ">Not declared<",
+  ">Unknown<",
+  '"Calories (optional)"',
 ];
+
+/* Every QOS-214 key has English and Arabic copy, and the Arabic is Arabic. */
+const QOS_214_COPY_KEYS = [
+  "productEditorSectionSellingTitle",
+  "productEditorSectionSellingHelp",
+  "productEditorPrepTimeLabel",
+  "productEditorPrepTimeHelp",
+  "productEditorWalkingTimeLabel",
+  "productEditorWalkingTimeHelp",
+  "productEditorHighSaltLabel",
+  "productEditorTriStateUnknown",
+  "productEditorTriStateYes",
+  "productEditorTriStateNo",
+  "productEditorStockIntentLabel",
+  "productEditorStockIntentHelp",
+  "productEditorStockIntentUnresolved",
+  "productEditorInvalidMinutes",
+  "variantSellingBasisLabel",
+  "variantSellingBasisUndeclared",
+  "variantSellingBasisEach",
+  "variantSellingBasisWeight",
+  "variantPriceUnitLabel",
+  "variantPriceUnitEach",
+  "variantPriceUnitKg",
+  "variantPriceUnitG",
+  "variantPriceUnitQuantityLabel",
+  "variantPriceUnitQuantityHelp",
+  "variantPriceUnitQuantityInvalid",
+  "variantWeightUnresolved",
+  "variantSellingBasisNote",
+  "modifierOptionCaloriesLabel",
+  "modifierOptionCaloriesHelp",
+  "modifierOptionCaloriesInvalid",
+] as const satisfies readonly StaffUiCopyKey[];
+
+describe("QOS-214 staff copy", () => {
+  it.each(QOS_214_COPY_KEYS)("%s has English and Arabic text", (key) => {
+    const en = STAFF_UI_COPY.en[key];
+    const ar = STAFF_UI_COPY.ar[key];
+    expect(en.trim().length).toBeGreaterThan(0);
+    expect(ar).toMatch(/[\u0600-\u06FF]/);
+    expect(ar).not.toBe(en);
+    // No shouted copy.
+    expect(en).not.toMatch(/\b[A-Z]{4,}\b/);
+  });
+
+  it("modifier option editor reads its new copy from STAFF_UI_COPY", () => {
+    const source = readFileSync(
+      path.join(ROOT, "app/tenants/[tenantId]/catalogue/modifier-groups/modifier-group-editor.tsx"),
+      "utf8",
+    );
+    expect(source).toContain('staffUiCopy(locale, "modifierOptionCaloriesLabel")');
+    expect(source).not.toContain('"Calories (optional)"');
+  });
+});
 
 describe("staff admin audited surfaces", () => {
   for (const relative of AUDITED_SURFACES) {

@@ -1,3 +1,5 @@
+import { validateProductSellingAttributesInput } from "@/lib/catalogue/selling-attributes";
+
 export type ProductLocale = "en" | "ar";
 
 export type ProductTranslationInput = {
@@ -12,6 +14,10 @@ export type CreateDraftProductInput = {
   barcode?: string | null;
   primaryMediaAssetId?: string | null;
   nutritionCalories?: number | null;
+  preparationTimeMinutes?: number | null;
+  walkingTimeMinutes?: number | null;
+  highSalt?: boolean | null;
+  directStockIntent?: boolean | null;
   provenance?: "operator_entered" | "imported" | "synthetic_fixture";
   translations: Record<ProductLocale, ProductTranslationInput>;
   defaultVariant: {
@@ -27,6 +33,10 @@ export type UpdateDraftProductInput = {
   barcode?: string | null;
   primaryMediaAssetId?: string | null;
   nutritionCalories?: number | null;
+  preparationTimeMinutes?: number | null;
+  walkingTimeMinutes?: number | null;
+  highSalt?: boolean | null;
+  directStockIntent?: boolean | null;
   translations?: Partial<
     Record<
       ProductLocale,
@@ -92,9 +102,10 @@ function validatePrice(amountMinor: number, field = "defaultVariant.amountMinor"
   }
 }
 
-function validateNutritionCalories(
+export function validateNutritionCalories(
   value: number | null | undefined,
   businessProfile: "hospitality" | "generic_retail",
+  field = "nutritionCalories",
 ) {
   if (value == null) {
     return null;
@@ -103,22 +114,16 @@ function validateNutritionCalories(
   if (businessProfile !== "hospitality") {
     throw new CatalogueValidationError(
       "Nutrition fields are only available for hospitality businesses.",
-      "nutritionCalories",
+      field,
     );
   }
 
   if (!Number.isInteger(value)) {
-    throw new CatalogueValidationError(
-      "Calories must be a whole number.",
-      "nutritionCalories",
-    );
+    throw new CatalogueValidationError("Calories must be a whole number.", field);
   }
 
   if (value < 0) {
-    throw new CatalogueValidationError(
-      "Calories cannot be negative.",
-      "nutritionCalories",
-    );
+    throw new CatalogueValidationError("Calories cannot be negative.", field);
   }
 
   return value;
@@ -161,6 +166,15 @@ export function validateCreateDraftProductInput(
     input.nutritionCalories,
     businessProfile,
   );
+  const sellingAttributes = validateProductSellingAttributesInput(
+    {
+      preparationTimeMinutes: input.preparationTimeMinutes ?? null,
+      walkingTimeMinutes: input.walkingTimeMinutes ?? null,
+      highSalt: input.highSalt ?? null,
+      directStockIntent: input.directStockIntent ?? null,
+    },
+    businessProfile,
+  );
 
   return {
     internalName: input.internalName.trim(),
@@ -172,6 +186,10 @@ export function validateCreateDraftProductInput(
       "primaryMediaAssetId",
     ),
     nutritionCalories,
+    preparationTimeMinutes: sellingAttributes.preparationTimeMinutes ?? null,
+    walkingTimeMinutes: sellingAttributes.walkingTimeMinutes ?? null,
+    highSalt: sellingAttributes.highSalt ?? null,
+    directStockIntent: sellingAttributes.directStockIntent ?? null,
     provenance: input.provenance ?? "operator_entered",
     translations: {
       en: {
@@ -213,6 +231,15 @@ export function validateUpdateDraftProductInput(
     input.nutritionCalories === undefined
       ? undefined
       : validateNutritionCalories(input.nutritionCalories, businessProfile);
+  const sellingAttributes = validateProductSellingAttributesInput(
+    {
+      preparationTimeMinutes: input.preparationTimeMinutes,
+      walkingTimeMinutes: input.walkingTimeMinutes,
+      highSalt: input.highSalt,
+      directStockIntent: input.directStockIntent,
+    },
+    businessProfile,
+  );
 
   const translations = input.translations ?? {};
   for (const locale of ["en", "ar"] as const) {
@@ -247,6 +274,7 @@ export function validateUpdateDraftProductInput(
         ? undefined
         : assertOptionalUuid(input.primaryMediaAssetId, "primaryMediaAssetId"),
     nutritionCalories,
+    ...sellingAttributes,
     translations,
     defaultVariant: input.defaultVariant,
   };

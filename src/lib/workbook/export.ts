@@ -92,6 +92,11 @@ function bool(value: boolean) {
   return value ? "TRUE" : "FALSE";
 }
 
+/** Declared booleans keep unknown blank; it is never exported as FALSE. */
+function declaredBool(value: boolean | null) {
+  return value == null ? "" : bool(value);
+}
+
 function text(value: string | number | null | undefined) {
   return value == null ? "" : String(value);
 }
@@ -580,6 +585,10 @@ export async function loadCurrentRecordExport(
           sku: text(row.sku),
           barcode: text(row.barcode),
           nutrition_calories: text(row.nutritionCalories),
+          preparation_time_minutes: text(row.preparationTimeMinutes),
+          walking_time_minutes: text(row.walkingTimeMinutes),
+          high_salt: declaredBool(row.highSalt),
+          is_stock_product: declaredBool(row.directStockIntent),
           // Blank means "keep the current image"; QOS media is not re-ingested from an export.
           image_url: "",
           status: row.status,
@@ -621,6 +630,9 @@ export async function loadCurrentRecordExport(
             barcode: text(row.barcode),
             amount_minor: text(price?.amountMinor),
             currency: text(price?.currency.trim()),
+            selling_quantity_basis: text(row.sellingQuantityBasis),
+            price_unit: text(row.priceUnit),
+            price_unit_quantity: text(row.priceUnitQuantity),
             status: row.status,
             price_tax_basis: "",
             tax_rate_basis_points: "",
@@ -706,6 +718,7 @@ export async function loadCurrentRecordExport(
             display_name_ar: text(names?.ar?.displayName),
             price_minor: text(row.priceMinor),
             currency: row.currency.trim(),
+            nutrition_calories: text(row.nutritionCalories),
             is_default: bool(row.isDefault),
             allows_quantity: bool(row.allowsQuantity),
             max_quantity: text(row.maxQuantity),

@@ -23,31 +23,43 @@ import { readXlsxPackage } from "@/lib/workbook/ooxml";
 import { buildBlankWorkbookTemplate } from "@/lib/workbook/template";
 import { loadWorkbook } from "@/lib/workbook/test-support";
 
-/* v1.2 (QOS-213): the pack's v1.0 contract (SHA-256 d36471c7…8520c) plus the
-   four QOS-212 assignment policy columns (v1.1, `since: "1.1"`) and the three
-   sales-channel sheets (`sinceVersion: "1.2"`). */
-const CONTRACT_SHA256 = "f898d3c661367104f4c43025417ed8bdc5931e9393b71e5774058e7358ece0a3";
+/* v1.3 (QOS-214): the pack's v1.0 contract (SHA-256 d36471c7…8520c) plus the
+   four QOS-212 assignment policy columns (v1.1, `since: "1.1"`), the three
+   sales-channel sheets (v1.2, `sinceVersion: "1.2"`) and the eight QOS-214
+   selling-attribute columns (v1.3, `sinceVersion: "1.3"`). */
+const CONTRACT_SHA256 = "c0c18fb48bf77e0cd0c8cf7b6458da8b9b62122747b3ac86a73c2a0ff12c8dac";
 const CHANNEL_SHEETS = ["Sales Channels", "Variant Channel Prices", "Modifier Option Channel Prices"];
+const SELLING_ATTRIBUTE_COLUMNS = [
+  "Products.preparation_time_minutes@1.3",
+  "Products.walking_time_minutes@1.3",
+  "Products.high_salt@1.3",
+  "Products.is_stock_product@1.3",
+  "Variants.selling_quantity_basis@1.3",
+  "Variants.price_unit@1.3",
+  "Variants.price_unit_quantity@1.3",
+  "Modifier Options.nutrition_calories@1.3",
+];
 
 /* Table ranges of the pack's reference workbook, read from its bytes, plus
-   the v1.1 and v1.2 additions. The generated template must reproduce them
-   from the contract alone. v1.1 widens QOS_Product_Modifiers by four columns
-   (J to N) and the field guide by four rows; v1.2 adds three tables and 21
-   field-guide rows, and Start Here lists three more sheets, so the context
-   table sits three rows lower than in the pack. */
+   the v1.1, v1.2 and v1.3 additions. The generated template must reproduce
+   them from the contract alone. v1.1 widens QOS_Product_Modifiers by four
+   columns (J to N); v1.2 adds three tables and Start Here lists three more
+   sheets, so the context table sits three rows lower than in the pack; v1.3
+   widens QOS_Products (P to T), QOS_Variants (R to U) and QOS_Modifier_Options
+   (P to Q). The field guide lists one row per contract column: 349. */
 const PACK_TABLE_REFS: Record<string, string> = {
   QOS_Workbook_Context: "A51:C61",
   QOS_Current_Import: "A1:G501",
   QOS_Branches: "A6:J26",
   QOS_Categories: "A6:K106",
-  QOS_Products: "A6:P206",
+  QOS_Products: "A6:T206",
   QOS_Product_Categories: "A6:I206",
-  QOS_Variants: "A6:R206",
+  QOS_Variants: "A6:U206",
   QOS_Branch_Prices: "A6:K106",
   QOS_Sales_Channels: "A6:H26",
   QOS_Variant_Channel_Prices: "A6:H206",
   QOS_Modifier_Groups: "A6:L106",
-  QOS_Modifier_Options: "A6:P206",
+  QOS_Modifier_Options: "A6:Q206",
   QOS_Modifier_Option_Channel_Prices: "A6:H206",
   QOS_Product_Modifiers: "A6:N206",
   QOS_Menus: "A6:L56",
@@ -68,22 +80,22 @@ const PACK_TABLE_REFS: Record<string, string> = {
   QOS_External_Mappings: "A6:O106",
   QOS_Future_Combos: "A6:J106",
   QOS_Combo_Components: "A6:K106",
-  QOS_Field_Guide: "A6:I347",
+  QOS_Field_Guide: "A6:I355",
 };
 
 describe("workbook contract", () => {
-  it("is the committed v1.2 contract file: 31 sheets, v1.1 policy columns and v1.2 channel sheets", () => {
+  it("is the committed v1.3 contract file: 31 sheets, v1.1 policy columns, v1.2 channel sheets and v1.3 selling-attribute columns", () => {
     const bytes = readFileSync(path.join(process.cwd(), "src/lib/workbook/qos-workbook-contract.v1.json"));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(CONTRACT_SHA256);
-    expect(WORKBOOK_CONTRACT.version).toBe("1.2");
+    expect(WORKBOOK_CONTRACT.version).toBe("1.3");
     expect(WORKBOOK_CONTRACT.asOf).toBe("2026-11-21");
-    expect(SUPPORTED_TEMPLATE_VERSIONS).toEqual(["1.0", "1.1", "1.2"]);
+    expect(SUPPORTED_TEMPLATE_VERSIONS).toEqual(["1.0", "1.1", "1.2", "1.3"]);
     expect(WORKBOOK_CONTRACT.sheets).toHaveLength(31);
-    expect(WORKBOOK_CONTRACT.sheets.flatMap((sheet) => sheet.columns)).toHaveLength(341);
+    expect(WORKBOOK_CONTRACT.sheets.flatMap((sheet) => sheet.columns)).toHaveLength(349);
 
     const packSheets = WORKBOOK_CONTRACT.sheets.filter((sheet) => !sheet.sinceVersion);
     expect(packSheets).toHaveLength(28);
-    expect(packSheets.flatMap((sheet) => sheet.columns)).toHaveLength(320);
+    expect(packSheets.flatMap((sheet) => sheet.columns)).toHaveLength(328);
     expect(WORKBOOK_CONTRACT.sheets.filter((sheet) => sheet.sinceVersion === "1.2").map((sheet) => sheet.name)).toEqual(
       CHANNEL_SHEETS,
     );
@@ -101,6 +113,14 @@ describe("workbook contract", () => {
       "Product Modifiers.repeat_allowed@1.1",
       "Product Modifiers.selection_count_mode@1.1",
     ]);
+    // Only the eight selling-attribute columns are new in 1.3.
+    expect(
+      WORKBOOK_CONTRACT.sheets.flatMap((sheet) =>
+        sheet.columns
+          .filter((column) => column.sinceVersion)
+          .map((column) => `${sheet.name}.${column.key}@${column.sinceVersion}`),
+      ),
+    ).toEqual(SELLING_ATTRIBUTE_COLUMNS);
   });
 
   it("adds the assignment policy columns after sort_order, maps them to the schema and keeps free_options_count deferred", () => {
@@ -143,6 +163,29 @@ describe("workbook contract", () => {
     expect(expected("1.0")).toContain("free_options_count");
     expect(expected("1.1")).toEqual(sheet.columns.map((column) => column.key));
     expect(expected("1.2")).toEqual(sheet.columns.map((column) => column.key));
+    expect(expected("1.3")).toEqual(sheet.columns.map((column) => column.key));
+  });
+
+  it("expects the v1.3 selling-attribute columns only in v1.3 workbooks", () => {
+    for (const [sheetName, keys] of [
+      ["Products", ["preparation_time_minutes", "walking_time_minutes", "high_salt", "is_stock_product"]],
+      ["Variants", ["selling_quantity_basis", "price_unit", "price_unit_quantity"]],
+      ["Modifier Options", ["nutrition_calories"]],
+    ] as const) {
+      const sheet = contractSheet(sheetName);
+      const expected = (version: string) =>
+        sheet.columns.filter((column) => columnExpectedInVersion(column, version)).map((column) => column.key);
+      for (const version of ["1.0", "1.1", "1.2"]) {
+        for (const key of keys) expect(expected(version), `${sheetName}.${key}@${version}`).not.toContain(key);
+      }
+      expect(expected("1.3")).toEqual(sheet.columns.map((column) => column.key));
+      for (const key of keys) {
+        const column = sheet.columns.find((candidate) => candidate.key === key)!;
+        expect(column.sinceVersion, key).toBe("1.3");
+        expect(column.required, key).toBe(false);
+        expect(isDeferredField(column), key).toBe(false);
+      }
+    }
   });
 
   it("expects the v1.2 channel sheets only in v1.2 workbooks", () => {
@@ -152,6 +195,7 @@ describe("workbook contract", () => {
     expect(expected("1.0")).toEqual(packSheets);
     expect(expected("1.1")).toEqual(packSheets);
     expect(expected("1.2")).toEqual(WORKBOOK_CONTRACT.sheets.map((sheet) => sheet.name));
+    expect(expected("1.3")).toEqual(WORKBOOK_CONTRACT.sheets.map((sheet) => sheet.name));
     for (const name of CHANNEL_SHEETS) {
       expect(expected("1.1"), name).not.toContain(name);
       expect(expected("1.2"), name).toContain(name);

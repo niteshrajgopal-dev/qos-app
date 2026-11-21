@@ -41,6 +41,16 @@ import { ProductRemovedPhotoHistory } from "@/app/tenants/[tenantId]/catalogue/p
 import { ProductEditorSection } from "@/app/tenants/[tenantId]/catalogue/products/product-editor-section";
 import { ProductModifierGroupsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel";
 import { ProductVariantsPanel } from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel";
+import {
+  ProductSellingAttributesFields,
+  type ProductSellingAttributesFormState,
+} from "@/app/tenants/[tenantId]/catalogue/products/selling-attributes-fields";
+import {
+  booleanFromTriState,
+  optionalNumberText,
+  parseOptionalWholeNumber,
+  triStateFromBoolean,
+} from "@/app/tenants/[tenantId]/catalogue/products/selling-attributes-form";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { staffUiCopy } from "@/lib/staff/locale";
@@ -60,6 +70,7 @@ type ProductEditorState = {
   businessProfile: "hospitality" | "generic_retail";
   canEditPrice: boolean;
   nutritionCalories: string;
+  selling: ProductSellingAttributesFormState;
   priceMajor: string;
   translations: {
     en: TranslationFormState;
@@ -90,6 +101,12 @@ const initialState: ProductEditorState = {
   businessProfile: "generic_retail",
   canEditPrice: true,
   nutritionCalories: "",
+  selling: {
+    preparationTimeMinutes: "",
+    walkingTimeMinutes: "",
+    highSalt: "unknown",
+    directStockIntent: "unknown",
+  },
   priceMajor: "",
   translations: {
     en: emptyTranslation(),
@@ -215,6 +232,10 @@ export function ProductEditor({
       sku: string | null;
       barcode: string | null;
       nutritionCalories: number | null;
+      preparationTimeMinutes: number | null;
+      walkingTimeMinutes: number | null;
+      highSalt: boolean | null;
+      directStockIntent: boolean | null;
       businessProfile: "hospitality" | "generic_retail";
       canEditPrice: boolean;
       status: "draft" | "active" | "archived";
@@ -238,6 +259,12 @@ export function ProductEditor({
           product.nutritionCalories == null
             ? ""
             : String(product.nutritionCalories),
+        selling: {
+          preparationTimeMinutes: optionalNumberText(product.preparationTimeMinutes),
+          walkingTimeMinutes: optionalNumberText(product.walkingTimeMinutes),
+          highSalt: triStateFromBoolean(product.highSalt),
+          directStockIntent: triStateFromBoolean(product.directStockIntent),
+        },
         priceMajor: minorToMajor(product.defaultVariant.amountMinor),
         translations: {
           en: {
@@ -791,6 +818,27 @@ export function ProductEditor({
       return;
     }
 
+    const hospitality = form.businessProfile === "hospitality";
+    const preparationTimeMinutes = parseOptionalWholeNumber(form.selling.preparationTimeMinutes);
+    const walkingTimeMinutes = hospitality
+      ? parseOptionalWholeNumber(form.selling.walkingTimeMinutes)
+      : null;
+    if (preparationTimeMinutes === "invalid" || walkingTimeMinutes === "invalid") {
+      setFieldError(
+        preparationTimeMinutes === "invalid" ? "preparationTimeMinutes" : "walkingTimeMinutes",
+      );
+      setError(staffUiCopy(locale, "productEditorInvalidMinutes"));
+      setSaving(false);
+      return;
+    }
+    // Explicit nulls clear a field; unknown is never sent as 0 or false.
+    const sellingAttributes = {
+      preparationTimeMinutes,
+      walkingTimeMinutes,
+      highSalt: hospitality ? booleanFromTriState(form.selling.highSalt) : null,
+      directStockIntent: booleanFromTriState(form.selling.directStockIntent),
+    };
+
     try {
       if (isEditMode && productPublicId) {
         const response = await staffApiFetch(
@@ -806,6 +854,7 @@ export function ProductEditor({
                 form.businessProfile === "hospitality" && form.nutritionCalories
                   ? Number.parseInt(form.nutritionCalories, 10)
                   : null,
+              ...sellingAttributes,
               translations: {
                 en: {
                   displayName: form.translations.en.displayName,
@@ -859,6 +908,7 @@ export function ProductEditor({
               form.businessProfile === "hospitality" && form.nutritionCalories
                 ? Number.parseInt(form.nutritionCalories, 10)
                 : null,
+            ...sellingAttributes,
             translations: {
               en: {
                 displayName: form.translations.en.displayName,
@@ -1204,6 +1254,26 @@ export function ProductEditor({
               </PortalField>
             ) : null}
           </div>
+        </ProductEditorSection>
+
+        <ProductEditorSection
+          id="selling"
+          titleKey="productEditorSectionSellingTitle"
+          helperKey="productEditorSectionSellingHelp"
+          locale={locale}
+        >
+          <ProductSellingAttributesFields
+            locale={locale}
+            businessProfile={form.businessProfile}
+            value={form.selling}
+            fieldError={fieldError}
+            onChange={(patch) =>
+              setForm((current) => ({
+                ...current,
+                selling: { ...current.selling, ...patch },
+              }))
+            }
+          />
         </ProductEditorSection>
 
         {isEditMode && productPublicId ? (

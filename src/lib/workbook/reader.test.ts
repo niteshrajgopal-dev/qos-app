@@ -96,7 +96,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
 
     expect(result.manifest).toEqual({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.2",
+      template_version: "1.3",
       prepared_on: "2026-11-21",
       tenant_public_id: "",
       brand_public_id: "",
@@ -359,7 +359,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
     const wrongVersion = await filledWorkbook((workbook) => setManifestValue(workbook, "template_version", "2.0"));
     const error = await parseError("f.xlsx", wrongVersion);
     expect(error.code).toBe("unsupported_version");
-    expect(error.params).toEqual({ version: "2.0", expected: "1.0, 1.1, 1.2" });
+    expect(error.params).toEqual({ version: "2.0", expected: "1.0, 1.1, 1.2, 1.3" });
 
     const calculated = await filledWorkbook((workbook) =>
       setManifestValue(workbook, "template_version", { formula: '"1.0"', result: "1.0" }),
@@ -470,7 +470,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
     expect(result.sheets.flatMap((entry) => entry.issues).filter((entry) => entry.code === "sheet_missing")).toEqual([]);
     expect(result.summary.errors).toBe(0);
     expect(result.manifest.profile).toBe("qos-extended-v1-proposed");
-    // The pack file is a v1.0 workbook: the v1.1 columns are not "missing".
+    // The pack file is a v1.0 workbook: neither the v1.1 policy columns nor the v1.3 selling-attribute columns are "missing".
     expect(result.templateVersion).toBe("1.0");
     expect(result.sheets.flatMap((entry) => entry.issues).filter((issue) => issue.code === "missing_columns")).toEqual([]);
   });

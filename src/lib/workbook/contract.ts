@@ -4,7 +4,9 @@ import contractJson from "@/lib/workbook/qos-workbook-contract.v1.json";
    verbatim from the Phase 2 pack (SHA-256 d36471c7…8520c). v1.1 (21 November
    2026, QOS-212) adds four Product Modifiers assignment policy columns,
    marked `since: "1.1"`; v1.2 (QOS-213) adds the three sales-channel sheets,
-   each marked `sinceVersion: "1.2"`. It is the source of truth for sheet
+   each marked `sinceVersion: "1.2"`; v1.3 (QOS-214) adds eight selling-attribute
+   and nutrition columns on Products, Variants and Modifier Options, marked
+   `sinceVersion: "1.3"`. It is the source of truth for sheet
    names, table names, header and data rows, columns and the manifest.
    Nothing here is inferred from a file name. */
 
@@ -28,6 +30,8 @@ export type WorkbookColumnDefinition = {
   width?: number;
   /** Contract version that introduced the column; absent means 1.0. */
   since?: string;
+  /** Contract version that introduced the column (v1.3 selling-attribute columns). */
+  sinceVersion?: string;
 };
 
 export type WorkbookSheetDefinition = {
@@ -75,7 +79,7 @@ export const WORKBOOK_PROFILE_ID = "qos-extended-v1-proposed";
 export const WORKBOOK_TEMPLATE_VERSION = WORKBOOK_CONTRACT.version;
 
 /** Template versions QOS reads. Older files lack the columns and sheets added since. */
-export const SUPPORTED_TEMPLATE_VERSIONS = ["1.0", "1.1", "1.2"] as const;
+export const SUPPORTED_TEMPLATE_VERSIONS = ["1.0", "1.1", "1.2", "1.3"] as const;
 
 function versionParts(version: string) {
   return version.split(".").map((part) => Number.parseInt(part, 10) || 0);
@@ -89,7 +93,7 @@ function compareVersions(a: string, b: string) {
 
 /** Whether a workbook of `templateVersion` is expected to carry this column. */
 export function columnExpectedInVersion(column: WorkbookColumnDefinition, templateVersion: string) {
-  return compareVersions(column.since ?? "1.0", templateVersion) <= 0;
+  return compareVersions(column.since ?? column.sinceVersion ?? "1.0", templateVersion) <= 0;
 }
 
 /** Whether a workbook of `templateVersion` is expected to carry this sheet. */
@@ -97,6 +101,7 @@ export function sheetExpectedInVersion(sheet: WorkbookSheetDefinition, templateV
   return compareVersions(sheet.sinceVersion ?? "1.0", templateVersion) <= 0;
 }
 export const WORKBOOK_LAYOUT = WORKBOOK_CONTRACT.layout;
+
 export const ROW_CHECK_COLUMN = "row_check";
 
 /* The workbook wraps the contract sheets (28 in the 1.0 pack, 31 from 1.2)

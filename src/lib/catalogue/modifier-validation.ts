@@ -3,7 +3,10 @@ import {
   type SelectionCountMode,
 } from "@/lib/catalogue/modifier-assignment-policy";
 import type { ProductLocale } from "@/lib/catalogue/validation";
-import { CatalogueValidationError } from "@/lib/catalogue/validation";
+import {
+  CatalogueValidationError,
+  validateNutritionCalories,
+} from "@/lib/catalogue/validation";
 
 export type ModifierTranslationInput = {
   displayName?: string;
@@ -35,6 +38,7 @@ export type CreateModifierOptionInput = {
   maxQuantity?: number;
   priceMinor?: number;
   currency?: string;
+  nutritionCalories?: number | null;
   translations?: Partial<Record<ProductLocale, ModifierTranslationInput>>;
 };
 
@@ -46,6 +50,7 @@ export type UpdateModifierOptionInput = {
   maxQuantity?: number;
   status?: "active" | "archived";
   priceMinor?: number;
+  nutritionCalories?: number | null;
   translations?: Partial<Record<ProductLocale, ModifierTranslationInput>>;
 };
 
@@ -227,6 +232,7 @@ export function validateUpdateModifierGroupInput(input: UpdateModifierGroupInput
 
 export function validateCreateModifierOptionInput(
   input: CreateModifierOptionInput,
+  businessProfile: "hospitality" | "generic_retail",
 ) {
   validateGroupVersion(input.expectedGroupVersion);
 
@@ -276,12 +282,18 @@ export function validateCreateModifierOptionInput(
     maxQuantity,
     priceMinor,
     currency,
+    nutritionCalories: validateNutritionCalories(
+      input.nutritionCalories,
+      businessProfile,
+      "nutritionCalories",
+    ),
     translations: normalizeTranslations(input.translations),
   };
 }
 
 export function validateUpdateModifierOptionInput(
   input: UpdateModifierOptionInput,
+  businessProfile: "hospitality" | "generic_retail",
 ) {
   validateGroupVersion(input.expectedGroupVersion);
 
@@ -328,6 +340,10 @@ export function validateUpdateModifierOptionInput(
     maxQuantity: input.maxQuantity,
     status: input.status,
     priceMinor: input.priceMinor,
+    nutritionCalories:
+      input.nutritionCalories === undefined
+        ? undefined
+        : validateNutritionCalories(input.nutritionCalories, businessProfile, "nutritionCalories"),
     translations: normalizeTranslations(input.translations),
   };
 }

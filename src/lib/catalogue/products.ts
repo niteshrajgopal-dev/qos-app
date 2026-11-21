@@ -13,6 +13,7 @@ import {
   tenants,
 } from "@/db/schema";
 import type { DraftProductVariantView } from "@/lib/catalogue/variants";
+import { variantSellingBasisFromRow } from "@/lib/catalogue/selling-attributes";
 import {
   type CreateDraftProductInput,
   type ProductLocale,
@@ -103,6 +104,10 @@ export type DraftProductEditorView = {
   thumbnailPublicId: string | null;
   primaryMediaSource: (typeof catalogueMediaAssets.$inferSelect)["sourceProvenance"] | null;
   nutritionCalories: number | null;
+  preparationTimeMinutes: number | null;
+  walkingTimeMinutes: number | null;
+  highSalt: boolean | null;
+  directStockIntent: boolean | null;
   provenance: string;
   businessProfile: "hospitality" | "generic_retail";
   canEditPrice: boolean;
@@ -114,6 +119,13 @@ export type DraftProductEditorView = {
   };
   variants: DraftProductVariantView[];
 };
+
+const PRODUCT_SELLING_ATTRIBUTE_KEYS = [
+  "preparationTimeMinutes",
+  "walkingTimeMinutes",
+  "highSalt",
+  "directStockIntent",
+] as const;
 
 function slugifyInternalName(name: string) {
   return (
@@ -295,6 +307,9 @@ async function loadDraftProductEditorView(
       status: catalogueVariants.status,
       sku: catalogueVariants.sku,
       barcode: catalogueVariants.barcode,
+      sellingQuantityBasis: catalogueVariants.sellingQuantityBasis,
+      priceUnit: catalogueVariants.priceUnit,
+      priceUnitQuantity: catalogueVariants.priceUnitQuantity,
       currency: catalogueVariantPrices.currency,
       amountMinor: catalogueVariantPrices.amountMinor,
       priceVersion: catalogueVariantPrices.version,
@@ -364,6 +379,7 @@ async function loadDraftProductEditorView(
     status: row.status === "archived" ? "archived" : "active",
     sku: row.sku,
     barcode: row.barcode,
+    ...variantSellingBasisFromRow(row),
     currency: row.currency?.trim() ?? null,
     amountMinor: row.amountMinor ?? null,
     priceVersion: row.priceVersion ?? null,
@@ -414,6 +430,10 @@ async function loadDraftProductEditorView(
     thumbnailPublicId,
     primaryMediaSource,
     nutritionCalories: product.nutritionCalories,
+    preparationTimeMinutes: product.preparationTimeMinutes,
+    walkingTimeMinutes: product.walkingTimeMinutes,
+    highSalt: product.highSalt,
+    directStockIntent: product.directStockIntent,
     provenance: product.provenance,
     businessProfile,
     canEditPrice: membership.role === "administrator",
@@ -458,6 +478,10 @@ export async function createDraftProduct(
           barcode: validated.barcode,
           primaryMediaAssetId: validated.primaryMediaAssetId,
           nutritionCalories: validated.nutritionCalories,
+          preparationTimeMinutes: validated.preparationTimeMinutes,
+          walkingTimeMinutes: validated.walkingTimeMinutes,
+          highSalt: validated.highSalt,
+          directStockIntent: validated.directStockIntent,
         })
         .returning();
 
@@ -599,6 +623,18 @@ export async function updateDraftProductInTx(
     productUpdates.nutritionCalories = validated.nutritionCalories;
   }
 
+  const sellingAttributeChanges: Record<string, { before: unknown; after: unknown }> = {};
+  for (const key of PRODUCT_SELLING_ATTRIBUTE_KEYS) {
+    const next = validated[key];
+    if (next === undefined) {
+      continue;
+    }
+    productUpdates[key] = next as never;
+    if (product[key] !== next) {
+      sellingAttributeChanges[key] = { before: product[key], after: next };
+    }
+  }
+
   const [updatedProduct] = await tx
     .update(catalogueProducts)
     .set(productUpdates)
@@ -616,6 +652,19 @@ export async function updateDraftProductInTx(
       "Product was updated elsewhere. Reload and try again.",
       "expectedVersion",
     );
+  }
+
+  if (Object.keys(sellingAttributeChanges).length > 0) {
+    await recordTenantAuditEventInTx(tx, {
+      tenantId,
+      actorSubject: staffSubject,
+      actorClass: auditActorClassFromStaffRole(membership.role),
+      action: "catalogue.product.selling_attributes.update",
+      entityType: "catalogue_product",
+      entityPublicId: productPublicId,
+      entityVersion: validated.expectedVersion + 1,
+      changeSummary: sellingAttributeChanges,
+    });
   }
 
   for (const locale of ["en", "ar"] as const) {

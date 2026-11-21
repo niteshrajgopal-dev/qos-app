@@ -11,6 +11,12 @@ import {
 import type { ProductLocale } from "@/lib/catalogue/validation";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
 import {
+  assertVariantSellingBasisConsistent,
+  variantSellingBasisFromRow,
+  type VariantSellingBasis,
+  type VariantSellingBasisView,
+} from "@/lib/catalogue/selling-attributes";
+import {
   assertDistinctVariantLabels,
   assertVariantLabelsForMultipleChoices,
   type CreateProductVariantInput,
@@ -59,7 +65,7 @@ export class CatalogueVariantConflictError extends CatalogueVariantError {
   }
 }
 
-export type DraftProductVariantView = {
+export type DraftProductVariantView = VariantSellingBasisView & {
   publicId: string;
   isDefault: boolean;
   sortOrder: number;
@@ -308,6 +314,9 @@ async function loadProductVariantsInTx(
       status: catalogueVariants.status,
       sku: catalogueVariants.sku,
       barcode: catalogueVariants.barcode,
+      sellingQuantityBasis: catalogueVariants.sellingQuantityBasis,
+      priceUnit: catalogueVariants.priceUnit,
+      priceUnitQuantity: catalogueVariants.priceUnitQuantity,
       currency: catalogueVariantPrices.currency,
       amountMinor: catalogueVariantPrices.amountMinor,
       priceVersion: catalogueVariantPrices.version,
@@ -341,6 +350,7 @@ async function loadProductVariantsInTx(
     status: row.status === "archived" ? "archived" : "active",
     sku: row.sku,
     barcode: row.barcode,
+    ...variantSellingBasisFromRow(row),
     currency: row.currency?.trim() ?? null,
     amountMinor: row.amountMinor ?? null,
     priceVersion: row.priceVersion ?? null,
@@ -390,6 +400,10 @@ function validateActiveVariantLabelSet(
       status: "active",
       sku: null,
       barcode: null,
+      sellingQuantityBasis: null,
+      priceUnit: null,
+      priceUnitQuantity: null,
+      sellingBasisState: "undeclared",
       currency: null,
       amountMinor: null,
       priceVersion: null,
@@ -606,6 +620,7 @@ export async function createProductVariant(
         }
       }
 
+      assertVariantSellingBasisConsistent(validated);
       await assertUniqueVariantIdentifiers(tx, tenantId, {
         sku: validated.sku,
         barcode: validated.barcode,
@@ -653,6 +668,9 @@ export async function createProductVariant(
           status: "active",
           sku: validated.sku,
           barcode: validated.barcode,
+          sellingQuantityBasis: validated.sellingQuantityBasis,
+          priceUnit: validated.priceUnit,
+          priceUnitQuantity: validated.priceUnitQuantity,
         })
         .returning();
 
@@ -690,6 +708,9 @@ export async function createProductVariant(
           isDefault: shouldBeDefault,
           amountMinor: validated.amountMinor,
           currency: validated.currency,
+          sellingQuantityBasis: validated.sellingQuantityBasis,
+          priceUnit: validated.priceUnit,
+          priceUnitQuantity: validated.priceUnitQuantity,
         },
       });
 
@@ -816,6 +837,30 @@ export async function updateProductVariant(
 
       validateActiveVariantLabelSet(projectedVariants);
 
+      const storedSellingBasis = variantSellingBasisFromRow(variant);
+      const nextSellingBasis: VariantSellingBasis = {
+        sellingQuantityBasis:
+          validated.sellingQuantityBasis === undefined
+            ? storedSellingBasis.sellingQuantityBasis
+            : validated.sellingQuantityBasis,
+        priceUnit:
+          validated.priceUnit === undefined ? storedSellingBasis.priceUnit : validated.priceUnit,
+        priceUnitQuantity:
+          validated.priceUnitQuantity === undefined
+            ? storedSellingBasis.priceUnitQuantity
+            : validated.priceUnitQuantity,
+      };
+      assertVariantSellingBasisConsistent(nextSellingBasis);
+      const sellingBasisChanges: Record<string, { before: unknown; after: unknown }> = {};
+      for (const key of ["sellingQuantityBasis", "priceUnit", "priceUnitQuantity"] as const) {
+        if (storedSellingBasis[key] !== nextSellingBasis[key]) {
+          sellingBasisChanges[key] = {
+            before: storedSellingBasis[key],
+            after: nextSellingBasis[key],
+          };
+        }
+      }
+
       await assertUniqueVariantIdentifiers(tx, tenantId, {
         sku: validated.sku === undefined ? variant.sku : validated.sku,
         barcode:
@@ -843,6 +888,9 @@ export async function updateProductVariant(
           sku: validated.sku === undefined ? variant.sku : validated.sku,
           barcode:
             validated.barcode === undefined ? variant.barcode : validated.barcode,
+          sellingQuantityBasis: nextSellingBasis.sellingQuantityBasis,
+          priceUnit: nextSellingBasis.priceUnit,
+          priceUnitQuantity: nextSellingBasis.priceUnitQuantity,
           updatedAt: new Date(),
         })
         .where(
@@ -923,6 +971,9 @@ export async function updateProductVariant(
           status: nextStatus,
           isDefault: updatedVariant.isDefault,
           sortOrder: updatedVariant.sortOrder,
+          ...(Object.keys(sellingBasisChanges).length > 0
+            ? { sellingBasis: sellingBasisChanges }
+            : {}),
         },
       });
 

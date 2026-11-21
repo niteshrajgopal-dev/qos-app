@@ -309,7 +309,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(XLSX);
     expect(response.headers.get("content-disposition")).toBe(
-      'attachment; filename="qos-menu-and-operations-template-v1.2.xlsx"',
+      'attachment; filename="qos-menu-and-operations-template-v1.3.xlsx"',
     );
     expect(response.headers.get("cache-control")).toBe("private, no-store");
 
@@ -336,7 +336,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(body.summary.errors).toBe(0);
     expect(body.manifest).toMatchObject({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.2",
+      template_version: "1.3",
       tenant_public_id: "ten_quotes_dev",
       brand_public_id: "brd_quotes",
       source_namespace: "qos:ten_quotes_dev",
@@ -363,6 +363,11 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
         sku: "000123",
         barcode: "0062911234567",
         nutrition_calories: "120",
+        // QOS-214 columns: an existing record has none of them, so they export blank.
+        preparation_time_minutes: "",
+        walking_time_minutes: "",
+        high_salt: "",
+        is_stock_product: "",
         image_url: "",
         status: "active",
         expected_revision: expect.stringMatching(/^rv1\./),
@@ -377,6 +382,9 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
       sku: "000123-R",
       amount_minor: "1800",
       currency: "AED",
+      selling_quantity_basis: "",
+      price_unit: "",
+      price_unit_quantity: "",
     });
     expect(sheetRows(body, "Branch Prices").map((row) => [row.branch_key, row.amount_minor, row.central_price_version])).toEqual([
       ["loc_quotes_hbz", "1900", "1"],
@@ -389,7 +397,12 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
       sort_order: "2",
     });
     expect(sheetRows(body, "Product Categories")[0]!.qos_product_category_id).toMatch(/^[0-9a-f-]{36}$/);
-    expect(sheetRows(body, "Modifier Options")[0]).toMatchObject({ modifier_group_key: "mg_milk", price_minor: "300", display_name_ar: "حليب الشوفان" });
+    expect(sheetRows(body, "Modifier Options")[0]).toMatchObject({
+      modifier_group_key: "mg_milk",
+      price_minor: "300",
+      display_name_ar: "حليب الشوفان",
+      nutrition_calories: "",
+    });
     expect(sheetRows(body, "Product Modifiers")[0]).toMatchObject({
       product_key: "prd_flat_white",
       modifier_group_key: "mg_milk",
@@ -434,6 +447,46 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     });
     expect(after!.expected_revision).toMatch(/^rv1\./);
     expect(after!.expected_revision).not.toBe(before!.expected_revision);
+  });
+
+  it("exports supplied selling attributes and keeps unknown, zero and false distinct (QOS-214)", async () => {
+    const { tenantId, productId } = await seed();
+    await db
+      .update(catalogueProducts)
+      .set({ barcode: "001234", preparationTimeMinutes: 0, walkingTimeMinutes: 35, highSalt: false, directStockIntent: true })
+      .where(eq(catalogueProducts.id, productId));
+    await db
+      .update(catalogueVariants)
+      .set({ barcode: "001234", sellingQuantityBasis: "weight", priceUnit: "g", priceUnitQuantity: 100 })
+      .where(eq(catalogueVariants.publicId, "var_flat_white_regular"));
+    await db.update(catalogueModifierOptions).set({ nutritionCalories: 0 }).where(eq(catalogueModifierOptions.publicId, "opt_oat"));
+
+    const body = (await (await parseAs(ADMIN, tenantId, await bytesOf(await exportAs(ADMIN, tenantId)))).json()) as ExtendedWorkbookParseResult;
+    expect(body.summary.errors).toBe(0);
+    expect(body.sheets.flatMap((entry) => entry.issues).filter((issue) => issue.code === "missing_columns")).toEqual([]);
+    expect(sheetRows(body, "Products")[0]).toMatchObject({
+      barcode: "001234",
+      preparation_time_minutes: "0",
+      walking_time_minutes: "35",
+      high_salt: "FALSE",
+      is_stock_product: "TRUE",
+      nutrition_calories: "120",
+      description_ar: "جرعتان",
+    });
+    expect(sheetRows(body, "Variants")[0]).toMatchObject({
+      barcode: "001234",
+      selling_quantity_basis: "weight",
+      price_unit: "g",
+      price_unit_quantity: "100",
+    });
+    expect(sheetRows(body, "Modifier Options")[0]).toMatchObject({ nutrition_calories: "0" });
+
+    await db
+      .update(catalogueProducts)
+      .set({ highSalt: true, walkingTimeMinutes: null, directStockIntent: null })
+      .where(eq(catalogueProducts.id, productId));
+    const again = (await (await parseAs(ADMIN, tenantId, await bytesOf(await exportAs(ADMIN, tenantId)))).json()) as ExtendedWorkbookParseResult;
+    expect(sheetRows(again, "Products")[0]).toMatchObject({ high_salt: "TRUE", walking_time_minutes: "", is_stock_product: "" });
   });
 
   it("limits branch rows, branch prices and menu branches to the caller's permitted branches", async () => {

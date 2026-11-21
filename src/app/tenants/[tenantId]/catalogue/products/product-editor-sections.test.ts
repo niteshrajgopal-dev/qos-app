@@ -14,6 +14,7 @@ describe("product editor sections", () => {
       "english",
       "arabic",
       "pricing",
+      "selling",
       "media",
       "variants",
       "modifier-groups",
@@ -39,6 +40,7 @@ describe("product editor sections", () => {
       "english",
       "arabic",
       "pricing",
+      "selling",
     ]);
     expect(productEditorSectionsForMode(true).map((section) => section.id)).toEqual([
       ...PRODUCT_EDITOR_SECTION_IDS,

@@ -402,6 +402,13 @@
       "breakpoints": true
     },
     {
+      "idx": 57,
+      "version": "7",
+      "when": 1793000000000,
+      "tag": "0057_catalogue_selling_attributes",
+      "breakpoints": true
+    },
+    {
       "idx": 58,
       "version": "7",
       "when": 1793100000000,

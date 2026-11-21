@@ -5,6 +5,7 @@ export const PRODUCT_EDITOR_SECTION_IDS = [
   "english",
   "arabic",
   "pricing",
+  "selling",
   "media",
   "variants",
   "modifier-groups",
@@ -41,6 +42,11 @@ export const PRODUCT_EDITOR_SECTIONS: ProductEditorSectionDefinition[] = [
     id: "pricing",
     titleKey: "productEditorSectionPricingTitle",
     helperKey: "productEditorSectionPricingHelp",
+  },
+  {
+    id: "selling",
+    titleKey: "productEditorSectionSellingTitle",
+    helperKey: "productEditorSectionSellingHelp",
   },
   {
     id: "media",
