@@ -271,7 +271,7 @@ export function WorkbookImportPanel({
               />
               <PortalStat
                 label={t("importStatDeferred")}
-                value={String(result.summary.deferred.rows + result.summary.separate_profile.rows)}
+                value={String(result.summary.deferred.rows)}
                 sub={t("importStatDeferredSub")}
               />
               <PortalStat
