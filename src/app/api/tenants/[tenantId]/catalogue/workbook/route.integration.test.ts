@@ -34,9 +34,12 @@ import { createQuotesTwoLocationTenant } from "@/lib/tenant/fixtures-two-locatio
 import { createTenantHierarchy } from "@/lib/tenant/repository";
 import { SUPPORTED_ENTITY_SHEETS } from "@/lib/workbook/contract";
 import { loadCurrentRecordExport } from "@/lib/workbook/export";
+import { buildFoodicsMenuFixture, FIXTURE_SHEETS } from "@/lib/workbook/foodics-menu/fixture";
+import type { FoodicsMenuParseResult } from "@/lib/workbook/foodics-menu/reader";
 import type { ExtendedWorkbookParseResult } from "@/lib/workbook/reader";
 import { fillSheet, loadWorkbook, saveWorkbook, setManifestValue } from "@/lib/workbook/test-support";
 
+import { POST as convertPOST } from "./convert/route";
 import { GET as exportGET } from "./export/route";
 import { POST as parsePOST } from "./parse/route";
 import { GET as templateGET } from "./template/route";
@@ -219,6 +222,23 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     );
   }
 
+  async function convertAs(subject: string, tenantId: string, bytes: Buffer, fileName = "menu.xlsx", brand?: string) {
+    as(subject);
+    const form = new FormData();
+    form.set("file", new File([new Uint8Array(bytes)], fileName));
+    if (brand) form.set("brand", brand);
+    return convertPOST(
+      new Request(`http://localhost/api/tenants/${tenantId}/catalogue/workbook/convert`, { method: "POST", body: form }),
+      params(tenantId),
+    );
+  }
+
+  let foodicsFixture: Promise<Buffer> | null = null;
+  function foodicsMenu() {
+    foodicsFixture ??= buildFoodicsMenuFixture({ filled: true, prefillLastRow: 200 });
+    return foodicsFixture;
+  }
+
   async function bytesOf(response: Response) {
     return Buffer.from(await response.arrayBuffer());
   }
@@ -241,6 +261,9 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     const form = new FormData();
     form.set("file", new File([new Uint8Array(Buffer.from("a,b\n1,2"))], "x.csv"));
     expect((await parsePOST(new Request(`${base}/parse`, { method: "POST", body: form }), params(tenantId))).status).toBe(401);
+    const converted = await convertPOST(new Request(`${base}/convert`, { method: "POST", body: form }), params(tenantId));
+    expect(converted.status).toBe(401);
+    expect(converted.headers.get("content-type")).not.toBe(XLSX);
   });
 
   it("returns 404 for another tenant, an unknown tenant and a malformed tenant id", async () => {
@@ -251,6 +274,10 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(crossTenant.headers.get("content-type")).not.toBe(XLSX);
     expect((await templateAs(FLOWERS_ADMIN, tenantId)).status).toBe(404);
     expect((await parseAs(FLOWERS_ADMIN, tenantId, Buffer.from("a,b\n1,2"), "x.csv")).status).toBe(404);
+    const crossConvert = await convertAs(FLOWERS_ADMIN, tenantId, await foodicsMenu());
+    expect(crossConvert.status).toBe(404);
+    expect(crossConvert.headers.get("content-type")).not.toBe(XLSX);
+    expect((await convertAs(ADMIN, "00000000-0000-4000-8000-000000000000", await foodicsMenu())).status).toBe(404);
     expect((await exportAs(ADMIN, flowers.tenant.id)).status).toBe(404);
     expect((await exportAs(ADMIN, "00000000-0000-4000-8000-000000000000")).status).toBe(404);
     expect((await exportAs(ADMIN, "../../platform")).status).toBe(404);
@@ -271,6 +298,9 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     const response = await exportAs(ADMIN, tenantId);
     expect(response.status).toBe(403);
     expect(await response.json()).toMatchObject({ code: "tenant_inactive" });
+    const converted = await convertAs(ADMIN, tenantId, await foodicsMenu());
+    expect(converted.status).toBe(403);
+    expect(await converted.json()).toMatchObject({ code: "tenant_inactive" });
   });
 
   it("downloads the blank template as a real XLSX that parses as the expanded profile", async () => {
@@ -501,5 +531,142 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(await db.select().from(catalogueProducts)).toEqual(before);
     const [{ count }] = await sqlClient`SELECT count(*)::int AS count FROM qos.tenant_audit_events`;
     expect(count).toBe(0);
+  });
+
+  it("recognises the Foodics menu workbook on parse with the tenant's currency, brand and namespace", async () => {
+    const { tenantId } = await seed();
+    const response = await parseAs(USER_HBZ, tenantId, await foodicsMenu());
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as FoodicsMenuParseResult;
+    expect(body.profile).toBe("foodics_menu_v1");
+    expect(body.context).toEqual({
+      tenantPublicId: "ten_quotes_dev",
+      brandPublicId: "brd_quotes",
+      currency: "AED",
+      sourceNamespace: "foodics-menu-v1:ten_quotes_dev",
+    });
+    expect(body.summary).toMatchObject({ errors: 0, recognizedRows: 16, deferredRows: 18 });
+    expect(body.sheets.find((sheet) => sheet.sheet === "Variants")!.rows[0]!.values).toMatchObject({ amount_minor: "1250", currency: "AED" });
+  });
+
+  it("converts the Foodics menu workbook into a QOS workbook that reads back with the tenant context", async () => {
+    const { tenantId } = await seed();
+    const response = await convertAs(USER_HBZ, tenantId, await foodicsMenu());
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe(XLSX);
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+    expect(response.headers.get("content-disposition")).toMatch(
+      /^attachment; filename="qos-converted-foodics-menu-v1-ten_quotes_dev-[0-9a-f]{8}\.xlsx"$/,
+    );
+
+    const body = (await (await parseAs(ADMIN, tenantId, await bytesOf(response))).json()) as ExtendedWorkbookParseResult;
+    expect(body.profile).toBe("qos_extended_v1");
+    expect(body.isExport).toBe(false);
+    expect(body.issues).toEqual([]);
+    expect(body.summary.errors).toBe(0);
+    expect(body.manifest).toMatchObject({
+      tenant_public_id: "ten_quotes_dev",
+      brand_public_id: "brd_quotes",
+      source_namespace: "foodics-menu-v1:ten_quotes_dev",
+      pilot_currency: "AED",
+      business_timezone: "Asia/Dubai",
+    });
+    expect(body.manifestExtensions).toMatchObject({ source_profile: "foodics_menu_v1", dictionary_version: "1.1" });
+    expect(sheetRows(body, "Products").map((row) => [row.sku, row.barcode, row.display_name_ar])).toEqual([
+      ["000123", "0062911234567", "فلات وايت"],
+      ["000124", "0062911234574", "فانيلا لاتيه"],
+      ["000125", "", "كرك"],
+    ]);
+    expect(sheetRows(body, "Branch Prices")).toEqual([]);
+  });
+
+  it("asks for a brand on convert when the business has several, and refuses another tenant's brand", async () => {
+    const { tenantId, quotes, flowers } = await seed();
+    await db.insert(brands).values({ tenantId, organizationId: quotes.organization.id, publicId: "brd_azur", name: "Azur" });
+
+    const parsed = (await (await parseAs(ADMIN, tenantId, await foodicsMenu())).json()) as FoodicsMenuParseResult;
+    expect(parsed.requiredMappings.find((mapping) => mapping.kind === "brand")).toEqual({
+      kind: "brand",
+      status: "required",
+      choices: [
+        { publicId: "brd_azur", name: "Azur" },
+        { publicId: "brd_quotes", name: "Quotes" },
+      ],
+    });
+
+    const ambiguous = await convertAs(ADMIN, tenantId, await foodicsMenu());
+    expect(ambiguous.status).toBe(400);
+    expect(await ambiguous.json()).toMatchObject({ code: "brand_required", brands: [{ publicId: "brd_azur" }, { publicId: "brd_quotes" }] });
+
+    const chosen = await convertAs(ADMIN, tenantId, await foodicsMenu(), "menu.xlsx", "brd_azur");
+    expect(chosen.status).toBe(200);
+    const body = (await (await parseAs(ADMIN, tenantId, await bytesOf(chosen))).json()) as ExtendedWorkbookParseResult;
+    expect(body.manifest.brand_public_id).toBe("brd_azur");
+
+    const foreign = await convertAs(ADMIN, tenantId, await foodicsMenu(), "menu.xlsx", flowers.brand.publicId);
+    expect(foreign.status).toBe(404);
+    expect(await foreign.json()).toMatchObject({ code: "brand_not_found" });
+  });
+
+  it("refuses to convert a QOS workbook, a current catalogue file or a modified layout", async () => {
+    const { tenantId } = await seed();
+    const template = await convertAs(ADMIN, tenantId, await bytesOf(await templateAs(ADMIN, tenantId)), "template.xlsx");
+    expect(template.status).toBe(400);
+    expect(await template.json()).toMatchObject({ code: "convert_unsupported_profile", params: { profile: "qos_extended_v1" } });
+
+    const csv = await convertAs(ADMIN, tenantId, Buffer.from("source_id,internal_name\nq1,flat"), "current.csv");
+    expect(csv.status).toBe(400);
+    expect(await csv.json()).toMatchObject({ code: "convert_unsupported_profile", params: { profile: "legacy_flat" } });
+
+    const modified = await buildFoodicsMenuFixture({
+      filled: true,
+      prefillLastRow: 40,
+      edit: (workbook) => {
+        workbook.getWorksheet(FIXTURE_SHEETS.products)!.getCell("K6").value = "Amount";
+      },
+    });
+    const partial = await convertAs(ADMIN, tenantId, modified);
+    expect(partial.status).toBe(400);
+    expect(await partial.json()).toMatchObject({ code: "source_layout_partial", params: { region: "products", missingHeaders: "price" } });
+    const parsedPartial = await parseAs(ADMIN, tenantId, modified);
+    expect(parsedPartial.status).toBe(400);
+    expect(await parsedPartial.json()).toMatchObject({ code: "source_layout_partial" });
+
+    as(ADMIN);
+    const missing = await convertPOST(
+      new Request(`http://localhost/api/tenants/${tenantId}/catalogue/workbook/convert`, { method: "POST", body: new FormData() }),
+      params(tenantId),
+    );
+    expect(missing.status).toBe(400);
+    expect(await missing.json()).toMatchObject({ code: "file_required" });
+  });
+
+  it("parse and convert write nothing: no catalogue change and no audit event", async () => {
+    const { tenantId } = await seed();
+    const counts = async () => {
+      const [row] = await sqlClient`
+        SELECT
+          (SELECT count(*)::int FROM qos.catalogue_categories) AS categories,
+          (SELECT count(*)::int FROM qos.catalogue_products) AS products,
+          (SELECT count(*)::int FROM qos.catalogue_product_categories) AS product_categories,
+          (SELECT count(*)::int FROM qos.catalogue_variants) AS variants,
+          (SELECT count(*)::int FROM qos.catalogue_variant_prices) AS prices,
+          (SELECT count(*)::int FROM qos.catalogue_variant_location_price_overrides) AS overrides,
+          (SELECT count(*)::int FROM qos.catalogue_modifier_groups) AS groups,
+          (SELECT count(*)::int FROM qos.catalogue_modifier_options) AS options,
+          (SELECT count(*)::int FROM qos.catalogue_product_modifier_groups) AS product_groups,
+          (SELECT count(*)::int FROM qos.catalogue_menus) AS menus,
+          (SELECT count(*)::int FROM qos.tenant_audit_events) AS audit_events`;
+      return row;
+    };
+    const before = await counts();
+    const productsBefore = await db.select().from(catalogueProducts);
+
+    expect((await parseAs(ADMIN, tenantId, await foodicsMenu())).status).toBe(200);
+    expect((await convertAs(ADMIN, tenantId, await foodicsMenu())).status).toBe(200);
+
+    expect(await counts()).toEqual(before);
+    expect(before.audit_events).toBe(0);
+    expect(await db.select().from(catalogueProducts)).toEqual(productsBefore);
   });
 });
