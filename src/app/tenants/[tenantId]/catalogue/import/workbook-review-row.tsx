@@ -159,7 +159,7 @@ export function WorkbookReviewRow({
               <li key={change.column} data-kind={change.after === null ? "removed" : "added"}>
                 <span dir="ltr">{change.column}</span>
                 {": "}
-                <bdi>{formatReviewValue(locale, currency, change.column, change.before) ?? t("reviewRowNew")}</bdi>
+                <bdi>{formatReviewValue(locale, currency, change.column, change.before) ?? t(row.classification === "create" ? "reviewRowNew" : "reviewRowBlank")}</bdi>
                 {" → "}
                 <bdi>{formatReviewValue(locale, currency, change.column, change.after) ?? t("reviewRowCleared")}</bdi>
                 {change.cell ? (
