@@ -2,7 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+  type RefObject,
+} from "react";
 
 import { Icon } from "@/components/Icon";
 import type { PortalBranchState } from "@/components/portal/portal-shell-context";
@@ -14,6 +21,7 @@ import {
 } from "@/lib/staff/branch-selection";
 import {
   staffCopyWith,
+  staffDocumentDirection,
   staffNavLabel,
   staffUiCopy,
   type StaffLocale,
@@ -54,7 +62,9 @@ const NO_BRANCH_CONTEXT: PortalBranchState = {
 
 /* The approved 94px header: white QOS mark with WORKSPACE beneath it, five
    destinations centred with More, then search, notifications, the business
-   picker and the profile. */
+   picker and the profile. At 680px and below the five destinations scroll
+   inside their own row while More and search stay pinned beside them, and
+   the business picker shrinks to its initial tile. */
 export function PortalTopBar({
   tenantId,
   tenantName,
@@ -90,7 +100,11 @@ export function PortalTopBar({
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        const trigger = headerRef.current?.querySelector<HTMLElement>(
+          '[aria-expanded="true"]',
+        );
         setOpenMenu(null);
+        trigger?.focus();
       }
     }
 
@@ -102,7 +116,6 @@ export function PortalTopBar({
     };
   }, [openMenu]);
 
-  const initial = (tenantName.trim()[0] ?? "Q").toUpperCase();
   const initials = personName
     .split(/\s+/)
     .slice(0, 2)
@@ -123,24 +136,27 @@ export function PortalTopBar({
       </Link>
 
       <nav className="qosp-nav" aria-label="Primary">
-        {STAFF_TOP_NAV.map((item) => {
-          const href = staffNavHref(tenantId, item.id);
-          if (!href) {
-            return null;
-          }
+        <ActiveLinkInView className="qosp-nav-links" activeKey={`${activeId}:${locale}`}>
+          {STAFF_TOP_NAV.map((item) => {
+            const href = staffNavHref(tenantId, item.id);
+            if (!href) {
+              return null;
+            }
 
-          return (
-            <Link
-              key={item.id}
-              href={branchHref(href)}
-              className="qosp-nav-link"
-              data-active={activeId === item.id || undefined}
-            >
-              {staffNavLabel(locale, item.id, item.label)}
-            </Link>
-          );
-        })}
-        <div style={{ position: "relative" }}>
+            return (
+              <Link
+                key={item.id}
+                href={branchHref(href)}
+                className="qosp-nav-link"
+                data-active={activeId === item.id || undefined}
+              >
+                {staffNavLabel(locale, item.id, item.label)}
+              </Link>
+            );
+          })}
+        </ActiveLinkInView>
+        {/* Outside the scrolling links so it never needs a sideways scroll. */}
+        <div className="qosp-nav-more">
           <button
             type="button"
             className="qosp-nav-link"
@@ -159,7 +175,9 @@ export function PortalTopBar({
               style={{
                 top: 46,
                 insetInlineStart: "50%",
-                translate: "-50% 0",
+                /* Centre under More in both directions (inline-start is the
+                   right edge in Arabic). */
+                translate: staffDocumentDirection(locale) === "rtl" ? "50% 0" : "-50% 0",
               }}
             >
               {STAFF_MORE_NAV_GROUPS.map((group) => (
@@ -206,16 +224,19 @@ export function PortalTopBar({
         </div>
       </nav>
 
+      {/* A top bar child (not inside the actions) so that at 680px and below
+          it can sit at the end of the nav row as an icon. */}
+      <button
+        type="button"
+        className="qosp-search-trigger"
+        onClick={onOpenSearch}
+        aria-label={staffUiCopy(locale, "searchThisBusiness")}
+      >
+        <Icon name="search" size={15} />
+        <kbd>⌘K</kbd>
+      </button>
+
       <div className="qosp-top-actions">
-        <button
-          type="button"
-          className="qosp-search-trigger"
-          onClick={onOpenSearch}
-          aria-label={staffUiCopy(locale, "searchThisBusiness")}
-        >
-          <Icon name="search" size={15} />
-          <kbd>⌘K</kbd>
-        </button>
         <button
           type="button"
           className="qosp-icon-button qosp-notification"
@@ -226,51 +247,19 @@ export function PortalTopBar({
         </button>
         <span className="qosp-top-divider" aria-hidden="true" />
 
-        <div style={{ position: "relative" }}>
-          <button
-            type="button"
-            className="qosp-workspace-picker"
-            aria-haspopup="listbox"
-            aria-expanded={openMenu === "workspace"}
-            onClick={() => setOpenMenu(openMenu === "workspace" ? null : "workspace")}
-          >
-            <span className="qosp-workspace-avatar" aria-hidden="true">
-              {initial}
-            </span>
-            <span>
-              {tenantName}
-              <Icon name="chevron-down" size={14} />
-            </span>
-          </button>
-          {openMenu === "workspace" ? (
-            <div
-              className="qos-menu"
-              role="listbox"
-              style={{ top: 44, insetInlineEnd: 0, minWidth: 260 }}
-            >
-              <div className="qos-cmd-group">
-                {staffUiCopy(locale, "switchBusiness")}
-              </div>
-              {tenants.map((tenant) => (
-                <button
-                  key={tenant.id}
-                  type="button"
-                  role="option"
-                  aria-selected={tenant.id === tenantId}
-                  className="qos-menu-item"
-                  data-selected={tenant.id === tenantId || undefined}
-                  onClick={() => {
-                    setOpenMenu(null);
-                    onSelectTenant(tenant.id);
-                  }}
-                >
-                  <span style={{ flex: 1, minWidth: 0 }}>{tenant.name}</span>
-                  {tenant.id === tenantId ? <Icon name="check" size={14} /> : null}
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <BusinessPicker
+          locale={locale}
+          tenantId={tenantId}
+          tenantName={tenantName}
+          tenants={tenants}
+          open={openMenu === "workspace"}
+          onToggle={() => setOpenMenu(openMenu === "workspace" ? null : "workspace")}
+          onClose={() => setOpenMenu(null)}
+          onSelect={(id) => {
+            setOpenMenu(null);
+            onSelectTenant(id);
+          }}
+        />
 
         <BranchPicker
           locale={locale}
@@ -343,6 +332,173 @@ export function PortalTopBar({
   );
 }
 
+/* Keeps the active destination in view when the links scroll sideways. Keyed
+   on the locale too, and measured a frame later because the locale provider
+   sets the document direction in its own (parent, so later) effect. */
+function ActiveLinkInView({
+  className,
+  activeKey,
+  children,
+}: {
+  className: string;
+  activeKey: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const list = ref.current;
+      const active = list?.querySelector<HTMLElement>('[data-active="true"]');
+      if (!list || !active || list.scrollWidth <= list.clientWidth) {
+        return;
+      }
+      /* Clear of the edge fade, which is as wide as the end padding. */
+      const fade = parseFloat(getComputedStyle(list).paddingInlineEnd) || 0;
+      const listBox = list.getBoundingClientRect();
+      const box = active.getBoundingClientRect();
+      if (box.left < listBox.left + fade) {
+        list.scrollLeft -= listBox.left + fade - box.left;
+      } else if (box.right > listBox.right - fade) {
+        list.scrollLeft += box.right - (listBox.right - fade);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [activeKey]);
+
+  return (
+    <div ref={ref} className={className}>
+      {children}
+    </div>
+  );
+}
+
+/* Arrow keys, Home and End move between a listbox's options; Escape closes it
+   and returns focus to its trigger; Tab closes it. */
+function onListboxKeyDown(
+  event: ReactKeyboardEvent<HTMLDivElement>,
+  listRef: RefObject<HTMLDivElement | null>,
+  triggerRef: RefObject<HTMLButtonElement | null>,
+  onClose: () => void,
+) {
+  const options = [
+    ...(listRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? []),
+  ];
+  const index = options.indexOf(document.activeElement as HTMLElement);
+  let next: number | null = null;
+  if (event.key === "ArrowDown") next = (index + 1) % options.length;
+  if (event.key === "ArrowUp") next = (index - 1 + options.length) % options.length;
+  if (event.key === "Home") next = 0;
+  if (event.key === "End") next = options.length - 1;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    onClose();
+    triggerRef.current?.focus();
+    return;
+  }
+  if (event.key === "Tab") {
+    onClose();
+    return;
+  }
+  if (next !== null && options[next]) {
+    event.preventDefault();
+    options[next].focus();
+  }
+}
+
+function useFocusSelectedOption(open: boolean, listRef: RefObject<HTMLDivElement | null>) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const options = listRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
+    const selected = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    (selected ?? options?.[0])?.focus();
+  }, [open, listRef]);
+}
+
+type BusinessPickerProps = {
+  locale: StaffLocale;
+  tenantId: string;
+  tenantName: string;
+  tenants: Array<{ id: string; name: string }>;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onSelect: (tenantId: string) => void;
+};
+
+/* Business picker: the business initial tile and name. At 680px and below
+   only the tile shows, and the listbox spans the narrow top bar. */
+export function BusinessPicker({
+  locale,
+  tenantId,
+  tenantName,
+  tenants,
+  open,
+  onToggle,
+  onClose,
+  onSelect,
+}: BusinessPickerProps) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  useFocusSelectedOption(open, listRef);
+
+  const initial = (tenantName.trim()[0] ?? "Q").toUpperCase();
+
+  return (
+    <div className="qosp-workspace-picker-wrap">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="qosp-workspace-picker"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={staffCopyWith(locale, "businessPickerLabel", { name: tenantName })}
+        onClick={onToggle}
+      >
+        <span className="qosp-workspace-avatar" aria-hidden="true">
+          {initial}
+        </span>
+        <span className="qosp-workspace-picker-name">
+          {tenantName}
+          <Icon name="chevron-down" size={14} />
+        </span>
+      </button>
+      {open ? (
+        <div
+          ref={listRef}
+          className="qos-menu qosp-workspace-menu"
+          role="listbox"
+          aria-label={staffUiCopy(locale, "switchBusiness")}
+          onKeyDown={(event) => onListboxKeyDown(event, listRef, triggerRef, onClose)}
+        >
+          <div className="qos-cmd-group" aria-hidden="true">
+            {staffUiCopy(locale, "switchBusiness")}
+          </div>
+          {tenants.map((tenant) => (
+            <button
+              key={tenant.id}
+              type="button"
+              role="option"
+              aria-selected={tenant.id === tenantId}
+              className="qos-menu-item"
+              data-selected={tenant.id === tenantId || undefined}
+              onClick={() => {
+                onSelect(tenant.id);
+                triggerRef.current?.focus();
+              }}
+            >
+              <span style={{ flex: 1, minWidth: 0 }}>{tenant.name}</span>
+              {tenant.id === tenantId ? <Icon name="check" size={14} /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 type BranchPickerProps = {
   locale: StaffLocale;
   branch: PortalBranchState;
@@ -354,20 +510,13 @@ type BranchPickerProps = {
 
 /* Branch picker: the same qos-menu listbox as the business picker, with each
    branch's timezone and currency. All branches is offered only when the
-   server said it is allowed. Arrow keys, Home and End move between options;
-   Escape closes and returns focus to the trigger. */
+   server said it is allowed. Keyboard handling is shared with the business
+   picker (onListboxKeyDown). */
 export function BranchPicker({ locale, branch, open, onToggle, onClose, onSelect }: BranchPickerProps) {
   const triggerRef = useRef<HTMLButtonElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
-    const options = listRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
-    const selected = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
-    (selected ?? options?.[0])?.focus();
-  }, [open]);
+  useFocusSelectedOption(open, listRef);
 
   if (branch.status === "idle") {
     return null;
@@ -391,32 +540,6 @@ export function BranchPicker({ locale, branch, open, onToggle, onClose, onSelect
     : branch.selection === ALL_BRANCHES
       ? branch.baseCurrency
       : null;
-
-  function onListKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
-    const options = [
-      ...(listRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? []),
-    ];
-    const index = options.indexOf(document.activeElement as HTMLElement);
-    let next: number | null = null;
-    if (event.key === "ArrowDown") next = (index + 1) % options.length;
-    if (event.key === "ArrowUp") next = (index - 1 + options.length) % options.length;
-    if (event.key === "Home") next = 0;
-    if (event.key === "End") next = options.length - 1;
-    if (event.key === "Escape") {
-      event.preventDefault();
-      onClose();
-      triggerRef.current?.focus();
-      return;
-    }
-    if (event.key === "Tab") {
-      onClose();
-      return;
-    }
-    if (next !== null && options[next]) {
-      event.preventDefault();
-      options[next].focus();
-    }
-  }
 
   return (
     <div className="qosp-branch-picker-wrap">
@@ -449,7 +572,7 @@ export function BranchPicker({ locale, branch, open, onToggle, onClose, onSelect
           className="qos-menu qosp-branch-menu"
           role="listbox"
           aria-label={staffUiCopy(locale, "switchBranch")}
-          onKeyDown={onListKeyDown}
+          onKeyDown={(event) => onListboxKeyDown(event, listRef, triggerRef, onClose)}
         >
           <div className="qosp-menu-heading" aria-hidden="true">
             {staffUiCopy(locale, "switchBranch")}

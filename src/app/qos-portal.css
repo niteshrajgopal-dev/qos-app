@@ -1333,11 +1333,8 @@
   .qosp-brand { align-items: flex-start; width: 85px; height: 46px; }
   .qosp-brand img { width: 99px; height: 33px; margin-inline-start: -8px; }
   .qosp-brand span { font-size: 7px; margin-inline-start: 5px; }
-  .qosp-top-actions { gap: 12px; }
-  .qosp-top-actions .qosp-workspace-picker,
-  .qosp-top-actions .qosp-search-trigger { display: none; }
   .qosp-top-actions .qosp-avatar { width: 29px; height: 29px; font-size: 9px; }
-  .qosp-nav { justify-content: flex-start; gap: 24px; overflow-x: auto; scrollbar-width: none; height: 46px; }
+  .qosp-nav { justify-content: flex-start; gap: 12px; height: 46px; }
   .qosp-nav-link { font-size: 12px; white-space: nowrap; }
   .qosp-overview {
     height: auto;
@@ -1585,7 +1582,7 @@
 /* With the branch picker beside it, the business name and its chevron stay on
    one line (preflight makes the chevron SVG a block, which stacked it under
    the name), and the longer More menu scrolls inside the window. */
-.qosp-workspace-picker > span:last-child {
+.qosp-workspace-picker-name {
   display: inline-flex;
   align-items: center;
   gap: 5px;
@@ -1633,8 +1630,8 @@
     max-width: none;
   }
   .qosp-branch-notice { top: 121px; inset-inline: 12px; }
-  /* The nav row scrolls sideways here, which clipped the More menu. Anchor it
-     to the top bar instead (the bar's backdrop filter is its containing block). */
+  /* The More menu spans the narrow top bar (the bar's backdrop filter is the
+     containing block of this fixed menu). */
   .qosp-nav .qos-menu {
     position: fixed;
     top: 100% !important;
@@ -1643,4 +1640,97 @@
     min-width: 0;
     max-height: calc(100svh - 124px);
   }
+}
+
+/* ---------- Narrow top bar (QOS-192 follow-up) ----------
+   The five destinations sit in their own group so only they scroll sideways
+   at 680px and below; More stays pinned beside them in both directions. The
+   group inherits the nav gap, so wider layouts are unchanged. */
+.qosp-nav-links {
+  display: flex;
+  align-items: center;
+  gap: inherit;
+}
+.qosp-nav-more {
+  position: relative;
+  flex: none;
+}
+/* Search sits between the nav and the actions; the negative margin keeps the
+   actions' spacing from the bell (top bar gap minus actions gap). */
+.qosp-topbar > .qosp-search-trigger {
+  flex: none;
+  margin-inline-end: -14px;
+}
+.qosp-workspace-picker-wrap {
+  position: relative;
+}
+.qosp-workspace-menu {
+  top: 44px;
+  inset-inline-end: 0;
+  min-width: 260px;
+}
+
+@media (max-width: 1200px) {
+  .qosp-topbar > .qosp-search-trigger { margin-inline-end: -9px; }
+}
+@media (max-width: 960px) {
+  .qosp-topbar > .qosp-search-trigger { margin-inline: auto 17px; }
+}
+
+@media (max-width: 680px) {
+  /* The actions take the room left by the brand and the branch picker gives
+     way (its name truncates) instead of the row wrapping under the brand. */
+  .qosp-top-actions { flex: 1 1 0; min-width: 0; justify-content: flex-end; gap: 10px; }
+  .qosp-branch-picker { gap: 6px; }
+  .qosp-nav-links {
+    flex: 0 1 auto;
+    min-width: 0;
+    height: 100%;
+    gap: 24px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    /* Links running under More fade out instead of being cut mid-word; the
+       end padding keeps the last link clear of the fade once scrolled. */
+    padding-inline-end: 20px;
+    mask-image: linear-gradient(to right, #000 calc(100% - 20px), transparent);
+  }
+  [dir="rtl"] .qosp-nav-links {
+    mask-image: linear-gradient(to left, #000 calc(100% - 20px), transparent);
+  }
+  .qosp-nav-links::-webkit-scrollbar { display: none; }
+  /* The scroll box clips anything outside it, so the ring sits inside. */
+  .qosp-nav-links .qosp-nav-link:focus-visible { outline-offset: -2px; }
+  .qosp-nav-more {
+    padding-inline-start: 16px;
+    border-inline-start: 1px solid #ffffff1f;
+  }
+  /* Search moves to the end of the nav row as an icon button. */
+  .qosp-topbar .qosp-nav { width: calc(100% - 38px); }
+  .qosp-topbar > .qosp-search-trigger {
+    order: 4;
+    width: 26px;
+    margin-inline: 12px 0;
+    padding: 0;
+    justify-content: center;
+    border-color: transparent;
+    background: none;
+    color: #e0e2e9;
+  }
+  .qosp-topbar > .qosp-search-trigger kbd { display: none; }
+  .qosp-topbar > .qosp-search-trigger:hover { color: #fff; }
+  /* Business picker: the initial tile alone; its name is in the label. */
+  .qosp-workspace-picker-name { display: none; }
+  .qosp-workspace-picker-wrap { position: static; }
+  .qosp-top-actions .qosp-workspace-avatar { width: 29px; height: 29px; font-size: 17px; }
+  .qosp-workspace-menu {
+    position: absolute;
+    top: 100%;
+    inset-inline: 12px;
+    min-width: 0;
+    max-height: calc(100svh - 124px);
+    overflow-y: auto;
+  }
+}
+@media (max-width: 400px) {
+  .qosp-topbar { padding-inline: 16px; }
 }
