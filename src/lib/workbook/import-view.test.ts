@@ -33,6 +33,23 @@ describe("workbook import wording", () => {
     }
   });
 
+  it("describes an ambiguous selection count mode without suggesting a guessed rule", () => {
+    const issue: WorkbookIssue = {
+      severity: "error",
+      code: "ambiguous_selection_count_mode",
+      sheet: "Product Modifiers",
+      row: 9,
+      column: "selection_count_mode",
+      params: { cell: "J9", value: "Total" },
+    };
+    expect(describeWorkbookIssue("en", issue)).toBe(
+      'selection_count_mode is "Total". Use distinct_options, total_quantity or leave it blank. This assignment is held for review; QOS will not guess the counting rule.',
+    );
+    expect(describeWorkbookIssue("ar", issue)).toContain('"Total"');
+    expect(describeWorkbookIssue("ar", issue)).toContain("selection_count_mode");
+    expect(workbookIssueLocation(issue)).toBe("Product Modifiers!J9");
+  });
+
   it("keeps the same placeholders in English and Arabic", () => {
     const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
     for (const key of Object.keys(STAFF_UI_COPY.en) as Array<keyof typeof STAFF_UI_COPY.en>) {

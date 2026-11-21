@@ -96,8 +96,8 @@ describe("parseWorkbookUpload: expanded profile", () => {
 
     expect(result.manifest).toEqual({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.0",
-      prepared_on: "2026-11-16",
+      template_version: "1.1",
+      prepared_on: "2026-11-21",
       tenant_public_id: "",
       brand_public_id: "",
       source_namespace: "",
@@ -246,6 +246,83 @@ describe("parseWorkbookUpload: expanded profile", () => {
     });
   });
 
+  it("still reads a v1.0 workbook without the v1.1 Product Modifiers columns and reports no missing columns", async () => {
+    const workbook = await loadWorkbook(await filledWorkbook());
+    setManifestValue(workbook, "template_version", "1.0");
+    const v10Columns = contractSheet("Product Modifiers")
+      .columns.filter((column) => !column.since)
+      .map((column) => column.key);
+    const worksheet = workbook.getWorksheet("Product Modifiers")!;
+    worksheet.removeTable("QOS_Product_Modifiers");
+    for (let column = 1; column <= 20; column += 1) worksheet.getCell(6, column).value = null;
+    worksheet.addTable({
+      name: "QOS_Product_Modifiers",
+      ref: "A6",
+      columns: [...v10Columns, "row_check"].map((name) => ({ name })),
+      rows: [v10Columns.map((key) => ({ product_modifier_key: "pm", action: "create", product_key: "flat-white", modifier_group_key: "milk", sort_order: "0" })[key] ?? null).concat([null])],
+    });
+
+    const result = extended(await parseWorkbookUpload({ fileName: "v10.xlsx", bytes: await saveWorkbook(workbook) }));
+    expect(result.templateVersion).toBe("1.0");
+    const productModifiers = sheet(result, "Product Modifiers");
+    expect(productModifiers.issues).toEqual([]);
+    expect(productModifiers.rows).toEqual([
+      {
+        row: 7,
+        values: {
+          product_modifier_key: "pm",
+          qos_product_modifier_id: "",
+          action: "create",
+          product_key: "flat-white",
+          modifier_group_key: "milk",
+          sort_order: "0",
+          free_options_count: "",
+          expected_revision: "",
+          clear_fields: "",
+        },
+      },
+    ]);
+
+    // The same table in a file that claims 1.1 is missing optional columns.
+    setManifestValue(workbook, "template_version", "1.1");
+    const claimed = extended(await parseWorkbookUpload({ fileName: "v11.xlsx", bytes: await saveWorkbook(workbook) }));
+    expect(sheet(claimed, "Product Modifiers").issues).toEqual([
+      {
+        sheet: "Product Modifiers",
+        severity: "warning",
+        code: "missing_columns",
+        params: { columns: "min_selections, max_selections, repeat_allowed, selection_count_mode" },
+      },
+    ]);
+  });
+
+  it("reads assignment policy values and holds only the row with an ambiguous counting mode for review", async () => {
+    const bytes = await filledWorkbook((workbook) => {
+      fillSheet(workbook, "Product Modifiers", 6, [
+        { product_modifier_key: "pm-burger", action: "create", product_key: "flat-white", modifier_group_key: "extras", sort_order: "0", min_selections: "1", max_selections: "1", repeat_allowed: "FALSE", selection_count_mode: "total_quantity" },
+        { product_modifier_key: "pm-fries", action: "create", product_key: "espresso", modifier_group_key: "extras", sort_order: "0", max_selections: "3", repeat_allowed: "TRUE" },
+        { product_modifier_key: "pm-foodics", action: "create", product_key: "espresso", modifier_group_key: "sauces", sort_order: "1", selection_count_mode: "Total" },
+      ]);
+    });
+    const productModifiers = sheet(extended(await parseWorkbookUpload({ fileName: "f.xlsx", bytes })), "Product Modifiers");
+
+    expect(productModifiers.rows.map((row) => [row.values.min_selections, row.values.max_selections, row.values.repeat_allowed, row.values.selection_count_mode])).toEqual([
+      ["1", "1", "FALSE", "total_quantity"],
+      ["", "3", "TRUE", ""],
+      ["", "", "", "Total"],
+    ]);
+    expect(productModifiers.issues).toEqual([
+      {
+        sheet: "Product Modifiers",
+        severity: "error",
+        code: "ambiguous_selection_count_mode",
+        row: 9,
+        column: "selection_count_mode",
+        params: { cell: "J9", value: "Total" },
+      },
+    ]);
+  });
+
   it("does not treat guidance sheets, context rows or text typed below a table as business rows", async () => {
     const bytes = await filledWorkbook((workbook) => {
       workbook.getWorksheet("Start Here")!.getCell("A60").value = "product_key";
@@ -282,7 +359,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
     const wrongVersion = await filledWorkbook((workbook) => setManifestValue(workbook, "template_version", "2.0"));
     const error = await parseError("f.xlsx", wrongVersion);
     expect(error.code).toBe("unsupported_version");
-    expect(error.params).toEqual({ version: "2.0", expected: "1.0" });
+    expect(error.params).toEqual({ version: "2.0", expected: "1.0, 1.1" });
 
     const calculated = await filledWorkbook((workbook) =>
       setManifestValue(workbook, "template_version", { formula: '"1.0"', result: "1.0" }),
@@ -386,6 +463,9 @@ describe("parseWorkbookUpload: expanded profile", () => {
     expect(result.sheets.every((entry) => entry.present)).toBe(true);
     expect(result.summary.errors).toBe(0);
     expect(result.manifest.profile).toBe("qos-extended-v1-proposed");
+    // The pack file is a v1.0 workbook: the v1.1 columns are not "missing".
+    expect(result.templateVersion).toBe("1.0");
+    expect(result.sheets.flatMap((entry) => entry.issues).filter((issue) => issue.code === "missing_columns")).toEqual([]);
   });
 });
 

@@ -6,7 +6,11 @@ import { describe, expect, it } from "vitest";
 
 import { IMPORT_LIMITS } from "@/lib/catalogue/catalogue-import-parser";
 import {
+  columnExpectedInVersion,
+  contractSheet,
+  isDeferredField,
   sheetSupport,
+  SUPPORTED_TEMPLATE_VERSIONS,
   SUPPORTED_ENTITY_SHEETS,
   tableColumnKeys,
   tableNameForSheet,
@@ -18,10 +22,14 @@ import { readXlsxPackage } from "@/lib/workbook/ooxml";
 import { buildBlankWorkbookTemplate } from "@/lib/workbook/template";
 import { loadWorkbook } from "@/lib/workbook/test-support";
 
-const CONTRACT_SHA256 = "d36471c769658805813032b252e4654c1160177c8ee4a3dbd4a1b7334388520c";
+/* v1.1: the pack's v1.0 contract (SHA-256 d36471c7…8520c) plus the four
+   QOS-212 Product Modifiers assignment policy columns. */
+const CONTRACT_SHA256 = "29c4314040db7136b4b36a1af0a291cc8edf026849dc6f6e431b72bb5487ad41";
 
 /* Table ranges of the pack's reference workbook, read from its bytes. The
-   generated template must reproduce them from the contract alone. */
+   generated template must reproduce them from the contract alone. v1.1 widens
+   QOS_Product_Modifiers by four columns (J to N) and the field guide by four
+   rows (322 to 326); every other range is the pack's. */
 const PACK_TABLE_REFS: Record<string, string> = {
   QOS_Workbook_Context: "A48:C58",
   QOS_Current_Import: "A1:G501",
@@ -33,7 +41,7 @@ const PACK_TABLE_REFS: Record<string, string> = {
   QOS_Branch_Prices: "A6:K106",
   QOS_Modifier_Groups: "A6:L106",
   QOS_Modifier_Options: "A6:P206",
-  QOS_Product_Modifiers: "A6:J206",
+  QOS_Product_Modifiers: "A6:N206",
   QOS_Menus: "A6:L56",
   QOS_Menu_Branches: "A6:H106",
   QOS_Menu_Sections: "A6:L106",
@@ -52,15 +60,69 @@ const PACK_TABLE_REFS: Record<string, string> = {
   QOS_External_Mappings: "A6:O106",
   QOS_Future_Combos: "A6:J106",
   QOS_Combo_Components: "A6:K106",
-  QOS_Field_Guide: "A6:I322",
+  QOS_Field_Guide: "A6:I326",
 };
 
 describe("workbook contract", () => {
-  it("is the pack's contract file, byte for byte", () => {
+  it("is the committed v1.1 contract file, byte for byte", () => {
     const bytes = readFileSync(path.join(process.cwd(), "src/lib/workbook/qos-workbook-contract.v1.json"));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(CONTRACT_SHA256);
+    expect(WORKBOOK_CONTRACT.version).toBe("1.1");
+    expect(SUPPORTED_TEMPLATE_VERSIONS).toEqual(["1.0", "1.1"]);
     expect(WORKBOOK_CONTRACT.sheets).toHaveLength(28);
-    expect(WORKBOOK_CONTRACT.sheets.flatMap((sheet) => sheet.columns)).toHaveLength(316);
+    expect(WORKBOOK_CONTRACT.sheets.flatMap((sheet) => sheet.columns)).toHaveLength(320);
+    // Only the four assignment policy columns are new in 1.1.
+    expect(
+      WORKBOOK_CONTRACT.sheets.flatMap((sheet) =>
+        sheet.columns.filter((column) => column.since).map((column) => `${sheet.name}.${column.key}@${column.since}`),
+      ),
+    ).toEqual([
+      "Product Modifiers.min_selections@1.1",
+      "Product Modifiers.max_selections@1.1",
+      "Product Modifiers.repeat_allowed@1.1",
+      "Product Modifiers.selection_count_mode@1.1",
+    ]);
+  });
+
+  it("adds the assignment policy columns after sort_order, maps them to the schema and keeps free_options_count deferred", () => {
+    const sheet = contractSheet("Product Modifiers");
+    expect(sheet.columns.map((column) => column.key)).toEqual([
+      "product_modifier_key",
+      "qos_product_modifier_id",
+      "action",
+      "product_key",
+      "modifier_group_key",
+      "sort_order",
+      "min_selections",
+      "max_selections",
+      "repeat_allowed",
+      "selection_count_mode",
+      "free_options_count",
+      "expected_revision",
+      "clear_fields",
+    ]);
+    const column = (key: string) => sheet.columns.find((candidate) => candidate.key === key)!;
+    for (const key of ["min_selections", "max_selections", "repeat_allowed", "selection_count_mode"]) {
+      expect(column(key).mapping, key).toBe(`catalogue_product_modifier_groups.${key}`);
+      expect(column(key).required, key).toBe(false);
+      expect(isDeferredField(column(key)), key).toBe(false);
+    }
+    expect(column("repeat_allowed").values).toEqual(["TRUE", "FALSE"]);
+    expect(column("selection_count_mode").values).toEqual(["distinct_options", "total_quantity"]);
+
+    const free = column("free_options_count");
+    expect(free.mapping.startsWith("Proposed")).toBe(true);
+    expect(free.phase).toBe("Later review");
+    expect(isDeferredField(free)).toBe(true);
+  });
+
+  it("expects v1.1 columns only in v1.1 workbooks", () => {
+    const sheet = contractSheet("Product Modifiers");
+    const expected = (version: string) =>
+      sheet.columns.filter((column) => columnExpectedInVersion(column, version)).map((column) => column.key);
+    expect(expected("1.0")).not.toContain("min_selections");
+    expect(expected("1.0")).toContain("free_options_count");
+    expect(expected("1.1")).toEqual(sheet.columns.map((column) => column.key));
   });
 
   it("classifies the 28 sheets: 13 supported, 12 deferred, 2 rejected, 1 current-profile tab", () => {

@@ -503,6 +503,8 @@ export const STAFF_UI_COPY = {
     issueCellError: "{column} holds a spreadsheet error value.",
     issueIdentifierNumber: "{column} was stored as a number, so leading zeros may be lost. Format the column as text and type it again.",
     issueDeferredField: "{column} is filled in some rows ({count}), but QOS has nowhere to store it yet. It will not be imported.",
+    issueAmbiguousSelectionCountMode:
+      "{column} is \"{value}\". Use distinct_options, total_quantity or leave it blank. This assignment is held for review; QOS will not guess the counting rule.",
     issueDeferredSheet: "Rows read: {count}. QOS cannot import this sheet yet, so nothing from it will be imported.",
     issueOpeningStockDraft: "Opening stock rows read: {count}. They stay drafts; nothing is posted to stock.",
     issueRejectedSheet: "Rows read: {count}. This sheet is a Phase 3 proposal, so its rows are rejected in Phase 2.",
@@ -1034,6 +1036,8 @@ export const STAFF_UI_COPY = {
     issueCellError: "يحتوي العمود {column} على قيمة خطأ من جدول البيانات.",
     issueIdentifierNumber: "حُفظ العمود {column} كرقم، لذا قد تضيع الأصفار البادئة. نسّق العمود كنص واكتب القيمة مرة أخرى.",
     issueDeferredField: "العمود {column} معبأ في بعض الصفوف ({count})، لكن QOS لا يملك مكانًا لحفظه بعد، ولن يُستورد.",
+    issueAmbiguousSelectionCountMode:
+      "قيمة العمود {column} هي \"{value}\". استخدم distinct_options أو total_quantity أو اترك الخانة فارغة. سيبقى هذا الربط قيد المراجعة، ولن يخمّن QOS طريقة العدّ.",
     issueDeferredSheet: "عدد الصفوف المقروءة: {count}. لا يستطيع QOS استيراد هذه الورقة بعد، ولن يُستورد منها شيء.",
     issueOpeningStockDraft: "عدد صفوف الرصيد الافتتاحي المقروءة: {count}. تبقى مسودات، ولا يُرحَّل أي شيء إلى المخزون.",
     issueRejectedSheet: "عدد الصفوف المقروءة: {count}. هذه الورقة مقترح للمرحلة الثالثة، لذا تُرفض صفوفها في المرحلة الثانية.",

@@ -1,4 +1,9 @@
-import { WORKBOOK_CONTRACT, WORKBOOK_LAYOUT, WORKBOOK_PROFILE_ID } from "@/lib/workbook/contract";
+import {
+  SUPPORTED_TEMPLATE_VERSIONS,
+  WORKBOOK_CONTRACT,
+  WORKBOOK_LAYOUT,
+  WORKBOOK_PROFILE_ID,
+} from "@/lib/workbook/contract";
 import { EXTRA_CONTEXT_FIELDS } from "@/lib/workbook/dictionary";
 import { WorkbookParseError } from "@/lib/workbook/errors";
 import { cellKey, type XlsxPackage } from "@/lib/workbook/ooxml";
@@ -24,8 +29,11 @@ export type WorkbookManifest = Record<
   string
 >;
 
-/** Template versions this parser understands. `1` covers a cell Excel turned into a number. */
-const SUPPORTED_TEMPLATE_VERSIONS = new Set([WORKBOOK_CONTRACT.version, "1"]);
+/** Template versions this parser understands, normalised. `1` is a 1.0 cell Excel turned into a number. */
+const TEMPLATE_VERSION_ALIASES = new Map<string, string>([
+  ...SUPPORTED_TEMPLATE_VERSIONS.map((version) => [version, version] as [string, string]),
+  ["1", "1.0"],
+]);
 
 function invalid(message: string): never {
   throw new WorkbookParseError("manifest_invalid", message);
@@ -94,18 +102,21 @@ export function readWorkbookManifest(
   }
 
   const templateVersion = values.get("template_version") ?? "";
-  if (!SUPPORTED_TEMPLATE_VERSIONS.has(templateVersion)) {
+  const normalizedVersion = TEMPLATE_VERSION_ALIASES.get(templateVersion);
+  if (!normalizedVersion) {
+    const expected = SUPPORTED_TEMPLATE_VERSIONS.join(", ");
     throw new WorkbookParseError(
       "unsupported_version",
-      `Workbook template version "${templateVersion || "blank"}" is not supported. Expected ${WORKBOOK_CONTRACT.version}.`,
-      { version: templateVersion, expected: WORKBOOK_CONTRACT.version },
+      `Workbook template version "${templateVersion || "blank"}" is not supported. Expected ${expected}.`,
+      { version: templateVersion, expected },
     );
   }
 
   const manifest = Object.fromEntries(
     MANIFEST_FIELDS.map((field) => [field, values.get(field) ?? ""]),
   ) as WorkbookManifest;
-  manifest.template_version = WORKBOOK_CONTRACT.version;
+  // The file's own version decides which columns it is expected to carry.
+  manifest.template_version = normalizedVersion;
   // Dictionary 1.1 context fields (for example source_profile on a converted
   // workbook) are returned beside the manifest and never change its meaning.
   const extensions = Object.fromEntries(

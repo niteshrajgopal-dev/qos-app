@@ -615,8 +615,19 @@ export async function loadCurrentRecordExport(
             product_key: product,
             modifier_group_key: group,
             sort_order: text(row.sortOrder),
+            // Assignment policy overrides (v1.1): blank means inherit.
+            min_selections: text(row.minSelections),
+            max_selections: text(row.maxSelections),
+            repeat_allowed: row.repeatAllowed == null ? "" : bool(row.repeatAllowed),
+            selection_count_mode: text(row.selectionCountMode),
+            // Free-option allowances are unsupported; never exported as a value.
             free_options_count: "",
-            expected_revision: revisionToken("product_modifier", row.id, [row.createdAt, row.sortOrder]),
+            expected_revision: revisionToken("product_modifier", row.id, [
+              row.createdAt,
+              row.sortOrder,
+              row.version,
+              row.updatedAt,
+            ]),
             clear_fields: "",
           };
         }),

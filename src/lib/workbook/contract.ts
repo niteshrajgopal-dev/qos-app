@@ -1,9 +1,11 @@
 import contractJson from "@/lib/workbook/qos-workbook-contract.v1.json";
 
-/* The QOS workbook data contract v1.0 (16 November 2026), committed verbatim
-   from the Phase 2 pack (SHA-256 d36471c7…8520c). It is the source of truth
-   for sheet names, table names, header and data rows, columns and the
-   manifest. Nothing here is inferred from a file name. */
+/* The QOS workbook data contract. v1.0 (16 November 2026) was committed
+   verbatim from the Phase 2 pack (SHA-256 d36471c7…8520c). v1.1 (21 November
+   2026, QOS-212) adds four Product Modifiers assignment policy columns,
+   marked `since: "1.1"`; nothing else changed. It is the source of truth for
+   sheet names, table names, header and data rows, columns and the manifest.
+   Nothing here is inferred from a file name. */
 
 export type WorkbookColumnDefinition = {
   key: string;
@@ -23,6 +25,8 @@ export type WorkbookColumnDefinition = {
   max?: number;
   positive?: boolean;
   width?: number;
+  /** Contract version that introduced the column; absent means 1.0. */
+  since?: string;
 };
 
 export type WorkbookSheetDefinition = {
@@ -66,6 +70,24 @@ export const WORKBOOK_CONTRACT = contractJson as unknown as WorkbookContract;
 
 export const WORKBOOK_PROFILE_ID = "qos-extended-v1-proposed";
 export const WORKBOOK_TEMPLATE_VERSION = WORKBOOK_CONTRACT.version;
+
+/** Template versions QOS reads. Older files lack the columns added since. */
+export const SUPPORTED_TEMPLATE_VERSIONS = ["1.0", "1.1"] as const;
+
+function versionParts(version: string) {
+  return version.split(".").map((part) => Number(part));
+}
+
+function compareVersions(a: string, b: string) {
+  const [aMajor = 0, aMinor = 0] = versionParts(a);
+  const [bMajor = 0, bMinor = 0] = versionParts(b);
+  return aMajor - bMajor || aMinor - bMinor;
+}
+
+/** Whether a workbook of `templateVersion` is expected to carry this column. */
+export function columnExpectedInVersion(column: WorkbookColumnDefinition, templateVersion: string) {
+  return compareVersions(column.since ?? "1.0", templateVersion) <= 0;
+}
 export const WORKBOOK_LAYOUT = WORKBOOK_CONTRACT.layout;
 export const ROW_CHECK_COLUMN = "row_check";
 

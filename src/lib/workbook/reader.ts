@@ -6,6 +6,7 @@ import {
   suggestColumnMapping,
 } from "@/lib/catalogue/catalogue-import-parser";
 import {
+  columnExpectedInVersion,
   FIELD_GUIDE_TABLE,
   GUIDANCE_SHEETS,
   isDeferredField,
@@ -32,6 +33,7 @@ import {
   type XlsxPackage,
 } from "@/lib/workbook/ooxml";
 import { parseFoodicsMenu, type FoodicsMenuParseResult } from "@/lib/workbook/foodics-menu/reader";
+import { reviewProductModifierAssignmentRow } from "@/lib/workbook/product-modifier-assignment-capabilities";
 import { detectUploadContainer, detectXlsxProfile } from "@/lib/workbook/profiles";
 
 /* Stateless parse of an uploaded workbook (QOS-193). It reads the bytes,
@@ -46,6 +48,7 @@ export type WorkbookIssueCode =
   | "cell_error"
   | "identifier_number"
   | "deferred_field"
+  | "ambiguous_selection_count_mode"
   | "deferred_sheet"
   | "opening_stock_draft"
   | "rejected_sheet"
@@ -255,6 +258,7 @@ function readContractTable(
   pkg: XlsxPackage,
   definition: WorkbookSheetDefinition,
   budget: TextBudget,
+  templateVersion: string,
 ): WorkbookSheetResult {
   const result = emptySheetResult(definition);
   const issue = (entry: Omit<WorkbookIssue, "sheet">) => result.issues.push({ sheet: definition.name, ...entry });
@@ -307,7 +311,10 @@ function readContractTable(
   }
 
   const columnIndex = new Map(headers.map((header, index) => [header, table.range.startColumn + index]));
-  const missing = definition.columns.filter((column) => !columnIndex.has(column.key));
+  // A v1.0 file is not expected to carry columns added in v1.1.
+  const missing = definition.columns.filter(
+    (column) => columnExpectedInVersion(column, templateVersion) && !columnIndex.has(column.key),
+  );
   const missingRequired = missing.filter((column) => column.required);
   if (missingRequired.length > 0) {
     issue({
@@ -381,6 +388,19 @@ function readContractTable(
 
     if (filled) {
       result.rows.push({ row: rowNumber, values });
+      if (definition.name === "Product Modifiers") {
+        // Row-scoped review: only this assignment is held, never the sheet.
+        for (const review of reviewProductModifierAssignmentRow(values)) {
+          const columnNumber = columnIndex.get(review.column)!;
+          issue({
+            severity: "error",
+            code: review.code,
+            row: rowNumber,
+            column: review.column,
+            params: { cell: `${columnLetters(columnNumber)}${rowNumber}`, ...review.params },
+          });
+        }
+      }
     }
   }
 
@@ -431,7 +451,10 @@ function parseExtended(
 ): ExtendedWorkbookParseResult {
   const manifestResult = readWorkbookManifest(pkg, options);
   const budget: TextBudget = { used: 0 };
-  const sheets = WORKBOOK_CONTRACT.sheets.map((definition) => readContractTable(pkg, definition, budget));
+  const templateVersion = manifestResult.manifest.template_version;
+  const sheets = WORKBOOK_CONTRACT.sheets.map((definition) =>
+    readContractTable(pkg, definition, budget, templateVersion),
+  );
   const issues: WorkbookIssue[] = [...manifestResult.issues];
 
   // Dictionary extras (the Source Map of a converted workbook) are known but never read as business rows.
