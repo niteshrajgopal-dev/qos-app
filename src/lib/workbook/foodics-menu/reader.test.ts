@@ -115,6 +115,10 @@ describe("filled sanitized fixture", () => {
     });
     expect(rows(result, "Branch Prices")).toEqual([]);
     expect(result.summary).toMatchObject({ errors: 0, recognizedRows: 16, deferredRows: 18 });
+    // Tax columns (3 + 3), free options (2), channel prices (13), product cost (1), selling method (2),
+    // status (3), preparation time (1), option cost (2) and calories (2), assignment required (2);
+    // not the exact-text copies of imported prices and costs.
+    expect(result.summary.deferredValues).toBe(34);
 
     const keys = Object.fromEntries(
       result.sheets

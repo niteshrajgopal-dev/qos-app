@@ -435,6 +435,8 @@ const QUANTITY_KINDS: Record<string, string> = {
   batch: "BATCH",
 };
 
+const PROVENANCE_COPIES = new Set(["price", "tax", "option_price", "ingredient_cost"]);
+
 type Money = { minorDigits: number | null; currency: string | null };
 
 /* ------------------------------------------------------------------ */
@@ -1360,8 +1362,17 @@ export function parseFoodicsMenu(
   }
   summary.recognizedRows = summary.supported.rows;
   summary.deferredRows = summary.deferred.rows;
+  // Values QOS cannot import yet: deferred columns on supported sheets and
+  // Source Map values with no QOS column. Exact-text copies kept beside an
+  // imported integer (price, option price, ingredient cost) and the tax text
+  // behind the already counted tax columns are provenance, not extra values.
   summary.deferredValues = capabilities
-    .filter((entry) => entry.class === "deferred" && sheetSupport(entry.sheet) !== "deferred")
+    .filter(
+      (entry) =>
+        entry.class === "deferred" &&
+        sheetSupport(entry.sheet) !== "deferred" &&
+        !(entry.sheet === SOURCE_MAP_SHEET && PROVENANCE_COPIES.has(entry.column)),
+    )
     .reduce((total, entry) => total + entry.rows, 0);
   for (const entry of [...issues.list, ...sheets.flatMap((sheet) => sheet.issues)]) {
     if (entry.severity === "error") summary.errors += 1;
