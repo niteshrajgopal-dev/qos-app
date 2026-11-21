@@ -17,7 +17,12 @@ import {
   optionalNumberText,
   parseOptionalWholeNumber,
 } from "@/app/tenants/[tenantId]/catalogue/products/selling-attributes-form";
+import { ReferenceCostEditor } from "@/app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
+import type {
+  CostPolicyOperationInput,
+  SellableReferenceCostView,
+} from "@/lib/catalogue/reference-cost-policies";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { staffCount, staffUiCopy } from "@/lib/staff/locale";
 
@@ -38,6 +43,7 @@ type OptionRow = {
   nutritionCalories: number | null;
   /** Local text for the calories input; blank stays unknown. */
   nutritionCaloriesInput?: string;
+  referenceCost: SellableReferenceCostView;
   translations: {
     en: { displayName: string };
     ar: { displayName: string };
@@ -264,6 +270,51 @@ export function ModifierGroupEditor({
         saveError instanceof Error
           ? saveError.message
           : "Unable to save modifier option.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Explicit QOS-215 cost-policy operation; other option fields are not sent. */
+  async function applyOptionCostPolicy(
+    option: OptionRow,
+    costPolicy: CostPolicyOperationInput,
+  ) {
+    if (!group) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/modifier-groups/${groupPublicId}/options/${option.publicId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            expectedGroupVersion: group.version,
+            costPolicy,
+          }),
+        },
+      );
+      const payload = (await response.json()) as {
+        group?: GroupState;
+        error?: string;
+      };
+
+      if (!response.ok || !payload.group) {
+        throw new Error(payload.error ?? staffUiCopy(locale, "workbookErrorGeneric"));
+      }
+
+      setGroup(payload.group);
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : staffUiCopy(locale, "workbookErrorGeneric"),
       );
     } finally {
       setBusy(false);
@@ -605,6 +656,24 @@ export function ModifierGroupEditor({
                 </label>
               ) : null}
             </div>
+            <section
+              className="mt-4 qosp-stack"
+              aria-label={staffUiCopy(locale, "sellableCostPolicyLabel")}
+            >
+              <h3 className="qosp-subcard-title">
+                {staffUiCopy(locale, "sellableCostPolicyLabel")}
+              </h3>
+              <ReferenceCostEditor
+                key={`cost:${option.referenceCost.policy?.publicId ?? "none"}`}
+                locale={locale}
+                referenceCost={option.referenceCost}
+                disabled={busy || option.status === "archived"}
+                note={staffUiCopy(locale, "sellableOptionCostHelp")}
+                onApply={(costPolicy) =>
+                  void applyOptionCostPolicy(option, costPolicy)
+                }
+              />
+            </section>
             {option.status === "active" ? (
               <div className="mt-4 flex flex-wrap gap-2">
                 <button

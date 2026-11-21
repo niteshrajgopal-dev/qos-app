@@ -26,9 +26,15 @@ import {
   optionalNumberText,
   parseOptionalPositiveNumber,
 } from "@/app/tenants/[tenantId]/catalogue/products/selling-attributes-form";
+import {
+  ReferenceCostEditor,
+  ReferenceMarginLine,
+  SellingTaxEditor,
+} from "@/app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import type { PriceUnit, SellingQuantityBasis } from "@/lib/catalogue/selling-attributes";
 import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
+import type { DraftProductVariantView } from "@/lib/catalogue/variants";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { staffUiCopy } from "@/lib/staff/locale";
 
@@ -49,6 +55,11 @@ type VariantRow = {
   priceUnitQuantity: number | null;
   /** Local text for the quantity input; blank stays undeclared. */
   priceUnitQuantityInput?: string;
+  priceTaxBasis: DraftProductVariantView["priceTaxBasis"];
+  taxRateBasisPoints: DraftProductVariantView["taxRateBasisPoints"];
+  taxProvenance: DraftProductVariantView["taxProvenance"];
+  referenceCost: DraftProductVariantView["referenceCost"];
+  referenceMargin: DraftProductVariantView["referenceMargin"];
   translations: {
     en: VariantTranslation;
     ar: VariantTranslation;
@@ -491,6 +502,40 @@ export function ProductVariantsPanel({
                 updateVariant(variant.publicId, (entry) => ({ ...entry, ...patch }))
               }
             />
+
+            <section className="qosp-stack" aria-label={copy("sellableTaxCostTitle")}>
+              <h4 className="qosp-subcard-title">{copy("sellableTaxCostTitle")}</h4>
+              <p className="qosp-meta-line">
+                {copy("sellableTaxCostHelp")}
+                {view?.canEditPrice ? null : ` ${copy("sellableTaxCostAdminNotice")}`}
+              </p>
+              <SellingTaxEditor
+                key={`tax:${variant.priceTaxBasis}:${variant.taxRateBasisPoints}`}
+                locale={locale}
+                value={variant}
+                disabled={productVariantPriceDisabled(
+                  productReadOnly,
+                  archived,
+                  busy,
+                  view?.canEditPrice ?? false,
+                )}
+                onSave={(patch) => void saveVariant(variant.publicId, patch)}
+              />
+              <h4 className="qosp-subcard-title">{copy("sellableCostPolicyLabel")}</h4>
+              <ReferenceCostEditor
+                key={`cost:${variant.referenceCost.policy?.publicId ?? "none"}`}
+                locale={locale}
+                referenceCost={variant.referenceCost}
+                disabled={productVariantPriceDisabled(
+                  productReadOnly,
+                  archived,
+                  busy,
+                  view?.canEditPrice ?? false,
+                )}
+                onApply={(costPolicy) => void saveVariant(variant.publicId, { costPolicy })}
+              />
+              <ReferenceMarginLine locale={locale} margin={variant.referenceMargin} />
+            </section>
 
             {variant.status === "active" && !productReadOnly ? (
               <div className="qosp-button-row">

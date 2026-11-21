@@ -51,9 +51,16 @@ import {
   parseOptionalWholeNumber,
   triStateFromBoolean,
 } from "@/app/tenants/[tenantId]/catalogue/products/selling-attributes-form";
+import { SellableTaxCostSummary } from "@/app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
+import type { DraftProductEditorView } from "@/lib/catalogue/products";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { staffUiCopy } from "@/lib/staff/locale";
+
+type DefaultVariantTaxCost = Pick<
+  DraftProductEditorView["defaultVariant"],
+  "priceTaxBasis" | "taxRateBasisPoints" | "taxProvenance" | "referenceCost" | "referenceMargin"
+>;
 
 type TranslationFormState = {
   displayName: string;
@@ -172,6 +179,7 @@ export function ProductEditor({
   const [isAdministrator, setIsAdministrator] = useState(false);
   const [imageUploading, setImageUploading] = useState(false);
   const [imageStatus, setImageStatus] = useState<string | null>(null);
+  const [defaultTaxCost, setDefaultTaxCost] = useState<DefaultVariantTaxCost | null>(null);
   const [thumbnailPublicId, setThumbnailPublicId] = useState<string | null>(
     null,
   );
@@ -241,7 +249,7 @@ export function ProductEditor({
       status: "draft" | "active" | "archived";
       thumbnailPublicId?: string | null;
       primaryMediaSource?: "ai_generated" | "operator_entered" | "imported" | null;
-      defaultVariant: { amountMinor: number };
+      defaultVariant: { amountMinor: number } & Partial<DefaultVariantTaxCost>;
       translations: {
         en: TranslationFormState & { approvalStatus?: string };
         ar: TranslationFormState & { approvalStatus?: string };
@@ -285,6 +293,18 @@ export function ProductEditor({
       setHasLoadedProduct(true);
       setProductStatus(product.status);
       setIsAdministrator(product.canEditPrice);
+      const { referenceCost, referenceMargin } = product.defaultVariant;
+      setDefaultTaxCost(
+        referenceCost && referenceMargin
+          ? {
+              priceTaxBasis: product.defaultVariant.priceTaxBasis ?? null,
+              taxRateBasisPoints: product.defaultVariant.taxRateBasisPoints ?? null,
+              taxProvenance: product.defaultVariant.taxProvenance ?? null,
+              referenceCost,
+              referenceMargin,
+            }
+          : null,
+      );
       setThumbnailPublicId(product.thumbnailPublicId ?? null);
       setPrimaryMediaSource(product.primaryMediaSource ?? null);
       void loadApprovedVideoUrls();
@@ -1254,6 +1274,14 @@ export function ProductEditor({
               </PortalField>
             ) : null}
           </div>
+          {isEditMode && defaultTaxCost ? (
+            <SellableTaxCostSummary
+              locale={locale}
+              tax={defaultTaxCost}
+              referenceCost={defaultTaxCost.referenceCost}
+              referenceMargin={defaultTaxCost.referenceMargin}
+            />
+          ) : null}
         </ProductEditorSection>
 
         <ProductEditorSection
