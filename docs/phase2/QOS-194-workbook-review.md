@@ -96,7 +96,7 @@ Deferred columns on supported sheets (`price_tax_basis`, `tax_rate_basis_points`
 | `POST …/workbook/plans/{planPublicId}/review` | JSON `{ expectedPlanHash, decisions }`. |
 | `GET …/workbook/plans/{planPublicId}/correction-report?locale=en|ar` | XLSX: Corrections (one row per error or warning), Summary, Context. |
 
-Auth as parse/convert/export: 401 without a session; 404 for another, unknown or malformed tenant and for another tenant's plan; 403 `tenant_inactive` and for branches outside the scope. Any active member may preview and view.
+Auth as parse/convert/export: 401 without a session; 404 for another, unknown or malformed tenant and for another tenant's plan; 403 `tenant_inactive` and for branches outside the scope. Any active member may preview; viewing a plan or its report needs read access to every branch of the plan's scope (otherwise 403, as the export would refuse those branches). An idempotency key replays only its creator's review of the same file.
 
 ## Decisions
 

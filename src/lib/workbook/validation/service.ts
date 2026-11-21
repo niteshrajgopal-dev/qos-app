@@ -3,7 +3,8 @@ import { createHash } from "node:crypto";
 import { z } from "zod";
 
 import type { DbClient } from "@/db/client";
-import type { ActiveStaffMembership } from "@/lib/staff/auth";
+import { type ActiveStaffMembership, StaffAuthorizationError } from "@/lib/staff/auth";
+import { loadBranchContext } from "@/lib/staff/branch-context";
 import { withTenantContext } from "@/lib/tenant/context";
 import { loadWorkbookTenantIdentity, resolveWorkbookBrand, WorkbookExportError } from "@/lib/workbook/export";
 import { assertConvertible } from "@/lib/workbook/foodics-menu/convert";
@@ -81,13 +82,14 @@ export type PreviewUpload = {
   decisions: PlanDecision[];
 };
 
-async function replayOrRefuse(db: DbClient, tenantId: string, idempotencyKey: string, fingerprint: string) {
+async function replayOrRefuse(db: DbClient, tenantId: string, subject: string, idempotencyKey: string, fingerprint: string) {
   const existing = await withTenantContext(db, tenantId, async (tx) => {
     const plan = await findPlanByIdempotencyKey(tx, tenantId, idempotencyKey);
     return plan ? loadPlan(tx, tenantId, plan.publicId) : null;
   });
   if (!existing) return null;
-  if (existing.plan.fileFingerprint !== fingerprint) {
+  // A key replays only the same person's review of the same file.
+  if (existing.plan.fileFingerprint !== fingerprint || existing.plan.createdBySubject !== subject) {
     throw new WorkbookReviewError("idempotency_key_reused", "This idempotency key was used for a different file.", 409);
   }
   return resultFromPlan(existing.plan, existing.rows, { replayed: true });
@@ -108,7 +110,7 @@ export async function previewWorkbook(
   idempotencyKey: string,
 ): Promise<WorkbookReviewResult> {
   const fingerprint = createHash("sha256").update(upload.bytes).digest("hex");
-  const replay = await replayOrRefuse(db, tenantId, idempotencyKey, fingerprint);
+  const replay = await replayOrRefuse(db, tenantId, subject, idempotencyKey, fingerprint);
   if (replay) return replay;
 
   const tenant = await loadWorkbookTenantIdentity(db, tenantId);
@@ -161,10 +163,23 @@ export async function previewWorkbook(
     });
   } catch (error) {
     if (isUniqueViolation(error)) {
-      const raced = await replayOrRefuse(db, tenantId, idempotencyKey, fingerprint);
+      const raced = await replayOrRefuse(db, tenantId, subject, idempotencyKey, fingerprint);
       if (raced) return raced;
     }
     throw error;
+  }
+}
+
+/**
+ * A plan holds branch rows of its branch scope. Someone who may not read
+ * every branch of that scope gets 403, the same rule the export applies.
+ */
+async function assertPlanScopeReadable(db: DbClient, tenantId: string, membership: ActiveStaffMembership, scope: "all" | string[]) {
+  const context = await loadBranchContext(db, tenantId, membership);
+  const permitted = new Set(context.branches.map((branch) => branch.publicId));
+  const readable = scope === "all" ? membership.role === "administrator" : scope.every((publicId) => permitted.has(publicId));
+  if (!readable) {
+    throw new StaffAuthorizationError("This review covers branches outside your branch scope.");
   }
 }
 
@@ -180,6 +195,7 @@ export async function getWorkbookPlan(
   planPublicId: string,
 ): Promise<WorkbookReviewResult> {
   const { plan, rows } = await withTenantContext(db, tenantId, (tx) => loadPlan(tx, tenantId, planPublicId));
+  await assertPlanScopeReadable(db, tenantId, membership, plan.branchScope);
   const source = await loadSnapshotSource(db, tenantId, membership, {
     brand: plan.context.context.brandPublicId,
     sourceNamespace: plan.sourceNamespace,
@@ -208,7 +224,8 @@ export function parseReReviewBody(raw: unknown): ReReviewRequest {
 /**
  * Re-runs the review of a stored plan with new decisions against the current
  * records. Only the plan's creator or an administrator may do this, and only
- * from the plan hash they last saw.
+ * from the plan hash they last saw. A plan is re-checked in its own branch
+ * scope when the caller can see it, otherwise in the caller's scope.
  */
 export async function reReviewWorkbookPlan(
   db: DbClient,
@@ -240,8 +257,9 @@ export async function reReviewWorkbookPlan(
   });
 }
 
-/** A stored plan for its correction report. Read only. */
-export async function loadWorkbookPlanForReport(db: DbClient, tenantId: string, planPublicId: string) {
+/** A stored plan for its correction report. Read only; same scope rule as viewing the plan. */
+export async function loadWorkbookPlanForReport(db: DbClient, tenantId: string, membership: ActiveStaffMembership, planPublicId: string) {
   const { plan, rows } = await withTenantContext(db, tenantId, (tx) => loadPlan(tx, tenantId, planPublicId));
+  await assertPlanScopeReadable(db, tenantId, membership, plan.branchScope);
   return resultFromPlan(plan, rows);
 }

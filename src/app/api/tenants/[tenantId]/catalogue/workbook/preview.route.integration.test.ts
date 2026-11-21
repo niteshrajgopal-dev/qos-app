@@ -521,6 +521,22 @@ integrationDescribe("catalogue workbook review routes (DB)", () => {
     expect(revised).toMatchObject({ stale: false, plan: { revision: 2, status: "review_ready" } });
     expect(revised.plan.planHash).not.toBe(created.plan.planHash);
     expect(revised.context.branchScope).toEqual(["loc_quotes_hbz"]);
+
+    // Another person's key never replays their plan.
+    const otherKey = await previewAs(ADMIN, tenantId, bytes, { key: "same-key" });
+    expect(otherKey.status).toBe(409);
+  });
+
+  it("refuses a scoped user a plan covering branches outside their scope (403), as the export does", async () => {
+    const { tenantId } = await seed();
+    const adminPlan = await ok(await previewAs(ADMIN, tenantId, await foodicsMenu()));
+    expect(adminPlan.context.branchScope).toBe("all");
+    const view = await planAs(USER_HBZ, tenantId, adminPlan.plan.publicId);
+    expect(view.status).toBe(403);
+    expect((await reportAs(USER_HBZ, tenantId, adminPlan.plan.publicId)).status).toBe(403);
+    const userPlan = await ok(await previewAs(USER_HBZ, tenantId, await foodicsMenu()));
+    expect((await planAs(ADMIN, tenantId, userPlan.plan.publicId)).status).toBe(200);
+    expect((await planAs(USER_HBZ, tenantId, userPlan.plan.publicId)).status).toBe(200);
   });
 
   it("downloads the correction report in English and Arabic with one row per error or warning", async () => {
