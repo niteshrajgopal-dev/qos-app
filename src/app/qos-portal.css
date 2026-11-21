@@ -1582,6 +1582,29 @@
   flex: none;
   margin-top: 3px;
 }
+/* With the branch picker beside it, the business name and its chevron stay on
+   one line (preflight makes the chevron SVG a block, which stacked it under
+   the name), and the longer More menu scrolls inside the window. */
+.qosp-workspace-picker > span:last-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+.qosp-nav .qos-menu {
+  max-height: calc(100svh - 130px);
+  overflow-y: auto;
+}
+/* Menu rows follow the document direction (the base rule says left). */
+.qosp-topbar .qos-menu-item {
+  text-align: start;
+}
+/* Portal rule: sentence case, never all caps (group headings included). */
+.qosp-topbar .qos-menu .qos-cmd-group {
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 12px;
+}
 .qosp-guard-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1610,4 +1633,14 @@
     max-width: none;
   }
   .qosp-branch-notice { top: 121px; inset-inline: 12px; }
+  /* The nav row scrolls sideways here, which clipped the More menu. Anchor it
+     to the top bar instead (the bar's backdrop filter is its containing block). */
+  .qosp-nav .qos-menu {
+    position: fixed;
+    top: 100% !important;
+    inset-inline: 12px !important;
+    translate: none !important;
+    min-width: 0;
+    max-height: calc(100svh - 124px);
+  }
 }

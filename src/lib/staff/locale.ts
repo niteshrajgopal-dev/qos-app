@@ -290,7 +290,8 @@ export const STAFF_UI_COPY = {
     productEditorLocationPrices: "Location prices",
     productEditorVideoProcessingTimeout:
       "Processing took too long. Check back later.",
-    // QOS-192 Phase 2 navigation and branch context
+    // QOS-192 Phase 2 navigation and branch context. Leaf ids in the empty
+    // states use a non-breaking hyphen (U+2011) so "QOS‑201" never wraps.
     recipes: "Recipes",
     inventory: "Inventory",
     ingredientsAndStock: "Ingredients and stock",
@@ -299,7 +300,7 @@ export const STAFF_UI_COPY = {
     reports: "Reports",
     finance: "Finance",
     branches: "Branches",
-    branch: "Branch",
+    branchSettings: "Branch settings",
     allBranches: "All branches",
     allBranchesHint: "Read-only view across your branches",
     switchBranch: "Switch branch",
@@ -327,20 +328,20 @@ export const STAFF_UI_COPY = {
     inventoryDescription:
       "Ingredients, units, suppliers and stock levels for each branch.",
     inventoryEmptyBody:
-      "Ingredient master data arrives with QOS-195 to QOS-197, and the stock ledger with QOS-201. Nothing is recorded here yet.",
+      "Ingredient master data arrives with QOS‑195 to QOS‑197, and the stock ledger with QOS‑201. Nothing is recorded here yet.",
     kitchenDescription: "Prep targets and counts for the selected branch.",
     kitchenEmptyBody:
-      "Kitchen prep arrives with QOS-207 and QOS-208. No prep targets or counts exist yet.",
+      "Kitchen prep arrives with QOS‑207 and QOS‑208. No prep targets or counts exist yet.",
     salesDescription: "Daily sales closings entered per branch and business date.",
     salesEmptyBody:
-      "Sales input arrives with QOS-205 and QOS-206. No sales closings have been recorded.",
+      "Sales input arrives with QOS‑205 and QOS‑206. No sales closings have been recorded.",
     reportsDescription: "Stock, consumption and sales reports from accepted records.",
     reportsEmptyBody:
-      "Reports arrive with QOS-209 and QOS-210. There is no report data yet.",
+      "Reports arrive with QOS‑209 and QOS‑210. There is no report data yet.",
     recipesDescription:
       "Recipe versions, ingredient lines and costing for catalogue products.",
     recipesEmptyBody:
-      "Recipes arrive with QOS-198 and QOS-199. No recipes exist yet.",
+      "Recipes arrive with QOS‑198 and QOS‑199. No recipes exist yet.",
     branchesSettingsDescription:
       "The locations your membership covers, and the business branch names awaiting confirmation.",
     requestedBranchesTitle: "Requested business branches",
@@ -627,7 +628,7 @@ export const STAFF_UI_COPY = {
     reports: "التقارير",
     finance: "المالية",
     branches: "الفروع",
-    branch: "الفرع",
+    branchSettings: "إعدادات الفروع",
     allBranches: "جميع الفروع",
     allBranchesHint: "عرض للاطلاع فقط على جميع فروعك",
     switchBranch: "تبديل الفرع",
@@ -655,20 +656,20 @@ export const STAFF_UI_COPY = {
     inventoryDescription:
       "المكونات والوحدات والموردون ومستويات المخزون لكل فرع.",
     inventoryEmptyBody:
-      "تصل البيانات الأساسية للمكونات مع المهام من QOS-195 إلى QOS-197، ويصل سجل المخزون مع المهمة QOS-201. لم يُسجَّل أي شيء هنا بعد.",
+      "تصل البيانات الأساسية للمكونات مع المهام من QOS‑195 إلى QOS‑197، ويصل سجل المخزون مع المهمة QOS‑201. لم يُسجَّل أي شيء هنا بعد.",
     kitchenDescription: "أهداف التحضير وعمليات العدّ للفرع المحدد.",
     kitchenEmptyBody:
-      "يصل تحضير المطبخ مع المهمتين QOS-207 وQOS-208. لا توجد أهداف تحضير أو عمليات عدّ بعد.",
+      "يصل تحضير المطبخ مع المهمتين QOS‑207 وQOS‑208. لا توجد أهداف تحضير أو عمليات عدّ بعد.",
     salesDescription: "إقفالات المبيعات اليومية المُدخلة لكل فرع ويوم عمل.",
     salesEmptyBody:
-      "يصل إدخال المبيعات مع المهمتين QOS-205 وQOS-206. لم تُسجَّل أي إقفالات مبيعات بعد.",
+      "يصل إدخال المبيعات مع المهمتين QOS‑205 وQOS‑206. لم تُسجَّل أي إقفالات مبيعات بعد.",
     reportsDescription: "تقارير المخزون والاستهلاك والمبيعات من السجلات المعتمدة.",
     reportsEmptyBody:
-      "تصل التقارير مع المهمتين QOS-209 وQOS-210. لا توجد بيانات تقارير بعد.",
+      "تصل التقارير مع المهمتين QOS‑209 وQOS‑210. لا توجد بيانات تقارير بعد.",
     recipesDescription:
       "إصدارات الوصفات وأسطر المكونات والتكاليف لمنتجات الكتالوج.",
     recipesEmptyBody:
-      "تصل الوصفات مع المهمتين QOS-198 وQOS-199. لا توجد وصفات بعد.",
+      "تصل الوصفات مع المهمتين QOS‑198 وQOS‑199. لا توجد وصفات بعد.",
     branchesSettingsDescription:
       "المواقع التي تشملها عضويتك، وأسماء فروع النشاط التجاري التي تنتظر التأكيد.",
     requestedBranchesTitle: "فروع النشاط التجاري المطلوبة",
@@ -743,6 +744,7 @@ const NAV_LABEL_KEYS: Record<string, StaffUiCopyKey> = {
   Reports: "reports",
   Finance: "finance",
   Branches: "branches",
+  "Branch settings": "branchSettings",
 };
 
 export function staffNavLabel(locale: StaffLocale, id: string, fallback: string) {

@@ -276,6 +276,15 @@ describe("Phase 2 destinations (QOS-192)", () => {
     }
   });
 
+  it("never shows two More destinations with the same label in either locale", () => {
+    for (const locale of ["en", "ar"] as const) {
+      const labels = STAFF_MORE_NAV_GROUPS.flatMap((group) =>
+        group.items.map((item) => staffNavLabel(locale, item.id, item.label)),
+      );
+      expect(new Set(labels).size, locale).toBe(labels.length);
+    }
+  });
+
   it("has English and Arabic labels for every new nav label and group", () => {
     const labels = [
       ...STAFF_MORE_NAV_GROUPS.flatMap((group) => [

@@ -102,7 +102,7 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
         availability: "ready",
         children: [
           { id: "settings", label: "Settings", availability: "ready" },
-          { id: "branches", label: "Branches", availability: "ready" },
+          { id: "branches", label: "Branch settings", availability: "ready" },
         ],
       },
     ],
@@ -165,7 +165,7 @@ export const STAFF_MORE_NAV_GROUPS: StaffNavGroup[] = [
       { id: "audit", label: "Audit", availability: "ready" },
       { id: "ai-agents", label: "AI & Agents", availability: "ready" },
       { id: "settings", label: "Settings", availability: "ready" },
-      { id: "branches", label: "Branches", availability: "ready" },
+      { id: "branches", label: "Branch settings", availability: "ready" },
     ],
   },
 ];
