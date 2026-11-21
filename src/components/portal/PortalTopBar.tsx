@@ -136,7 +136,7 @@ export function PortalTopBar({
       </Link>
 
       <nav className="qosp-nav" aria-label="Primary">
-        <ActiveLinkInView className="qosp-nav-links" activeKey={activeId}>
+        <ActiveLinkInView className="qosp-nav-links" activeKey={`${activeId}:${locale}`}>
           {STAFF_TOP_NAV.map((item) => {
             const href = staffNavHref(tenantId, item.id);
             if (!href) {
@@ -332,7 +332,9 @@ export function PortalTopBar({
   );
 }
 
-/* Keeps the active destination in view when the links scroll sideways. */
+/* Keeps the active destination in view when the links scroll sideways. Keyed
+   on the locale too, and measured a frame later because the locale provider
+   sets the document direction in its own (parent, so later) effect. */
 function ActiveLinkInView({
   className,
   activeKey,
@@ -345,18 +347,23 @@ function ActiveLinkInView({
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const list = ref.current;
-    const active = list?.querySelector<HTMLElement>('[data-active="true"]');
-    if (!list || !active || list.scrollWidth <= list.clientWidth) {
-      return;
-    }
-    const listBox = list.getBoundingClientRect();
-    const box = active.getBoundingClientRect();
-    if (box.left < listBox.left) {
-      list.scrollLeft -= listBox.left - box.left;
-    } else if (box.right > listBox.right) {
-      list.scrollLeft += box.right - listBox.right;
-    }
+    const frame = requestAnimationFrame(() => {
+      const list = ref.current;
+      const active = list?.querySelector<HTMLElement>('[data-active="true"]');
+      if (!list || !active || list.scrollWidth <= list.clientWidth) {
+        return;
+      }
+      /* Clear of the edge fade, which is as wide as the end padding. */
+      const fade = parseFloat(getComputedStyle(list).paddingInlineEnd) || 0;
+      const listBox = list.getBoundingClientRect();
+      const box = active.getBoundingClientRect();
+      if (box.left < listBox.left + fade) {
+        list.scrollLeft -= listBox.left + fade - box.left;
+      } else if (box.right > listBox.right - fade) {
+        list.scrollLeft += box.right - (listBox.right - fade);
+      }
+    });
+    return () => cancelAnimationFrame(frame);
   }, [activeKey]);
 
   return (
