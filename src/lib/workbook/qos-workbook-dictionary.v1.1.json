@@ -119,7 +119,7 @@
       "class": "deferred",
       "owner": "QOS-212–215 per QOS-216",
       "note": "Exact source text kept beside the integer columns, and source values with no QOS column.",
-      "columns": ["price", "tax", "product_cost", "selling_method", "source_status", "preparation_time", "image", "option_price", "option_cost", "option_calories", "ingredient_cost", "assignment_required"]
+      "columns": ["price", "tax", "product_cost", "selling_method", "source_status", "preparation_time", "image", "option_price", "option_cost", "option_calories", "ingredient_cost", "assignment_required", "type_of_tax", "is_stock_product", "walking_time", "high_salt", "allow_repeat"]
     },
     {
       "sheet": "Source Map",

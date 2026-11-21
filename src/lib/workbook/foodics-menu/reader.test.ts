@@ -333,6 +333,24 @@ describe("source-cell errors", () => {
     expect(rows(result, "Variants")[2]!.source?.preserved?.tax).toEqual({ value: "Standard VAT", cell: "Products!P13" });
   });
 
+  it("reads a bare tax fraction 0.05 as 5% and Inclusive/Exclusive as price_tax_basis", async () => {
+    const result = await parse({
+      filled: true,
+      edit: (workbook) => {
+        const products = sheetOf(workbook, FIXTURE_SHEETS.products);
+        products.getCell("V6").value = "Type of tax";
+        products.getCell("P11").value = "0.05";
+        products.getCell("V11").value = "Inclusive";
+        products.getCell("V12").value = "Exclusive";
+      },
+    });
+    expect(values(result, "Variants").map((row) => [row.tax_rate_basis_points, row.price_tax_basis])).toEqual([
+      ["500", "INCLUSIVE"],
+      ["500", "EXCLUSIVE"],
+      ["500", "UNCONFIRMED"],
+    ]);
+  });
+
   it("leaves conflicting group limits blank and flags every conflicting cell", async () => {
     const result = await parse({
       filled: true,

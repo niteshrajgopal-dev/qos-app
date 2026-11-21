@@ -87,6 +87,10 @@ describe("percent to basis points", () => {
     ["0.5%", "50"],
     ["12.25%", "1225"],
     ["٥٪", "500"],
+    ["0.05", "500"],
+    ["0.16", "1600"],
+    ["1", "10000"],
+    ["0", "0"],
   ])("%s is %s basis points", (text, expected) => {
     const result = toBasisPoints(text);
     expect(result.ok && result.basisPoints).toBe(expected);

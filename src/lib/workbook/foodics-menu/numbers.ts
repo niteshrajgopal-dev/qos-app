@@ -91,14 +91,44 @@ export type BasisPointsResult =
   | { ok: true; basisPoints: string; digitsNormalized: boolean }
   | { ok: false; code: "percent_precision" | "tax_unresolved" | "negative_amount" };
 
-/** `5`, `5%`, `5.0 %` and `0.5%` become `500`, `500`, `500` and `50` basis points. */
+function isBareFractionAtMostOne(value: DecimalText) {
+  const integer = stripLeadingZeros(value.integer);
+  if (integer === "0") {
+    return /[1-9]/.test(value.fraction);
+  }
+  return integer === "1";
+}
+
+/** Shift a decimal two places right (0.05 → 5) using string arithmetic only. */
+function multiplyByOneHundred(value: DecimalText): DecimalText {
+  const digits = `${value.integer}${value.fraction}`;
+  const newPoint = value.integer.length + 2;
+  const padded = digits.padEnd(newPoint, "0");
+  return {
+    sign: value.sign,
+    integer: stripLeadingZeros(padded.slice(0, newPoint)),
+    fraction: padded.slice(newPoint),
+  };
+}
+
+/**
+ * `5`, `5%`, `5.0 %` and `0.5%` become `500`, `500`, `500` and `50` basis points.
+ * The original Foodics workbook writes tax% examples as 16%/7%/5% in the header
+ * but stores values as fractions (`0.05` for 5%). A bare value in (0, 1] with
+ * no `%` sign is therefore a fraction (0.05 → 500, 1 → 10000). Bare values
+ * greater than 1, and any value that already carries `%`, stay percentages.
+ */
 export function toBasisPoints(raw: string): BasisPointsResult {
-  const withoutPercent = raw.trim().replace(/\s*[%٪]$/, "");
+  const trimmed = raw.trim();
+  const hadPercent = /[%٪]\s*$/.test(trimmed);
+  const withoutPercent = trimmed.replace(/\s*[%٪]$/, "");
   const parsed = parseDecimalText(withoutPercent);
   if (!parsed.ok) {
     return { ok: false, code: "tax_unresolved" };
   }
-  const converted = toMinorUnits(parsed.value, 2);
+  const percent =
+    !hadPercent && isBareFractionAtMostOne(parsed.value) ? multiplyByOneHundred(parsed.value) : parsed.value;
+  const converted = toMinorUnits(percent, 2);
   if (!converted.ok) {
     return { ok: false, code: converted.code === "price_precision" ? "percent_precision" : "negative_amount" };
   }

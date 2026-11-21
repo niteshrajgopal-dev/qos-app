@@ -16,6 +16,7 @@ import {
   classifyIgnoredSheetName,
   matchRegionHeaders,
   normalizeHeader,
+  primaryHeaderLabel,
   regionSpec,
 } from "@/lib/workbook/foodics-menu/layout";
 import type { FoodicsMenuParseResult } from "@/lib/workbook/foodics-menu/reader";
@@ -207,5 +208,56 @@ describe("header dictionary", () => {
     expect(classifyIgnoredSheetName("Users")).toBe(true);
     expect(classifyIgnoredSheetName(" staff ")).toBe(true);
     expect(classifyIgnoredSheetName("Products")).toBe(false);
+    expect(classifyIgnoredSheetName("7- Users")).toBe(true);
+    expect(classifyIgnoredSheetHeader("PIN for Cashier App (must be 5 numbers)")).toBe(true);
+  });
+
+  it("reads cached formula header text and the original Foodics labels", () => {
+    expect(normalizeHeader("Category name in main languge")).toBe("category name in main language");
+    expect(normalizeHeader("Product Preperation Time")).toBe("product preparation time");
+    expect(primaryHeaderLabel("tax%\n\nexample: 16%, 7%, 5%")).toBe("tax%");
+    expect(channelLabelOf("product price")).toBeNull();
+    expect(channelLabelOf("modifier option price")).toBeNull();
+    expect(channelLabelOf("product price of aggregator 1")).toBe("aggregator 1");
+    expect(channelLabelOf("option price of aggregator 3")).toBe("aggregator 3");
+
+    const cells = new Map<string, { kind: "string"; text: string; formula: boolean }>();
+    cells.set("4:6", {
+      kind: "string",
+      text: "Category name in main languge",
+      formula: true,
+    });
+    cells.set("4:7", {
+      kind: "string",
+      text: "Category name in localized language",
+      formula: true,
+    });
+    const sheet: PackageSheet = { name: "1-Categories", state: "visible", tables: [], cells };
+    const matched = matchRegionHeaders(sheet, regionSpec("categories"), 4, 6);
+    expect(matched.matches).toBe(true);
+    expect(matched.columns.map((column) => column.role)).toEqual(["name_en", "name_ar"]);
+  });
+
+  it("keeps a second-line localized-language qualifier when the first lines are the same", () => {
+    const cells = new Map<string, { kind: "string"; text: string; formula: boolean }>();
+    cells.set("7:4", { kind: "string", text: "Inventory item name \r\n In main languge", formula: true });
+    cells.set("7:5", { kind: "string", text: "Inventory item name \r\n in localized language", formula: true });
+    cells.set("7:6", { kind: "string", text: "Storage Unit", formula: true });
+    cells.set("7:7", { kind: "string", text: "Ingredient Unit", formula: true });
+    cells.set("7:8", { kind: "string", text: "Storage to ingredient Factor", formula: true });
+    cells.set("7:9", { kind: "string", text: "Inventory material cost (purchase price from supplier)", formula: true });
+    cells.set("7:10", { kind: "string", text: "Inventory item category", formula: true });
+    const sheet: PackageSheet = { name: "3-Inventory Items & Product Rec", state: "visible", tables: [], cells };
+    const matched = matchRegionHeaders(sheet, regionSpec("ingredients"), 7, 4);
+    expect(matched.matches).toBe(true);
+    expect(matched.columns.map((column) => column.role)).toEqual([
+      "name_en",
+      "name_ar",
+      "storage_unit",
+      "recipe_unit",
+      "units_per_storage",
+      "cost",
+      "inventory_category",
+    ]);
   });
 });

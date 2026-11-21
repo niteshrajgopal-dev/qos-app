@@ -536,6 +536,14 @@ export function parseFoodicsMenu(
 
   const fieldsWithPrefix = (record: SourceRecord, prefix: string) =>
     Object.fromEntries([...record.values.keys()].filter((field) => field.startsWith(prefix)).map((field) => [field, field]));
+  // Inclusive/Exclusive from the original "type of tax" column. Still a deferred
+  // QOS field (price_tax_basis); this only fills the already-recognised values.
+  const taxBasisOf = (record: SourceRecord, tax: string) => {
+    const type = value(record, "tax_type").trim().toLowerCase();
+    if (type === "inclusive") return "INCLUSIVE";
+    if (type === "exclusive") return "EXCLUSIVE";
+    return tax ? "UNCONFIRMED" : "";
+  };
   const unmappedOf = (record: SourceRecord) => fieldsWithPrefix(record, "unmapped:");
   const channelsOf = (record: SourceRecord) => fieldsWithPrefix(record, "channel_price:");
 
@@ -660,8 +668,11 @@ export function parseFoodicsMenu(
           ...channelsOf(record),
           product_cost: "cost",
           selling_method: "selling_method",
+          is_stock_product: "is_stock_product",
           source_status: "is_active",
           preparation_time: "preparation_time",
+          walking_time: "walking_time",
+          high_salt: "high_salt",
           ...(imageIsUrl ? {} : { image: "image" }),
           ...unmappedOf(record),
         },
@@ -699,7 +710,7 @@ export function parseFoodicsMenu(
           amount_minor: minor(record, "price"),
           currency: money.currency ?? "",
           status: DRAFT,
-          price_tax_basis: tax ? "UNCONFIRMED" : "",
+          price_tax_basis: taxBasisOf(record, tax),
           tax_rate_basis_points: taxBasisPoints,
         },
         {
@@ -708,10 +719,10 @@ export function parseFoodicsMenu(
           sku: refOf(record, "sku"),
           barcode: refOf(record, "barcode"),
           amount_minor: refOf(record, "price"),
-          price_tax_basis: tax ? refOf(record, "tax") : undefined,
+          price_tax_basis: refOf(record, "tax_type") ?? (tax ? refOf(record, "tax") : undefined),
           tax_rate_basis_points: taxBasisPoints ? refOf(record, "tax") : undefined,
         },
-        { price: "price", tax: "tax" },
+        { price: "price", tax: "tax", type_of_tax: "tax_type" },
       ),
     );
 
@@ -936,7 +947,7 @@ export function parseFoodicsMenu(
           modifier_group_key: refOf(record, "group"),
           free_options_count: refOf(record, "free_options"),
         },
-        { assignment_required: "required", ...unmappedOf(record) },
+        { assignment_required: "required", allow_repeat: "allow_repeat", ...unmappedOf(record) },
       ),
     );
   }

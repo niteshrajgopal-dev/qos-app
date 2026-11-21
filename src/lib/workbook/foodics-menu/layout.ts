@@ -155,6 +155,9 @@ export function normalizeHeader(text: string) {
   return text
     .normalize("NFKC")
     .toLowerCase()
+    // Template typo observed on the original workbook (QOS-216).
+    .replaceAll("languge", "language")
+    .replaceAll("preperation", "preparation")
     .replace(/[_\-/]/g, " ")
     .replace(/[^\p{Script=Latin}\p{Script=Arabic}0-9%\s]/gu, " ")
     .replace(/[٠-٩۰-۹]/g, " ")
@@ -162,14 +165,63 @@ export function normalizeHeader(text: string) {
     .trim();
 }
 
-/** The whole header and, for bilingual labels like `Name (EN) / الاسم`, each part. */
-function headerVariants(text: string) {
-  const parts = text.split(/[/|]/).map(normalizeHeader).filter(Boolean);
-  const whole = normalizeHeader(text);
-  return [...new Set([whole, ...parts])];
+/**
+ * First meaningful line of a header, without parenthetical help or
+ * `example:` copy. The original Foodics headers are often two or three
+ * lines of guidance above a short title.
+ */
+export function primaryHeaderLabel(text: string) {
+  const firstLine = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean) ?? text.trim();
+  // Do not strip parentheses here: `Name (AR)` and `Price (AED)` must stay
+  // distinct from `Name` / `Price`. Help text on later lines is already dropped.
+  return firstLine.split(/\bexample\b/i)[0] ?? firstLine;
 }
 
-const NON_CHANNEL_PRICE = new Set(["price", "base price", "cost price"]);
+function variantsOf(text: string) {
+  const parts = text.split(/[/|]/).map(normalizeHeader).filter(Boolean);
+  return [...new Set([normalizeHeader(text), ...parts])];
+}
+
+/** The whole header and, for bilingual labels like `Name (EN) / الاسم`, each part. */
+function headerVariants(text: string) {
+  return [...new Set([...variantsOf(text), ...variantsOf(primaryHeaderLabel(text))])];
+}
+
+/**
+ * Prefer a match against the full header (so a second-line "in localized
+ * language" is not lost). Fall back to the first-line/primary label when the
+ * full text includes example or help copy that would miss the alias. The
+ * longest matching alias wins when two roles both fit.
+ */
+function matchHeaderRole(spec: RegionSpec, text: string) {
+  const pick = (variants: string[]) => {
+    let best: { role: string; length: number } | null = null;
+    for (const candidate of spec.roles) {
+      if (candidate.channelPrice) continue;
+      const hit = candidate.aliases.find((alias) => variants.includes(alias));
+      if (hit && (!best || hit.length > best.length)) {
+        best = { role: candidate.role, length: hit.length };
+      }
+    }
+    return best?.role ?? null;
+  };
+  return pick(variantsOf(text)) ?? pick(variantsOf(primaryHeaderLabel(text)));
+}
+
+const NON_CHANNEL_PRICE = new Set([
+  "price",
+  "base price",
+  "cost price",
+  "product price",
+  "modifier option price",
+  "option price",
+  "selling price",
+  "default price",
+  "price aed",
+]);
 
 /** `dine in price (AED)` → `dine in`; null when the header is not a channel price. */
 export function channelLabelOf(normalized: string) {
@@ -177,8 +229,12 @@ export function channelLabelOf(normalized: string) {
   if (!tokens.includes("price") || NON_CHANNEL_PRICE.has(normalized)) {
     return null;
   }
+  const aggregator = /\baggregator\s+(\d+)\b/.exec(normalized);
+  if (aggregator) {
+    return `aggregator ${aggregator[1]}`;
+  }
   const label = tokens
-    .filter((token) => token !== "price" && token !== "%" && minorDigitsFor(token) === null)
+    .filter((token) => token !== "price" && token !== "%" && token !== "of" && minorDigitsFor(token) === null)
     .join(" ")
     .trim();
   return label || null;
@@ -207,7 +263,9 @@ export function matchRegionHeaders(sheet: PackageSheet, spec: RegionSpec, header
   for (let offset = 0; offset < width; offset += 1) {
     const columnNumber = startColumn + offset;
     const cell = sheet.cells.get(cellKey(headerRow, columnNumber));
-    const header = cell && !cell.formula && cell.kind !== "error" ? cell.text.trim() : "";
+    // Cached display text is used for header labels only. Formulas are never
+    // evaluated; a formula cell with empty or error cache is still unpopulated.
+    const header = cell && cell.kind !== "error" ? cell.text.trim() : "";
     if (header) populated += 1;
     columns.push({ column: columnNumber, header, normalized: normalizeHeader(header), role: null });
   }
@@ -217,13 +275,7 @@ export function matchRegionHeaders(sheet: PackageSheet, spec: RegionSpec, header
   for (const entry of columns) {
     if (!entry.header) continue;
     const variants = headerVariants(entry.header);
-    let role: string | null = null;
-    for (const candidate of spec.roles) {
-      if (!candidate.channelPrice && candidate.aliases.some((alias) => variants.includes(alias))) {
-        role = candidate.role;
-        break;
-      }
-    }
+    let role = matchHeaderRole(spec, entry.header);
     if (!role && spec.roles.some((candidate) => candidate.channelPrice)) {
       const label = variants.map(channelLabelOf).find((value) => value);
       if (label) role = `channel_price:${label}`;
@@ -314,14 +366,19 @@ const CREDENTIAL_HEADERS = new Set(["password", "pin", "passcode", "pin code", "
 
 /** True when a sheet name marks an account sheet (Users, Staff, Logins, …). */
 export function classifyIgnoredSheetName(name: string) {
-  return CREDENTIAL_SHEET_NAMES.has(normalizeHeader(name));
+  // "7- Users" on the original workbook must be treated as an account sheet.
+  return normalizeHeader(name)
+    .split(" ")
+    .some((token) => CREDENTIAL_SHEET_NAMES.has(token));
 }
+
+const CREDENTIAL_TOKENS = new Set(["password", "passcode", "pin", "secret"]);
 
 /** True when header text names a credential (password, PIN, passcode, API token, secret). */
 export function classifyIgnoredSheetHeader(text: string) {
   return headerVariants(text).some(
     (variant) =>
-      CREDENTIAL_HEADERS.has(variant) || variant.split(" ").some((token) => token === "password" || token === "passcode"),
+      CREDENTIAL_HEADERS.has(variant) || variant.split(" ").some((token) => CREDENTIAL_TOKENS.has(token)),
   );
 }
 
@@ -335,7 +392,9 @@ export function classifyIgnoredSheet(sheet: PackageSheet): IgnoredSheet["reason"
   }
   for (const [key, cell] of sheet.cells) {
     const row = Number(key.slice(0, key.indexOf(":")));
-    if (row > FOODICS_MENU_LIMITS.maxHeaderProbeRows || cell.kind !== "string" || cell.formula) continue;
+    // Header labels on the original workbook are Localization formulas; read
+    // the cached display text only. Formulas are never evaluated.
+    if (row > FOODICS_MENU_LIMITS.maxHeaderProbeRows || cell.kind === "error" || !cell.text.trim()) continue;
     if (classifyIgnoredSheetHeader(cell.text)) {
       return "credentials";
     }
