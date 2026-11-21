@@ -1333,7 +1333,6 @@
   .qosp-brand { align-items: flex-start; width: 85px; height: 46px; }
   .qosp-brand img { width: 99px; height: 33px; margin-inline-start: -8px; }
   .qosp-brand span { font-size: 7px; margin-inline-start: 5px; }
-  .qosp-top-actions { gap: 12px; }
   .qosp-top-actions .qosp-avatar { width: 29px; height: 29px; font-size: 9px; }
   .qosp-nav { justify-content: flex-start; gap: 12px; height: 46px; }
   .qosp-nav-link { font-size: 12px; white-space: nowrap; }
@@ -1718,6 +1717,7 @@
     color: #e0e2e9;
   }
   .qosp-topbar > .qosp-search-trigger kbd { display: none; }
+  .qosp-topbar > .qosp-search-trigger:hover { color: #fff; }
   /* Business picker: the initial tile alone; its name is in the label. */
   .qosp-workspace-picker-name { display: none; }
   .qosp-workspace-picker-wrap { position: static; }

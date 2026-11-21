@@ -226,15 +226,15 @@ export function PortalTopBar({
 
       {/* A top bar child (not inside the actions) so that at 680px and below
           it can sit at the end of the nav row as an icon. */}
-        <button
-          type="button"
-          className="qosp-search-trigger"
-          onClick={onOpenSearch}
-          aria-label={staffUiCopy(locale, "searchThisBusiness")}
-        >
-          <Icon name="search" size={15} />
-          <kbd>⌘K</kbd>
-        </button>
+      <button
+        type="button"
+        className="qosp-search-trigger"
+        onClick={onOpenSearch}
+        aria-label={staffUiCopy(locale, "searchThisBusiness")}
+      >
+        <Icon name="search" size={15} />
+        <kbd>⌘K</kbd>
+      </button>
 
       <div className="qosp-top-actions">
         <button
