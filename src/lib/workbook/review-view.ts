@@ -29,6 +29,17 @@ export const REVIEW_CLASSIFICATION_COPY: Record<ReviewClassification, StaffUiCop
   unsupported: "reviewClassUnsupported",
 };
 
+export const REVIEW_CLASSIFICATION_SUB_COPY: Record<ReviewClassification, StaffUiCopyKey> = {
+  create: "reviewClassCreateSub",
+  update: "reviewClassUpdateSub",
+  unchanged: "reviewClassUnchangedSub",
+  skipped: "reviewClassSkippedSub",
+  conflicting: "reviewClassConflictingSub",
+  invalid: "reviewClassInvalidSub",
+  blocked: "reviewClassBlockedSub",
+  unsupported: "reviewClassUnsupportedSub",
+};
+
 export const REVIEW_OPERATION_COPY: Record<ReviewOperation, StaffUiCopyKey> = {
   create: "reviewOpCreate",
   update: "reviewOpUpdate",

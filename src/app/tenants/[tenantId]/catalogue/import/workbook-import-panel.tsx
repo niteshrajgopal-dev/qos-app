@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { FoodicsMenuResult } from "@/app/tenants/[tenantId]/catalogue/import/foodics-menu-result";
+import { WorkbookReviewPanel } from "@/app/tenants/[tenantId]/catalogue/import/workbook-review-panel";
 import { usePortalShell } from "@/components/portal/portal-shell-context";
 import {
   PortalBadge,
@@ -16,6 +17,7 @@ import {
 } from "@/components/portal/workspace/PortalWorkspace";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { branchSelectionName, isolateText } from "@/lib/staff/branch-copy";
+import { ALL_BRANCHES } from "@/lib/staff/branch-selection";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { staffCopyWith, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 import type { WorkbookSheetSupport } from "@/lib/workbook/contract";
@@ -29,13 +31,18 @@ import {
   type WorkbookApiError,
 } from "@/lib/workbook/import-view";
 import type { WorkbookIssue, WorkbookParseResult } from "@/lib/workbook/reader";
+import { describeReviewApiError, type ReviewApiError } from "@/lib/workbook/review-view";
+import type { PlanDecision, WorkbookReviewResult } from "@/lib/workbook/validation/model";
 
 /* QOS workbook profile (QOS-193): download the blank 31-sheet template or a
    current-record export, and read an uploaded file. Reading is stateless:
    the result lists what QOS found and how each sheet is classified, and
    says plainly that nothing has been imported. Review and apply are later
    leaves (QOS-194, QOS-200). A Foodics menu workbook (QOS-216) is recognised
-   by its layout and can be downloaded converted into a QOS workbook. */
+   by its layout and can be downloaded converted into a QOS workbook.
+   QOS-194 adds the review: either profile can be reviewed against the
+   business's current records into a persisted review plan (nothing is
+   applied). */
 
 const SUPPORT_TONE: Record<WorkbookSheetSupport, PortalBadgeTone> = {
   supported: "positive",
@@ -76,6 +83,10 @@ export function WorkbookImportPanel({
   const [error, setError] = useState<string | null>(null);
   const [converting, setConverting] = useState(false);
   const [sourceBrand, setSourceBrand] = useState("");
+  const [reviewing, setReviewing] = useState(false);
+  const [review, setReview] = useState<WorkbookReviewResult | null>(null);
+  // Decisions from the last review, carried by key into an edited upload; held in memory only.
+  const [carriedDecisions, setCarriedDecisions] = useState<PlanDecision[]>([]);
 
   const branchName =
     branch.status === "ready"
@@ -175,6 +186,47 @@ export function WorkbookImportPanel({
     }
   };
 
+  // Reviews the same file against the current records and stores a review plan (QOS-194).
+  const reviewFile = async () => {
+    if (!file) {
+      setError(t("workbookErrorFileRequired"));
+      return;
+    }
+    setReviewing(true);
+    setError(null);
+    setReview(null);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      if (sourceBrand) formData.set("brand", sourceBrand);
+      if (branch.status === "ready" && branch.selection && branch.selection !== ALL_BRANCHES) formData.set("branch", branch.selection);
+      // Row decisions follow their rows by key; acknowledgements are given again for each review.
+      const carried = carriedDecisions.filter((decision) => "row" in decision);
+      if (carried.length > 0) formData.set("decisions", JSON.stringify(carried));
+      const response = await staffApiFetch(`${basePath}/preview`, {
+        method: "POST",
+        body: formData,
+        headers: { "Idempotency-Key": crypto.randomUUID() },
+      });
+      const body = (await response.json().catch(() => null)) as WorkbookReviewResult | ReviewApiError | null;
+      if (!response.ok || !body || !("plan" in body)) {
+        setError(describeReviewApiError(locale, response.status, body as ReviewApiError | null));
+        return;
+      }
+      setReview(body);
+    } catch {
+      setError(t("workbookErrorGeneric"));
+    } finally {
+      setReviewing(false);
+    }
+  };
+
+  const reviewable = result?.profile === "qos_extended_v1" || result?.profile === "foodics_menu_v1";
+  const foodicsBrandMissing =
+    result?.profile === "foodics_menu_v1" &&
+    result.requiredMappings.some((mapping) => mapping.kind === "brand" && mapping.status === "required") &&
+    !sourceBrand;
+
   const issues =
     result?.profile === "qos_extended_v1" || result?.profile === "foodics_menu_v1"
       ? [...result.issues, ...result.sheets.flatMap((sheet) => sheet.issues)].sort(
@@ -273,6 +325,7 @@ export function WorkbookImportPanel({
             onFile={(next) => {
               setFile(next);
               setResult(null);
+              setReview(null);
               setError(null);
             }}
           />
@@ -393,6 +446,28 @@ export function WorkbookImportPanel({
 
           {issueList}
         </PortalPanel>
+      ) : null}
+
+      {reviewable ? (
+        <PortalPanel>
+          <p className="qosp-panel-help">{t("reviewButtonHelp")}</p>
+          {foodicsBrandMissing ? <p className="qosp-meta-line">{t("reviewBrandFirst")}</p> : null}
+          <div className="qosp-button-row qosp-panel-body">
+            <button
+              className="qos-btn"
+              data-variant="primary"
+              type="button"
+              disabled={reviewing || !file || foodicsBrandMissing}
+              onClick={() => void reviewFile()}
+            >
+              {reviewing ? t("reviewButtonBusy") : t("reviewButton")}
+            </button>
+          </div>
+        </PortalPanel>
+      ) : null}
+
+      {review ? (
+        <WorkbookReviewPanel key={review.plan.publicId} tenantId={tenantId} initialResult={review} onDecisionsChange={setCarriedDecisions} />
       ) : null}
     </div>
   );
