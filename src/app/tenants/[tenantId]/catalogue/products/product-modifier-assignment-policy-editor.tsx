@@ -124,7 +124,7 @@ export function ProductModifierAssignmentPolicyEditor({
       {caps.length > 0 ? (
         <p className="qosp-meta-line">
           {copy("modifierPolicyOptionCapsLabel")}:{" "}
-          {new Intl.ListFormat(locale, { style: "narrow", type: "unit" }).format(caps)}
+          {new Intl.ListFormat(locale, { style: "short", type: "unit" }).format(caps)}
         </p>
       ) : null}
 
