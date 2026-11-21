@@ -97,6 +97,16 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
   const [branch, setBranch] = useState<PortalBranchState>(IDLE_BRANCH_STATE);
   /** Branch shown instead of a requested one that is not permitted. */
   const [branchFallback, setBranchFallback] = useState<BranchSelection | null>(null);
+  const [seenUrlBranch, setSeenUrlBranch] = useState<string | null>(null);
+  /* Branch context belongs to one business: drop it as soon as the tenant
+     changes so one business's branch is never stored or shown for another. */
+  const [branchTenantId, setBranchTenantId] = useState(tenantId);
+  if (branchTenantId !== tenantId) {
+    setBranchTenantId(tenantId);
+    setBranch(IDLE_BRANCH_STATE);
+    setBranchFallback(null);
+    setSeenUrlBranch(null);
+  }
 
   const activeId = useMemo(
     () => activeStaffNavIdFromPath(pathname ?? ""),
@@ -191,7 +201,6 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
      one keeps the current branch and says so. Adjusted during render so the
      page never renders with a stale branch. */
   const urlBranch = searchParams?.get(BRANCH_SEARCH_PARAM) ?? null;
-  const [seenUrlBranch, setSeenUrlBranch] = useState<string | null>(null);
   if (branch.status === "ready" && urlBranch !== seenUrlBranch) {
     setSeenUrlBranch(urlBranch);
     if (urlBranch !== null && branch.selection !== null && urlBranch !== branch.selection) {
@@ -272,6 +281,10 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
   );
 
   const showOverview = isOverview && ready && !error && Boolean(membership);
+  const branchView: PortalBranchState =
+    branch.status === "idle" && ready && hasMembership
+      ? { ...branch, status: "loading" }
+      : branch;
   const currentBranchName =
     branchSelectionName(locale, branch.selection, branch.branches) ?? "";
   const fallbackName = branchSelectionName(locale, branchFallback, branch.branches);
@@ -285,7 +298,7 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
         roleLabel,
         motion,
         toggleMotion,
-        branch,
+        branch: branchView,
         requestBranchChange,
         registerUnsavedWork,
       }}
@@ -310,7 +323,7 @@ export function StaffAppShell({ tenantId, children }: StaffAppShellProps) {
           onToggleLocale={() => setLocale(locale === "en" ? "ar" : "en")}
           onOpenSearch={() => setCommandOpen(true)}
           onSelectTenant={(id) => router.push(`/tenants/${id}`)}
-          branch={branch}
+          branch={branchView}
           onSelectBranch={requestBranchChange}
           onSignOut={() => {
             void handleSignOut();

@@ -461,7 +461,10 @@ export function BranchPicker({ locale, branch, open, onToggle, onClose, onSelect
               aria-selected={branch.selection === ALL_BRANCHES}
               className="qos-menu-item qosp-branch-option"
               data-selected={branch.selection === ALL_BRANCHES || undefined}
-              onClick={() => onSelect(ALL_BRANCHES)}
+              onClick={() => {
+                onSelect(ALL_BRANCHES);
+                triggerRef.current?.focus();
+              }}
             >
               <span className="qosp-branch-option-text">
                 <span>{staffUiCopy(locale, "allBranches")}</span>
@@ -478,7 +481,10 @@ export function BranchPicker({ locale, branch, open, onToggle, onClose, onSelect
               aria-selected={entry.publicId === branch.selection}
               className="qos-menu-item qosp-branch-option"
               data-selected={entry.publicId === branch.selection || undefined}
-              onClick={() => onSelect(entry.publicId)}
+              onClick={() => {
+                onSelect(entry.publicId);
+                triggerRef.current?.focus();
+              }}
             >
               <span className="qosp-branch-option-text">
                 <span>{entry.name}</span>
