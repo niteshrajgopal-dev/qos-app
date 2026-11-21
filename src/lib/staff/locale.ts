@@ -290,6 +290,84 @@ export const STAFF_UI_COPY = {
     productEditorLocationPrices: "Location prices",
     productEditorVideoProcessingTimeout:
       "Processing took too long. Check back later.",
+    // QOS-192 Phase 2 navigation and branch context. Leaf ids in the empty
+    // states use a non-breaking hyphen (U+2011) so "QOS‑201" never wraps.
+    recipes: "Recipes",
+    inventory: "Inventory",
+    ingredientsAndStock: "Ingredients and stock",
+    kitchen: "Kitchen prep",
+    sales: "Sales input",
+    reports: "Reports",
+    finance: "Finance",
+    branches: "Branches",
+    branchSettings: "Branch settings",
+    allBranches: "All branches",
+    allBranchesHint: "Read-only view across your branches",
+    switchBranch: "Switch branch",
+    branchPickerLabel: "Branch: {name}",
+    branchStatusActive: "Active",
+    branchStatusSuspended: "Suspended",
+    branchLoading: "Loading branches…",
+    branchUnavailable: "Branches unavailable",
+    noBranches: "No branches",
+    noBranchesBody:
+      "Your membership does not include any branch yet. Ask an administrator for access.",
+    branchFallbackNotice:
+      "The requested branch is not available to you, so {branch} is shown instead.",
+    dismiss: "Dismiss",
+    unsavedWorkTitle: "Save your work before switching branch?",
+    unsavedWorkBody:
+      "This screen has unsaved changes for {branch}. Save them as a draft, discard them, or stay on this branch.",
+    saveDraft: "Save draft",
+    savingDraft: "Saving draft…",
+    stay: "Stay",
+    unsavedWorkSaveFailed:
+      "The draft could not be saved. Your changes are still here and the branch has not changed.",
+    phase2NotAvailableTitle: "This area is not available yet",
+    phase2BranchContext: "Branch context: {branch}",
+    inventoryDescription:
+      "Ingredients, units, suppliers and stock levels for each branch.",
+    inventoryEmptyBody:
+      "Ingredient master data arrives with QOS‑195 to QOS‑197, and the stock ledger with QOS‑201. Nothing is recorded here yet.",
+    kitchenDescription: "Prep targets and counts for the selected branch.",
+    kitchenEmptyBody:
+      "Kitchen prep arrives with QOS‑207 and QOS‑208. No prep targets or counts exist yet.",
+    salesDescription: "Daily sales closings entered per branch and business date.",
+    salesEmptyBody:
+      "Sales input arrives with QOS‑205 and QOS‑206. No sales closings have been recorded.",
+    reportsDescription: "Stock, consumption and sales reports from accepted records.",
+    reportsEmptyBody:
+      "Reports arrive with QOS‑209 and QOS‑210. There is no report data yet.",
+    recipesDescription:
+      "Recipe versions, ingredient lines and costing for catalogue products.",
+    recipesEmptyBody:
+      "Recipes arrive with QOS‑198 and QOS‑199. No recipes exist yet.",
+    branchesSettingsDescription:
+      "The locations your membership covers, and the business branch names awaiting confirmation.",
+    requestedBranchesTitle: "Requested business branches",
+    requestedBranchesBody:
+      "These branch names were reported by the business. Which existing QOS location each one corresponds to has not been confirmed, so each one stays unmapped. No location is renamed, created or reassigned, and no history is moved.",
+    columnBusinessBranch: "Business branch",
+    columnQosLocation: "QOS location",
+    columnMapping: "Mapping",
+    notYetMapped: "Not yet mapped",
+    noLocationConfirmed: "No location confirmed",
+    mappingPendingNote:
+      "Mapping needs the actual location identities from the owner. It will be recorded and audited when that work ships; until then nothing here can be changed.",
+    permittedLocationsTitle: "Your permitted locations",
+    permittedLocationsAdminBody:
+      "As an administrator you can work in every location of this business.",
+    permittedLocationsUserBody:
+      "These are the locations your membership is scoped to.",
+    columnLocation: "Location",
+    columnTimezone: "Timezone",
+    columnCurrency: "Currency",
+    baseCurrencyNote:
+      "Currency is the business base currency; locations do not have their own.",
+    branchesLoadError: "Unable to load branches.",
+    branchLabelDubai: "Dubai",
+    branchLabelAlAin: "Al Ain",
+    branchLabelAzurCafe: "Azur Cafe",
   },
   ar: {
     signInTitle: "تسجيل الدخول إلى QOS",
@@ -541,6 +619,83 @@ export const STAFF_UI_COPY = {
     productEditorLocationPrices: "أسعار الفروع",
     productEditorVideoProcessingTimeout:
       "استغرقت المعالجة وقتًا طويلًا. تحقق لاحقًا.",
+    // QOS-192 Phase 2 navigation and branch context
+    recipes: "الوصفات",
+    inventory: "المخزون",
+    ingredientsAndStock: "المكونات والمخزون",
+    kitchen: "تحضير المطبخ",
+    sales: "إدخال المبيعات",
+    reports: "التقارير",
+    finance: "المالية",
+    branches: "الفروع",
+    branchSettings: "إعدادات الفروع",
+    allBranches: "جميع الفروع",
+    allBranchesHint: "عرض للاطلاع فقط على جميع فروعك",
+    switchBranch: "تبديل الفرع",
+    branchPickerLabel: "الفرع: {name}",
+    branchStatusActive: "نشط",
+    branchStatusSuspended: "معلّق",
+    branchLoading: "جارٍ تحميل الفروع…",
+    branchUnavailable: "الفروع غير متاحة",
+    noBranches: "لا توجد فروع",
+    noBranchesBody:
+      "لا تتضمن عضويتك أي فرع بعد. اطلب الوصول من أحد المسؤولين.",
+    branchFallbackNotice:
+      "الفرع المطلوب غير متاح لك، لذلك يُعرض الفرع {branch} بدلًا منه.",
+    dismiss: "إغلاق",
+    unsavedWorkTitle: "هل تريد حفظ عملك قبل تبديل الفرع؟",
+    unsavedWorkBody:
+      "في هذه الشاشة تغييرات غير محفوظة للفرع {branch}. احفظها كمسودة، أو تجاهلها، أو ابقَ في هذا الفرع.",
+    saveDraft: "حفظ المسودة",
+    savingDraft: "جارٍ حفظ المسودة…",
+    stay: "البقاء",
+    unsavedWorkSaveFailed:
+      "تعذّر حفظ المسودة. ما زالت تغييراتك هنا ولم يتغيّر الفرع.",
+    phase2NotAvailableTitle: "هذا القسم غير متاح بعد",
+    phase2BranchContext: "سياق الفرع: {branch}",
+    inventoryDescription:
+      "المكونات والوحدات والموردون ومستويات المخزون لكل فرع.",
+    inventoryEmptyBody:
+      "تصل البيانات الأساسية للمكونات مع المهام من QOS‑195 إلى QOS‑197، ويصل سجل المخزون مع المهمة QOS‑201. لم يُسجَّل أي شيء هنا بعد.",
+    kitchenDescription: "أهداف التحضير وعمليات العدّ للفرع المحدد.",
+    kitchenEmptyBody:
+      "يصل تحضير المطبخ مع المهمتين QOS‑207 وQOS‑208. لا توجد أهداف تحضير أو عمليات عدّ بعد.",
+    salesDescription: "إقفالات المبيعات اليومية المُدخلة لكل فرع ويوم عمل.",
+    salesEmptyBody:
+      "يصل إدخال المبيعات مع المهمتين QOS‑205 وQOS‑206. لم تُسجَّل أي إقفالات مبيعات بعد.",
+    reportsDescription: "تقارير المخزون والاستهلاك والمبيعات من السجلات المعتمدة.",
+    reportsEmptyBody:
+      "تصل التقارير مع المهمتين QOS‑209 وQOS‑210. لا توجد بيانات تقارير بعد.",
+    recipesDescription:
+      "إصدارات الوصفات وأسطر المكونات والتكاليف لمنتجات الكتالوج.",
+    recipesEmptyBody:
+      "تصل الوصفات مع المهمتين QOS‑198 وQOS‑199. لا توجد وصفات بعد.",
+    branchesSettingsDescription:
+      "المواقع التي تشملها عضويتك، وأسماء فروع النشاط التجاري التي تنتظر التأكيد.",
+    requestedBranchesTitle: "فروع النشاط التجاري المطلوبة",
+    requestedBranchesBody:
+      "أبلغ النشاط التجاري عن أسماء الفروع هذه. لم يُؤكَّد بعد أي موقع حالي في QOS يقابل كلًّا منها، لذلك يبقى كل اسم غير مربوط. لا يُعاد تسمية أي موقع أو إنشاؤه أو إسناده من جديد، ولا يُنقل أي سجل سابق.",
+    columnBusinessBranch: "فرع النشاط التجاري",
+    columnQosLocation: "موقع QOS",
+    columnMapping: "الربط",
+    notYetMapped: "لم يُربط بعد",
+    noLocationConfirmed: "لم يُؤكَّد أي موقع",
+    mappingPendingNote:
+      "يتطلب الربط هويات المواقع الفعلية من المالك. سيُسجَّل الربط ويُوثَّق في سجل التدقيق عند إطلاق هذه الميزة، وحتى ذلك الحين لا يمكن تغيير أي شيء هنا.",
+    permittedLocationsTitle: "المواقع المسموح لك بها",
+    permittedLocationsAdminBody:
+      "بصفتك مسؤولًا، يمكنك العمل في جميع مواقع هذا النشاط التجاري.",
+    permittedLocationsUserBody: "هذه هي المواقع التي تشملها عضويتك.",
+    columnLocation: "الموقع",
+    columnTimezone: "المنطقة الزمنية",
+    columnCurrency: "العملة",
+    baseCurrencyNote:
+      "العملة هي العملة الأساسية للنشاط التجاري، ولا توجد عملة خاصة بكل موقع.",
+    branchesLoadError: "تعذّر تحميل الفروع.",
+    branchLabelDubai: "دبي",
+    branchLabelAlAin: "العين",
+    // Business name as reported; no Arabic form was supplied.
+    branchLabelAzurCafe: "Azur Cafe",
   },
 } as const;
 
@@ -581,6 +736,15 @@ const NAV_LABEL_KEYS: Record<string, StaffUiCopyKey> = {
   More: "more",
   Commerce: "commerce",
   Platform: "platform",
+  Recipes: "recipes",
+  Inventory: "inventory",
+  "Ingredients and stock": "ingredientsAndStock",
+  "Kitchen prep": "kitchen",
+  "Sales input": "sales",
+  Reports: "reports",
+  Finance: "finance",
+  Branches: "branches",
+  "Branch settings": "branchSettings",
 };
 
 export function staffNavLabel(locale: StaffLocale, id: string, fallback: string) {

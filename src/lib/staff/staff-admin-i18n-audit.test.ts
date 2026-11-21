@@ -34,6 +34,16 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/menus/[menuPublicId]/edit/page.tsx",
   "app/tenants/[tenantId]/catalogue/menus/menu-manager-view.ts",
   "app/tenants/[tenantId]/catalogue/menus/ai-photo-view.ts",
+  // QOS-192 branch context and Phase 2 entry pages
+  "components/staff/branch-change-guard.tsx",
+  "components/staff/phase2-entry-screen.tsx",
+  "app/tenants/[tenantId]/settings/branches/page.tsx",
+  "app/tenants/[tenantId]/settings/branches/branches-settings-screen.tsx",
+  "app/tenants/[tenantId]/inventory/page.tsx",
+  "app/tenants/[tenantId]/kitchen/page.tsx",
+  "app/tenants/[tenantId]/sales/page.tsx",
+  "app/tenants/[tenantId]/reports/page.tsx",
+  "app/tenants/[tenantId]/catalogue/recipes/page.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -65,6 +75,16 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/menus/page.tsx",
   "app/tenants/[tenantId]/catalogue/menus/new/page.tsx",
   "app/tenants/[tenantId]/catalogue/menus/[menuPublicId]/edit/page.tsx",
+  // QOS-192 branch context and Phase 2 entry pages
+  "components/staff/branch-change-guard.tsx",
+  "components/staff/phase2-entry-screen.tsx",
+  "app/tenants/[tenantId]/settings/branches/page.tsx",
+  "app/tenants/[tenantId]/settings/branches/branches-settings-screen.tsx",
+  "app/tenants/[tenantId]/inventory/page.tsx",
+  "app/tenants/[tenantId]/kitchen/page.tsx",
+  "app/tenants/[tenantId]/sales/page.tsx",
+  "app/tenants/[tenantId]/reports/page.tsx",
+  "app/tenants/[tenantId]/catalogue/recipes/page.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -123,6 +143,17 @@ const FORBIDDEN_LITERALS = [
   '"Select items to generate"',
   'kind: "System fact"',
   '>Generate with AI, then review before use<',
+  '"All branches"',
+  ">All branches<",
+  '"Switch branch"',
+  ">Stay<",
+  '"Stay"',
+  ">Save draft<",
+  '"Not yet mapped"',
+  ">Not yet mapped<",
+  '"This area is not available yet"',
+  '"Loading branches…"',
+  '"Your permitted locations"',
 ];
 
 describe("staff admin audited surfaces", () => {

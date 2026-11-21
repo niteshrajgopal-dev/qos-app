@@ -2,10 +2,18 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 
 import { Icon } from "@/components/Icon";
+import type { PortalBranchState } from "@/components/portal/portal-shell-context";
+import { branchSelectionName, branchStatusLabel } from "@/lib/staff/branch-copy";
 import {
+  ALL_BRANCHES,
+  type BranchSelection,
+  withBranchParam,
+} from "@/lib/staff/branch-selection";
+import {
+  staffCopyWith,
   staffNavLabel,
   staffUiCopy,
   type StaffLocale,
@@ -29,6 +37,19 @@ type PortalTopBarProps = {
   onOpenSearch: () => void;
   onSelectTenant: (tenantId: string) => void;
   onSignOut: () => void;
+  /** Omitted by the layout harness; the picker then stays hidden. */
+  branch?: PortalBranchState;
+  onSelectBranch?: (selection: BranchSelection) => void;
+};
+
+const NO_BRANCH_CONTEXT: PortalBranchState = {
+  status: "idle",
+  selection: null,
+  branches: [],
+  allBranchesAllowed: false,
+  baseCurrency: null,
+  role: null,
+  requestedBusinessLabels: [],
 };
 
 /* The approved 94px header: white QOS mark with WORKSPACE beneath it, five
@@ -46,10 +67,14 @@ export function PortalTopBar({
   onOpenSearch,
   onSelectTenant,
   onSignOut,
+  branch = NO_BRANCH_CONTEXT,
+  onSelectBranch,
 }: PortalTopBarProps) {
-  const [openMenu, setOpenMenu] = useState<"more" | "workspace" | "profile" | null>(
-    null,
-  );
+  const [openMenu, setOpenMenu] = useState<
+    "more" | "workspace" | "branch" | "profile" | null
+  >(null);
+  /* Links inside this business keep the current branch in the URL. */
+  const branchHref = (href: string) => withBranchParam(href, branch.selection);
   const headerRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -88,7 +113,7 @@ export function PortalTopBar({
   return (
     <header className="qosp-topbar" ref={headerRef}>
       <Link
-        href={staffNavHref(tenantId, "home") ?? "/"}
+        href={branchHref(staffNavHref(tenantId, "home") ?? "/")}
         className="qosp-brand"
         aria-label="QOS workspace overview"
       >
@@ -107,7 +132,7 @@ export function PortalTopBar({
           return (
             <Link
               key={item.id}
-              href={href}
+              href={branchHref(href)}
               className="qosp-nav-link"
               data-active={activeId === item.id || undefined}
             >
@@ -157,13 +182,20 @@ export function PortalTopBar({
                     return (
                       <Link
                         key={item.id}
-                        href={href}
+                        href={branchHref(href)}
                         role="menuitem"
                         className="qos-menu-item"
                         data-selected={activeId === item.id || undefined}
                         onClick={() => setOpenMenu(null)}
                       >
-                        {staffNavLabel(locale, item.id, item.label)}
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          {staffNavLabel(locale, item.id, item.label)}
+                        </span>
+                        {item.availability === "soon" ? (
+                          <span className="qosp-soon-badge">
+                            {staffUiCopy(locale, "soon")}
+                          </span>
+                        ) : null}
                       </Link>
                     );
                   })}
@@ -240,6 +272,20 @@ export function PortalTopBar({
           ) : null}
         </div>
 
+        <BranchPicker
+          locale={locale}
+          branch={branch}
+          open={openMenu === "branch"}
+          onToggle={() => setOpenMenu(openMenu === "branch" ? null : "branch")}
+          onClose={() => setOpenMenu(null)}
+          onSelect={(selection) => {
+            setOpenMenu(null);
+            if (selection !== branch.selection) {
+              onSelectBranch?.(selection);
+            }
+          }}
+        />
+
         <div style={{ position: "relative" }}>
           <button
             type="button"
@@ -294,5 +340,170 @@ export function PortalTopBar({
         </div>
       </div>
     </header>
+  );
+}
+
+type BranchPickerProps = {
+  locale: StaffLocale;
+  branch: PortalBranchState;
+  open: boolean;
+  onToggle: () => void;
+  onClose: () => void;
+  onSelect: (selection: BranchSelection) => void;
+};
+
+/* Branch picker: the same qos-menu listbox as the business picker, with each
+   branch's timezone and currency. All branches is offered only when the
+   server said it is allowed. Arrow keys, Home and End move between options;
+   Escape closes and returns focus to the trigger. */
+export function BranchPicker({ locale, branch, open, onToggle, onClose, onSelect }: BranchPickerProps) {
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const options = listRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
+    const selected = listRef.current?.querySelector<HTMLElement>('[aria-selected="true"]');
+    (selected ?? options?.[0])?.focus();
+  }, [open]);
+
+  if (branch.status === "idle") {
+    return null;
+  }
+
+  const selectedBranch = branch.branches.find((entry) => entry.publicId === branch.selection);
+  const name = branchSelectionName(locale, branch.selection, branch.branches);
+  const ready = branch.status === "ready" && name !== null;
+  const label = ready
+    ? name
+    : staffUiCopy(
+        locale,
+        branch.status === "loading"
+          ? "branchLoading"
+          : branch.status === "error"
+            ? "branchUnavailable"
+            : "noBranches",
+      );
+  const meta = selectedBranch
+    ? `${selectedBranch.timezone} · ${selectedBranch.currency}`
+    : branch.selection === ALL_BRANCHES
+      ? branch.baseCurrency
+      : null;
+
+  function onListKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const options = [
+      ...(listRef.current?.querySelectorAll<HTMLElement>('[role="option"]') ?? []),
+    ];
+    const index = options.indexOf(document.activeElement as HTMLElement);
+    let next: number | null = null;
+    if (event.key === "ArrowDown") next = (index + 1) % options.length;
+    if (event.key === "ArrowUp") next = (index - 1 + options.length) % options.length;
+    if (event.key === "Home") next = 0;
+    if (event.key === "End") next = options.length - 1;
+    if (event.key === "Escape") {
+      event.preventDefault();
+      onClose();
+      triggerRef.current?.focus();
+      return;
+    }
+    if (event.key === "Tab") {
+      onClose();
+      return;
+    }
+    if (next !== null && options[next]) {
+      event.preventDefault();
+      options[next].focus();
+    }
+  }
+
+  return (
+    <div className="qosp-branch-picker-wrap">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="qosp-branch-picker"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={
+          ready ? staffCopyWith(locale, "branchPickerLabel", { name: label }) : label
+        }
+        disabled={!ready}
+        onClick={onToggle}
+      >
+        <Icon name="map-pin" size={15} />
+        <span className="qosp-branch-picker-text">
+          <span className="qosp-branch-picker-name">{label}</span>
+          {ready && meta ? (
+            <span className="qosp-branch-picker-meta" dir="ltr">
+              {meta}
+            </span>
+          ) : null}
+        </span>
+        {ready ? <Icon name="chevron-down" size={14} /> : null}
+      </button>
+      {open && ready ? (
+        <div
+          ref={listRef}
+          className="qos-menu qosp-branch-menu"
+          role="listbox"
+          aria-label={staffUiCopy(locale, "switchBranch")}
+          onKeyDown={onListKeyDown}
+        >
+          <div className="qosp-menu-heading" aria-hidden="true">
+            {staffUiCopy(locale, "switchBranch")}
+          </div>
+          {branch.allBranchesAllowed ? (
+            <button
+              type="button"
+              role="option"
+              aria-selected={branch.selection === ALL_BRANCHES}
+              className="qos-menu-item qosp-branch-option"
+              data-selected={branch.selection === ALL_BRANCHES || undefined}
+              onClick={() => {
+                onSelect(ALL_BRANCHES);
+                triggerRef.current?.focus();
+              }}
+            >
+              <span className="qosp-branch-option-text">
+                <span>{staffUiCopy(locale, "allBranches")}</span>
+                <small>{staffUiCopy(locale, "allBranchesHint")}</small>
+              </span>
+              {branch.selection === ALL_BRANCHES ? <Icon name="check" size={14} /> : null}
+            </button>
+          ) : null}
+          {branch.branches.map((entry) => (
+            <button
+              key={entry.publicId}
+              type="button"
+              role="option"
+              aria-selected={entry.publicId === branch.selection}
+              className="qos-menu-item qosp-branch-option"
+              data-selected={entry.publicId === branch.selection || undefined}
+              onClick={() => {
+                onSelect(entry.publicId);
+                triggerRef.current?.focus();
+              }}
+            >
+              <span className="qosp-branch-option-text">
+                <span>{entry.name}</span>
+                <small>
+                  <span dir="ltr">
+                    {entry.timezone} · {entry.currency}
+                  </span>
+                  {entry.status === "suspended" ? (
+                    <span className="qosp-soon-badge">
+                      {branchStatusLabel(locale, entry.status)}
+                    </span>
+                  ) : null}
+                </small>
+              </span>
+              {entry.publicId === branch.selection ? <Icon name="check" size={14} /> : null}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }

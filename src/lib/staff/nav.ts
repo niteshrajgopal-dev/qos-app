@@ -35,6 +35,7 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
           { id: "import", label: "Import", availability: "ready" },
           { id: "menu-extraction", label: "Menu extraction", availability: "ready" },
           { id: "categories", label: "Categories", availability: "ready" },
+          { id: "recipes", label: "Recipes", availability: "soon" },
         ],
       },
       { id: "customers", label: "Customers", icon: "users", availability: "ready" },
@@ -50,6 +51,30 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
         ],
       },
       { id: "locations", label: "Locations", icon: "map-pin", availability: "ready" },
+    ],
+  },
+  /* Phase 2 back-office areas. Each one opens an honest entry page; "soon"
+     marks areas whose services have not been built yet. */
+  {
+    label: "Inventory",
+    items: [
+      {
+        id: "inventory",
+        label: "Inventory",
+        icon: "boxes",
+        availability: "soon",
+        children: [
+          { id: "inventory", label: "Ingredients and stock", availability: "soon" },
+          { id: "kitchen", label: "Kitchen prep", availability: "soon" },
+        ],
+      },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { id: "sales", label: "Sales input", icon: "receipt", availability: "soon" },
+      { id: "reports", label: "Reports", icon: "bar-chart-3", availability: "soon" },
     ],
   },
   {
@@ -70,7 +95,16 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
         ],
       },
       { id: "ai-agents", label: "AI & Agents", icon: "sparkles", availability: "ready" },
-      { id: "settings", label: "Settings", icon: "settings", availability: "ready" },
+      {
+        id: "settings",
+        label: "Settings",
+        icon: "settings",
+        availability: "ready",
+        children: [
+          { id: "settings", label: "Settings", availability: "ready" },
+          { id: "branches", label: "Branch settings", availability: "ready" },
+        ],
+      },
     ],
   },
 ];
@@ -94,6 +128,21 @@ export const STAFF_MORE_NAV_GROUPS: StaffNavGroup[] = [
       { id: "modifiers", label: "Modifier groups", availability: "ready" },
       { id: "import", label: "Import", availability: "ready" },
       { id: "menu-extraction", label: "Menu extraction", availability: "ready" },
+      { id: "recipes", label: "Recipes", availability: "soon" },
+    ],
+  },
+  {
+    label: "Inventory",
+    items: [
+      { id: "inventory", label: "Ingredients and stock", availability: "soon" },
+      { id: "kitchen", label: "Kitchen prep", availability: "soon" },
+    ],
+  },
+  {
+    label: "Finance",
+    items: [
+      { id: "sales", label: "Sales input", availability: "soon" },
+      { id: "reports", label: "Reports", availability: "soon" },
     ],
   },
   {
@@ -116,6 +165,7 @@ export const STAFF_MORE_NAV_GROUPS: StaffNavGroup[] = [
       { id: "audit", label: "Audit", availability: "ready" },
       { id: "ai-agents", label: "AI & Agents", availability: "ready" },
       { id: "settings", label: "Settings", availability: "ready" },
+      { id: "branches", label: "Branch settings", availability: "ready" },
     ],
   },
 ];
@@ -136,6 +186,12 @@ const STAFF_NAV_PATHS: Record<string, string> = {
   import: "/catalogue/import",
   "menu-extraction": "/catalogue/menu-extraction",
   categories: "/catalogue/categories",
+  recipes: "/catalogue/recipes",
+  inventory: "/inventory",
+  kitchen: "/kitchen",
+  sales: "/sales",
+  reports: "/reports",
+  branches: "/settings/branches",
   customers: "/customers",
   channels: "/channels",
   store: "/channels/online-store",
@@ -157,6 +213,7 @@ const PATH_MATCHERS: Array<{ id: string; suffix: string }> = [
   { id: "menu-extraction", suffix: "/catalogue/menu-extraction" },
   { id: "import", suffix: "/catalogue/import" },
   { id: "categories", suffix: "/catalogue/categories" },
+  { id: "recipes", suffix: "/catalogue/recipes" },
   { id: "catalogue", suffix: "/catalogue" },
   { id: "store", suffix: "/channels/online-store" },
   { id: "pos", suffix: "/channels/pos" },
@@ -170,7 +227,12 @@ const PATH_MATCHERS: Array<{ id: string; suffix: string }> = [
   { id: "customers", suffix: "/customers" },
   { id: "integrations", suffix: "/integrations" },
   { id: "analytics", suffix: "/analytics" },
+  { id: "inventory", suffix: "/inventory" },
+  { id: "kitchen", suffix: "/kitchen" },
+  { id: "sales", suffix: "/sales" },
+  { id: "reports", suffix: "/reports" },
   { id: "ai-agents", suffix: "/settings/ai-agents" },
+  { id: "branches", suffix: "/settings/branches" },
   { id: "settings", suffix: "/settings" },
 ];
 
