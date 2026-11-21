@@ -11,6 +11,15 @@ import {
   catalogueProducts,
 } from "@/db/schema";
 import {
+  assertModifierAssignmentPolicyIsValid,
+  type EffectiveModifierAssignmentPolicy,
+  isSelectionCountMode,
+  type ModifierAssignmentOverrides,
+  ModifierAssignmentPolicyError,
+  resolveModifierAssignmentPolicy,
+  toEffectiveModifierGroupRules,
+} from "@/lib/catalogue/modifier-assignment-policy";
+import {
   assertModifierDefaultsAreFeasible,
   type ModifierGroupRules,
 } from "@/lib/catalogue/modifier-selection";
@@ -22,6 +31,7 @@ import {
   type ReorderProductModifierGroupsInput,
   type UpdateModifierGroupInput,
   type UpdateModifierOptionInput,
+  type UpdateProductModifierGroupPolicyInput,
   validateAttachModifierGroupInput,
   validateCreateModifierGroupInput,
   validateCreateModifierOptionInput,
@@ -29,6 +39,7 @@ import {
   validateReorderProductModifierGroupsInput,
   validateUpdateModifierGroupInput,
   validateUpdateModifierOptionInput,
+  validateUpdateProductModifierGroupPolicyInput,
 } from "@/lib/catalogue/modifier-validation";
 import type { ProductLocale } from "@/lib/catalogue/validation";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
@@ -100,11 +111,20 @@ export type ModifierGroupEditorView = ModifierGroupSummaryView & {
 };
 
 export type ProductModifierGroupAssignmentView = {
+  /** catalogue_product_modifier_groups.id, the same value a workbook export writes as qos_product_modifier_id. */
+  assignmentId: string;
+  assignmentVersion: number;
+  assignmentUpdatedAt: string;
   modifierGroupPublicId: string;
   sortOrder: number;
   internalName: string;
-  minSelections: number;
-  maxSelections: number;
+  /** The shared group's own bounds, inherited when the override is null. */
+  groupMinSelections: number;
+  groupMaxSelections: number;
+  /** Product-specific overrides; null means inherit. */
+  overrides: ModifierAssignmentOverrides;
+  /** What this product enforces after combining group, options and overrides. */
+  effectivePolicy: EffectiveModifierAssignmentPolicy;
   status: "active" | "archived";
   translations: Record<ProductLocale, { displayName: string }>;
   options: ModifierOptionView[];
@@ -154,6 +174,10 @@ function mapCatalogueError(error: unknown): never {
       error.field,
       error.code,
     );
+  }
+
+  if (error instanceof ModifierAssignmentPolicyError) {
+    throw new CatalogueModifierError(error.message, 400, error.field, error.code);
   }
 
   if (error instanceof CatalogueValidationError) {
@@ -395,6 +419,107 @@ function toModifierGroupRules(
       priceMinor: option.priceMinor,
     })),
   };
+}
+
+export function assignmentOverridesFromRow(row: {
+  minSelections: number | null;
+  maxSelections: number | null;
+  repeatAllowed: boolean | null;
+  selectionCountMode: string | null;
+}): ModifierAssignmentOverrides {
+  return {
+    minSelections: row.minSelections,
+    maxSelections: row.maxSelections,
+    repeatAllowed: row.repeatAllowed,
+    // The column check constraint only admits the two modes or null.
+    selectionCountMode: isSelectionCountMode(row.selectionCountMode)
+      ? row.selectionCountMode
+      : null,
+  };
+}
+
+/**
+ * A change to the shared group (bounds, options, defaults) must stay feasible
+ * for every product that overrides its policy, not just for the group's own
+ * defaults. Repeat permission is not re-checked here: it can never raise an
+ * option cap, so an option change only narrows what repeat_allowed yields.
+ */
+async function assertGroupAssignmentsRemainFeasible(
+  tx: DbClient,
+  tenantId: string,
+  groupId: string,
+  rules: ModifierGroupRules,
+) {
+  const assignments = await tx
+    .select({
+      minSelections: catalogueProductModifierGroups.minSelections,
+      maxSelections: catalogueProductModifierGroups.maxSelections,
+      repeatAllowed: catalogueProductModifierGroups.repeatAllowed,
+      selectionCountMode: catalogueProductModifierGroups.selectionCountMode,
+      productPublicId: catalogueProducts.publicId,
+    })
+    .from(catalogueProductModifierGroups)
+    .innerJoin(
+      catalogueProducts,
+      and(
+        eq(catalogueProducts.tenantId, tenantId),
+        eq(catalogueProducts.id, catalogueProductModifierGroups.productId),
+      ),
+    )
+    .where(
+      and(
+        eq(catalogueProductModifierGroups.tenantId, tenantId),
+        eq(catalogueProductModifierGroups.modifierGroupId, groupId),
+      ),
+    );
+
+  for (const assignment of assignments) {
+    const overrides = assignmentOverridesFromRow(assignment);
+    if (
+      overrides.minSelections == null &&
+      overrides.maxSelections == null &&
+      overrides.repeatAllowed == null &&
+      overrides.selectionCountMode == null
+    ) {
+      continue;
+    }
+
+    try {
+      assertModifierAssignmentPolicyIsValid(rules, overrides, {
+        checkRepeatConflict: false,
+      });
+    } catch (error) {
+      if (error instanceof ModifierAssignmentPolicyError) {
+        throw new ModifierAssignmentPolicyError(
+          `Product ${assignment.productPublicId} overrides this group's policy and would become invalid: ${error.message}`,
+          error.field ?? "options",
+          error.code,
+        );
+      }
+      throw error;
+    }
+  }
+}
+
+/**
+ * The selection rules one product enforces for an attached group: pass these
+ * to validateModifierGroupSelections so bounds, count mode and repeat caps
+ * are the effective ones, never the shared group's raw values.
+ */
+export function selectionRulesForAssignment(
+  assignment: ProductModifierGroupAssignmentView,
+): ModifierGroupRules {
+  return toEffectiveModifierGroupRules(
+    toModifierGroupRules(
+      {
+        publicId: assignment.modifierGroupPublicId,
+        minSelections: assignment.groupMinSelections,
+        maxSelections: assignment.groupMaxSelections,
+      },
+      assignment.options,
+    ),
+    assignment.overrides,
+  );
 }
 
 async function loadModifierGroupEditorView(
@@ -676,16 +801,16 @@ export async function updateModifierGroup(
       const nextMinSelections = validated.minSelections ?? group.minSelections;
       const nextMaxSelections = validated.maxSelections ?? group.maxSelections;
 
-      assertModifierDefaultsAreFeasible(
-        toModifierGroupRules(
-          {
-            publicId: group.publicId,
-            minSelections: nextMinSelections,
-            maxSelections: nextMaxSelections,
-          },
-          options,
-        ),
+      const nextRules = toModifierGroupRules(
+        {
+          publicId: group.publicId,
+          minSelections: nextMinSelections,
+          maxSelections: nextMaxSelections,
+        },
+        options,
       );
+      assertModifierDefaultsAreFeasible(nextRules);
+      await assertGroupAssignmentsRemainFeasible(tx, tenantId, group.id, nextRules);
 
       const updatedGroup = await bumpModifierGroupVersion(
         tx,
@@ -826,16 +951,16 @@ export async function createModifierOption(
       });
 
       const options = await loadModifierOptionsInTx(tx, tenantId, group.id);
-      assertModifierDefaultsAreFeasible(
-        toModifierGroupRules(
-          {
-            publicId: group.publicId,
-            minSelections: group.minSelections,
-            maxSelections: group.maxSelections,
-          },
-          options,
-        ),
+      const nextRules = toModifierGroupRules(
+        {
+          publicId: group.publicId,
+          minSelections: group.minSelections,
+          maxSelections: group.maxSelections,
+        },
+        options,
       );
+      assertModifierDefaultsAreFeasible(nextRules);
+      await assertGroupAssignmentsRemainFeasible(tx, tenantId, group.id, nextRules);
 
       await recordTenantAuditEventInTx(tx, {
         tenantId,
@@ -930,16 +1055,16 @@ export async function updateModifierOption(
       await upsertOptionTranslations(tx, tenantId, option.id, validated.translations);
 
       const options = await loadModifierOptionsInTx(tx, tenantId, group.id);
-      assertModifierDefaultsAreFeasible(
-        toModifierGroupRules(
-          {
-            publicId: group.publicId,
-            minSelections: group.minSelections,
-            maxSelections: group.maxSelections,
-          },
-          options,
-        ),
+      const nextRules = toModifierGroupRules(
+        {
+          publicId: group.publicId,
+          minSelections: group.minSelections,
+          maxSelections: group.maxSelections,
+        },
+        options,
       );
+      assertModifierDefaultsAreFeasible(nextRules);
+      await assertGroupAssignmentsRemainFeasible(tx, tenantId, group.id, nextRules);
 
       await recordTenantAuditEventInTx(tx, {
         tenantId,
@@ -1053,6 +1178,13 @@ async function loadProductModifierGroupsInTx(
 ): Promise<ProductModifierGroupsView> {
   const assignments = await tx
         .select({
+          assignmentId: catalogueProductModifierGroups.id,
+          assignmentVersion: catalogueProductModifierGroups.version,
+          assignmentUpdatedAt: catalogueProductModifierGroups.updatedAt,
+          overrideMinSelections: catalogueProductModifierGroups.minSelections,
+          overrideMaxSelections: catalogueProductModifierGroups.maxSelections,
+          repeatAllowed: catalogueProductModifierGroups.repeatAllowed,
+          selectionCountMode: catalogueProductModifierGroups.selectionCountMode,
           sortOrder: catalogueProductModifierGroups.sortOrder,
           groupId: catalogueModifierGroups.id,
           groupPublicId: catalogueModifierGroups.publicId,
@@ -1095,12 +1227,34 @@ async function loadProductModifierGroupsInTx(
           assignment.groupId,
         );
 
+        const overrides = assignmentOverridesFromRow({
+          minSelections: assignment.overrideMinSelections,
+          maxSelections: assignment.overrideMaxSelections,
+          repeatAllowed: assignment.repeatAllowed,
+          selectionCountMode: assignment.selectionCountMode,
+        });
+
         modifierGroups.push({
+          assignmentId: assignment.assignmentId,
+          assignmentVersion: assignment.assignmentVersion,
+          assignmentUpdatedAt: assignment.assignmentUpdatedAt.toISOString(),
           modifierGroupPublicId: assignment.groupPublicId,
           sortOrder: assignment.sortOrder,
           internalName: assignment.internalName,
-          minSelections: assignment.minSelections,
-          maxSelections: assignment.maxSelections,
+          groupMinSelections: assignment.minSelections,
+          groupMaxSelections: assignment.maxSelections,
+          overrides,
+          effectivePolicy: resolveModifierAssignmentPolicy(
+            toModifierGroupRules(
+              {
+                publicId: assignment.groupPublicId,
+                minSelections: assignment.minSelections,
+                maxSelections: assignment.maxSelections,
+              },
+              options,
+            ),
+            overrides,
+          ),
           status: assignment.status === "archived" ? "archived" : "active",
           translations: groupTranslations.get(assignment.groupId) ?? {
             en: { displayName: "" },
@@ -1442,6 +1596,124 @@ export async function reorderProductModifierGroups(
         entityPublicId: productPublicId,
         changeSummary: {
           orderedPublicIds: validated.orderedPublicIds,
+        },
+      });
+
+      const [reloadedProduct] = await tx
+        .select()
+        .from(catalogueProducts)
+        .where(eq(catalogueProducts.id, product.id))
+        .limit(1);
+
+      return loadProductModifierGroupsInTx(
+        tx,
+        tenantId,
+        reloadedProduct ?? product,
+      );
+    });
+  } catch (error) {
+    return mapCatalogueError(error);
+  }
+}
+
+export async function updateProductModifierGroupPolicy(
+  db: DbClient,
+  tenantId: string,
+  productPublicId: string,
+  modifierGroupPublicId: string,
+  input: UpdateProductModifierGroupPolicyInput,
+  staffSubject: string,
+  membership: ActiveStaffMembership,
+): Promise<ProductModifierGroupsView> {
+  try {
+    const validated = validateUpdateProductModifierGroupPolicyInput(input);
+
+    return await withTenantContext(db, tenantId, async (tx) => {
+      const product = await loadCatalogueProductForMutationInTx(
+        tx,
+        tenantId,
+        productPublicId,
+      );
+
+      const group = await loadGroupByPublicId(tx, tenantId, modifierGroupPublicId);
+
+      const [assignment] = await tx
+        .select()
+        .from(catalogueProductModifierGroups)
+        .where(
+          and(
+            eq(catalogueProductModifierGroups.tenantId, tenantId),
+            eq(catalogueProductModifierGroups.productId, product.id),
+            eq(catalogueProductModifierGroups.modifierGroupId, group.id),
+          ),
+        )
+        .limit(1);
+
+      if (!assignment) {
+        throw new CatalogueModifierError(
+          "Modifier group is not attached to this product.",
+          404,
+        );
+      }
+
+      const before = assignmentOverridesFromRow(assignment);
+      const next: ModifierAssignmentOverrides = { ...before, ...validated.changes };
+
+      const options = await loadModifierOptionsInTx(tx, tenantId, group.id);
+      assertModifierAssignmentPolicyIsValid(
+        toModifierGroupRules(group, options),
+        next,
+      );
+
+      const [updatedAssignment] = await tx
+        .update(catalogueProductModifierGroups)
+        .set({
+          minSelections: next.minSelections,
+          maxSelections: next.maxSelections,
+          repeatAllowed: next.repeatAllowed,
+          selectionCountMode: next.selectionCountMode,
+          version: validated.expectedAssignmentVersion + 1,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(catalogueProductModifierGroups.tenantId, tenantId),
+            eq(catalogueProductModifierGroups.id, assignment.id),
+            eq(
+              catalogueProductModifierGroups.version,
+              validated.expectedAssignmentVersion,
+            ),
+          ),
+        )
+        .returning();
+
+      if (!updatedAssignment) {
+        throw new CatalogueModifierConflictError(
+          "Modifier group policy for this product was updated elsewhere. Reload and try again.",
+          "expectedAssignmentVersion",
+        );
+      }
+
+      await bumpProductVersion(
+        tx,
+        tenantId,
+        product.id,
+        validated.expectedProductVersion,
+      );
+
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        actorSubject: staffSubject,
+        actorClass: auditActorClassFromStaffRole(membership.role),
+        action: "catalogue.modifier_group.assignment_update",
+        entityType: "catalogue_product",
+        entityPublicId: productPublicId,
+        entityVersion: updatedAssignment.version,
+        changeSummary: {
+          modifierGroupPublicId,
+          assignmentId: assignment.id,
+          before,
+          after: next,
         },
       });
 

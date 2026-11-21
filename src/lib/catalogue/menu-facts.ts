@@ -17,6 +17,10 @@ import {
   type ItemEligibilityResult,
 } from "@/lib/catalogue/item-eligibility";
 import { loadDraftMenuEditorView } from "@/lib/catalogue/menus";
+import {
+  isSelectionCountMode,
+  toEffectiveModifierGroupRules,
+} from "@/lib/catalogue/modifier-assignment-policy";
 import type { ModifierGroupRules } from "@/lib/catalogue/modifier-selection";
 import type { PublishTranslationFacts } from "@/lib/catalogue/translation-approval";
 import { getApprovedThumbnailPublicIdsForProducts } from "@/lib/media/product-images";
@@ -31,6 +35,7 @@ export type MenuVariantFacts = {
   prices: Array<{ currency: string; amountMinor: number }>;
 };
 
+/** Effective rules for this product: assignment overrides already applied (QOS-212). */
 export type MenuModifierGroupFacts = ModifierGroupRules & {
   internalName: string;
 };
@@ -218,6 +223,10 @@ export async function loadMenuFacts(
       internalName: catalogueModifierGroups.internalName,
       minSelections: catalogueModifierGroups.minSelections,
       maxSelections: catalogueModifierGroups.maxSelections,
+      overrideMinSelections: catalogueProductModifierGroups.minSelections,
+      overrideMaxSelections: catalogueProductModifierGroups.maxSelections,
+      repeatAllowed: catalogueProductModifierGroups.repeatAllowed,
+      selectionCountMode: catalogueProductModifierGroups.selectionCountMode,
     })
     .from(catalogueProductModifierGroups)
     .innerJoin(
@@ -356,18 +365,30 @@ export async function loadMenuFacts(
         }),
       ),
       modifierGroups: (groupsByProduct.get(product.id) ?? []).map((group) => ({
-        publicId: group.publicId,
         internalName: group.internalName,
-        minSelections: group.minSelections,
-        maxSelections: group.maxSelections,
-        options: (optionsByGroup.get(group.groupId) ?? []).map((option) => ({
-          publicId: option.publicId,
-          status: option.status === "active" ? "active" : "archived",
-          isDefault: option.isDefault,
-          allowsQuantity: option.allowsQuantity,
-          maxQuantity: option.maxQuantity,
-          priceMinor: option.priceMinor,
-        })),
+        ...toEffectiveModifierGroupRules(
+          {
+            publicId: group.publicId,
+            minSelections: group.minSelections,
+            maxSelections: group.maxSelections,
+            options: (optionsByGroup.get(group.groupId) ?? []).map((option) => ({
+              publicId: option.publicId,
+              status: option.status === "active" ? "active" : "archived",
+              isDefault: option.isDefault,
+              allowsQuantity: option.allowsQuantity,
+              maxQuantity: option.maxQuantity,
+              priceMinor: option.priceMinor,
+            })),
+          },
+          {
+            minSelections: group.overrideMinSelections,
+            maxSelections: group.overrideMaxSelections,
+            repeatAllowed: group.repeatAllowed,
+            selectionCountMode: isSelectionCountMode(group.selectionCountMode)
+              ? group.selectionCountMode
+              : null,
+          },
+        ),
       })),
       eligibilityByLocation: eligibility,
     });

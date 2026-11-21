@@ -1,3 +1,7 @@
+import {
+  isSelectionCountMode,
+  type SelectionCountMode,
+} from "@/lib/catalogue/modifier-assignment-policy";
 import type { ProductLocale } from "@/lib/catalogue/validation";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
 
@@ -54,6 +58,16 @@ export type AttachModifierGroupInput = {
   expectedProductVersion: number;
   modifierGroupPublicId: string;
   sortOrder?: number;
+};
+
+/** Omitted fields stay unchanged; explicit null resets to the inherited rule. */
+export type UpdateProductModifierGroupPolicyInput = {
+  expectedProductVersion: number;
+  expectedAssignmentVersion: number;
+  minSelections?: number | null;
+  maxSelections?: number | null;
+  repeatAllowed?: boolean | null;
+  selectionCountMode?: SelectionCountMode | null;
 };
 
 export type ReorderProductModifierGroupsInput = {
@@ -410,5 +424,81 @@ export function validateReorderProductModifierGroupsInput(
   return {
     expectedProductVersion: input.expectedProductVersion,
     orderedPublicIds,
+  };
+}
+
+export function validateUpdateProductModifierGroupPolicyInput(
+  input: UpdateProductModifierGroupPolicyInput,
+) {
+  if (input == null || typeof input !== "object") {
+    throw new CatalogueValidationError("Request body must be an object.");
+  }
+
+  validateProductVersion(input.expectedProductVersion);
+
+  if (
+    !Number.isInteger(input.expectedAssignmentVersion) ||
+    input.expectedAssignmentVersion < 1
+  ) {
+    throw new CatalogueValidationError(
+      "expectedAssignmentVersion must be a positive integer.",
+      "expectedAssignmentVersion",
+    );
+  }
+
+  const changes: {
+    minSelections?: number | null;
+    maxSelections?: number | null;
+    repeatAllowed?: boolean | null;
+    selectionCountMode?: SelectionCountMode | null;
+  } = {};
+
+  for (const field of ["minSelections", "maxSelections"] as const) {
+    const value = input[field];
+    if (value === undefined) {
+      continue;
+    }
+    if (value !== null && (!Number.isInteger(value) || value < 0)) {
+      throw new CatalogueValidationError(
+        `${field} must be a non-negative integer or null.`,
+        field,
+      );
+    }
+    changes[field] = value;
+  }
+
+  if (input.repeatAllowed !== undefined) {
+    if (input.repeatAllowed !== null && typeof input.repeatAllowed !== "boolean") {
+      throw new CatalogueValidationError(
+        "repeatAllowed must be true, false or null.",
+        "repeatAllowed",
+      );
+    }
+    changes.repeatAllowed = input.repeatAllowed;
+  }
+
+  if (input.selectionCountMode !== undefined) {
+    if (
+      input.selectionCountMode !== null &&
+      !isSelectionCountMode(input.selectionCountMode)
+    ) {
+      throw new CatalogueValidationError(
+        "selectionCountMode must be distinct_options, total_quantity or null.",
+        "selectionCountMode",
+      );
+    }
+    changes.selectionCountMode = input.selectionCountMode;
+  }
+
+  if (Object.keys(changes).length === 0) {
+    throw new CatalogueValidationError(
+      "Provide at least one of minSelections, maxSelections, repeatAllowed or selectionCountMode.",
+    );
+  }
+
+  return {
+    expectedProductVersion: input.expectedProductVersion,
+    expectedAssignmentVersion: input.expectedAssignmentVersion,
+    changes,
   };
 }

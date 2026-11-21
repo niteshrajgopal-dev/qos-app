@@ -1,3 +1,4 @@
+import type { SelectionCountMode } from "@/lib/catalogue/modifier-assignment-policy";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
 
 export type ModifierOptionRules = {
@@ -13,6 +14,12 @@ export type ModifierGroupRules = {
   publicId: string;
   minSelections: number;
   maxSelections: number;
+  /**
+   * How min/max are counted. Omitted means distinct_options: each selected
+   * option counts once whatever its quantity. total_quantity sums quantities
+   * and only applies when a product assignment sets it explicitly.
+   */
+  selectionCountMode?: SelectionCountMode;
   options: ModifierOptionRules[];
 };
 
@@ -23,6 +30,7 @@ export type ModifierSelectionInput = {
 
 export type ValidatedModifierSelection = {
   optionPublicId: string;
+  /** Accepted quantity; downstream consumers (ingredient effects) use it as-is. */
   quantity: number;
   priceMinor: number;
 };
@@ -67,8 +75,14 @@ export function assertModifierDefaultsAreFeasible(group: ModifierGroupRules) {
   }
 
   if (group.minSelections > 0 && defaultCount < group.minSelections) {
-    const activeCount = activeOptions(group).length;
-    if (activeCount < group.minSelections) {
+    const capacity =
+      group.selectionCountMode === "total_quantity"
+        ? activeOptions(group).reduce(
+            (sum, option) => sum + (option.allowsQuantity ? option.maxQuantity : 1),
+            0,
+          )
+        : activeOptions(group).length;
+    if (capacity < group.minSelections) {
       throw new CatalogueValidationError(
         "Active options are insufficient to satisfy minSelections.",
         "options",
@@ -155,7 +169,10 @@ export function validateModifierGroupSelections(
     });
   }
 
-  const selectionCount = normalized.length;
+  const selectionCount =
+    group.selectionCountMode === "total_quantity"
+      ? normalized.reduce((sum, selection) => sum + selection.quantity, 0)
+      : normalized.length;
 
   if (selectionCount < group.minSelections) {
     throw new CatalogueValidationError(

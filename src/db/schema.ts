@@ -889,7 +889,17 @@ export const catalogueProductModifierGroups = qos.table(
     productId: uuid("product_id").notNull(),
     modifierGroupId: uuid("modifier_group_id").notNull(),
     sortOrder: integer("sort_order").notNull().default(0),
+    // QOS-212 assignment policy overrides. Null inherits the group bounds and
+    // the option repeat limits; see src/lib/catalogue/modifier-assignment-policy.ts.
+    minSelections: integer("min_selections"),
+    maxSelections: integer("max_selections"),
+    repeatAllowed: boolean("repeat_allowed"),
+    selectionCountMode: text("selection_count_mode"),
+    version: integer("version").notNull().default(1),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
   },
@@ -905,6 +915,26 @@ export const catalogueProductModifierGroups = qos.table(
         catalogueModifierGroups.id,
       ],
     }).onDelete("restrict"),
+    check(
+      "catalogue_product_modifier_groups_min_selections_check",
+      sql`${table.minSelections} IS NULL OR ${table.minSelections} >= 0`,
+    ),
+    check(
+      "catalogue_product_modifier_groups_max_selections_check",
+      sql`${table.maxSelections} IS NULL OR ${table.maxSelections} >= 0`,
+    ),
+    check(
+      "catalogue_product_modifier_groups_bounds_check",
+      sql`${table.minSelections} IS NULL OR ${table.maxSelections} IS NULL OR ${table.minSelections} <= ${table.maxSelections}`,
+    ),
+    check(
+      "catalogue_product_modifier_groups_selection_count_mode_check",
+      sql`${table.selectionCountMode} IS NULL OR ${table.selectionCountMode} IN ('distinct_options', 'total_quantity')`,
+    ),
+    check(
+      "catalogue_product_modifier_groups_version_check",
+      sql`${table.version} >= 1`,
+    ),
     unique("catalogue_product_modifier_groups_unique").on(
       table.tenantId,
       table.productId,
