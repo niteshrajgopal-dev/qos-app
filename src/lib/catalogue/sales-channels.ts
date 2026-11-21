@@ -252,9 +252,10 @@ export async function createSalesChannel(
         : parseDisplayName(input.displayName)
       : parseDisplayName(input.displayName);
   const kind = parseKind(input.kind, "aggregator");
+  // Without a typed code, the code follows the name ("Aggregator 1" -> aggregator_1).
   const rawCode =
     input.code === undefined || input.code === null || input.code === ""
-      ? workbookSlot ?? codeFromName(displayName)
+      ? codeFromName(displayName) || (workbookSlot ?? "")
       : input.code;
   if (rawCode === "") {
     throw new SalesChannelError("Enter a code for this channel.", 400, "code");
