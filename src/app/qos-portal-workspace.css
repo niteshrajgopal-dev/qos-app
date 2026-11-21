@@ -1193,3 +1193,54 @@ article.qosp-subcard > .qosp-button-row {
   .qosp-area .qos-menu-row-main { flex: 1 1 160px; }
   .qosp-area .qos-menu-row-actions { flex-wrap: wrap; margin-inline-start: auto; }
 }
+
+/* ---------- Settings > Branches (QOS-192) ----------
+   Rows rather than a table so the read-only list reflows at 360px and at
+   200% zoom without horizontal scrolling. */
+.qosp-branch-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+.qosp-branch-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  gap: 12px 18px;
+  align-items: start;
+  padding: 14px 16px;
+}
+.qosp-branch-row[data-columns="3"] {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+.qosp-branch-row-main,
+.qosp-branch-row-status {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  justify-items: start;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  color: var(--portal-text-soft);
+}
+.qosp-branch-row-label {
+  font-size: 12px;
+  color: var(--portal-muted);
+}
+.qosp-branch-row-name {
+  font-weight: 500;
+  font-size: 14px;
+  color: var(--portal-text);
+}
+@media (max-width: 760px) {
+  .qosp-branch-row,
+  .qosp-branch-row[data-columns="3"] {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+@media (max-width: 420px) {
+  .qosp-branch-row,
+  .qosp-branch-row[data-columns="3"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

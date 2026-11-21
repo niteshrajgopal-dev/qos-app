@@ -1456,3 +1456,158 @@
   .qosp-btn::after, .qosp-wave { display: none; }
   .qosp-btn::before, .qosp-dock-item[data-selected="true"]::before { opacity: .7; }
 }
+
+/* ---------- Branch context (QOS-192) ----------
+   Branch picker beside the business picker, its listbox, the fallback notice
+   and the branch-change guard actions. Sentence case only, logical properties
+   only, so RTL mirrors without overrides. */
+.qosp-branch-picker-wrap {
+  position: relative;
+  min-width: 0;
+}
+.qosp-branch-picker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  max-width: 230px;
+  padding: 0 10px;
+  border: 1px solid #ffffff20;
+  border-radius: 9px;
+  background: #ffffff05;
+  color: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.qosp-branch-picker:hover:not(:disabled) {
+  border-color: #b2a5df;
+}
+.qosp-branch-picker:disabled {
+  cursor: default;
+  color: #aab6c9;
+}
+.qosp-branch-picker svg {
+  flex: none;
+}
+.qosp-branch-picker-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  line-height: 1.2;
+}
+.qosp-branch-picker-name,
+.qosp-branch-picker-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.qosp-branch-picker-meta {
+  font-size: 11px;
+  color: #aab6c9;
+}
+.qosp-topbar :is(.qosp-branch-picker, .qosp-workspace-picker, .qosp-avatar, .qosp-search-trigger, .qosp-icon-button, .qosp-nav-link):focus-visible,
+.qosp-topbar .qos-menu-item:focus-visible {
+  outline: 2px solid var(--portal-focus, #c7bcff);
+  outline-offset: 2px;
+}
+.qosp-branch-menu {
+  top: 44px;
+  inset-inline-end: 0;
+  min-width: 280px;
+  max-width: min(360px, calc(100vw - 24px));
+  max-height: min(420px, calc(100svh - 140px));
+  overflow-y: auto;
+}
+.qosp-menu-heading {
+  padding: 8px 10px 4px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-weight: var(--fw-semibold);
+}
+.qosp-branch-option {
+  align-items: flex-start;
+  text-align: start;
+}
+.qosp-branch-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.qosp-branch-option-text small {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.qosp-soon-badge {
+  flex: none;
+  padding: 1px 7px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+.qosp-branch-notice {
+  position: fixed;
+  z-index: 40;
+  top: 104px;
+  inset-inline: 16px;
+  margin-inline: auto;
+  max-width: 560px;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #cbb18e66;
+  background: #1a2230f2;
+  color: var(--portal-amber, #e8cda9);
+  font-size: 13px;
+  line-height: 1.6;
+  box-shadow: 0 10px 34px #060d1940;
+}
+.qosp-branch-notice > span {
+  flex: 1;
+  min-width: 0;
+}
+.qosp-branch-notice svg {
+  flex: none;
+  margin-top: 3px;
+}
+.qosp-guard-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  width: 100%;
+}
+
+@media (max-width: 1200px) {
+  .qosp-branch-picker { max-width: 170px; }
+  .qosp-branch-picker-meta { display: none; }
+}
+@media (max-width: 960px) {
+  .qosp-branch-picker { max-width: 220px; }
+  .qosp-branch-notice { top: 132px; }
+}
+@media (max-width: 680px) {
+  .qosp-branch-picker { max-width: 150px; min-height: 32px; padding: 0 8px; font-size: 12px; }
+  .qosp-branch-picker-wrap { position: static; }
+  /* The menu spans the narrow viewport instead of hanging off the trigger. */
+  .qosp-branch-menu {
+    position: absolute;
+    top: 100%;
+    inset-inline: 12px;
+    min-width: 0;
+    max-width: none;
+  }
+  .qosp-branch-notice { top: 121px; inset-inline: 12px; }
+}

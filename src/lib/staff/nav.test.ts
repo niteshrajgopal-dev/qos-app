@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 
+import { existsSync } from "node:fs";
+import path from "node:path";
+
+import { staffNavLabel, STAFF_UI_COPY } from "@/lib/staff/locale";
 import {
   activeStaffNavIdFromPath,
+  flattenStaffNavItems,
   isStaffMoreNavId,
   staffNavHref,
   staffNavItemById,
   STAFF_MORE_NAV_GROUPS,
+  STAFF_NAV_GROUPS,
   STAFF_TOP_NAV,
 } from "@/lib/staff/nav";
 
@@ -181,5 +187,107 @@ describe("activeStaffNavIdFromPath", () => {
     expect(activeStaffNavIdFromPath(`/tenants/${tenantId}/settings`)).toBe(
       "settings",
     );
+  });
+});
+
+describe("Phase 2 destinations (QOS-192)", () => {
+  const PHASE2 = {
+    inventory: "/inventory",
+    kitchen: "/kitchen",
+    sales: "/sales",
+    reports: "/reports",
+    recipes: "/catalogue/recipes",
+    branches: "/settings/branches",
+  } as const;
+
+  it("resolves each new destination to its entry page", () => {
+    for (const [id, suffix] of Object.entries(PHASE2)) {
+      expect(staffNavHref(tenantId, id), id).toBe(`/tenants/${tenantId}${suffix}`);
+      expect(activeStaffNavIdFromPath(`/tenants/${tenantId}${suffix}`), id).toBe(id);
+    }
+  });
+
+  it("points every header and More link at a page that exists", () => {
+    const ids = [
+      ...STAFF_TOP_NAV.map((item) => item.id),
+      ...STAFF_MORE_NAV_GROUPS.flatMap((group) => group.items.map((item) => item.id)),
+    ];
+    for (const id of ids) {
+      const href = staffNavHref("[tenantId]", id)!;
+      const page = path.join(process.cwd(), "src/app", href, "page.tsx");
+      expect(existsSync(page), `${id} -> ${page}`).toBe(true);
+    }
+  });
+
+  it("marks areas without services as soon and keeps Branches ready", () => {
+    for (const id of ["inventory", "kitchen", "sales", "reports", "recipes"]) {
+      expect(staffNavItemById(id)?.availability, id).toBe("soon");
+    }
+    expect(staffNavItemById("branches")?.availability).toBe("ready");
+  });
+
+  it("files the new areas under More, never in the header", () => {
+    for (const id of Object.keys(PHASE2)) {
+      expect(isStaffMoreNavId(id), id).toBe(true);
+    }
+    expect(STAFF_MORE_NAV_GROUPS.map((group) => group.label)).toEqual([
+      "Catalogue",
+      "Inventory",
+      "Finance",
+      "Commerce",
+      "Platform",
+    ]);
+  });
+
+  it("keeps every Phase 1 destination at its existing route", () => {
+    const phase1 = {
+      home: "",
+      orders: "/orders",
+      catalogue: "/catalogue",
+      menus: "/catalogue/menus",
+      modifiers: "/catalogue/modifier-groups",
+      import: "/catalogue/import",
+      "menu-extraction": "/catalogue/menu-extraction",
+      categories: "/catalogue/categories",
+      customers: "/customers",
+      channels: "/channels",
+      store: "/channels/online-store",
+      pos: "/channels/pos",
+      locations: "/locations",
+      integrations: "/integrations",
+      analytics: "/analytics",
+      team: "/team",
+      access: "/staff/access-requests",
+      approvals: "/staff/translation-approvals",
+      audit: "/staff/audit",
+      "ai-agents": "/settings/ai-agents",
+      settings: "/settings",
+    };
+    for (const [id, suffix] of Object.entries(phase1)) {
+      expect(staffNavHref(tenantId, id), id).toBe(`/tenants/${tenantId}${suffix}`);
+      expect(staffNavItemById(id)?.availability, id).toBe("ready");
+    }
+  });
+
+  it("lists no id twice within a More group", () => {
+    for (const group of STAFF_MORE_NAV_GROUPS) {
+      const ids = group.items.map((item) => item.id);
+      expect(new Set(ids).size, group.label).toBe(ids.length);
+    }
+  });
+
+  it("has English and Arabic labels for every new nav label and group", () => {
+    const labels = [
+      ...STAFF_MORE_NAV_GROUPS.flatMap((group) => [
+        group.label ?? "",
+        ...group.items.map((item) => item.label),
+      ]),
+      ...STAFF_NAV_GROUPS.flatMap((group) => flattenStaffNavItems(group.items).map((item) => item.label)),
+    ].filter(Boolean);
+    for (const label of labels) {
+      const ar = staffNavLabel("ar", "", label);
+      expect(ar, label).not.toBe(label);
+      expect(Object.values(STAFF_UI_COPY.ar)).toContain(ar);
+    }
   });
 });
