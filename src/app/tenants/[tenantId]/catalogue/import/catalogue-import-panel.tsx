@@ -1,12 +1,31 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useState } from "react";
 
+import {
+  PortalBadge,
+  PortalField,
+  PortalFileInput,
+  PortalNotice,
+  PortalPanel,
+} from "@/components/portal/workspace/PortalWorkspace";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import type {
   CatalogueImportColumnMapping,
   CatalogueImportPreviewPayload,
+  CatalogueImportPreviewRow,
 } from "@/db/schema";
+import {
+  LEGACY_MAPPING_FIELDS,
+  legacyPreviewFields,
+  newImportIdempotencyKey,
+} from "@/lib/catalogue/catalogue-import-request";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import { staffCopyWith, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
+
+/* Current flat catalogue profile: preview a CSV or first-worksheet XLSX,
+   adjust the suggested column mapping, then apply validated draft rows.
+   The preview and apply APIs are unchanged. */
 
 type PreviewResponse = {
   operationPublicId: string;
@@ -28,61 +47,67 @@ type ApplyResponse = {
     skippedCount: number;
     conflictCount: number;
     errorCount: number;
-    rows: Array<{
-      sourceRow: number;
-      sourceId: string;
-      status: string;
-      productPublicId: string | null;
-      reason: string | null;
-    }>;
   };
 };
+
+const FIELD_COPY: Record<(typeof LEGACY_MAPPING_FIELDS)[number], StaffUiCopyKey> = {
+  sourceId: "importFieldSourceId",
+  internalName: "importFieldInternalName",
+  displayNameEn: "importFieldDisplayNameEn",
+  displayNameAr: "importFieldDisplayNameAr",
+  amountMinor: "importFieldAmountMinor",
+  currency: "importFieldCurrency",
+};
+
+const ROW_STATUS_COPY: Record<CatalogueImportPreviewRow["status"], StaffUiCopyKey> = {
+  create: "importRowStatusCreate",
+  update: "importRowStatusUpdate",
+  unchanged: "importRowStatusUnchanged",
+  duplicate: "importRowStatusDuplicate",
+  error: "importRowStatusError",
+};
+
+const ROW_STATUS_TONE = {
+  create: "positive",
+  update: "warm",
+  unchanged: "neutral",
+  duplicate: "danger",
+  error: "danger",
+} as const;
 
 type CatalogueImportPanelProps = {
   tenantId: string;
 };
 
-const EMPTY_MAPPING: CatalogueImportColumnMapping = {
-  sourceId: "",
-  internalName: "",
-  displayNameEn: "",
-  displayNameAr: "",
-  descriptionEn: "",
-  descriptionAr: "",
-  variantLabelEn: "",
-  variantLabelAr: "",
-  amountMinor: "",
-  currency: "",
-  sku: "",
-  barcode: "",
-  imageUrl: "",
-};
-
 export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
+  const { locale } = useStaffLocale();
+  const t = (key: StaffUiCopyKey) => staffUiCopy(locale, key);
   const [connectionKey, setConnectionKey] = useState("quotes.synthetic");
   const [file, setFile] = useState<File | null>(null);
-  const [columnMapping, setColumnMapping] =
-    useState<CatalogueImportColumnMapping>(EMPTY_MAPPING);
+  // Null until the server has read this file's headers and suggested a mapping.
+  const [columnMapping, setColumnMapping] = useState<CatalogueImportColumnMapping | null>(null);
   const [headers, setHeaders] = useState<string[]>([]);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
+  const [applyKey, setApplyKey] = useState<string | null>(null);
   const [applyResult, setApplyResult] = useState<ApplyResponse | null>(null);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const previewIdempotencyKey = useMemo(() => crypto.randomUUID(), []);
-  const applyIdempotencyKey = useMemo(() => crypto.randomUUID(), []);
+  const [error, setError] = useState<{ title: string; detail?: string } | null>(null);
 
   const basePath = `/api/tenants/${tenantId}/catalogue/import`;
 
-  const updateMappingField = (
-    field: keyof CatalogueImportColumnMapping,
-    value: string,
-  ) => {
-    setColumnMapping((current) => ({ ...current, [field]: value }));
+  const chooseFile = (next: File) => {
+    setFile(next);
+    setColumnMapping(null);
+    setHeaders([]);
+    setPreview(null);
+    setApplyKey(null);
+    setApplyResult(null);
+    setError(null);
   };
 
-  const runPreview = useCallback(async () => {
+  const runPreview = async () => {
     if (!file) {
-      setError("Choose a CSV or XLSX file first.");
+      setError({ title: t("importChooseFileFirst") });
       return;
     }
 
@@ -93,44 +118,35 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
     try {
       const formData = new FormData();
       formData.set("file", file);
-      formData.set("connectionKey", connectionKey);
-      formData.set("columnMapping", JSON.stringify(columnMapping));
+      for (const [name, value] of legacyPreviewFields({ connectionKey, mapping: columnMapping })) {
+        formData.set(name, value);
+      }
 
       const response = await staffApiFetch(`${basePath}/preview`, {
         method: "POST",
-        headers: {
-          "Idempotency-Key": previewIdempotencyKey,
-        },
+        headers: { "Idempotency-Key": newImportIdempotencyKey() },
         body: formData,
       });
-
-      const payload = (await response.json()) as PreviewResponse & {
-        error?: string;
-      };
+      const payload = (await response.json()) as PreviewResponse & { error?: string };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Preview failed.");
+        setError({ title: t("importPreviewFailed"), detail: payload.error });
+        return;
       }
 
       setPreview(payload);
+      setApplyKey(newImportIdempotencyKey());
       setHeaders(payload.headers);
-      if (headers.length === 0) {
-        setColumnMapping(payload.suggestedMapping);
-      }
-    } catch (previewError) {
-      setError(
-        previewError instanceof Error
-          ? previewError.message
-          : "Preview failed.",
-      );
+      setColumnMapping((current) => current ?? payload.suggestedMapping);
+    } catch {
+      setError({ title: t("importPreviewFailed") });
     } finally {
       setBusy(false);
     }
-  }, [basePath, columnMapping, connectionKey, file, previewIdempotencyKey]);
+  };
 
-  const runApply = useCallback(async () => {
-    if (!preview) {
-      setError("Run preview before applying.");
+  const runApply = async () => {
+    if (!preview || !applyKey) {
       return;
     }
 
@@ -142,214 +158,202 @@ export function CatalogueImportPanel({ tenantId }: CatalogueImportPanelProps) {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Idempotency-Key": applyIdempotencyKey,
+          "Idempotency-Key": applyKey,
         },
         body: JSON.stringify({
           operationPublicId: preview.operationPublicId,
           previewHash: preview.previewHash,
         }),
       });
-
-      const payload = (await response.json()) as ApplyResponse & {
-        error?: string;
-      };
+      const payload = (await response.json()) as ApplyResponse & { error?: string };
 
       if (!response.ok) {
-        throw new Error(payload.error ?? "Apply failed.");
+        setError({ title: t("importApplyFailed"), detail: payload.error });
+        return;
       }
 
       setApplyResult(payload);
-    } catch (applyError) {
-      setError(
-        applyError instanceof Error ? applyError.message : "Apply failed.",
-      );
+    } catch {
+      setError({ title: t("importApplyFailed") });
     } finally {
       setBusy(false);
     }
-  }, [applyIdempotencyKey, basePath, preview]);
+  };
 
   return (
-    <div className="mx-auto flex w-full max-w-5xl flex-col gap-6 p-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Catalogue import</h1>
-        <p className="mt-2 text-sm text-zinc-600">
-          Upload a CSV or XLSX file, review row-level changes, then apply
-          validated draft updates. Imports never publish live menus.
-        </p>
-      </div>
-
-      <section className="qos-card" data-padding="sm">
-        <h2 className="text-lg font-medium">Format guidance</h2>
-        <p className="mt-2 text-sm text-zinc-600">
-          Required columns: source ID, internal name, English and Arabic display
-          names, price in minor units, and currency. Formula-leading cells are
-          escaped on import.
-        </p>
-        <div className="mt-3 flex flex-wrap gap-3">
-          <a
-            className="qos-btn" data-variant="secondary" data-size="sm"
-            href={`${basePath}/sample?format=csv`}
-          >
-            Download sample CSV
+    <div className="qosp-stack">
+      <PortalPanel>
+        <p className="qosp-panel-help">{t("importCurrentHelp")}</p>
+        <div className="qosp-button-row qosp-panel-body">
+          <a className="qos-btn" data-variant="secondary" data-size="sm" href={`${basePath}/sample?format=csv`}>
+            {t("importDownloadSampleCsv")}
           </a>
-          <a
-            className="qos-btn" data-variant="secondary" data-size="sm"
-            href={`${basePath}/sample?format=xlsx`}
-          >
-            Download sample XLSX
+          <a className="qos-btn" data-variant="secondary" data-size="sm" href={`${basePath}/sample?format=xlsx`}>
+            {t("importDownloadSampleXlsx")}
           </a>
         </div>
-      </section>
+      </PortalPanel>
 
-      <section className="qos-card" data-padding="sm">
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="flex flex-col gap-1 text-sm">
-            Connection key
+      <PortalPanel>
+        <div className="qosp-form-grid" data-columns="2">
+          <PortalField label={t("importConnectionKey")} help={t("importConnectionKeyHelp")}>
             <input
               className="qos-input"
+              dir="ltr"
               value={connectionKey}
               onChange={(event) => setConnectionKey(event.target.value)}
               placeholder="quotes.synthetic"
             />
-          </label>
-          <label className="flex flex-col gap-1 text-sm">
-            Import file
-            <input
-              className="qos-input"
-              type="file"
-              accept=".csv,.xlsx"
-              onChange={(event) => {
-                setFile(event.target.files?.[0] ?? null);
-                setPreview(null);
-                setApplyResult(null);
-              }}
-            />
-          </label>
+          </PortalField>
+          <div className="qosp-field">
+            <span className="qosp-field-label">{t("importFile")}</span>
+            <PortalFileInput accept=".csv,.xlsx" disabled={busy} fileName={file?.name ?? null} onFile={chooseFile} />
+          </div>
         </div>
 
-        {headers.length > 0 ? (
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            {(
-              [
-                "sourceId",
-                "internalName",
-                "displayNameEn",
-                "displayNameAr",
-                "amountMinor",
-                "currency",
-              ] as const
-            ).map((field) => (
-              <label key={field} className="flex flex-col gap-1 text-sm">
-                {field}
-                <select
-                  className="qos-input"
-                  value={columnMapping[field]}
-                  onChange={(event) =>
-                    updateMappingField(field, event.target.value)
-                  }
-                >
-                  <option value="">Select column</option>
-                  {headers.map((header) => (
-                    <option key={header} value={header}>
-                      {header}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            ))}
+        {columnMapping && headers.length > 0 ? (
+          <div className="qosp-panel-body">
+            <h2 className="qosp-panel-title">{t("importColumnMapping")}</h2>
+            <p className="qosp-panel-help">{t("importColumnMappingHelp")}</p>
+            <div className="qosp-form-grid qosp-panel-body" data-columns="2">
+              {LEGACY_MAPPING_FIELDS.map((field) => (
+                <PortalField key={field} label={t(FIELD_COPY[field])}>
+                  <select
+                    className="qos-input"
+                    dir="ltr"
+                    value={columnMapping[field]}
+                    onChange={(event) => {
+                      setColumnMapping({ ...columnMapping, [field]: event.target.value });
+                      // A changed mapping needs a new preview before anything can be applied.
+                      setPreview(null);
+                      setApplyKey(null);
+                    }}
+                  >
+                    <option value="">{t("importSelectColumn")}</option>
+                    {headers.map((header) => (
+                      <option key={header} value={header}>
+                        {header}
+                      </option>
+                    ))}
+                  </select>
+                </PortalField>
+              ))}
+            </div>
           </div>
         ) : null}
 
-        <div className="mt-4 flex flex-wrap gap-3">
+        <div className="qosp-button-row qosp-panel-body">
           <button
-            className="qos-btn" data-variant="primary"
+            className="qos-btn"
+            data-variant="primary"
             disabled={busy || !file}
             onClick={() => void runPreview()}
             type="button"
           >
-            Preview import
+            {busy ? t("importWorking") : t("importPreview")}
           </button>
           <button
-            className="qos-btn" data-variant="secondary"
+            className="qos-btn"
+            data-variant="secondary"
             disabled={busy || !preview}
             onClick={() => void runApply()}
             type="button"
           >
-            Apply validated rows
+            {t("importApply")}
           </button>
         </div>
-      </section>
+      </PortalPanel>
 
       {error ? (
-        <p className="qos-alert" data-tone="error">
-          {error}
-        </p>
+        <PortalNotice tone="error">
+          {error.title}
+          {error.detail ? (
+            <>
+              {" "}
+              {t("importServerDetail")} <bdi dir="ltr">{error.detail}</bdi>
+            </>
+          ) : null}
+        </PortalNotice>
       ) : null}
 
       {preview ? (
-        <section className="qos-card" data-padding="sm">
-          <h2 className="text-lg font-medium">Preview</h2>
-          <p className="mt-2 text-sm text-zinc-600">
-            {preview.preview.createCount} create, {preview.preview.updateCount}{" "}
-            update, {preview.preview.unchangedCount} unchanged,{" "}
-            {preview.preview.errorCount} error, {preview.preview.duplicateCount}{" "}
-            duplicate
+        <PortalPanel>
+          <h2 className="qosp-panel-title">{t("importPreviewTitle")}</h2>
+          <p className="qosp-panel-help">
+            {staffCopyWith(locale, "importPreviewSummary", {
+              create: preview.preview.createCount,
+              update: preview.preview.updateCount,
+              unchanged: preview.preview.unchangedCount,
+              error: preview.preview.errorCount,
+              duplicate: preview.preview.duplicateCount,
+            })}
           </p>
           {preview.warnings.length > 0 ? (
-            <ul className="mt-2 list-disc pl-5 text-sm text-amber-700">
+            <ul className="qosp-plain-list qosp-panel-body">
               {preview.warnings.map((warning) => (
-                <li key={warning}>{warning}</li>
+                <li key={warning}>
+                  <PortalNotice tone="warning">
+                    <bdi dir="ltr">{warning}</bdi>
+                  </PortalNotice>
+                </li>
               ))}
             </ul>
           ) : null}
-          <div className="mt-4 overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead>
-                <tr className="border-b border-zinc-200">
-                  <th className="px-2 py-2">Row</th>
-                  <th className="px-2 py-2">Source ID</th>
-                  <th className="px-2 py-2">Status</th>
-                  <th className="px-2 py-2">EN name</th>
-                  <th className="px-2 py-2">AR name</th>
-                  <th className="px-2 py-2">Price</th>
-                  <th className="px-2 py-2">Reason</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.preview.rows.map((row) => (
-                  <tr key={`${row.sourceRow}-${row.sourceId}`} className="border-b border-zinc-100">
-                    <td className="px-2 py-2">{row.sourceRow}</td>
-                    <td className="px-2 py-2">{row.sourceId}</td>
-                    <td className="px-2 py-2">{row.status}</td>
-                    <td className="px-2 py-2">{row.displayNameEn}</td>
-                    <td className="px-2 py-2">{row.displayNameAr}</td>
-                    <td className="px-2 py-2">
-                      {row.amountMinor != null
-                        ? `${row.amountMinor} ${row.currency ?? ""}`
-                        : "—"}
-                    </td>
-                    <td className="px-2 py-2">{row.reason ?? "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
+          <ul className="qosp-branch-list qosp-panel-body" aria-label={t("importPreviewTitle")}>
+            {preview.preview.rows.map((row) => (
+              <li key={`${row.sourceRow}-${row.sourceId}`} className="qosp-branch-row qosp-subcard">
+                <div className="qosp-branch-row-main">
+                  <span className="qosp-branch-row-label">
+                    {t("importColumnRow")} {row.sourceRow}
+                  </span>
+                  <strong className="qosp-branch-row-name">{row.displayNameEn ?? "—"}</strong>
+                  <span dir="rtl" lang="ar">
+                    {row.displayNameAr ?? "—"}
+                  </span>
+                </div>
+                <div className="qosp-branch-row-main">
+                  <span className="qosp-branch-row-label">{t("importColumnSourceId")}</span>
+                  <code className="qosp-code" dir="ltr">
+                    {row.sourceId}
+                  </code>
+                </div>
+                <div className="qosp-branch-row-main">
+                  <span className="qosp-branch-row-label">{t("importColumnPrice")}</span>
+                  <span dir="ltr">
+                    {row.amountMinor != null ? `${row.amountMinor} ${row.currency ?? ""}` : "—"}
+                  </span>
+                  {row.reason ? (
+                    <>
+                      <span className="qosp-branch-row-label">{t("importColumnReason")}</span>
+                      <bdi dir="ltr">{row.reason}</bdi>
+                    </>
+                  ) : null}
+                </div>
+                <div className="qosp-branch-row-status">
+                  <span className="qosp-branch-row-label">{t("importColumnStatus")}</span>
+                  <PortalBadge tone={ROW_STATUS_TONE[row.status]}>{t(ROW_STATUS_COPY[row.status])}</PortalBadge>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </PortalPanel>
       ) : null}
 
       {applyResult ? (
-        <section className="qos-card" data-padding="sm">
-          <h2 className="text-lg font-medium">Apply report</h2>
-          <p className="mt-2 text-sm text-zinc-600">
-            {applyResult.replayed ? "Replayed prior apply. " : null}
-            {applyResult.report.createCount} created,{" "}
-            {applyResult.report.updateCount} updated,{" "}
-            {applyResult.report.unchangedCount} unchanged,{" "}
-            {applyResult.report.skippedCount} skipped,{" "}
-            {applyResult.report.conflictCount} conflicts,{" "}
-            {applyResult.report.errorCount} errors
+        <PortalPanel>
+          <h2 className="qosp-panel-title">{t("importApplyTitle")}</h2>
+          {applyResult.replayed ? <PortalNotice tone="info">{t("importApplyReplayed")}</PortalNotice> : null}
+          <p className="qosp-panel-help">
+            {staffCopyWith(locale, "importApplySummary", {
+              create: applyResult.report.createCount,
+              update: applyResult.report.updateCount,
+              unchanged: applyResult.report.unchangedCount,
+              skipped: applyResult.report.skippedCount,
+              conflict: applyResult.report.conflictCount,
+              error: applyResult.report.errorCount,
+            })}
           </p>
-        </section>
+        </PortalPanel>
       ) : null}
     </div>
   );
