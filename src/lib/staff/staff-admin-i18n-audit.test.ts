@@ -154,6 +154,10 @@ const FORBIDDEN_LITERALS = [
   '"This area is not available yet"',
   '"Loading branches…"',
   '"Your permitted locations"',
+  // QOS-192 narrow top bar: business switch trigger and listbox
+  '"Switch business"',
+  ">Switch business<",
+  '"Business: ',
 ];
 
 describe("staff admin audited surfaces", () => {
