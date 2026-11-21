@@ -18,6 +18,23 @@ import {
 } from "drizzle-orm/pg-core";
 import { pgSchema } from "drizzle-orm/pg-core";
 
+import type {
+  PlanAcknowledgement,
+  PlanStatus,
+  ReviewChange,
+  ReviewClassification,
+  ReviewCounts,
+  ReviewDeferredField,
+  ReviewDependencies,
+  ReviewDiagnostic,
+  ReviewOperation,
+  ReviewProvenance,
+  ReviewRowDetail,
+  ReviewSourceProfile,
+  RowDecision,
+  StoredPlanContext,
+} from "@/lib/workbook/validation/model";
+
 export const qos = pgSchema("qos");
 
 export const tenantStatusEnum = qos.enum("tenant_status", [
@@ -2902,6 +2919,109 @@ export const catalogueImportOperations = qos.table(
   ],
 );
 
+/* QOS-194 persisted workbook review plans (migration 0055). Review only:
+   QOS-217 consumes a plan after recomputing its plan_hash. The jsonb shapes
+   are type-only imports from the review engine's model. */
+export const workbookImportPlans = qos.table(
+  "workbook_import_plans",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    revision: integer("revision").notNull().default(1),
+    status: text("status").$type<PlanStatus>().notNull(),
+    sourceProfile: text("source_profile").$type<ReviewSourceProfile>().notNull(),
+    templateVersion: text("template_version").notNull(),
+    dictionaryVersion: text("dictionary_version"),
+    brandId: uuid("brand_id").notNull(),
+    sourceNamespace: text("source_namespace").notNull(),
+    keysVerified: boolean("keys_verified").notNull(),
+    fileName: text("file_name").notNull(),
+    fileFingerprint: text("file_fingerprint").notNull(),
+    sourceFileSha256: text("source_file_sha256"),
+    exportRevision: text("export_revision"),
+    snapshotHash: text("snapshot_hash").notNull(),
+    planHash: text("plan_hash").notNull(),
+    engineVersion: text("engine_version").notNull(),
+    createdBySubject: text("created_by_subject").notNull(),
+    createdByRole: text("created_by_role").$type<"administrator" | "user">().notNull(),
+    reviewedBySubject: text("reviewed_by_subject").notNull(),
+    branchScope: jsonb("branch_scope").$type<"all" | string[]>().notNull(),
+    context: jsonb("context").$type<StoredPlanContext>().notNull(),
+    counts: jsonb("counts").$type<ReviewCounts>().notNull(),
+    decisions: jsonb("decisions").$type<PlanAcknowledgement[]>().notNull().default([]),
+    idempotencyKey: text("idempotency_key").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "workbook_import_plans_brand_fk",
+      columns: [table.tenantId, table.brandId],
+      foreignColumns: [brands.tenantId, brands.id],
+    }).onDelete("restrict"),
+    uniqueIndex("workbook_import_plans_public_unique").on(table.tenantId, table.publicId),
+    uniqueIndex("workbook_import_plans_tenant_id_id_unique").on(table.tenantId, table.id),
+    uniqueIndex("workbook_import_plans_idempotency_unique").on(table.tenantId, table.idempotencyKey),
+    index("workbook_import_plans_tenant_id_idx").on(table.tenantId),
+    check("workbook_import_plans_status_check", sql`${table.status} IN ('review_ready','stale')`),
+    check("workbook_import_plans_profile_check", sql`${table.sourceProfile} IN ('qos_extended_v1','foodics_menu_v1')`),
+    check("workbook_import_plans_role_check", sql`${table.createdByRole} IN ('administrator','user')`),
+    check("workbook_import_plans_revision_check", sql`${table.revision} >= 1`),
+  ],
+);
+
+export const workbookImportPlanRows = qos.table(
+  "workbook_import_plan_rows",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    planId: uuid("plan_id").notNull(),
+    sheet: text("sheet").notNull(),
+    rowNumber: integer("row_number").notNull(),
+    entityKey: text("entity_key").notNull(),
+    requestedAction: text("requested_action").notNull(),
+    classification: text("classification").$type<ReviewClassification>().notNull(),
+    operation: text("operation").$type<ReviewOperation>(),
+    targetPublicId: text("target_public_id"),
+    targetRevision: text("target_revision"),
+    values: jsonb("values").$type<Record<string, string>>().notNull(),
+    before: jsonb("before").$type<Record<string, string>>(),
+    after: jsonb("after").$type<Record<string, string>>(),
+    changes: jsonb("changes").$type<ReviewChange[]>().notNull().default([]),
+    deferredFields: jsonb("deferred_fields").$type<ReviewDeferredField[]>().notNull().default([]),
+    diagnostics: jsonb("diagnostics").$type<ReviewDiagnostic[]>().notNull().default([]),
+    dependencies: jsonb("dependencies").$type<ReviewDependencies>().notNull().default({ blockedBy: [], blocks: [] }),
+    detail: jsonb("detail").$type<ReviewRowDetail>().notNull(),
+    provenance: jsonb("provenance").$type<ReviewProvenance>(),
+    decision: jsonb("decision").$type<RowDecision>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "workbook_import_plan_rows_plan_fk",
+      columns: [table.tenantId, table.planId],
+      foreignColumns: [workbookImportPlans.tenantId, workbookImportPlans.id],
+    }).onDelete("restrict"),
+    uniqueIndex("workbook_import_plan_rows_unique").on(table.tenantId, table.planId, table.sheet, table.rowNumber),
+    index("workbook_import_plan_rows_plan_idx").on(table.tenantId, table.planId),
+    index("workbook_import_plan_rows_tenant_id_idx").on(table.tenantId),
+    check("workbook_import_plan_rows_row_check", sql`${table.rowNumber} >= 1`),
+    check(
+      "workbook_import_plan_rows_classification_check",
+      sql`${table.classification} IN ('create','update','unchanged','skipped','conflicting','invalid','blocked','unsupported')`,
+    ),
+    check(
+      "workbook_import_plan_rows_operation_check",
+      sql`${table.operation} IS NULL OR ${table.operation} IN ('create','update','archive','restore','remove_link','reset_to_central')`,
+    ),
+  ],
+);
+
 export const catalogueMenuExtractionSourceStatusEnum = qos.enum(
   "catalogue_menu_extraction_source_status",
   ["ready", "failed"],
@@ -3677,6 +3797,8 @@ export const schema = {
   catalogueMenuPublicLinks,
   catalogueImportSourceLinks,
   catalogueImportOperations,
+  workbookImportPlans,
+  workbookImportPlanRows,
   catalogueMediaAssets,
   catalogueMediaUploadGrants,
   catalogueMediaDerivatives,
