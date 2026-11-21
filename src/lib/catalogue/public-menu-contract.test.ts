@@ -66,7 +66,7 @@ describe("public menu contract", () => {
           ],
         },
       ],
-    } as MenuLiveSnapshotPayload;
+    } as unknown as MenuLiveSnapshotPayload;
     const response = toPublicMenuResponse({ publicKey: "mqr_test", tenantPublicId: "ten_quotes_dev", locale: "en", snapshot: polluted });
     expect(() => assertPublicMenuResponseIsAllowlisted(response)).not.toThrow();
     const serialized = JSON.stringify(response);
