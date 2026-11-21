@@ -12,6 +12,7 @@ import {
   isDeferredField,
   isIdentifierColumn,
   ROW_CHECK_COLUMN,
+  sheetExpectedInVersion,
   sheetHeaderRow,
   sheetSupport,
   tableNameForSheet,
@@ -265,6 +266,11 @@ function readContractTable(
   const found = findTable(pkg, result.table);
 
   if (!found) {
+    // A sheet added after the file's version (for example the 1.2 channel
+    // sheets in a 1.0 file) is simply not part of that file.
+    if (!sheetExpectedInVersion(definition, templateVersion)) {
+      return result;
+    }
     const sheetExists = pkg.sheets.some((sheet) => sheet.name === definition.name);
     issue({
       severity: sheetExists && result.support === "supported" ? "warning" : "info",

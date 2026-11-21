@@ -21,6 +21,7 @@ import {
   CatalogueVariantError,
 } from "@/lib/catalogue/variants";
 import { LocationPriceOverrideError } from "@/lib/catalogue/location-price-overrides";
+import { SalesChannelError } from "@/lib/catalogue/sales-channels";
 import { LocationAvailabilityError } from "@/lib/catalogue/location-availability";
 import { CatalogueImportError } from "@/lib/catalogue/catalogue-import";
 import { CatalogueImportParseError } from "@/lib/catalogue/catalogue-import-parser";
@@ -189,6 +190,13 @@ export function catalogueErrorResponse(error: unknown) {
   if (error instanceof LocationPriceOverrideError) {
     return NextResponse.json(
       { error: error.message, field: error.field },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof SalesChannelError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field, code: error.code },
       { status: error.statusCode },
     );
   }

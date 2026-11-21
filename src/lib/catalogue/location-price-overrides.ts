@@ -75,11 +75,13 @@ function mapLocationPriceError(error: unknown): never {
   throw error;
 }
 
-function requirePriceEditCapability(membership: ActiveStaffMembership) {
+/** The price-write role: location, channel and channel-identity writes all require an administrator. */
+export function requirePriceEditCapability(
+  membership: ActiveStaffMembership,
+  message = "Administrator membership is required to change location prices.",
+) {
   if (membership.role !== "administrator") {
-    throw new StaffAuthorizationError(
-      "Administrator membership is required to change location prices.",
-    );
+    throw new StaffAuthorizationError(message);
   }
 }
 

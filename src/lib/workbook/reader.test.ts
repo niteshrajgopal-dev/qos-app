@@ -96,7 +96,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
 
     expect(result.manifest).toEqual({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.1",
+      template_version: "1.2",
       prepared_on: "2026-11-21",
       tenant_public_id: "",
       brand_public_id: "",
@@ -111,7 +111,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
     expect(result.sheets.every((entry) => entry.present && entry.rowCount === 0)).toBe(true);
     expect(result.guidanceSheets).toEqual(["Start Here", "Field Guide", "Import Rules"]);
     expect(result.summary).toMatchObject({
-      supported: { sheets: 13, rows: 0 },
+      supported: { sheets: 16, rows: 0 },
       deferred: { sheets: 12, rows: 0 },
       rejected: { sheets: 2, rows: 0 },
       separate_profile: { sheets: 1, rows: 0 },
@@ -359,7 +359,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
     const wrongVersion = await filledWorkbook((workbook) => setManifestValue(workbook, "template_version", "2.0"));
     const error = await parseError("f.xlsx", wrongVersion);
     expect(error.code).toBe("unsupported_version");
-    expect(error.params).toEqual({ version: "2.0", expected: "1.0, 1.1" });
+    expect(error.params).toEqual({ version: "2.0", expected: "1.0, 1.1, 1.2" });
 
     const calculated = await filledWorkbook((workbook) =>
       setManifestValue(workbook, "template_version", { formula: '"1.0"', result: "1.0" }),
@@ -460,7 +460,14 @@ describe("parseWorkbookUpload: expanded profile", () => {
 
   it.skipIf(!existsSync(PACK_TEMPLATE))("reads the pack's reference workbook bytes (local pack only, never committed)", async () => {
     const result = extended(await parseWorkbookUpload({ fileName: "pack.xlsx", bytes: readFileSync(PACK_TEMPLATE) }));
-    expect(result.sheets.every((entry) => entry.present)).toBe(true);
+    // The pack is a 1.0 file: every 1.0 sheet is present, and the 1.2 channel sheets are simply not expected.
+    expect(result.templateVersion).toBe("1.0");
+    expect(result.sheets.filter((entry) => !entry.present).map((entry) => entry.sheet)).toEqual([
+      "Sales Channels",
+      "Variant Channel Prices",
+      "Modifier Option Channel Prices",
+    ]);
+    expect(result.sheets.flatMap((entry) => entry.issues).filter((entry) => entry.code === "sheet_missing")).toEqual([]);
     expect(result.summary.errors).toBe(0);
     expect(result.manifest.profile).toBe("qos-extended-v1-proposed");
     // The pack file is a v1.0 workbook: the v1.1 columns are not "missing".

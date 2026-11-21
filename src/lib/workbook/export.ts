@@ -15,17 +15,20 @@ import {
   catalogueMenuTranslations,
   catalogueModifierGroups,
   catalogueModifierGroupTranslations,
+  catalogueModifierOptionChannelPrices,
   catalogueModifierOptions,
   catalogueModifierOptionTranslations,
   catalogueProductCategories,
   catalogueProductModifierGroups,
   catalogueProducts,
   catalogueProductTranslations,
+  catalogueVariantChannelPrices,
   catalogueVariantLocationPriceOverrides,
   catalogueVariantPrices,
   catalogueVariants,
   catalogueVariantTranslations,
   locations,
+  salesChannels,
   tenants,
 } from "@/db/schema";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
@@ -375,6 +378,26 @@ export async function loadCurrentRecordExport(
               ),
             );
 
+    // Sales channels are tenant-wide price-list identities, not branches.
+    const channelRows = await tx
+      .select()
+      .from(salesChannels)
+      .where(eq(salesChannels.tenantId, tenantId))
+      .orderBy(asc(salesChannels.code));
+    const channelById = new Map(channelRows.map((row) => [row.id, row]));
+    const variantChannelPriceRows =
+      variantIds.length === 0
+        ? []
+        : await tx
+            .select()
+            .from(catalogueVariantChannelPrices)
+            .where(
+              and(
+                eq(catalogueVariantChannelPrices.tenantId, tenantId),
+                inArray(catalogueVariantChannelPrices.variantId, variantIds),
+              ),
+            );
+
     const groupRows = await tx
       .select()
       .from(catalogueModifierGroups)
@@ -422,6 +445,19 @@ export async function loadCurrentRecordExport(
             ),
       (row) => row.modifierOptionId,
     );
+    const optionKey = new Map(optionRows.map((row) => [row.id, row.publicId]));
+    const optionChannelPriceRows =
+      optionRows.length === 0
+        ? []
+        : await tx
+            .select()
+            .from(catalogueModifierOptionChannelPrices)
+            .where(
+              and(
+                eq(catalogueModifierOptionChannelPrices.tenantId, tenantId),
+                inArray(catalogueModifierOptionChannelPrices.modifierOptionId, optionRows.map((row) => row.id)),
+              ),
+            );
     const productModifierRows =
       productIds.length === 0
         ? []
@@ -613,6 +649,35 @@ export async function loadCurrentRecordExport(
         }),
         "branch_price_key",
       ),
+      "Sales Channels": channelRows.map((row) => ({
+        qos_channel_id: row.publicId,
+        channel_code: row.code,
+        display_name: row.displayName,
+        kind: row.kind,
+        workbook_slot: text(row.workbookSlot),
+        status: row.status,
+        expected_revision: revisionToken("sales_channel", row.publicId, [row.version, row.updatedAt]),
+      })),
+      "Variant Channel Prices": variantChannelPriceRows
+        .map((row) => {
+          const channel = channelById.get(row.channelId);
+          return {
+            qos_variant_id: keyOf(variantKey, row.variantId),
+            qos_channel_id: text(channel?.publicId),
+            workbook_slot: text(channel?.workbookSlot),
+            amount_minor: text(row.amountMinor),
+            currency: row.currency.trim(),
+            // Blank keeps the current value, so an untouched export changes nothing.
+            action: "",
+            expected_revision: revisionToken("variant_channel_price", row.id, [row.version, row.updatedAt, row.amountMinor]),
+          };
+        })
+        .sort(
+          (a, b) =>
+            a.qos_variant_id.localeCompare(b.qos_variant_id) ||
+            a.qos_channel_id.localeCompare(b.qos_channel_id) ||
+            a.currency.localeCompare(b.currency),
+        ),
       "Modifier Groups": groupRows.map((row) => {
         const names = groupTranslations.get(row.id);
         return {
@@ -655,6 +720,29 @@ export async function loadCurrentRecordExport(
             a.modifier_group_key.localeCompare(b.modifier_group_key) ||
             Number(a.sort_order) - Number(b.sort_order) ||
             a.modifier_option_key.localeCompare(b.modifier_option_key),
+        ),
+      "Modifier Option Channel Prices": optionChannelPriceRows
+        .map((row) => {
+          const channel = channelById.get(row.channelId);
+          return {
+            qos_modifier_option_id: keyOf(optionKey, row.modifierOptionId),
+            qos_channel_id: text(channel?.publicId),
+            workbook_slot: text(channel?.workbookSlot),
+            amount_minor: text(row.amountMinor),
+            currency: row.currency.trim(),
+            action: "",
+            expected_revision: revisionToken("modifier_option_channel_price", row.id, [
+              row.version,
+              row.updatedAt,
+              row.amountMinor,
+            ]),
+          };
+        })
+        .sort(
+          (a, b) =>
+            a.qos_modifier_option_id.localeCompare(b.qos_modifier_option_id) ||
+            a.qos_channel_id.localeCompare(b.qos_channel_id) ||
+            a.currency.localeCompare(b.currency),
         ),
       "Product Modifiers": sortByKey(
         productModifierRows.map((row) => {

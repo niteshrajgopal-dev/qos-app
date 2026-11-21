@@ -1,5 +1,5 @@
 {
-  "version": "1.1",
+  "version": "1.2",
   "asOf": "2026-11-21",
   "repositorySnapshot": "99d8106f386bcd349f8f51b263481bb90227d0fc",
   "layout": {
@@ -21,7 +21,7 @@
     },
     {
       "field": "template_version",
-      "value": "1.1",
+      "value": "1.2",
       "rule": "Retain the workbook format version."
     },
     {
@@ -1031,6 +1031,215 @@
       ]
     },
     {
+      "name": "Sales Channels",
+      "description": "Tenant sales-channel identities, such as aggregators. A channel is a price-list identity, not a branch or warehouse. Aggregator 1/2/3 columns map only through workbook_slot.",
+      "short": "Sales-channel identities; Aggregator 1/2/3 map only through workbook_slot.",
+      "phase": "Existing",
+      "support": "Existing QOS model (QOS-213); multi-sheet import extension required",
+      "capacity": 20,
+      "sinceVersion": "1.2",
+      "columns": [
+        {
+          "key": "qos_channel_id",
+          "label": "qos channel id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for a new channel. Do not invent or replace it.",
+          "mapping": "sales_channels.public_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "channel_code",
+          "label": "channel code",
+          "type": "text",
+          "required": true,
+          "description": "Stable tenant code: lowercase letters, digits and underscores. It identifies the channel in repeat uploads and cannot be renamed.",
+          "mapping": "sales_channels.code",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "display_name",
+          "label": "display name",
+          "type": "text",
+          "required": true,
+          "description": "Name staff see. Type the business's own name for the channel; QOS never fills in a provider or city name.",
+          "mapping": "sales_channels.display_name",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "kind",
+          "label": "kind",
+          "type": "text",
+          "required": true,
+          "description": "Channel kind.",
+          "mapping": "sales_channels.kind",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "aggregator",
+            "other"
+          ],
+          "width": 14
+        },
+        {
+          "key": "workbook_slot",
+          "label": "workbook slot",
+          "type": "text",
+          "required": false,
+          "description": "Which Aggregator column of the source workbook this channel receives. Leave blank when the channel has no workbook column. Each slot belongs to one active channel.",
+          "mapping": "sales_channels.workbook_slot",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "aggregator_1",
+            "aggregator_2",
+            "aggregator_3"
+          ],
+          "width": 16
+        },
+        {
+          "key": "status",
+          "label": "status",
+          "type": "text",
+          "required": true,
+          "description": "Channel lifecycle status. Archive keeps price history; channels are never deleted.",
+          "mapping": "sales_channels.status",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "active",
+            "archived"
+          ],
+          "width": 12
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from the record's version. Retain on updates. The importer must verify it before applying.",
+          "mapping": "Export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        }
+      ]
+    },
+    {
+      "name": "Variant Channel Prices",
+      "description": "Explicit variant prices per sales channel. Independent of branch prices; a branch-and-channel combination is not supported.",
+      "short": "Explicit variant prices per sales channel. Independent of branch prices; a branch-and-channel combination is not supported.",
+      "phase": "Existing",
+      "support": "Existing QOS model (QOS-213); multi-sheet import extension required",
+      "capacity": 200,
+      "sinceVersion": "1.2",
+      "columns": [
+        {
+          "key": "qos_variant_id",
+          "label": "qos variant id",
+          "type": "reference",
+          "required": true,
+          "description": "Exact QOS identifier of the record being priced.",
+          "mapping": "catalogue_variant_channel_prices.variant_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Variants",
+            "key": "qos_variant_id"
+          },
+          "width": 38
+        },
+        {
+          "key": "qos_channel_id",
+          "label": "qos channel id",
+          "type": "reference",
+          "required": false,
+          "description": "Exact QOS sales-channel identifier. Give this or workbook_slot.",
+          "mapping": "catalogue_variant_channel_prices.channel_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Sales Channels",
+            "key": "qos_channel_id"
+          },
+          "width": 38
+        },
+        {
+          "key": "workbook_slot",
+          "label": "workbook slot",
+          "type": "text",
+          "required": false,
+          "description": "Alternative to qos_channel_id: the Aggregator column this price came from. QOS resolves it only through Sales Channels.workbook_slot; an unmapped slot is flagged for review, never guessed.",
+          "mapping": "Resolved through sales_channels.workbook_slot",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "aggregator_1",
+            "aggregator_2",
+            "aggregator_3"
+          ],
+          "width": 16
+        },
+        {
+          "key": "amount_minor",
+          "label": "amount minor",
+          "type": "money_minor",
+          "required": false,
+          "description": "Channel price in whole minor currency units (AED 20.00 = 2000). Numeric 0 is a real price. Blank is not zero and does not copy the central variant price.",
+          "mapping": "catalogue_variant_channel_prices.amount_minor",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0,
+          "required_when": "action=set"
+        },
+        {
+          "key": "currency",
+          "label": "currency",
+          "type": "text",
+          "required": false,
+          "description": "Must match the currency of the central variant price.",
+          "mapping": "catalogue_variant_channel_prices.currency",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "AED"
+          ]
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": false,
+          "description": "set writes amount_minor for this channel; reset_to_central removes the channel price so the channel inherits the central variant price; blank keeps the current value.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "set",
+            "reset_to_central"
+          ],
+          "width": 18
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from the record's version. Retain on updates. The importer must verify it before applying.",
+          "mapping": "Export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        }
+      ]
+    },
+    {
       "name": "Modifier Groups",
       "description": "Reusable groups own their selection limits. Product assignments do not duplicate these rules.",
       "short": "Reusable groups own their selection limits. Product assignments do not duplicate these rules.",
@@ -1359,6 +1568,114 @@
           "mapping": "Proposed reviewed clear operation",
           "phase": "Phase 2",
           "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Modifier Option Channel Prices",
+      "description": "Explicit modifier-option prices per sales channel. Blank keeps the current value; reset_to_central inherits the option price.",
+      "short": "Explicit modifier-option prices per sales channel. Blank keeps the current value; reset_to_central inherits the option price.",
+      "phase": "Existing",
+      "support": "Existing QOS model (QOS-213); multi-sheet import extension required",
+      "capacity": 200,
+      "sinceVersion": "1.2",
+      "columns": [
+        {
+          "key": "qos_modifier_option_id",
+          "label": "qos modifier option id",
+          "type": "reference",
+          "required": true,
+          "description": "Exact QOS identifier of the record being priced.",
+          "mapping": "catalogue_modifier_option_channel_prices.modifier_option_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Modifier Options",
+            "key": "qos_modifier_option_id"
+          },
+          "width": 38
+        },
+        {
+          "key": "qos_channel_id",
+          "label": "qos channel id",
+          "type": "reference",
+          "required": false,
+          "description": "Exact QOS sales-channel identifier. Give this or workbook_slot.",
+          "mapping": "catalogue_modifier_option_channel_prices.channel_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Sales Channels",
+            "key": "qos_channel_id"
+          },
+          "width": 38
+        },
+        {
+          "key": "workbook_slot",
+          "label": "workbook slot",
+          "type": "text",
+          "required": false,
+          "description": "Alternative to qos_channel_id: the Aggregator column this price came from. QOS resolves it only through Sales Channels.workbook_slot; an unmapped slot is flagged for review, never guessed.",
+          "mapping": "Resolved through sales_channels.workbook_slot",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "aggregator_1",
+            "aggregator_2",
+            "aggregator_3"
+          ],
+          "width": 16
+        },
+        {
+          "key": "amount_minor",
+          "label": "amount minor",
+          "type": "money_minor",
+          "required": false,
+          "description": "Channel price in whole minor currency units (AED 20.00 = 2000). Numeric 0 is a real price. Blank is not zero and does not copy the option price.",
+          "mapping": "catalogue_modifier_option_channel_prices.amount_minor",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0,
+          "required_when": "action=set"
+        },
+        {
+          "key": "currency",
+          "label": "currency",
+          "type": "text",
+          "required": false,
+          "description": "Must match the currency of the option price.",
+          "mapping": "catalogue_modifier_option_channel_prices.currency",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "AED"
+          ]
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": false,
+          "description": "set writes amount_minor for this channel; reset_to_central removes the channel price so the channel inherits the option price; blank keeps the current value.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "set",
+            "reset_to_central"
+          ],
+          "width": 18
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from the record's version. Retain on updates. The importer must verify it before applying.",
+          "mapping": "Export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
         }
       ]
     },
@@ -4475,7 +4792,7 @@
   "rules": [
     [
       "Scope and version",
-      "Workbook contract v1.1, 21 November 2026. v1.1 adds the Product Modifiers assignment policy columns (min_selections, max_selections, repeat_allowed, selection_count_mode); QOS still reads v1.0 workbooks, which simply lack them. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
+      "Workbook contract v1.2, 21 November 2026. v1.1 (QOS-212) added the Product Modifiers assignment policy columns (min_selections, max_selections, repeat_allowed, selection_count_mode); v1.2 (QOS-213) adds Sales Channels, Variant Channel Prices and Modifier Option Channel Prices. QOS still reads v1.0 and v1.1 workbooks, which simply lack them. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
     ],
     [
       "Current upload profile",
@@ -4556,6 +4873,10 @@
     [
       "Branch price resets",
       "Branch Prices uses reset_to_central for a reviewed removal of an override, following the existing price-reset audit model. The result inherits the current central price. Branches are suspended with status=suspended; they do not use an invented archive operation."
+    ],
+    [
+      "Sales-channel prices",
+      "Channel prices are separate price lists, not branches. Aggregator 1/2/3 map only through Sales Channels.workbook_slot; an unmapped slot is a review finding. Numeric 0 is a real price, blank keeps the current value and is not zero, and reset_to_central inherits the central or option price. A branch-and-channel combination is not supported."
     ],
     [
       "Branch mapping",

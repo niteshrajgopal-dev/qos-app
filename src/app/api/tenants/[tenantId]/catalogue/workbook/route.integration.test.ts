@@ -309,7 +309,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(XLSX);
     expect(response.headers.get("content-disposition")).toBe(
-      'attachment; filename="qos-menu-and-operations-template-v1.1.xlsx"',
+      'attachment; filename="qos-menu-and-operations-template-v1.2.xlsx"',
     );
     expect(response.headers.get("cache-control")).toBe("private, no-store");
 
@@ -336,7 +336,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(body.summary.errors).toBe(0);
     expect(body.manifest).toMatchObject({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.1",
+      template_version: "1.2",
       tenant_public_id: "ten_quotes_dev",
       brand_public_id: "brd_quotes",
       source_namespace: "qos:ten_quotes_dev",

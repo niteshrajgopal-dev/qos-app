@@ -115,7 +115,7 @@ export function readWorkbookManifest(
   const manifest = Object.fromEntries(
     MANIFEST_FIELDS.map((field) => [field, values.get(field) ?? ""]),
   ) as WorkbookManifest;
-  // The file's own version decides which columns it is expected to carry.
+  // The file's own version decides which columns and sheets it is expected to carry.
   manifest.template_version = normalizedVersion;
   // Dictionary 1.1 context fields (for example source_profile on a converted
   // workbook) are returned beside the manifest and never change its meaning.
