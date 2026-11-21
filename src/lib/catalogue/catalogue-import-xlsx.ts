@@ -1,5 +1,8 @@
 import ExcelJS from "exceljs";
 
+import { WORKBOOK_LIMITS } from "@/lib/workbook/limits";
+import { assertZipWithinLimits } from "@/lib/workbook/zip";
+
 function cellToPlainText(cell: ExcelJS.Cell) {
   const value = cell.value;
 
@@ -58,6 +61,10 @@ function worksheetToMatrix(worksheet: ExcelJS.Worksheet | undefined) {
 }
 
 export async function readFirstWorksheetMatrix(bytes: Buffer) {
+  // exceljs inflates every part without a size cap; check the container
+  // first so a zip bomb or crafted part name is refused before it loads.
+  assertZipWithinLimits(bytes, WORKBOOK_LIMITS.ooxml.zip);
+
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(
     bytes.buffer.slice(

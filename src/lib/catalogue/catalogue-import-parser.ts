@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { readFirstWorksheetMatrix } from "@/lib/catalogue/catalogue-import-xlsx";
+import { WorkbookParseError } from "@/lib/workbook/errors";
 
 export class CatalogueImportParseError extends Error {
   readonly field?: string;
@@ -135,7 +136,15 @@ export async function parseSpreadsheetUpload(input: {
     const content = input.bytes.toString("utf8");
     matrix = parseCsv(content);
   } else if (lowerName.endsWith(".xlsx")) {
-    const workbook = await readFirstWorksheetMatrix(input.bytes);
+    let workbook: Awaited<ReturnType<typeof readFirstWorksheetMatrix>>;
+    try {
+      workbook = await readFirstWorksheetMatrix(input.bytes);
+    } catch (error) {
+      if (error instanceof WorkbookParseError) {
+        throw new CatalogueImportParseError(error.message, "file");
+      }
+      throw error;
+    }
 
     if (workbook.sheetCount === 0) {
       throw new CatalogueImportParseError("Workbook contains no sheets.", "file");
