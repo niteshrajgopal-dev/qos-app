@@ -3,7 +3,17 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import {
+  ChannelPricesBlock,
+  SalesChannelAddForm,
+  salesChannelCreateBody,
+} from "@/components/staff/catalogue/channel-price-grid";
+import type { ChannelPriceRowView } from "@/components/staff/catalogue/channel-price-state";
+import { useChannelPriceBundle } from "@/components/staff/catalogue/use-channel-price-bundle";
+import { PortalNotice } from "@/components/portal/workspace/PortalWorkspace";
+import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
+import { staffUiCopy } from "@/lib/staff/locale";
 
 type ModifierGroupEditorProps = {
   tenantId: string;
@@ -38,6 +48,12 @@ type GroupState = {
   options: OptionRow[];
 };
 
+type GroupChannelPrices = {
+  canEditPrice: boolean;
+  channels: Array<{ publicId: string; workbookSlot: string | null }>;
+  options: Array<{ optionPublicId: string; rows: ChannelPriceRowView[] }>;
+};
+
 function minorToMajor(value: number) {
   return (value / 100).toFixed(2);
 }
@@ -65,6 +81,38 @@ export function ModifierGroupEditor({
     priceMajor: "0.00",
     isDefault: false,
   });
+
+  const { locale } = useStaffLocale();
+  const copy = (key: Parameters<typeof staffUiCopy>[1]) => staffUiCopy(locale, key);
+  const groupBase = `/api/tenants/${tenantId}/catalogue/modifier-groups/${groupPublicId}`;
+  const channelPrices = useChannelPriceBundle<GroupChannelPrices>(
+    `${groupBase}/channel-prices`,
+    group?.version,
+    staffUiCopy(locale, "channelPriceLoadError"),
+  );
+  const channelCanEdit = Boolean(channelPrices.bundle?.canEditPrice);
+
+  function optionChannelRows(optionPublicId: string) {
+    return channelPrices.bundle?.options.find((entry) => entry.optionPublicId === optionPublicId)?.rows ?? null;
+  }
+
+  function saveChannelPrice(optionPublicId: string, row: ChannelPriceRowView, amountMinor: number) {
+    return channelPrices.mutate(
+      `${groupBase}/options/${optionPublicId}/channel-prices/${row.channelPublicId}`,
+      { method: "PUT", body: JSON.stringify({ amountMinor, expectedVersion: row.version }) },
+      copy("channelPriceSaveError"),
+      copy("channelPriceSaved"),
+    );
+  }
+
+  function resetChannelPrice(optionPublicId: string, row: ChannelPriceRowView) {
+    return channelPrices.mutate(
+      `${groupBase}/options/${optionPublicId}/channel-prices/${row.channelPublicId}/reset`,
+      { method: "POST", body: JSON.stringify({ expectedVersion: row.version }) },
+      copy("channelPriceSaveError"),
+      copy("channelPriceResetDone"),
+    );
+  }
 
   const loadGroup = useCallback(async () => {
     setBusy(true);
@@ -488,8 +536,39 @@ export function ModifierGroupEditor({
                 </button>
               </div>
             ) : null}
+            {option.status === "active" ? (
+              <ChannelPricesBlock
+                locale={locale}
+                channelCount={channelPrices.bundle?.channels.length ?? 0}
+                rows={optionChannelRows(option.publicId)}
+                canEdit={channelCanEdit}
+                disabled={busy || channelPrices.busy}
+                onSave={(row, amountMinor) => saveChannelPrice(option.publicId, row, amountMinor)}
+                onReset={(row) => resetChannelPrice(option.publicId, row)}
+              />
+            ) : null}
           </article>
         ))}
+        {channelPrices.error ? <PortalNotice tone="error">{channelPrices.error}</PortalNotice> : null}
+        {channelPrices.message ? <PortalNotice tone="success">{channelPrices.message}</PortalNotice> : null}
+        {channelCanEdit ? (
+          <SalesChannelAddForm
+            locale={locale}
+            disabled={channelPrices.busy}
+            takenSlots={(channelPrices.bundle?.channels ?? []).flatMap((channel) =>
+              channel.workbookSlot ? [channel.workbookSlot] : [],
+            )}
+            onAdd={(draft) =>
+              channelPrices.mutate(
+                `/api/tenants/${tenantId}/catalogue/sales-channels`,
+                { method: "POST", body: JSON.stringify(salesChannelCreateBody(draft)) },
+                copy("salesChannelAddError"),
+                copy("salesChannelAdded"),
+                true,
+              )
+            }
+          />
+        ) : null}
       </section>
 
       <form

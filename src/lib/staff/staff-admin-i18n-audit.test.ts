@@ -56,6 +56,10 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/import/workbook-review-row.tsx",
   // QOS-217 workbook apply section
   "app/tenants/[tenantId]/catalogue/import/workbook-apply-panel.tsx",
+  // QOS-213 sales-channel price grid in the variant and modifier-option editors
+  "components/staff/catalogue/channel-price-grid.tsx",
+  "components/staff/catalogue/channel-price-state.ts",
+  "components/staff/catalogue/use-channel-price-bundle.ts",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -109,6 +113,10 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/import/workbook-review-row.tsx",
   // QOS-217 workbook apply section
   "app/tenants/[tenantId]/catalogue/import/workbook-apply-panel.tsx",
+  // QOS-213 sales-channel price grid in the variant and modifier-option editors
+  "components/staff/catalogue/channel-price-grid.tsx",
+  "components/staff/catalogue/channel-price-state.ts",
+  "components/staff/catalogue/use-channel-price-bundle.ts",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -212,6 +220,13 @@ const FORBIDDEN_LITERALS = [
   ">Download correction report<",
   '"Needs decision"',
   ">Match existing<",
+  // QOS-213 channel prices
+  '"Sales channel prices"',
+  ">Save price<",
+  ">Use base price<",
+  ">Add channel<",
+  '"Uses base price"',
+  '"Channel list"',
 ];
 
 describe("staff admin audited surfaces", () => {

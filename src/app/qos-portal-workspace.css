@@ -549,6 +549,51 @@ article.qosp-subcard > .qosp-button-row {
   text-underline-offset: 4px;
 }
 
+/* ---------- Channel prices (QOS-213) ---------- */
+.qosp-channel-prices {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid #ffffff14;
+  min-width: 0;
+}
+.qosp-channel-price-list {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.qosp-channel-price-row {
+  display: grid;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #ffffff12;
+  border-radius: 12px;
+  min-width: 0;
+}
+.qosp-channel-price-row > .qosp-meta-row {
+  margin-bottom: 0;
+}
+.qosp-channel-price-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
+  gap: 8px 14px;
+  margin: 0;
+}
+.qosp-channel-price-facts dt {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--portal-muted);
+}
+.qosp-channel-price-facts dd {
+  margin: 0;
+  font-size: 14px;
+  color: var(--portal-text);
+  overflow-wrap: anywhere;
+}
+
 /* ---------- File control ---------- */
 .qosp-file {
   position: relative;
