@@ -19,6 +19,7 @@ import {
   type WorkbookSheetDefinition,
   type WorkbookSheetSupport,
 } from "@/lib/workbook/contract";
+import { EXTRA_SHEET_NAMES, EXTRA_TABLE_NAMES } from "@/lib/workbook/dictionary";
 import { WorkbookParseError } from "@/lib/workbook/errors";
 import { WORKBOOK_LIMITS } from "@/lib/workbook/limits";
 import { readWorkbookManifest, type WorkbookManifest } from "@/lib/workbook/manifest";
@@ -30,6 +31,7 @@ import {
   type SheetTable,
   type XlsxPackage,
 } from "@/lib/workbook/ooxml";
+import { parseFoodicsMenu, type FoodicsMenuParseResult } from "@/lib/workbook/foodics-menu/reader";
 import { detectUploadContainer, detectXlsxProfile } from "@/lib/workbook/profiles";
 
 /* Stateless parse of an uploaded workbook (QOS-193). It reads the bytes,
@@ -58,7 +60,31 @@ export type WorkbookIssueCode =
   | "unknown_table"
   | "tenant_mismatch"
   | "brand_mismatch"
-  | "manifest_unknown_field";
+  | "manifest_unknown_field"
+  // Foodics menu source profile (QOS-216)
+  | "example_rows_skipped"
+  | "region_absent"
+  | "source_column_unmapped"
+  | "digits_normalized"
+  | "identity_formula"
+  | "missing_identity"
+  | "invalid_number"
+  | "price_precision"
+  | "negative_amount"
+  | "percent_precision"
+  | "tax_unresolved"
+  | "currency_required"
+  | "currency_minor_digits_unknown"
+  | "image_not_url"
+  | "duplicate_identity"
+  | "ambiguous_identity"
+  | "unresolved_reference"
+  | "ambiguous_reference"
+  | "conflicting_values"
+  | "assignment_rule_conflict"
+  | "unit_kind_unresolved"
+  | "yield_unit_unresolved"
+  | "effect_recipe_unresolved";
 
 export type WorkbookIssue = {
   severity: WorkbookIssueSeverity;
@@ -70,9 +96,22 @@ export type WorkbookIssue = {
 };
 
 export type WorkbookRow = {
-  /** Spreadsheet row number, as the person sees it in Excel. */
+  /** Spreadsheet row number, as the person sees it in Excel (in a converted workbook, the canonical sheet row). */
   row: number;
   values: Record<string, string>;
+  /** Provenance of a row converted from a source workbook (QOS-216). Never stored. */
+  source?: {
+    sheet: string;
+    row: number;
+    /** Source row range, e.g. `Products!D11:V11`. */
+    range: string;
+    /** Canonical column → source cell, e.g. `display_name_en` → `Products!D11`. */
+    cells: Record<string, string>;
+    /** Exact source text per role, e.g. price `12.50`, tax `5%`. */
+    values: Record<string, string>;
+    /** Values kept beside the canonical columns (exact money text, channel prices, fields with no QOS column), with their source cell. */
+    preserved?: Record<string, { value: string; cell: string }>;
+  };
 };
 
 export type WorkbookSheetResult = {
@@ -95,6 +134,8 @@ export type ExtendedWorkbookParseResult = {
   fileFingerprint: string;
   templateVersion: string;
   manifest: WorkbookManifest;
+  /** Dictionary 1.1 context fields, present only when the workbook carries them (a converted source workbook). */
+  manifestExtensions?: Record<string, string>;
   isExport: boolean;
   guidanceSheets: string[];
   sheets: WorkbookSheetResult[];
@@ -117,13 +158,19 @@ export type LegacyWorkbookParseResult = {
   warnings: string[];
 };
 
-export type WorkbookParseResult = ExtendedWorkbookParseResult | LegacyWorkbookParseResult;
+export type WorkbookParseResult = ExtendedWorkbookParseResult | LegacyWorkbookParseResult | FoodicsMenuParseResult;
 
 export type WorkbookParseOptions = {
   /** Public id of the tenant the caller is working in; a manifest naming another tenant is flagged. */
   tenantPublicId?: string;
   /** Brand public ids of that tenant; a manifest naming any other brand is flagged. */
   brandPublicIds?: string[];
+  /** The tenant's base currency. The Foodics source has none; money stays blank without it. */
+  tenantCurrency?: string;
+  /** Brand the conversion is for, already checked against the tenant. */
+  brandPublicId?: string | null;
+  /** The tenant's brands, offered when more than one exists. */
+  brandChoices?: Array<{ publicId: string; name: string }>;
 };
 
 async function parseLegacy(
@@ -387,7 +434,12 @@ function parseExtended(
   const sheets = WORKBOOK_CONTRACT.sheets.map((definition) => readContractTable(pkg, definition, budget));
   const issues: WorkbookIssue[] = [...manifestResult.issues];
 
-  const contractNames = new Set<string>([...WORKBOOK_CONTRACT.sheets.map((sheet) => sheet.name), ...GUIDANCE_SHEETS]);
+  // Dictionary extras (the Source Map of a converted workbook) are known but never read as business rows.
+  const contractNames = new Set<string>([
+    ...WORKBOOK_CONTRACT.sheets.map((sheet) => sheet.name),
+    ...GUIDANCE_SHEETS,
+    ...EXTRA_SHEET_NAMES,
+  ]);
   const unknownSheets = pkg.sheets.map((sheet) => sheet.name).filter((name) => !contractNames.has(name));
   if (unknownSheets.length > 0) {
     issues.push({ severity: "warning", code: "unknown_sheet", params: { sheets: unknownSheets.join(", ") } });
@@ -396,6 +448,7 @@ function parseExtended(
   const knownTables = new Set([
     WORKBOOK_LAYOUT.manifestTable,
     FIELD_GUIDE_TABLE,
+    ...EXTRA_TABLE_NAMES,
     ...WORKBOOK_CONTRACT.sheets.map((sheet) => tableNameForSheet(sheet.name)),
   ]);
   const unknownTables = pkg.sheets
@@ -430,6 +483,7 @@ function parseExtended(
     fileFingerprint: createHash("sha256").update(bytes).digest("hex"),
     templateVersion: manifestResult.manifest.template_version,
     manifest: manifestResult.manifest,
+    ...(Object.keys(manifestResult.extensions).length > 0 ? { manifestExtensions: manifestResult.extensions } : {}),
     isExport: Boolean(manifestResult.manifest.export_revision),
     guidanceSheets: GUIDANCE_SHEETS.filter((name) => pkg.sheets.some((sheet) => sheet.name === name)),
     sheets,
@@ -439,7 +493,7 @@ function parseExtended(
 }
 
 /**
- * Parses uploaded bytes into one of the two profiles. Every result is
+ * Parses uploaded bytes into one of the three profiles. Every result is
  * derived from the bytes: the file name only has to agree with the content.
  */
 export async function parseWorkbookUpload(
@@ -452,8 +506,12 @@ export async function parseWorkbookUpload(
   }
 
   const pkg = readXlsxPackage(input.bytes, WORKBOOK_LIMITS.ooxml);
-  if (detectXlsxProfile(pkg) === "legacy_flat") {
+  const detected = detectXlsxProfile(pkg);
+  if (detected.profile === "legacy_flat") {
     return parseLegacy(input.fileName, input.bytes, "xlsx");
+  }
+  if (detected.profile === "foodics_menu_v1") {
+    return parseFoodicsMenu(input.fileName, input.bytes, pkg, detected.layout, options);
   }
   return parseExtended(input.fileName, input.bytes, pkg, options);
 }

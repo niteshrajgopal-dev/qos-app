@@ -92,7 +92,9 @@ function addTable(
   });
 }
 
-function buildStartHere(workbook: ExcelJS.Workbook, manifest: WorkbookManifest) {
+export type ExtraContextRow = { field: string; value: string; rule: string };
+
+function buildStartHere(workbook: ExcelJS.Workbook, manifest: WorkbookManifest, extraContext: ExtraContextRow[]) {
   const worksheet = workbook.addWorksheet(START_HERE_SHEET, {
     views: [{ state: "frozen", ySplit: 17, showGridLines: false }],
   });
@@ -120,7 +122,8 @@ function buildStartHere(workbook: ExcelJS.Workbook, manifest: WorkbookManifest) 
   worksheet.getCell(`A${contextTitleRow}`).value = "Workbook context — QOS export / preview metadata";
   worksheet.getCell(`A${contextTitleRow}`).font = { bold: true };
   const contextHeaderRow = contextTitleRow + 1;
-  for (let row = contextHeaderRow + 1; row <= contextHeaderRow + WORKBOOK_CONTRACT.context.length; row += 1) {
+  const contextRows = WORKBOOK_CONTRACT.context.length + extraContext.length;
+  for (let row = contextHeaderRow + 1; row <= contextHeaderRow + contextRows; row += 1) {
     worksheet.getCell(`B${row}`).numFmt = "@";
   }
   addTable(
@@ -128,11 +131,14 @@ function buildStartHere(workbook: ExcelJS.Workbook, manifest: WorkbookManifest) 
     WORKBOOK_LAYOUT.manifestTable,
     `A${contextHeaderRow}`,
     ["field", "value", "rule"],
-    WORKBOOK_CONTRACT.context.map((entry) => [
-      entry.field,
-      manifest[entry.field as keyof WorkbookManifest] || null,
-      entry.rule,
-    ]),
+    [
+      ...WORKBOOK_CONTRACT.context.map((entry) => [
+        entry.field,
+        manifest[entry.field as keyof WorkbookManifest] || null,
+        entry.rule,
+      ]),
+      ...extraContext.map((entry) => [entry.field, entry.value || null, entry.rule]),
+    ],
   );
 }
 
@@ -255,11 +261,15 @@ function buildImportRules(workbook: ExcelJS.Workbook) {
 /**
  * Writes the workbook. `manifest` carries the context values; `records`
  * fills entity tables by sheet name (an export). Everything is written as
- * text, so leading zeros and long identifiers survive.
+ * text, so leading zeros and long identifiers survive. `extraContext` and
+ * `extraSheets` are used only by a source conversion (QOS-216, dictionary
+ * 1.1); the blank template and the export pass neither and are unchanged.
  */
 export async function buildQosWorkbook(input: {
   manifest: WorkbookManifest;
   records?: WorkbookRecords;
+  extraContext?: ExtraContextRow[];
+  extraSheets?: (workbook: ExcelJS.Workbook) => void;
 }) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "QOS";
@@ -268,12 +278,13 @@ export async function buildQosWorkbook(input: {
   workbook.created = fixedDate;
   workbook.modified = fixedDate;
 
-  buildStartHere(workbook, input.manifest);
+  buildStartHere(workbook, input.manifest, input.extraContext ?? []);
   for (const sheet of WORKBOOK_CONTRACT.sheets) {
     buildContractSheet(workbook, sheet, input.records?.[sheet.name] ?? []);
   }
   buildFieldGuide(workbook);
   buildImportRules(workbook);
+  input.extraSheets?.(workbook);
 
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

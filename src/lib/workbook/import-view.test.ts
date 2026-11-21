@@ -5,8 +5,10 @@ import {
   attachmentFileName,
   describeWorkbookApiError,
   describeWorkbookIssue,
+  WORKBOOK_CAPABILITY_COPY,
   WORKBOOK_ERROR_COPY,
   WORKBOOK_ISSUE_COPY,
+  WORKBOOK_REGION_COPY,
   WORKBOOK_SEVERITY_COPY,
   WORKBOOK_SUPPORT_COPY,
   workbookIssueLocation,
@@ -18,6 +20,8 @@ const ALL_KEYS = [
   ...Object.values(WORKBOOK_ERROR_COPY),
   ...Object.values(WORKBOOK_SUPPORT_COPY),
   ...Object.values(WORKBOOK_SEVERITY_COPY),
+  ...Object.values(WORKBOOK_REGION_COPY),
+  ...Object.values(WORKBOOK_CAPABILITY_COPY),
 ];
 
 describe("workbook import wording", () => {
@@ -89,6 +93,40 @@ describe("workbook import wording", () => {
     expect(describeWorkbookApiError("ar", 404, null)).toBe("لم يُعثر على هذا النشاط.");
     expect(describeWorkbookApiError("en", 401, null)).toBe("Your session has ended. Sign in again.");
     expect(describeWorkbookApiError("en", 500, { code: "nope" })).toBe("Something went wrong. Try again.");
+  });
+
+  it("describes Foodics menu source issues at their source cell, in English and Arabic", () => {
+    const issue: WorkbookIssue = {
+      severity: "error",
+      code: "unresolved_reference",
+      sheet: "Products",
+      row: 12,
+      column: "Category",
+      params: { cell: "H12", field: "category", value: "Cold drinks" },
+    };
+    expect(describeWorkbookIssue("en", issue)).toBe(
+      "Cold drinks in Category does not match any name in this file. The link was not created.",
+    );
+    expect(describeWorkbookIssue("ar", issue)).toBe("القيمة Cold drinks في العمود Category لا تطابق أي اسم في هذا الملف. لم يُنشأ الربط.");
+    expect(workbookIssueLocation(issue)).toBe("Products!H12");
+    expect(
+      describeWorkbookIssue("en", { severity: "info", code: "example_rows_skipped", sheet: "Products", params: { region: "products", range: "D7:V10", populated: 4 } }),
+    ).toBe("Example rows D7:V10 were skipped by position and never read. Rows with typed text there: 4.");
+  });
+
+  it("explains a modified Foodics layout and refused conversions", () => {
+    expect(
+      describeWorkbookApiError("en", 400, {
+        code: "source_layout_partial",
+        params: { region: "products", sheet: "Products", expectedRef: "D6:V6", foundRow: 7 },
+      }),
+    ).toBe(
+      "This looks like the Foodics menu workbook, but its products table is missing, moved or changed (expected at D6:V6, sheet Products). QOS did not guess; restore the original layout.",
+    );
+    expect(describeWorkbookApiError("ar", 400, { code: "convert_unsupported_profile", params: { profile: "legacy_flat" } })).toMatch(/Foodics/);
+    expect(describeWorkbookApiError("en", 422, { code: "convert_too_large", params: { sheet: "Products", max: 1000 } })).toBe(
+      "Products would have more rows than one QOS workbook can carry (1000).",
+    );
   });
 
   it("reads the download file name from Content-Disposition", () => {

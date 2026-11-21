@@ -1,0 +1,71 @@
+{
+  "profile": "foodics_menu_v1",
+  "version": 1,
+  "note": "Source header roles and aliases for the Foodics menu workbook layout. Every label is ASSUMED (QOS-216 plan section 2.2): the issue names the fields, not their labels. Aliases are compared after normalizeHeader(); the slot is a tiebreaker only.",
+  "regions": {
+    "categories": [
+      { "role": "name_en", "slot": "F", "aliases": ["name", "name en", "category name", "category name en", "english name", "name english", "category"] },
+      { "role": "name_ar", "slot": "G", "aliases": ["name ar", "arabic name", "name arabic", "category name ar", "الاسم", "الاسم بالعربية"] }
+    ],
+    "products": [
+      { "role": "name_en", "slot": "D", "aliases": ["name", "name en", "product name", "product name en", "english name", "item name"] },
+      { "role": "name_ar", "slot": "E", "aliases": ["name ar", "arabic name", "product name ar", "الاسم"] },
+      { "role": "description_en", "slot": "F", "aliases": ["description", "description en", "english description"] },
+      { "role": "description_ar", "slot": "G", "aliases": ["description ar", "arabic description", "الوصف"] },
+      { "role": "category", "slot": "H", "aliases": ["category", "category name", "category en"] },
+      { "role": "sku", "slot": "I", "aliases": ["sku", "product code", "code", "item code", "reference"] },
+      { "role": "barcode", "slot": "J", "aliases": ["barcode", "bar code", "ean", "upc"] },
+      { "role": "price", "slot": "K", "aliases": ["price", "base price", "selling price", "default price", "price aed"] },
+      { "role": "channel_price", "slot": "L-O", "aliases": [], "channelPrice": true },
+      { "role": "tax", "slot": "P", "aliases": ["tax", "tax group", "tax rate", "vat", "vat %", "tax %"] },
+      { "role": "cost", "slot": "Q", "aliases": ["cost", "cost price", "unit cost"] },
+      { "role": "selling_method", "slot": "R", "aliases": ["selling method", "sold by", "sold by weight", "pricing method", "is sold by weight"] },
+      { "role": "is_active", "slot": "S", "aliases": ["active", "is active", "status", "enabled"] },
+      { "role": "calories", "slot": "T", "aliases": ["calories", "kcal", "nutrition calories"] },
+      { "role": "preparation_time", "slot": "U", "aliases": ["preparation time", "prep time", "preparation minutes"] },
+      { "role": "image", "slot": "V", "aliases": ["image", "image url", "photo"] }
+    ],
+    "ingredients": [
+      { "role": "name_en", "slot": "D", "aliases": ["name", "ingredient", "ingredient name", "item"] },
+      { "role": "name_ar", "slot": "E", "aliases": ["name ar", "الاسم"] },
+      { "role": "storage_unit", "slot": "F", "aliases": ["storage unit", "purchase unit", "unit", "stock unit", "inventory unit"] },
+      { "role": "recipe_unit", "slot": "G", "aliases": ["recipe unit", "usage unit", "ingredient unit", "consumption unit"] },
+      { "role": "units_per_storage", "slot": "H", "aliases": ["conversion", "conversion factor", "factor", "units per storage unit", "recipe units per storage unit"] },
+      { "role": "cost", "slot": "I", "aliases": ["cost", "cost per unit", "unit cost", "purchase cost", "price"] },
+      { "role": "inventory_category", "slot": "J", "aliases": ["category", "inventory category", "group", "type"] }
+    ],
+    "product_recipe_lines": [
+      { "role": "product", "slot": "L", "aliases": ["product", "product name", "item"] },
+      { "role": "ingredient", "slot": "M", "aliases": ["ingredient", "ingredient name"] },
+      { "role": "quantity", "slot": "N", "aliases": ["quantity", "qty", "amount", "quantity recipe unit"] }
+    ],
+    "modifiers": [
+      { "role": "group_en", "slot": "F", "aliases": ["modifier", "modifier name", "modifier group", "group", "group name", "modifier en"] },
+      { "role": "group_ar", "slot": "G", "aliases": ["modifier ar", "group ar", "group name ar"] },
+      { "role": "option_en", "slot": "H", "aliases": ["option", "option name", "modifier option", "option en"] },
+      { "role": "option_ar", "slot": "I", "aliases": ["option ar", "option name ar"] },
+      { "role": "price", "slot": "J", "aliases": ["price", "option price", "extra price"] },
+      { "role": "channel_price", "slot": "K-M", "aliases": [], "channelPrice": true },
+      { "role": "cost", "slot": "N", "aliases": ["cost", "option cost"] },
+      { "role": "calories", "slot": "O", "aliases": ["calories", "kcal"] }
+    ],
+    "modifier_ingredient_lines": [
+      { "role": "option", "slot": "R", "aliases": ["option", "modifier option", "group option"] },
+      { "role": "ingredient", "slot": "S", "aliases": ["ingredient", "ingredient name"] },
+      { "role": "quantity", "slot": "T", "aliases": ["quantity", "qty", "amount", "quantity recipe unit"] }
+    ],
+    "assignments": [
+      { "role": "product", "slot": "D", "aliases": ["product", "product name", "item"] },
+      { "role": "group", "slot": "E", "aliases": ["modifier", "modifier group", "group"] },
+      { "role": "min", "slot": "F", "aliases": ["min", "minimum", "min selections", "min options"] },
+      { "role": "max", "slot": "G", "aliases": ["max", "maximum", "max selections", "max options"] },
+      { "role": "required", "slot": "H", "aliases": ["required", "is required", "mandatory"] },
+      { "role": "free_options", "slot": "I", "aliases": ["free", "free options", "free quantity", "included"] }
+    ],
+    "prepared_recipe_lines": [
+      { "role": "prepared_item", "slot": "I", "aliases": ["prepared item", "sub recipe", "semi finished", "prepared ingredient", "recipe"] },
+      { "role": "ingredient", "slot": "J", "aliases": ["ingredient", "ingredient name"] },
+      { "role": "quantity", "slot": "K", "aliases": ["quantity", "qty", "amount", "quantity recipe unit"] }
+    ]
+  }
+}

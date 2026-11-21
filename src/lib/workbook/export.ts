@@ -765,17 +765,39 @@ export async function buildCurrentRecordWorkbook(data: CurrentRecordExport) {
 export async function loadWorkbookTenantIdentity(db: DbClient, tenantId: string) {
   return withTenantContext(db, tenantId, async (tx) => {
     const [tenant] = await tx
-      .select({ publicId: tenants.publicId })
+      .select({ publicId: tenants.publicId, baseCurrency: tenants.baseCurrency, defaultTimezone: tenants.defaultTimezone })
       .from(tenants)
       .where(eq(tenants.id, tenantId))
       .limit(1);
     const brandRows = await tx
-      .select({ publicId: brands.publicId })
+      .select({ publicId: brands.publicId, name: brands.name })
       .from(brands)
-      .where(eq(brands.tenantId, tenantId));
+      .where(eq(brands.tenantId, tenantId))
+      .orderBy(asc(brands.name), asc(brands.publicId));
     return {
       tenantPublicId: tenant?.publicId,
       brandPublicIds: brandRows.map((row) => row.publicId),
+      baseCurrency: tenant?.baseCurrency.trim(),
+      defaultTimezone: tenant?.defaultTimezone,
+      brands: brandRows.map((row) => ({ publicId: row.publicId, name: row.name })),
     };
   });
+}
+
+export type WorkbookTenantIdentity = Awaited<ReturnType<typeof loadWorkbookTenantIdentity>>;
+
+/**
+ * Brand a source conversion is for: the requested brand when it belongs to
+ * the tenant (404 otherwise), the only brand, or none yet when there are
+ * several. Parse never fails for a missing brand; convert does.
+ */
+export function resolveWorkbookBrand(identity: WorkbookTenantIdentity, requested: string | null | undefined) {
+  const wanted = requested?.trim();
+  if (wanted) {
+    if (!identity.brands.some((brand) => brand.publicId === wanted)) {
+      throw new WorkbookExportError("brand_not_found", "Brand not found.", 404);
+    }
+    return wanted;
+  }
+  return identity.brands.length === 1 ? identity.brands[0]!.publicId : null;
 }

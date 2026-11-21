@@ -18,7 +18,12 @@ export type WorkbookErrorCode =
   | "manifest_invalid"
   | "unknown_profile"
   | "unsupported_version"
-  | "legacy_parse_failed";
+  | "legacy_parse_failed"
+  | "source_layout_partial"
+  | "source_layout_ambiguous"
+  | "convert_unsupported_profile"
+  | "convert_too_large"
+  | "convert_currency_unresolved";
 
 export class WorkbookParseError extends Error {
   readonly code: WorkbookErrorCode;

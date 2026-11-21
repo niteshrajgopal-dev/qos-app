@@ -25,3 +25,15 @@ export const WORKBOOK_LIMITS = {
     maxSharedStrings: 250_000,
   } satisfies OoxmlLimits,
 } as const;
+
+/**
+ * Bounds for the Foodics menu source profile (QOS-216). Rows per region match
+ * the canonical read-back ceiling so a converted workbook can be read again.
+ * Typed identity text past the bound is refused, never silently cut off.
+ */
+export const FOODICS_MENU_LIMITS = {
+  maxRowsPerRegion: 1000,
+  maxHeaderProbeRows: 15,
+  maxSourceMapRows: 10_000,
+  maxChannelLabels: 12,
+} as const;

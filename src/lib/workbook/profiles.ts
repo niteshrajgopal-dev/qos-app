@@ -1,5 +1,6 @@
 import type { XlsxPackage } from "@/lib/workbook/ooxml";
 import { WorkbookParseError } from "@/lib/workbook/errors";
+import { detectFoodicsMenuLayout, type FoodicsMenuLayout } from "@/lib/workbook/foodics-menu/layout";
 import { WORKBOOK_LIMITS } from "@/lib/workbook/limits";
 import { looksLikeZip } from "@/lib/workbook/zip";
 import {
@@ -9,13 +10,20 @@ import {
   WORKBOOK_LAYOUT,
 } from "@/lib/workbook/contract";
 
-/* Two upload profiles. `legacy_flat` is today's seven-column catalogue
+/* Three upload profiles. `legacy_flat` is today's seven-column catalogue
    profile (CSV, or the first worksheet of an XLSX) and keeps IMPORT_LIMITS
    unchanged. `qos_extended_v1` is the proposed named-table workbook and is
    recognised only by its QOS_Workbook_Context manifest table, never by the
-   file name. */
+   file name. `foodics_menu_v1` (QOS-216) is the client's Foodics-style menu
+   workbook, recognised by its structural signature before the legacy
+   fallback, so it can never be read as a seven-column file. */
 
-export type WorkbookProfile = "legacy_flat" | "qos_extended_v1";
+export type WorkbookProfile = "legacy_flat" | "qos_extended_v1" | "foodics_menu_v1";
+
+export type XlsxProfileDetection =
+  | { profile: "qos_extended_v1" }
+  | { profile: "foodics_menu_v1"; layout: FoodicsMenuLayout }
+  | { profile: "legacy_flat" };
 
 export type UploadContainer = "csv" | "xlsx";
 
@@ -102,13 +110,15 @@ const CONTRACT_ENTITY_TABLES = new Set(
 /**
  * Profile of an XLSX package: the manifest table marks the expanded profile.
  * Entity tables without a manifest are refused rather than guessed, because
- * the context (tenant, brand, namespace, version) would be missing. Anything
- * else is the legacy flat profile.
+ * the context (tenant, brand, namespace, version) would be missing. Then the
+ * Foodics menu layout is checked: a full match is that profile, a partial or
+ * duplicated layout throws a coded error. Anything else is the legacy flat
+ * profile. The layout found here is handed to the reader, not recomputed.
  */
-export function detectXlsxProfile(pkg: XlsxPackage): WorkbookProfile {
+export function detectXlsxProfile(pkg: XlsxPackage): XlsxProfileDetection {
   const tableNames = pkg.sheets.flatMap((sheet) => sheet.tables.map((table) => table.name));
   if (tableNames.includes(WORKBOOK_LAYOUT.manifestTable)) {
-    return "qos_extended_v1";
+    return { profile: "qos_extended_v1" };
   }
   if (tableNames.some((name) => CONTRACT_ENTITY_TABLES.has(name))) {
     throw new WorkbookParseError(
@@ -116,5 +126,9 @@ export function detectXlsxProfile(pkg: XlsxPackage): WorkbookProfile {
       `The workbook has QOS tables but no ${WORKBOOK_LAYOUT.manifestTable} table. Start from a QOS template or export.`,
     );
   }
-  return "legacy_flat";
+  const layout = detectFoodicsMenuLayout(pkg);
+  if (layout) {
+    return { profile: "foodics_menu_v1", layout };
+  }
+  return { profile: "legacy_flat" };
 }
