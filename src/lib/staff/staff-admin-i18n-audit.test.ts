@@ -44,6 +44,10 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/sales/page.tsx",
   "app/tenants/[tenantId]/reports/page.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/page.tsx",
+  // QOS-193 catalogue import landing: current profile and QOS workbook
+  "app/tenants/[tenantId]/catalogue/import/page.tsx",
+  "app/tenants/[tenantId]/catalogue/import/catalogue-import-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/import/workbook-import-panel.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -85,6 +89,10 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/sales/page.tsx",
   "app/tenants/[tenantId]/reports/page.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/page.tsx",
+  // QOS-193 catalogue import landing: current profile and QOS workbook
+  "app/tenants/[tenantId]/catalogue/import/page.tsx",
+  "app/tenants/[tenantId]/catalogue/import/catalogue-import-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/import/workbook-import-panel.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -158,6 +166,17 @@ const FORBIDDEN_LITERALS = [
   '"Switch business"',
   ">Switch business<",
   '"Business: ',
+  // QOS-193 catalogue import landing
+  ">Catalogue import<",
+  ">Preview import<",
+  ">Apply validated rows<",
+  ">Download sample CSV<",
+  ">Download sample XLSX<",
+  ">Download blank template<",
+  ">Export current records<",
+  ">Select column<",
+  '"Preview failed."',
+  '"Apply failed."',
 ];
 
 describe("staff admin audited surfaces", () => {

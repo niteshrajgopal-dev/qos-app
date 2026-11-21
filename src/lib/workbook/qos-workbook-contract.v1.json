@@ -1,0 +1,4625 @@
+{
+  "version": "1.0",
+  "asOf": "2026-11-16",
+  "repositorySnapshot": "99d8106f386bcd349f8f51b263481bb90227d0fc",
+  "layout": {
+    "extendedHeaderRow": 6,
+    "extendedFirstDataRow": 7,
+    "currentProfileHeaderRow": 1,
+    "currentProfileFirstDataRow": 2,
+    "tablePrefix": "QOS_",
+    "computedColumns": [
+      "row_check"
+    ],
+    "manifestTable": "QOS_Workbook_Context"
+  },
+  "context": [
+    {
+      "field": "profile",
+      "value": "qos-extended-v1-proposed",
+      "rule": "Identifies the proposed multi-sheet import profile; not the current flat importer."
+    },
+    {
+      "field": "template_version",
+      "value": "1.0",
+      "rule": "Retain the workbook format version."
+    },
+    {
+      "field": "prepared_on",
+      "value": "2026-11-16",
+      "rule": "Template preparation date; not a business-data cutoff."
+    },
+    {
+      "field": "tenant_public_id",
+      "value": "",
+      "rule": "Blank starter: QOS binds to the selected authorised tenant. Exports retain immutable context."
+    },
+    {
+      "field": "brand_public_id",
+      "value": "",
+      "rule": "Blank starter: QOS binds to the selected authorised brand. Exports retain immutable context."
+    },
+    {
+      "field": "source_namespace",
+      "value": "",
+      "rule": "QOS assigns or confirms one stable namespace before the first import; retain it for repeat imports."
+    },
+    {
+      "field": "export_revision",
+      "value": "",
+      "rule": "QOS export/preview token. Never fabricate or edit this token."
+    },
+    {
+      "field": "exported_at",
+      "value": "",
+      "rule": "Filled by a QOS export, as an ISO 8601 timestamp with offset."
+    },
+    {
+      "field": "pilot_currency",
+      "value": "AED",
+      "rule": "Confirmed template convention for Quotes; verify against the selected tenant."
+    },
+    {
+      "field": "business_timezone",
+      "value": "Asia/Dubai",
+      "rule": "Pilot default; resolve reporting cutoffs per confirmed branch."
+    }
+  ],
+  "sheets": [
+    {
+      "name": "Current Import",
+      "description": "Exact columns recognised by today’s flat catalogue profile. Copy/save this tab alone as CSV; do not upload the expanded workbook.",
+      "short": "Exact columns recognised by today’s flat catalogue profile. Copy/save this tab alone as CSV; do not upload the expanded workbook.",
+      "phase": "Existing",
+      "support": "Current flat catalogue profile",
+      "capacity": 500,
+      "columns": [
+        {
+          "key": "source_id",
+          "label": "source id",
+          "type": "text",
+          "required": true,
+          "description": "Stable external/source row ID within the chosen connection key. Retain on repeat uploads; not a QOS product ID.",
+          "mapping": "CatalogueImportColumnMapping.sourceId",
+          "phase": "Existing",
+          "importSupport": "Supported flat profile",
+          "isKey": true
+        },
+        {
+          "key": "internal_name",
+          "label": "internal name",
+          "type": "text",
+          "required": true,
+          "description": "Required internal product name/code.",
+          "mapping": "CatalogueImportColumnMapping.internalName",
+          "phase": "Existing",
+          "importSupport": "Supported flat profile"
+        },
+        {
+          "key": "display_name_en",
+          "label": "display name en",
+          "type": "text",
+          "required": true,
+          "description": "Required English product display name.",
+          "mapping": "CatalogueImportColumnMapping.displayNameEn",
+          "phase": "Existing",
+          "importSupport": "Supported flat profile"
+        },
+        {
+          "key": "display_name_ar",
+          "label": "display name ar",
+          "type": "text",
+          "required": true,
+          "description": "Required Arabic product display name.",
+          "mapping": "CatalogueImportColumnMapping.displayNameAr",
+          "phase": "Existing",
+          "importSupport": "Supported flat profile"
+        },
+        {
+          "key": "amount_minor",
+          "label": "amount minor",
+          "type": "money_minor",
+          "required": true,
+          "description": "Whole nonnegative minor currency units. AED 20.00 must be entered as 2000, not 20 or 20.00.",
+          "mapping": "CatalogueImportColumnMapping.amountMinor",
+          "phase": "Existing",
+          "importSupport": "Supported flat profile",
+          "min": 0
+        },
+        {
+          "key": "currency",
+          "label": "currency",
+          "type": "text",
+          "required": true,
+          "description": "Three-letter ISO currency, normally AED for Quotes.",
+          "mapping": "CatalogueImportColumnMapping.currency",
+          "phase": "Existing",
+          "importSupport": "Supported flat profile",
+          "values": [
+            "AED"
+          ]
+        },
+        {
+          "key": "image_url",
+          "label": "image url",
+          "type": "url",
+          "required": false,
+          "description": "Optional public HTTPS image URL. Keep within parser cell limits; remote-media validation still applies. The current apply path normally preserves an approved primary image; replacement needs explicit re-ingestion support and preview.",
+          "mapping": "CatalogueImportColumnMapping.imageUrl",
+          "phase": "Existing",
+          "importSupport": "Supported flat profile"
+        }
+      ],
+      "raw": true
+    },
+    {
+      "name": "Branches",
+      "description": "Map requested branch labels to confirmed existing QOS locations before importing branch data.",
+      "short": "Map requested branch labels to confirmed existing QOS locations before importing branch data.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 20,
+      "columns": [
+        {
+          "key": "branch_key",
+          "label": "branch key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_location_id",
+          "label": "qos location id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "locations.public_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Create a branch, update an exported/verified branch, or skip. Suspend through status=suspended; this profile does not archive branches.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "name",
+          "label": "name",
+          "type": "text",
+          "required": true,
+          "description": "Confirmed branch display name. Requested labels are Dubai, Al Ain and Azur Cafe; mapping to existing IDs must be reviewed.",
+          "mapping": "locations.name",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "timezone",
+          "label": "timezone",
+          "type": "text",
+          "required": true,
+          "description": "Branch business timezone; use the confirmed value, normally Asia/Dubai for this pilot.",
+          "mapping": "locations.timezone",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "slug",
+          "label": "slug",
+          "type": "text",
+          "required": true,
+          "description": "Existing unique branch slug within the tenant. Preserve on updates unless an authorised route change is intended.",
+          "mapping": "locations.slug",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "status",
+          "label": "status",
+          "type": "text",
+          "required": true,
+          "description": "Location operational state; this is not a menu-publication action.",
+          "mapping": "locations.status",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "active",
+            "suspended"
+          ]
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "description": "Define shared menu categories; use Product Categories to assign products.",
+      "short": "Define shared menu categories; use Product Categories to assign products.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 100,
+      "columns": [
+        {
+          "key": "category_key",
+          "label": "category key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_category_id",
+          "label": "qos category id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_categories.public_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "internal_name",
+          "label": "internal name",
+          "type": "text",
+          "required": true,
+          "description": "Internal category name/code.",
+          "mapping": "catalogue_categories.internal_name",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_en",
+          "label": "display name en",
+          "type": "text",
+          "required": true,
+          "description": "Customer/staff display name in English.",
+          "mapping": "catalogue_category_translations.display_name (locale en)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_ar",
+          "label": "display name ar",
+          "type": "text",
+          "required": true,
+          "description": "Display name in Arabic. Existing approval rules remain separate.",
+          "mapping": "catalogue_category_translations.display_name (locale ar)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "sort_order",
+          "label": "sort order",
+          "type": "integer",
+          "required": true,
+          "description": "Nonnegative display sequence.",
+          "mapping": "catalogue_categories.sort_order",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "status",
+          "label": "status",
+          "type": "text",
+          "required": true,
+          "description": "Catalogue status; publication remains separate.",
+          "mapping": "catalogue_categories.status",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "draft",
+            "active",
+            "archived"
+          ]
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Products",
+      "description": "Canonical products. Prices and sellable options belong in Variants; category links are separate.",
+      "short": "Canonical products. Prices and sellable options belong in Variants; category links are separate.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 200,
+      "columns": [
+        {
+          "key": "product_key",
+          "label": "product key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_product_id",
+          "label": "qos product id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_products.public_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "internal_name",
+          "label": "internal name",
+          "type": "text",
+          "required": true,
+          "description": "Internal product name/code. Brand and tenant context come from the selected import workspace.",
+          "mapping": "catalogue_products.internal_name",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_en",
+          "label": "display name en",
+          "type": "text",
+          "required": true,
+          "description": "Customer/staff display name in English.",
+          "mapping": "catalogue_product_translations.display_name (locale en)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_ar",
+          "label": "display name ar",
+          "type": "text",
+          "required": true,
+          "description": "Display name in Arabic. Existing approval rules remain separate.",
+          "mapping": "catalogue_product_translations.display_name (locale ar)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "description_en",
+          "label": "description en",
+          "type": "description",
+          "required": false,
+          "description": "English description.",
+          "mapping": "catalogue_product_translations.description (locale en)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "description_ar",
+          "label": "description ar",
+          "type": "description",
+          "required": false,
+          "description": "Arabic description; translation approval remains separate.",
+          "mapping": "catalogue_product_translations.description (locale ar)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "sku",
+          "label": "sku",
+          "type": "text",
+          "required": false,
+          "description": "Product-level SKU; retain leading zeros. Variant-specific SKUs are separate.",
+          "mapping": "catalogue_products.sku",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "barcode",
+          "label": "barcode",
+          "type": "text",
+          "required": false,
+          "description": "Product-level barcode stored as text.",
+          "mapping": "catalogue_products.barcode",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "nutrition_calories",
+          "label": "nutrition calories",
+          "type": "integer",
+          "required": false,
+          "description": "Known calorie value only. Blank means unknown; do not enter a guessed zero.",
+          "mapping": "catalogue_products.nutrition_calories",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "image_url",
+          "label": "image url",
+          "type": "url",
+          "required": false,
+          "description": "Optional HTTPS source image. Import maps an accepted media asset; it is not a database media ID.",
+          "mapping": "Media ingestion to catalogue_products.primary_media_asset_id",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "status",
+          "label": "status",
+          "type": "text",
+          "required": true,
+          "description": "Catalogue product lifecycle status. Import creates/updates drafts without publishing.",
+          "mapping": "catalogue_products.status",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "draft",
+            "active",
+            "archived"
+          ]
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Product Categories",
+      "description": "One product-category relationship per row; a product can have more than one category.",
+      "short": "One product-category relationship per row; a product can have more than one category.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 200,
+      "columns": [
+        {
+          "key": "product_category_key",
+          "label": "product category key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_product_category_id",
+          "label": "qos product category id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_product_categories.id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "remove_link",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "product_key",
+          "label": "product key",
+          "type": "reference",
+          "required": true,
+          "description": "Product to categorise.",
+          "mapping": "catalogue_product_categories.product_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Products",
+            "key": "product_key"
+          }
+        },
+        {
+          "key": "category_key",
+          "label": "category key",
+          "type": "reference",
+          "required": true,
+          "description": "Category to assign.",
+          "mapping": "catalogue_product_categories.category_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Categories",
+            "key": "category_key"
+          }
+        },
+        {
+          "key": "sort_order",
+          "label": "sort order",
+          "type": "integer",
+          "required": true,
+          "description": "Product ordering within this category.",
+          "mapping": "catalogue_product_categories.sort_order",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Variants",
+      "description": "One sellable variant per row, with its tenant-currency base price. Preserve product and price identity.",
+      "short": "One sellable variant per row, with its tenant-currency base price. Preserve product and price identity.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 200,
+      "columns": [
+        {
+          "key": "variant_key",
+          "label": "variant key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_variant_id",
+          "label": "qos variant id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_variants.public_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "product_key",
+          "label": "product key",
+          "type": "reference",
+          "required": true,
+          "description": "Owning canonical product.",
+          "mapping": "catalogue_variants.product_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Products",
+            "key": "product_key"
+          }
+        },
+        {
+          "key": "variant_label_en",
+          "label": "variant label en",
+          "type": "text",
+          "required": false,
+          "description": "English variant label; default/simple variants may use an empty label.",
+          "mapping": "catalogue_variant_translations.display_name (en)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "variant_label_ar",
+          "label": "variant label ar",
+          "type": "text",
+          "required": false,
+          "description": "Arabic variant label.",
+          "mapping": "catalogue_variant_translations.display_name (ar)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "is_default",
+          "label": "is default",
+          "type": "text",
+          "required": true,
+          "description": "Exactly one valid default variant per active product, following current QOS rules.",
+          "mapping": "catalogue_variants.is_default",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "TRUE",
+            "FALSE"
+          ]
+        },
+        {
+          "key": "sort_order",
+          "label": "sort order",
+          "type": "integer",
+          "required": true,
+          "description": "Variant display sequence.",
+          "mapping": "catalogue_variants.sort_order",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "sku",
+          "label": "sku",
+          "type": "text",
+          "required": false,
+          "description": "Variant SKU; preserve as text.",
+          "mapping": "catalogue_variants.sku",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "barcode",
+          "label": "barcode",
+          "type": "text",
+          "required": false,
+          "description": "Variant barcode; preserve as text.",
+          "mapping": "catalogue_variants.barcode",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "amount_minor",
+          "label": "amount minor",
+          "type": "money_minor",
+          "required": true,
+          "description": "Base selling price in integer minor units. AED 20.00 = 2000.",
+          "mapping": "catalogue_variant_prices.amount_minor",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "currency",
+          "label": "currency",
+          "type": "text",
+          "required": true,
+          "description": "Currency of this price. Use the selected tenant base currency.",
+          "mapping": "catalogue_variant_prices.currency",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "AED"
+          ]
+        },
+        {
+          "key": "status",
+          "label": "status",
+          "type": "text",
+          "required": true,
+          "description": "Variant lifecycle status.",
+          "mapping": "catalogue_variants.status",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "draft",
+            "active",
+            "archived"
+          ]
+        },
+        {
+          "key": "price_tax_basis",
+          "label": "price tax basis",
+          "type": "text",
+          "required": false,
+          "description": "Planning field: confirm whether the displayed price includes tax before computing ingredient margin.",
+          "mapping": "Proposed Phase 2 pricing interpretation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "NET",
+            "GROSS",
+            "UNCONFIRMED"
+          ]
+        },
+        {
+          "key": "tax_rate_basis_points",
+          "label": "tax rate basis points",
+          "type": "integer",
+          "required": false,
+          "description": "Proposed pricing interpretation. 500 basis points means 5 percent. Do not infer tax policy from template examples.",
+          "mapping": "Proposed Phase 2 pricing interpretation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Branch Prices",
+      "description": "Explicit variant price overrides by branch. Availability uses QOS stop-sale/schedule controls separately.",
+      "short": "Explicit variant price overrides by branch. Availability uses QOS stop-sale/schedule controls separately.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 100,
+      "columns": [
+        {
+          "key": "branch_price_key",
+          "label": "branch price key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_branch_price_id",
+          "label": "qos branch price id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_variant_location_price_overrides.id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Create/update an explicit branch override, or reset_to_central through the existing audited price-reset workflow. Reset inherits the central price and does not archive the variant.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "reset_to_central",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "variant_key",
+          "label": "variant key",
+          "type": "reference",
+          "required": true,
+          "description": "Variant receiving an override.",
+          "mapping": "catalogue_variant_location_price_overrides.variant_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Variants",
+            "key": "variant_key"
+          }
+        },
+        {
+          "key": "branch_key",
+          "label": "branch key",
+          "type": "reference",
+          "required": true,
+          "description": "Authorised QOS branch.",
+          "mapping": "catalogue_variant_location_price_overrides.location_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Branches",
+            "key": "branch_key"
+          }
+        },
+        {
+          "key": "amount_minor",
+          "label": "amount minor",
+          "type": "money_minor",
+          "required": true,
+          "description": "Override price in whole minor currency units.",
+          "mapping": "catalogue_variant_location_price_overrides.amount_minor",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "currency",
+          "label": "currency",
+          "type": "text",
+          "required": true,
+          "description": "Currency must match the price being overridden.",
+          "mapping": "catalogue_variant_location_price_overrides.currency",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "AED"
+          ]
+        },
+        {
+          "key": "central_price_version",
+          "label": "central price version",
+          "type": "integer",
+          "required": false,
+          "description": "Exported central price version used when creating the override; QOS verifies whether the base changed.",
+          "mapping": "catalogue_variant_location_price_overrides.central_price_version_at_override",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 1,
+          "readonly": true
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Modifier Groups",
+      "description": "Reusable groups own their selection limits. Product assignments do not duplicate these rules.",
+      "short": "Reusable groups own their selection limits. Product assignments do not duplicate these rules.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 100,
+      "columns": [
+        {
+          "key": "modifier_group_key",
+          "label": "modifier group key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_modifier_group_id",
+          "label": "qos modifier group id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_modifier_groups.public_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "internal_name",
+          "label": "internal name",
+          "type": "text",
+          "required": true,
+          "description": "Stable internal modifier-group name.",
+          "mapping": "catalogue_modifier_groups.internal_name",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_en",
+          "label": "display name en",
+          "type": "text",
+          "required": true,
+          "description": "Customer/staff display name in English.",
+          "mapping": "catalogue_modifier_group_translations.display_name (locale en)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_ar",
+          "label": "display name ar",
+          "type": "text",
+          "required": true,
+          "description": "Display name in Arabic. Existing approval rules remain separate.",
+          "mapping": "catalogue_modifier_group_translations.display_name (locale ar)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "min_selections",
+          "label": "min selections",
+          "type": "integer",
+          "required": true,
+          "description": "Minimum selected quantity under current QOS rules. Zero makes selection optional.",
+          "mapping": "catalogue_modifier_groups.min_selections",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "max_selections",
+          "label": "max selections",
+          "type": "integer",
+          "required": true,
+          "description": "Maximum selections; cannot be below minimum.",
+          "mapping": "catalogue_modifier_groups.max_selections",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "status",
+          "label": "status",
+          "type": "text",
+          "required": true,
+          "description": "Group lifecycle status.",
+          "mapping": "catalogue_modifier_groups.status",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "draft",
+            "active",
+            "archived"
+          ]
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Modifier Options",
+      "description": "Options belong to one reusable modifier group; prices are deltas in minor units.",
+      "short": "Options belong to one reusable modifier group; prices are deltas in minor units.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 200,
+      "columns": [
+        {
+          "key": "modifier_option_key",
+          "label": "modifier option key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_modifier_option_id",
+          "label": "qos modifier option id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_modifier_options.public_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "modifier_group_key",
+          "label": "modifier group key",
+          "type": "reference",
+          "required": true,
+          "description": "Owning modifier group.",
+          "mapping": "catalogue_modifier_options.modifier_group_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Modifier Groups",
+            "key": "modifier_group_key"
+          }
+        },
+        {
+          "key": "display_name_en",
+          "label": "display name en",
+          "type": "text",
+          "required": true,
+          "description": "Customer/staff display name in English.",
+          "mapping": "catalogue_modifier_option_translations.display_name (locale en)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_ar",
+          "label": "display name ar",
+          "type": "text",
+          "required": true,
+          "description": "Display name in Arabic. Existing approval rules remain separate.",
+          "mapping": "catalogue_modifier_option_translations.display_name (locale ar)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "price_minor",
+          "label": "price minor",
+          "type": "money_minor",
+          "required": true,
+          "description": "Option price delta in integer minor units. AED 3.00 = 300.",
+          "mapping": "catalogue_modifier_options.price_minor",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "currency",
+          "label": "currency",
+          "type": "text",
+          "required": true,
+          "description": "Option price currency; use tenant currency.",
+          "mapping": "catalogue_modifier_options.currency",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "AED"
+          ]
+        },
+        {
+          "key": "is_default",
+          "label": "is default",
+          "type": "text",
+          "required": true,
+          "description": "Whether selected by default. Defaults must satisfy group rules.",
+          "mapping": "catalogue_modifier_options.is_default",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "TRUE",
+            "FALSE"
+          ]
+        },
+        {
+          "key": "allows_quantity",
+          "label": "allows quantity",
+          "type": "text",
+          "required": true,
+          "description": "Whether the same option may be selected more than once.",
+          "mapping": "catalogue_modifier_options.allows_quantity",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "TRUE",
+            "FALSE"
+          ]
+        },
+        {
+          "key": "max_quantity",
+          "label": "max quantity",
+          "type": "integer",
+          "required": true,
+          "description": "Maximum quantity for this option; at least one.",
+          "mapping": "catalogue_modifier_options.max_quantity",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 1
+        },
+        {
+          "key": "sort_order",
+          "label": "sort order",
+          "type": "integer",
+          "required": true,
+          "description": "Option ordering within its group.",
+          "mapping": "catalogue_modifier_options.sort_order",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "status",
+          "label": "status",
+          "type": "text",
+          "required": true,
+          "description": "Option lifecycle status.",
+          "mapping": "catalogue_modifier_options.status",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "draft",
+            "active",
+            "archived"
+          ]
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Product Modifiers",
+      "description": "Attach reusable modifier groups to products. Existing assignments are product-level, not variant-level.",
+      "short": "Attach reusable modifier groups to products. Existing assignments are product-level, not variant-level.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 200,
+      "columns": [
+        {
+          "key": "product_modifier_key",
+          "label": "product modifier key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_product_modifier_id",
+          "label": "qos product modifier id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_product_modifier_groups.id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "remove_link",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "product_key",
+          "label": "product key",
+          "type": "reference",
+          "required": true,
+          "description": "Product receiving the group.",
+          "mapping": "catalogue_product_modifier_groups.product_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Products",
+            "key": "product_key"
+          }
+        },
+        {
+          "key": "modifier_group_key",
+          "label": "modifier group key",
+          "type": "reference",
+          "required": true,
+          "description": "Reusable modifier group.",
+          "mapping": "catalogue_product_modifier_groups.modifier_group_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Modifier Groups",
+            "key": "modifier_group_key"
+          }
+        },
+        {
+          "key": "sort_order",
+          "label": "sort order",
+          "type": "integer",
+          "required": true,
+          "description": "Group ordering on this product.",
+          "mapping": "catalogue_product_modifier_groups.sort_order",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "free_options_count",
+          "label": "free options count",
+          "type": "integer",
+          "required": false,
+          "description": "Unscheduled future proposal only. Foodics-style free-option allowances have no verified current QOS field and require an explicit pricing design.",
+          "mapping": "Proposed later modifier pricing rule",
+          "phase": "Later review",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Menus",
+      "description": "Menu definitions. Branch assignment, sections and product placement are separate relationships.",
+      "short": "Menu definitions. Branch assignment, sections and product placement are separate relationships.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 50,
+      "columns": [
+        {
+          "key": "menu_key",
+          "label": "menu key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_menu_id",
+          "label": "qos menu id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_menus.public_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "internal_name",
+          "label": "internal name",
+          "type": "text",
+          "required": true,
+          "description": "Internal menu name. Brand context is selected once for the import.",
+          "mapping": "catalogue_menus.internal_name",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_en",
+          "label": "display name en",
+          "type": "text",
+          "required": true,
+          "description": "Customer/staff display name in English.",
+          "mapping": "catalogue_menu_translations.display_name (locale en)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_ar",
+          "label": "display name ar",
+          "type": "text",
+          "required": true,
+          "description": "Display name in Arabic. Existing approval rules remain separate.",
+          "mapping": "catalogue_menu_translations.display_name (locale ar)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "description_en",
+          "label": "description en",
+          "type": "description",
+          "required": false,
+          "description": "English menu description.",
+          "mapping": "catalogue_menu_translations.description (en)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "description_ar",
+          "label": "description ar",
+          "type": "description",
+          "required": false,
+          "description": "Arabic menu description.",
+          "mapping": "catalogue_menu_translations.description (ar)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "status",
+          "label": "status",
+          "type": "text",
+          "required": true,
+          "description": "Draft/active/archived status does not publish a release.",
+          "mapping": "catalogue_menus.status",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "draft",
+            "active",
+            "archived"
+          ]
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Menu Branches",
+      "description": "Assign a menu to a branch; one relationship per row.",
+      "short": "Assign a menu to a branch; one relationship per row.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 100,
+      "columns": [
+        {
+          "key": "menu_branch_key",
+          "label": "menu branch key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_menu_branch_id",
+          "label": "qos menu branch id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_menu_locations.id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "remove_link",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "menu_key",
+          "label": "menu key",
+          "type": "reference",
+          "required": true,
+          "description": "Menu to assign.",
+          "mapping": "catalogue_menu_locations.menu_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Menus",
+            "key": "menu_key"
+          }
+        },
+        {
+          "key": "branch_key",
+          "label": "branch key",
+          "type": "reference",
+          "required": true,
+          "description": "Branch to receive the menu.",
+          "mapping": "catalogue_menu_locations.location_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Branches",
+            "key": "branch_key"
+          }
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Menu Sections",
+      "description": "Ordered sections within a menu; sections are distinct from shared product categories.",
+      "short": "Ordered sections within a menu; sections are distinct from shared product categories.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 100,
+      "columns": [
+        {
+          "key": "section_key",
+          "label": "section key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_section_id",
+          "label": "qos section id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_menu_sections.public_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "menu_key",
+          "label": "menu key",
+          "type": "reference",
+          "required": true,
+          "description": "Owning menu.",
+          "mapping": "catalogue_menu_sections.menu_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Menus",
+            "key": "menu_key"
+          }
+        },
+        {
+          "key": "internal_name",
+          "label": "internal name",
+          "type": "text",
+          "required": true,
+          "description": "Internal section name.",
+          "mapping": "catalogue_menu_sections.internal_name",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_en",
+          "label": "display name en",
+          "type": "text",
+          "required": true,
+          "description": "Customer/staff display name in English.",
+          "mapping": "catalogue_menu_section_translations.display_name (locale en)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "display_name_ar",
+          "label": "display name ar",
+          "type": "text",
+          "required": true,
+          "description": "Display name in Arabic. Existing approval rules remain separate.",
+          "mapping": "catalogue_menu_section_translations.display_name (locale ar)",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "sort_order",
+          "label": "sort order",
+          "type": "integer",
+          "required": true,
+          "description": "Section order within menu.",
+          "mapping": "catalogue_menu_sections.sort_order",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "archived",
+          "label": "archived",
+          "type": "text",
+          "required": true,
+          "description": "Whether the section is archived; existing live releases remain separate.",
+          "mapping": "catalogue_menu_sections.archived",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "TRUE",
+            "FALSE"
+          ]
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Menu Items",
+      "description": "Place PRODUCTS into menu sections. The current schema does not store variant IDs on these rows.",
+      "short": "Place PRODUCTS into menu sections. The current schema does not store variant IDs on these rows.",
+      "phase": "Existing",
+      "support": "Existing QOS model; multi-sheet import extension required",
+      "capacity": 200,
+      "columns": [
+        {
+          "key": "menu_item_key",
+          "label": "menu item key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_menu_item_id",
+          "label": "qos menu item id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "catalogue_menu_section_products.id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "section_key",
+          "label": "section key",
+          "type": "reference",
+          "required": true,
+          "description": "Target menu section.",
+          "mapping": "catalogue_menu_section_products.section_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Menu Sections",
+            "key": "section_key"
+          }
+        },
+        {
+          "key": "product_key",
+          "label": "product key",
+          "type": "reference",
+          "required": true,
+          "description": "Canonical product placed in this section.",
+          "mapping": "catalogue_menu_section_products.product_id",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Products",
+            "key": "product_key"
+          }
+        },
+        {
+          "key": "sort_order",
+          "label": "sort order",
+          "type": "integer",
+          "required": true,
+          "description": "Product order within the section.",
+          "mapping": "catalogue_menu_section_products.sort_order",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0
+        },
+        {
+          "key": "archived",
+          "label": "archived",
+          "type": "text",
+          "required": true,
+          "description": "Whether this placement is archived.",
+          "mapping": "catalogue_menu_section_products.archived",
+          "phase": "Existing",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "TRUE",
+            "FALSE"
+          ]
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Units",
+      "description": "One approved unit of measure. Proposed Phase 2 onboarding.",
+      "short": "One approved unit of measure. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "unit_key",
+          "label": "Unit key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_unit_id",
+          "label": "qos unit id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "name",
+          "label": "Unit name",
+          "type": "text",
+          "required": true,
+          "description": "Readable unit label, for example kilogram, gram, litre or piece.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "quantity_kind",
+          "label": "Quantity kind",
+          "type": "text",
+          "required": true,
+          "description": "Measurement family. Pack and batch conversions are defined per ingredient.",
+          "isKey": false,
+          "values": [
+            "MASS",
+            "VOLUME",
+            "COUNT",
+            "PACK",
+            "BATCH"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "decimal_places",
+          "label": "Quantity decimal places",
+          "type": "integer",
+          "required": true,
+          "description": "Display precision for quantities, from 0 to 6. Preserve full calculation precision internally.",
+          "isKey": false,
+          "min": 0,
+          "max": 6,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "active",
+          "label": "Active",
+          "type": "text",
+          "required": true,
+          "description": "Whether the unit can be selected for new records; historical references remain readable.",
+          "isKey": false,
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "Approve units before ingredient onboarding. Do not infer conversions from similar names.",
+        "Mass-to-volume conversions are not implied. PACK and BATCH require an explicit ingredient-specific factor.",
+        "Display rounding must not round each ingredient movement before aggregation."
+      ]
+    },
+    {
+      "name": "Suppliers",
+      "description": "One supplier. Proposed Phase 2 onboarding.",
+      "short": "One supplier. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "supplier_key",
+          "label": "Supplier key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_supplier_id",
+          "label": "qos supplier id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "name",
+          "label": "Supplier name",
+          "type": "text",
+          "required": true,
+          "description": "Confirmed supplier trading name.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "contact_name",
+          "label": "Contact name",
+          "type": "text",
+          "required": false,
+          "description": "Business contact for purchasing.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "email",
+          "label": "Email",
+          "type": "text",
+          "required": false,
+          "description": "Business contact email; no passwords or credentials.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "phone",
+          "label": "Phone",
+          "type": "text",
+          "required": false,
+          "description": "Preserve country code and leading zeros.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "reference",
+          "label": "Supplier reference",
+          "type": "text",
+          "required": false,
+          "description": "Existing business or vendor-account reference, where available.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "active",
+          "label": "Active",
+          "type": "text",
+          "required": true,
+          "description": "Whether available for new receipts.",
+          "isKey": false,
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Notes",
+          "type": "description",
+          "required": false,
+          "description": "Useful onboarding context; no payment-card or authentication details.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": []
+    },
+    {
+      "name": "Warehouses",
+      "description": "One warehouse assigned to one branch. Proposed Phase 2 onboarding.",
+      "short": "One warehouse assigned to one branch. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "warehouse_key",
+          "label": "Warehouse key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_warehouse_id",
+          "label": "qos warehouse id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "branch_key",
+          "label": "Branch key",
+          "type": "reference",
+          "required": true,
+          "description": "Reference the confirmed existing QOS branch mapping; do not rename historical branch IDs.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Branches",
+            "key": "branch_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "name",
+          "label": "Warehouse name",
+          "type": "text",
+          "required": true,
+          "description": "Operational name for the branch warehouse.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "active",
+          "label": "Active",
+          "type": "text",
+          "required": true,
+          "description": "Whether this warehouse accepts new transactions.",
+          "isKey": false,
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Notes",
+          "type": "description",
+          "required": false,
+          "description": "Location or setup notes.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "Phase 2 starts with one warehouse per branch and one confirmed pilot warehouse.",
+        "All Branches is an aggregate view, never a warehouse or a stock-posting destination.",
+        "Branch labels Dubai, Al Ain and Azur Cafe require mapping to existing QOS identities before application."
+      ]
+    },
+    {
+      "name": "Inventory Categories",
+      "description": "Reusable ingredient categories for Phase 2 stock filters and reports.",
+      "short": "Reusable ingredient categories for Phase 2 stock filters and reports.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "key": "inventory_category_key",
+          "label": "inventory category key",
+          "type": "text",
+          "required": true,
+          "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
+          "mapping": "Proposed import source-link key",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "isKey": true
+        },
+        {
+          "key": "qos_inventory_category_id",
+          "label": "qos inventory category id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed inventory category identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "key": "name_en",
+          "label": "name en",
+          "type": "text",
+          "required": true,
+          "description": "English inventory category name.",
+          "mapping": "Proposed inventory category name",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "name_ar",
+          "label": "name ar",
+          "type": "text",
+          "required": false,
+          "description": "Optional Arabic inventory category name.",
+          "mapping": "Proposed inventory category translation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        },
+        {
+          "key": "active",
+          "label": "active",
+          "type": "text",
+          "required": true,
+          "description": "Whether this category can be assigned to new ingredients.",
+          "mapping": "Proposed inventory category state",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "TRUE",
+            "FALSE"
+          ]
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ]
+    },
+    {
+      "name": "Ingredients",
+      "description": "One ingredient or prepared-item master. Proposed Phase 2 onboarding.",
+      "short": "One ingredient or prepared-item master. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "ingredient_key",
+          "label": "Ingredient key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_ingredient_id",
+          "label": "qos ingredient id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "name_en",
+          "label": "Name in English",
+          "type": "text",
+          "required": true,
+          "description": "Confirmed ingredient name.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "name_ar",
+          "label": "Name in Arabic",
+          "type": "text",
+          "required": false,
+          "description": "Approved Arabic name where available; do not invent a translation.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "inventory_category_key",
+          "label": "inventory category key",
+          "type": "reference",
+          "required": false,
+          "description": "Optional confirmed inventory category. Use a stable category key, not a menu category name.",
+          "mapping": "Proposed inventory category relationship",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "ref": {
+            "sheet": "Inventory Categories",
+            "key": "inventory_category_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "ingredient_type",
+          "label": "Ingredient type",
+          "type": "text",
+          "required": true,
+          "description": "PURCHASED items are received from suppliers. PREPARED items may be defined for Phase 2 guides; production posting is Phase 3.",
+          "isKey": false,
+          "values": [
+            "PURCHASED",
+            "PREPARED"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "storage_unit_key",
+          "label": "Storage unit",
+          "type": "reference",
+          "required": true,
+          "description": "Unit used for stock receipts, opening quantities and stock balances.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Units",
+            "key": "unit_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "recipe_unit_key",
+          "label": "Recipe unit",
+          "type": "reference",
+          "required": true,
+          "description": "Unit used for ingredient quantities in recipes and modifier effects.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Units",
+            "key": "unit_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "recipe_units_per_storage_unit",
+          "label": "Recipe units per storage unit",
+          "type": "decimal",
+          "required": true,
+          "description": "Positive factor: 1 storage unit equals this many recipe units. Example semantics only: kg to g = 1000; a 12-piece packet to piece = 12.",
+          "isKey": false,
+          "positive": true,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "width": 32
+        },
+        {
+          "phase": "Phase 2",
+          "key": "default_supplier_key",
+          "label": "Default supplier key",
+          "type": "reference",
+          "required": false,
+          "description": "Default supplier for direct receipts; may remain blank for prepared items.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Suppliers",
+            "key": "supplier_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "reference_cost_per_storage_unit",
+          "label": "Reference cost per storage unit",
+          "type": "money",
+          "required": false,
+          "description": "Dated onboarding reference cost for one storage unit in the stated currency and agreed inventory-cost basis. This is not a receipt or opening-stock valuation.",
+          "isKey": false,
+          "min": 0,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "width": 32
+        },
+        {
+          "phase": "Phase 2",
+          "key": "cost_currency",
+          "label": "Cost currency",
+          "type": "text",
+          "required": false,
+          "description": "Currency of the reference cost. Use the tenant's configured currency; Phase 2 Quotes uses AED.",
+          "required_when": "reference_cost_per_storage_unit is provided",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "cost_tax_basis",
+          "label": "cost tax basis",
+          "type": "text",
+          "required": false,
+          "description": "Declare whether the reference cost is net or gross of tax. Confirm it before margin comparisons; unknown remains unconfirmed.",
+          "mapping": "Proposed ingredient cost interpretation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "NET",
+            "GROSS",
+            "UNCONFIRMED"
+          ]
+        },
+        {
+          "phase": "Phase 2",
+          "key": "cost_effective_date",
+          "label": "Reference cost effective date",
+          "type": "date",
+          "required": false,
+          "description": "Date from which this reference cost is valid. Do not overwrite costs used by historical transactions.",
+          "required_when": "reference_cost_per_storage_unit is provided",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "cost_source_reference",
+          "label": "Cost source reference",
+          "type": "text",
+          "required": false,
+          "description": "Invoice, supplier quotation or other source supporting the reference cost.",
+          "required_when": "reference_cost_per_storage_unit is provided",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "active",
+          "label": "Active",
+          "type": "text",
+          "required": true,
+          "description": "Whether selectable for new recipes and receipts; historical references remain intact.",
+          "isKey": false,
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Notes",
+          "type": "description",
+          "required": false,
+          "description": "Preparation or procurement notes.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "recipe_units_per_storage_unit must be greater than zero; blank and zero are not interchangeable.",
+        "The factor is ingredient-specific for PACK and BATCH. Validate ordinary mass/volume conversions against the approved unit catalogue.",
+        "Blank cost means unknown; an explicit zero remains zero and should be reviewable.",
+        "Reference costs provide planning estimates. Posted stock valuation must use the agreed valuation policy and actual opening/receipt inputs.",
+        "Prepared-item recipes must be acyclic. An onboarding definition alone does not produce prepared stock."
+      ]
+    },
+    {
+      "name": "Recipes",
+      "description": "One immutable version of a recipe. Proposed Phase 2 onboarding.",
+      "short": "One immutable version of a recipe. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "recipe_version_key",
+          "label": "Recipe version key",
+          "type": "text",
+          "required": true,
+          "description": "Unique immutable workbook key for this exact recipe version. RecipeLines, PrepSteps and ModifierEffects refer to this key.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_recipe_version_id",
+          "label": "qos recipe version id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "recipe_key",
+          "label": "Recipe family key",
+          "type": "text",
+          "required": true,
+          "description": "Stable key shared by versions of the same recipe; distinct from the version key and QOS ID.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "version_number",
+          "label": "Version number",
+          "type": "integer",
+          "required": true,
+          "description": "Positive sequential version number within the recipe family.",
+          "isKey": false,
+          "min": 1,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "name",
+          "label": "Recipe name",
+          "type": "text",
+          "required": true,
+          "description": "Readable approved recipe name.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "target_type",
+          "label": "Recipe target",
+          "type": "text",
+          "required": true,
+          "description": "SOLD_VARIANT binds a sold variant. PREPARED_ITEM defines an in-house item and guide; actual production posts in Phase 3.",
+          "isKey": false,
+          "values": [
+            "SOLD_VARIANT",
+            "PREPARED_ITEM"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "variant_key",
+          "label": "Sellable variant key",
+          "type": "reference",
+          "required": false,
+          "description": "Required only for SOLD_VARIANT. Resolve the exact sold variant, not a product name.",
+          "required_when": "target_type = SOLD_VARIANT",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Variants",
+            "key": "variant_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "prepared_ingredient_key",
+          "label": "Prepared ingredient key",
+          "type": "reference",
+          "required": false,
+          "description": "Required only for PREPARED_ITEM; ingredient_type must be PREPARED.",
+          "required_when": "target_type = PREPARED_ITEM",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Ingredients",
+            "key": "ingredient_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "yield_quantity",
+          "label": "Recipe yield quantity",
+          "type": "decimal",
+          "required": true,
+          "description": "Positive expected output from all ingredient quantities listed for this version. SOLD_VARIANT uses number of sold units; PREPARED_ITEM uses the prepared item's recipe unit.",
+          "isKey": false,
+          "positive": true,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "yield_unit_key",
+          "label": "Recipe yield unit",
+          "type": "reference",
+          "required": true,
+          "description": "For SOLD_VARIANT, use the agreed sold-unit basis; for PREPARED_ITEM, match the prepared ingredient's recipe unit.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Units",
+            "key": "unit_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "effective_from",
+          "label": "Effective from",
+          "type": "text",
+          "required": true,
+          "description": "Start timestamp with time-zone offset. QOS must resolve sales using the accepted effective recipe version. Enter ISO 8601 with offset, such as YYYY-MM-DDThh:mm:ss+04:00; the example is a format, not a default date.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "effective_to",
+          "label": "Effective to",
+          "type": "text",
+          "required": false,
+          "description": "Exclusive end timestamp, if known. Blank means open-ended; versions must not overlap for the same target and scope. Enter ISO 8601 with offset, such as YYYY-MM-DDThh:mm:ss+04:00; the example is a format, not a default date.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Recipe notes",
+          "type": "description",
+          "required": false,
+          "description": "Guidance or source of recipe quantities. Step instructions belong in PrepSteps.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "Exactly one target reference is supplied, consistent with target_type.",
+        "A family/version pair and a recipe_version_key must each be unique.",
+        "Ingredient quantities describe the whole stated yield, not automatically one serving.",
+        "Any active version replacement follows QOS review/activation rules; importing a new row does not rewrite history or activate a recipe silently.",
+        "Phase 2 can use prepared-item definitions for guides and batch calculations. Phase 3 is responsible for actual production input/output postings.",
+        "Variant sale units and yield units must be compatible; do not silently treat a weighted sale as one piece.",
+        "Prepared-item yield unit must equal the prepared ingredient recipe unit; stock conversion uses that ingredient's explicit factor."
+      ]
+    },
+    {
+      "name": "Recipe Lines",
+      "description": "One ingredient line in a recipe version. Proposed Phase 2 onboarding.",
+      "short": "One ingredient line in a recipe version. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 200,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "recipe_line_key",
+          "label": "Recipe line key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_recipe_line_id",
+          "label": "qos recipe line id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "recipe_version_key",
+          "label": "Recipe version key",
+          "type": "reference",
+          "required": true,
+          "description": "Exact parent version; all quantities are for that version's complete yield.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Recipes",
+            "key": "recipe_version_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "ingredient_key",
+          "label": "Ingredient key",
+          "type": "reference",
+          "required": true,
+          "description": "Ingredient consumed by this recipe line.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Ingredients",
+            "key": "ingredient_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "quantity_recipe_units",
+          "label": "Ingredient quantity",
+          "type": "decimal",
+          "required": true,
+          "description": "Positive quantity in this ingredient's recipe unit for the whole recipe yield.",
+          "isKey": false,
+          "positive": true,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "sort_order",
+          "label": "Display order",
+          "type": "integer",
+          "required": true,
+          "description": "Positive order for the ingredient checklist.",
+          "isKey": false,
+          "min": 1,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Line notes",
+          "type": "description",
+          "required": false,
+          "description": "Preparation or handling note for this ingredient.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "Display the ingredient's recipe unit next to the quantity as a lookup; do not ask the user to type a competing unit.",
+        "Unknown ingredient or missing cost must remain visible. Do not report a complete cost when any required line is uncosted.",
+        "Recursive prepared-item ingredient graphs must be rejected when they introduce a cycle.",
+        "Repeated ingredient rows require explicit intended line identity; do not merge silently because modifier effects may target a specific line."
+      ]
+    },
+    {
+      "name": "Prep Steps",
+      "description": "One preparation step in a recipe version. Proposed Phase 2 onboarding.",
+      "short": "One preparation step in a recipe version. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "prep_step_key",
+          "label": "Prep step key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_prep_step_id",
+          "label": "qos prep step id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "recipe_version_key",
+          "label": "Recipe version key",
+          "type": "reference",
+          "required": true,
+          "description": "Exact version whose preparation guide contains this step.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Recipes",
+            "key": "recipe_version_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "step_number",
+          "label": "Step number",
+          "type": "integer",
+          "required": true,
+          "description": "Positive sequence within the recipe version.",
+          "isKey": false,
+          "min": 1,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "title",
+          "label": "Step title",
+          "type": "text",
+          "required": true,
+          "description": "Short action-oriented title.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "instruction",
+          "label": "Instruction",
+          "type": "description",
+          "required": true,
+          "description": "Approved preparation instruction.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "expected_minutes",
+          "label": "Expected minutes",
+          "type": "decimal",
+          "required": false,
+          "description": "Optional nonnegative guidance; not an automatic timer or completed-work record.",
+          "isKey": false,
+          "min": 0,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "checkpoint_required",
+          "label": "Requires checklist confirmation",
+          "type": "text",
+          "required": true,
+          "description": "Whether the staff guide includes a confirmation checkbox. Ticking it does not post stock.",
+          "isKey": false,
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Notes",
+          "type": "description",
+          "required": false,
+          "description": "Additional guidance.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "Step numbers must be unique within a recipe version.",
+        "Guide checkboxes are session/task state, not inventory movements or production confirmations.",
+        "Recipe-version changes must not silently change an already accepted operational record."
+      ]
+    },
+    {
+      "name": "Modifier Effects",
+      "description": "One ingredient effect for an option in a sold-variant recipe version. Proposed Phase 2 onboarding.",
+      "short": "One ingredient effect for an option in a sold-variant recipe version. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "effect_key",
+          "label": "Modifier effect key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_effect_id",
+          "label": "qos effect id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "modifier_option_key",
+          "label": "Modifier option key",
+          "type": "reference",
+          "required": true,
+          "description": "Existing reusable option. The option must be allowed for the target sold variant through its QOS assignment.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Modifier Options",
+            "key": "modifier_option_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "recipe_version_key",
+          "label": "Recipe version key",
+          "type": "reference",
+          "required": true,
+          "description": "Exact SOLD_VARIANT recipe version to which this ingredient effect applies.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Recipes",
+            "key": "recipe_version_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "effect_type",
+          "label": "Effect type",
+          "type": "text",
+          "required": true,
+          "description": "ADD adds ingredient quantity; REMOVE removes the targeted base line for one sold unit; REPLACE removes that base line and adds the specified replacement.",
+          "isKey": false,
+          "values": [
+            "ADD",
+            "REMOVE",
+            "REPLACE"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "target_recipe_line_key",
+          "label": "Target base recipe line",
+          "type": "reference",
+          "required": false,
+          "description": "Required for REMOVE or REPLACE. Must belong to this recipe version. Blank for ADD.",
+          "required_when": "effect_type = REMOVE or REPLACE",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Recipe Lines",
+            "key": "recipe_line_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "ingredient_key",
+          "label": "Added or replacement ingredient",
+          "type": "reference",
+          "required": false,
+          "description": "Required for ADD or REPLACE; blank for REMOVE.",
+          "required_when": "effect_type = ADD or REPLACE",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Ingredients",
+            "key": "ingredient_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "quantity_per_sold_unit",
+          "label": "Added quantity per sold unit",
+          "type": "decimal",
+          "required": false,
+          "description": "Positive added quantity in the selected ingredient's recipe unit, per option selection on one sold unit. Blank for REMOVE.",
+          "required_when": "effect_type = ADD or REPLACE",
+          "isKey": false,
+          "positive": true,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Effect notes",
+          "type": "description",
+          "required": false,
+          "description": "Business explanation supporting the mapping.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "ADD quantity multiplies by sold quantity and allowed option quantity.",
+        "REMOVE subtracts target line quantity divided by recipe yield for each sold unit. It does not remove the whole batch quantity.",
+        "REPLACE removes the same per-sold-unit target amount and adds quantity_per_sold_unit of the replacement ingredient.",
+        "REMOVE and REPLACE are single-selection effects unless a separately specified rule makes repetition unambiguous. Reject conflicting selected effects on the same target line.",
+        "An effect must not drive a base ingredient line below zero.",
+        "No match is not equivalent to no effect. Unmapped options relevant to consumption must remain an exception.",
+        "The new effect contract requires Phase 2 implementation; existing modifier master-data references alone do not prove operational stock handling."
+      ]
+    },
+    {
+      "name": "Prep Targets",
+      "description": "One prepared-item target at one branch warehouse. Proposed Phase 2 onboarding.",
+      "short": "One prepared-item target at one branch warehouse. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "prep_target_key",
+          "label": "Prep target key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_prep_target_id",
+          "label": "qos prep target id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "warehouse_key",
+          "label": "Warehouse key",
+          "type": "reference",
+          "required": true,
+          "description": "Provides concrete branch context; All Branches is not allowed.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Warehouses",
+            "key": "warehouse_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "prepared_ingredient_key",
+          "label": "Prepared item key",
+          "type": "reference",
+          "required": true,
+          "description": "Ingredient master with ingredient_type PREPARED.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Ingredients",
+            "key": "ingredient_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "recipe_version_key",
+          "label": "Preparation guide recipe",
+          "type": "reference",
+          "required": true,
+          "description": "PREPARED_ITEM recipe version for this item.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Recipes",
+            "key": "recipe_version_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "target_quantity",
+          "label": "Target quantity",
+          "type": "decimal",
+          "required": true,
+          "description": "Positive desired prepared quantity in the prepared ingredient's recipe unit.",
+          "isKey": false,
+          "positive": true,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "low_threshold_quantity",
+          "label": "Low-stock threshold",
+          "type": "decimal",
+          "required": true,
+          "description": "Nonnegative threshold in the same unit; cannot exceed target_quantity.",
+          "isKey": false,
+          "min": 0,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "observation_valid_minutes",
+          "label": "Observation freshness minutes",
+          "type": "integer",
+          "required": true,
+          "description": "Positive age after which an observed prep count is labelled stale.",
+          "isKey": false,
+          "min": 1,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "active",
+          "label": "Active",
+          "type": "text",
+          "required": true,
+          "description": "Whether included in current prep priorities.",
+          "isKey": false,
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Notes",
+          "type": "description",
+          "required": false,
+          "description": "Branch-specific preparation guidance.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "Warehouse/item pairs must be unique for active targets unless a later schedule model is explicitly added.",
+        "Observed counts are captured in the staff workflow with actor and timestamp, not imported as permanent master data here.",
+        "Missing observations are unknown, not zero. Stale observations remain visibly stale.",
+        "Targets and observations do not create inventory movements; physical corrections use controlled counts."
+      ]
+    },
+    {
+      "name": "Opening Stock",
+      "description": "One proposed opening-balance line for one warehouse/item/cutoff. Separate review and stock-posting confirmation required.",
+      "short": "One proposed opening-balance line for one warehouse/item/cutoff. Separate review and stock-posting confirmation required.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "opening_row_key",
+          "label": "Opening row key",
+          "type": "text",
+          "required": true,
+          "description": "Immutable idempotency key for this opening line. Repeating the same accepted line does not post again.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_opening_row_id",
+          "label": "qos opening row id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Opening-stock draft intake only. Update is permitted before posting. Posted openings require the separate reversal/adjustment workflow, never overwrite/archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "warehouse_key",
+          "label": "Warehouse key",
+          "type": "reference",
+          "required": true,
+          "description": "Concrete authorised warehouse.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Warehouses",
+            "key": "warehouse_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "ingredient_key",
+          "label": "Ingredient key",
+          "type": "reference",
+          "required": true,
+          "description": "Stock item whose opening balance is being established.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Ingredients",
+            "key": "ingredient_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "quantity_storage_units",
+          "label": "Opening quantity",
+          "type": "decimal",
+          "required": true,
+          "description": "Nonnegative quantity in the ingredient's storage unit. Explicit zero is valid; blank means not supplied.",
+          "isKey": false,
+          "min": 0,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "unit_cost_per_storage_unit",
+          "label": "Opening unit cost",
+          "type": "money",
+          "required": false,
+          "description": "Actual agreed opening valuation per storage unit, in cost_currency. Do not silently fill from a reference recipe cost.",
+          "required_when": "quantity_storage_units > 0",
+          "isKey": false,
+          "min": 0,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "cost_currency",
+          "label": "Cost currency",
+          "type": "text",
+          "required": false,
+          "description": "Tenant valuation currency, normally AED for Quotes.",
+          "required_when": "quantity_storage_units > 0 or unit_cost_per_storage_unit is provided",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "as_of_at",
+          "label": "Opening cutoff",
+          "type": "text",
+          "required": true,
+          "description": "Inventory cutoff timestamp including time-zone offset; subsequent postings must respect this baseline. Enter ISO 8601 with offset, such as YYYY-MM-DDThh:mm:ss+04:00; the example is a format, not a default date.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "source_reference",
+          "label": "Source reference",
+          "type": "text",
+          "required": true,
+          "description": "Opening count sheet or other evidence supporting quantity and value.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Notes",
+          "type": "description",
+          "required": false,
+          "description": "Explanatory note.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "This sheet is staged and reviewed as a separate posting workflow; applying menu/ingredient master data must not post it.",
+        "Warehouse/item/cutoff collisions and pre-existing stock movements require explicit resolution.",
+        "Every accepted opening posting records source, actor, time and key. Changed retries cannot overwrite posted history.",
+        "Opening value = quantity_storage_units × unit_cost_per_storage_unit when both are present. Missing cost for positive quantity blocks a valued posting.",
+        "Prepared-stock opening balances require justified quantity and cost; defining a production recipe does not create those balances."
+      ]
+    },
+    {
+      "name": "External Mappings",
+      "description": "One proposed external-to-QOS identity mapping. Proposed Phase 2 onboarding.",
+      "short": "One proposed external-to-QOS identity mapping. Proposed Phase 2 onboarding.",
+      "phase": "Phase 2",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 2",
+          "key": "mapping_key",
+          "label": "Mapping key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_mapping_id",
+          "label": "qos mapping id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 2",
+          "key": "connection_key",
+          "label": "Connection reference",
+          "type": "text",
+          "required": true,
+          "description": "Non-secret identifier of the authorised provider account/connection configured in QOS. Never an API token or password.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "provider",
+          "label": "Provider",
+          "type": "text",
+          "required": true,
+          "description": "Inbound sales provider.",
+          "isKey": false,
+          "values": [
+            "LOYVERSE",
+            "FOODICS"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "external_entity_type",
+          "label": "External entity type",
+          "type": "text",
+          "required": true,
+          "description": "Source entity represented by the external ID.",
+          "isKey": false,
+          "values": [
+            "BRANCH",
+            "PRODUCT",
+            "VARIANT",
+            "MODIFIER_GROUP",
+            "MODIFIER_OPTION",
+            "PAYMENT_METHOD"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "external_id",
+          "label": "External ID",
+          "type": "text",
+          "required": true,
+          "description": "Exact provider ID; retain leading zeros and case.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "external_parent_id",
+          "label": "External parent ID",
+          "type": "text",
+          "required": false,
+          "description": "Required when the provider identifies this record only within a parent; retain exact source semantics.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "target_entity_type",
+          "label": "QOS target type",
+          "type": "text",
+          "required": true,
+          "description": "Canonical target represented by target_key. Sale-item mappings must resolve the actual sold variant.",
+          "isKey": false,
+          "values": [
+            "BRANCH",
+            "SELLABLE_VARIANT",
+            "MODIFIER_GROUP",
+            "MODIFIER_OPTION",
+            "PAYMENT_METHOD"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "target_key",
+          "label": "QOS target workbook key",
+          "type": "text",
+          "required": true,
+          "description": "Authorised workbook/business key of the canonical target; preview resolves it to its QOS ID. Resolve against Branches, Variants, Modifier Groups, Modifier Options or the configured QOS payment-method dictionary according to target_entity_type.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 2",
+          "key": "branch_key",
+          "label": "Branch scope",
+          "type": "reference",
+          "required": false,
+          "description": "Required when the source mapping is branch-specific; blank only for genuinely account-wide records.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Branches",
+            "key": "branch_key"
+          }
+        },
+        {
+          "phase": "Phase 2",
+          "key": "notes",
+          "label": "Mapping notes",
+          "type": "description",
+          "required": false,
+          "description": "Source context or reason for the proposed mapping.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "Mapping uniqueness includes provider connection, entity type, external ID and parent/branch scope where the provider requires them.",
+        "Validate source identity and target permissions; never map automatically by name alone.",
+        "No connection is established and no sale is imported merely by uploading this sheet.",
+        "Phase 2 proves one chosen provider/branch; the second provider's operational automation is Phase 3.",
+        "Payment-method mappings are separate from order channel. A delivery app must not be assumed to be the tender without source evidence."
+      ]
+    },
+    {
+      "name": "Future Combos",
+      "description": "One fixed combo composition linked to a sellable variant. Preparation data only; operational capability is deferred.",
+      "short": "One fixed combo composition linked to a sellable variant. Preparation data only; operational capability is deferred.",
+      "phase": "Phase 3",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 3",
+          "key": "combo_key",
+          "label": "Combo key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_combo_id",
+          "label": "qos combo id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 3",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 3",
+          "key": "sellable_variant_key",
+          "label": "Combo sellable variant",
+          "type": "reference",
+          "required": true,
+          "description": "Existing or proposed canonical variant that sells the combo. Product names, prices and branch offers remain owned by the menu catalogue.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Variants",
+            "key": "variant_key"
+          }
+        },
+        {
+          "phase": "Phase 3",
+          "key": "name",
+          "label": "Composition name",
+          "type": "text",
+          "required": true,
+          "description": "Readable name for the fixed composition; not a duplicate product identity.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 3",
+          "key": "active",
+          "label": "Active",
+          "type": "text",
+          "required": true,
+          "description": "Whether available for new combo configuration.",
+          "isKey": false,
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 3",
+          "key": "notes",
+          "label": "Notes",
+          "type": "description",
+          "required": false,
+          "description": "Composition context; configurable choice-group rules require their own confirmed design.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "This proposed sheet describes fixed component composition, not a complete configurable-combo engine.",
+        "Use the combo sellable variant's canonical price/branch offer. Do not create a second independent price source.",
+        "Consumption must use either component-derived recipes or an explicitly approved combo recipe, never both.",
+        "If a Phase 2 pilot actually sells a combo, its required consumption mapping must be implemented and proven before accepting those sales; Phase 3 labels cannot excuse uncosted pilot consumption.",
+        "Do not activate nested combos or substitution rules without an explicit supported contract."
+      ]
+    },
+    {
+      "name": "Combo Components",
+      "description": "One fixed sellable component in a combo. Preparation data only; operational capability is deferred.",
+      "short": "One fixed sellable component in a combo. Preparation data only; operational capability is deferred.",
+      "phase": "Phase 3",
+      "support": "Proposed schema and import extension",
+      "capacity": 100,
+      "columns": [
+        {
+          "phase": "Phase 3",
+          "key": "combo_component_key",
+          "label": "Combo component key",
+          "type": "text",
+          "required": true,
+          "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
+          "isKey": true,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "qos_combo_component_id",
+          "label": "qos combo component id",
+          "type": "text",
+          "required": false,
+          "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
+          "mapping": "Proposed future canonical identifier",
+          "phase": "Phase 3",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true,
+          "width": 38
+        },
+        {
+          "key": "action",
+          "label": "action",
+          "type": "text",
+          "required": true,
+          "description": "Expanded-profile operation. Create new, update exported records, explicitly archive where the domain permits, or skip. Never inferred from a missing row. Relationship sheets use remove_link instead of archive.",
+          "mapping": "Proposed import operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "create",
+            "update",
+            "archive",
+            "skip"
+          ],
+          "width": 16
+        },
+        {
+          "phase": "Phase 3",
+          "key": "combo_key",
+          "label": "Combo key",
+          "type": "reference",
+          "required": true,
+          "description": "Parent fixed combo composition.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Future Combos",
+            "key": "combo_key"
+          }
+        },
+        {
+          "phase": "Phase 3",
+          "key": "component_variant_key",
+          "label": "Component sellable variant",
+          "type": "reference",
+          "required": true,
+          "description": "Exact component variant whose accepted recipe supplies consumption.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension",
+          "ref": {
+            "sheet": "Variants",
+            "key": "variant_key"
+          }
+        },
+        {
+          "phase": "Phase 3",
+          "key": "quantity",
+          "label": "Component quantity",
+          "type": "decimal",
+          "required": true,
+          "description": "Positive number of component sale units included in one combo.",
+          "isKey": false,
+          "positive": true,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 3",
+          "key": "sort_order",
+          "label": "Display order",
+          "type": "integer",
+          "required": true,
+          "description": "Positive order for display.",
+          "isKey": false,
+          "min": 1,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "phase": "Phase 3",
+          "key": "notes",
+          "label": "Notes",
+          "type": "description",
+          "required": false,
+          "description": "Component context.",
+          "isKey": false,
+          "positive": false,
+          "mapping": "Proposed Phase 2/3 entity; no current schema table",
+          "importSupport": "Proposed import extension"
+        },
+        {
+          "key": "expected_revision",
+          "label": "expected revision",
+          "type": "text",
+          "required": false,
+          "description": "Opaque token populated by export/preview from current aggregate versions or timestamps. Retain on updates. The new importer must verify it before applying.",
+          "mapping": "Proposed export/preview concurrency token",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "readonly": true
+        },
+        {
+          "key": "clear_fields",
+          "label": "clear fields",
+          "type": "text",
+          "required": false,
+          "description": "For the expanded profile only: comma-separated optional column keys to clear explicitly. Blank update cells otherwise mean unchanged. Required fields and IDs cannot be cleared.",
+          "mapping": "Proposed reviewed clear operation",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required"
+        }
+      ],
+      "rules": [
+        "Reject self-reference and cycles. Keep nested combos disabled until explicitly supported.",
+        "A missing component recipe/variant mapping blocks trustworthy consumption for affected sales.",
+        "Component option defaults and selectable substitutions require explicit rules; do not infer them from labels."
+      ]
+    }
+  ],
+  "rules": [
+    [
+      "Scope and version",
+      "Workbook contract v1.0, 16 November 2026. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
+    ],
+    [
+      "Current upload profile",
+      "Use the separate QOS_Current_Catalogue_Import.csv or save only Current Import as CSV UTF-8. The current XLSX parser reads the first worksheet only, has a 2 MiB file limit, 500 data rows, 32 columns and 2,000 characters per cell. The full workbook requires a new profile."
+    ],
+    [
+      "Tenant and brand",
+      "Select the authorised tenant and brand in QOS before preview. Exports must include their identity as immutable manifest context. Do not accept another tenant’s IDs or assign data through display names alone. Quotes is the first customer, not a global tenant default."
+    ],
+    [
+      "Current profile identity",
+      "source_id is scoped by tenant and connection key. Retain both source ID and connection key for repeat imports. It is not the QOS ID. A missing source link is treated as a create; the current profile does not match an existing manually created product merely by name or SKU."
+    ],
+    [
+      "Current profile applied fields",
+      "The parser recognises 13 mappings, but the inspected apply path writes the narrower seven-column profile supplied here: source_id, internal_name, English/Arabic names, amount_minor, currency on create and image_url. Parsed descriptions, SKU/barcode and variant labels are not persisted by this path; use the expanded sheets for their proposed future import. Keep currency aligned with the existing price on updates. Existing non-null SKU/barcode can still cause an Update preview because comparison and apply differ; inspect the preview."
+    ],
+    [
+      "Image changes",
+      "Current flat-profile imports normally preserve an approved primary image unless explicit re-ingestion is enabled. A different image URL alone is not a verified replacement operation. The expanded profile must preview keep, replace, failed ingestion and retry states without discarding a valid existing asset."
+    ],
+    [
+      "Expanded profile identity",
+      "Workbook keys link rows; exported qos_* identifiers identify existing records. Keep both stable. expected_revision is an export/preview token that the proposed importer must check. Never match updates solely on product names."
+    ],
+    [
+      "Create and update",
+      "For the expanded profile: create needs the required fields; update needs the exported QOS ID/revision and intended changed values. Blank optional UPDATE cells mean unchanged. Explicit clear_fields names the optional fields to clear. All these action semantics require implementation."
+    ],
+    [
+      "Omission and archive",
+      "An omitted row does nothing. Archive is explicit and only supported where the domain service permits it. Product Categories, Product Modifiers and Menu Branches use remove_link for a reviewed detach. Posted opening stock is corrected by reversal/adjustment, never by archive or overwrite."
+    ],
+    [
+      "Drafts and publication",
+      "Import applies permitted changes to drafts through existing QOS services. Translation approval, publication, activation and operational posting remain separate authorised actions. A status cell cannot approve Arabic content or publish a menu."
+    ],
+    [
+      "Price units",
+      "Existing menu prices and modifier deltas use integer minor units: AED 20.00 = 2000. Proposed ingredient reference costs use decimal major currency units per storage unit. Do not mix these two conventions. Numeric zero is a real value; blank means unknown."
+    ],
+    [
+      "Currencies and tax",
+      "AED is the Quotes pilot currency in this template. Other tenants need a currency-aware template profile. Price tax basis/rate are explicitly proposed fields. Confirm tax and net-cost treatment before comparing ingredient cost with selling price."
+    ],
+    [
+      "Units and conversions",
+      "Ingredient factor means recipe units per one storage unit. Example format: 1 kg = 1000 g; a pack may be 12 pieces for one ingredient only. Do not assume mass-to-volume or universal pack conversions. Recipe-line quantities use the ingredient’s declared recipe unit."
+    ],
+    [
+      "Recipes and yields",
+      "Recipe line quantities describe the full stated yield. Divide each line by the positive recipe yield to obtain usage per sale/output unit. Resolve versions and effective dates; never rewrite posted historical consumption when a current recipe changes."
+    ],
+    [
+      "Modifier effects",
+      "ADD quantities are per sold unit per selected option quantity. REMOVE/REPLACE targets one base recipe line. Convert its batch amount using yield; reject conflicts, double replacements and negative consumption. Current modifier pricing/rules remain separate."
+    ],
+    [
+      "Reference costing",
+      "Ingredient costs in the workbook are dated onboarding/reference inputs, not a perpetual valuation engine. Missing cost remains unavailable. Actual stock valuation uses accepted receipts, opening balances and the agreed QOS cost policy."
+    ],
+    [
+      "Prep versus production",
+      "Recipe reading, checklists, batch calculation, preparation targets and observed counts do not post stock. Actual raw-input consumption and prepared-output production transactions are Phase 3. No double consumption on later sales."
+    ],
+    [
+      "Opening stock",
+      "Opening Stock is a separate transaction intake, not generic menu/master-data apply. QOS must validate branch, warehouse, units, cutoff, quantity, cost, source and duplicate protection, then ask for posting confirmation. Corrections use traceable reversal/adjustment."
+    ],
+    [
+      "Later fields",
+      "Future Combos and Combo Components are fixed-composition proposals for Phase 3. free_options_count is an unscheduled later pricing proposal, not a Phase 2 commitment. Unsupported populated fields must be identified as deferred/rejected, never silently dropped or treated as applied."
+    ],
+    [
+      "Availability",
+      "Existing branch availability is controlled through stop-sales and schedules, not a fictional generic branch-offer table. This workbook captures branch price overrides; preserve and review availability through existing QOS controls."
+    ],
+    [
+      "Branch price resets",
+      "Branch Prices uses reset_to_central for a reviewed removal of an override, following the existing price-reset audit model. The result inherits the current central price. Branches are suspended with status=suspended; they do not use an invented archive operation."
+    ],
+    [
+      "Branch mapping",
+      "Dubai, Al Ain and Azur Cafe are requested business labels. Historical QOS branches HBZ Stadium, HCT Academic City and Al Ain Zoo must be mapped deliberately. Do not rename IDs or reassign history automatically."
+    ],
+    [
+      "External mapping",
+      "Provider IDs remain distinct from QOS IDs and workbook keys. Include connection/provider/entity/branch context. Foodics and Loyverse mapping is proposed Phase 2 data; credentials never belong in this workbook."
+    ],
+    [
+      "Validation coverage",
+      "Dropdowns and row checks catch basic input mistakes only. Reference review can mean a record exists in QOS but is not listed here. QOS must verify types, references, permissions, versions, conditional fields, full business rules and supported capabilities."
+    ],
+    [
+      "Recovery and repeat upload",
+      "Preview before apply. Report created, updated, unchanged, skipped, failed and deferred rows. Resume/retry without duplicate records. Current implementation does not establish workbook-wide atomicity; do not display partial work as a full success."
+    ],
+    [
+      "Capacity and export",
+      "Input tables reserve 100 rows by default; larger tables reserve 200 and Current Import reserves 500. To extend them, extend the table, validations, reference ranges and row-check formulas together. Future QOS exports should size these automatically."
+    ],
+    [
+      "Real data and account access",
+      "Enter confirmed operational information only. There are no sample customer rows. Keep account passwords, PINs, API tokens and credentials outside this workbook. User invitations and access remain in QOS administration."
+    ],
+    [
+      "Separate transaction contracts",
+      "Daily sales, tenders, receipts, waste and counts are Phase 2 UI/import workflows described in the Claude brief. They are not mixed into the menu master-data tables. Purchase orders, transfers and production posting are later workflows."
+    ]
+  ],
+  "sources": [
+    {
+      "label": "Current QOS schema",
+      "url": "https://github.com/niteshrajgopal-dev/qos-app/blob/main/src/db/schema.ts"
+    },
+    {
+      "label": "Current catalogue parser",
+      "url": "https://github.com/niteshrajgopal-dev/qos-app/blob/main/src/lib/catalogue/catalogue-import-parser.ts"
+    },
+    {
+      "label": "Current input validation",
+      "url": "https://github.com/niteshrajgopal-dev/qos-app/blob/main/src/lib/catalogue/catalogue-import-validation.ts"
+    },
+    {
+      "label": "Current catalogue apply",
+      "url": "https://github.com/niteshrajgopal-dev/qos-app/blob/main/src/lib/catalogue/catalogue-import.ts"
+    },
+    {
+      "label": "Phase 2 roadmap v1.1",
+      "url": "https://chatgpt.com/library?file_id=libfile_fde3_f-48fe868ef23081918e6e2554866f36d0_7d9d9e555df08191b17598836f3542ba&account_id=personal"
+    },
+    {
+      "label": "User-supplied Foodics reference",
+      "url": "https://chatgpt.com/library?file_id=libfile_fde3_f-5d3818eb6e94819181882c73d89963f9_7d9d9e555df08191b17598836f3542ba&account_id=personal"
+    }
+  ],
+  "formulaContract": {
+    "ingredient_cost_per_recipe_unit": {
+      "inputs": [
+        "Ingredients.reference_cost_per_storage_unit",
+        "Ingredients.recipe_units_per_storage_unit",
+        "Ingredients.cost_currency",
+        "Ingredients.cost_effective_date",
+        "Ingredients.cost_tax_basis"
+      ],
+      "expression": "reference_cost_per_storage_unit / recipe_units_per_storage_unit",
+      "guards": "Cost is explicitly numeric, factor is numeric and > 0, currency/date match the required cost basis. Missing cost yields unavailable, never zero. All summed costs must use the same confirmed NET or GROSS tax basis, normalized explicitly before comparison. An unconfirmed basis cannot produce a claimed net ingredient margin.",
+      "meaning": "Planning/reference cost only; not a stock valuation engine."
+    },
+    "recipe_line_cost": {
+      "inputs": [
+        "Recipe Lines.quantity_recipe_units",
+        "Recipe Lines.ingredient_key",
+        "Ingredients.reference_cost_per_storage_unit",
+        "Ingredients.recipe_units_per_storage_unit"
+      ],
+      "expression": "quantity_recipe_units × reference_cost_per_storage_unit / recipe_units_per_storage_unit",
+      "guards": "Resolve one exact ingredient key; all required numeric inputs known; matching currency/effective date. All summed costs must use the same confirmed NET or GROSS tax basis, normalized explicitly before comparison. An unconfirmed basis cannot produce a claimed net ingredient margin."
+    },
+    "recipe_cost_per_yield_unit": {
+      "inputs": [
+        "All valid RecipeLines for recipe_version_key",
+        "Recipes.yield_quantity"
+      ],
+      "expression": "SUM(recipe_line_cost for every line in the version) / yield_quantity",
+      "guards": "Yield > 0, at least one line, and every required line fully costed. If any cost is missing, show incomplete cost rather than a partial total labelled complete. All summed costs must use the same confirmed NET or GROSS tax basis, normalized explicitly before comparison. An unconfirmed basis cannot produce a claimed net ingredient margin."
+    },
+    "sale_consumption": {
+      "inputs": [
+        "sold_quantity",
+        "Recipe Lines.quantity_recipe_units",
+        "Recipes.yield_quantity",
+        "accepted modifier selections/effects"
+      ],
+      "expression": "Base quantity for an ingredient line = sold_quantity × quantity_recipe_units / yield_quantity; then apply validated option effects exactly once.",
+      "guards": "Accepted recipe/version and option mapping; compatible sale/yield units; no duplicate sales source event; conflicting effects remain exceptions."
+    },
+    "prepared_reference_cost_per_storage_unit": {
+      "phase": "Phase 3 operational costing; Phase 2 guidance can show an explicitly labelled estimate only",
+      "expression": "SUM(input recipe line reference costs) / prepared recipe yield_quantity × prepared ingredient.recipe_units_per_storage_unit",
+      "guards": "Acyclic graph, correct output units, complete costs. Actual production valuation uses actual posted inputs/output and agreed policy. All summed costs must use the same confirmed NET or GROSS tax basis, normalized explicitly before comparison. An unconfirmed basis cannot produce a claimed net ingredient margin."
+    },
+    "opening_value": {
+      "expression": "Opening Stock.quantity_storage_units × Opening Stock.unit_cost_per_storage_unit",
+      "guards": "Known quantity and cost in same storage unit/currency; positive quantity with unknown cost cannot show a completed valuation."
+    }
+  },
+  "profileCoverage": {
+    "included": "Catalogue definitions, Phase 2 setup/recipe definitions, separately reviewed opening-stock intake, external mapping preparation and deferred fixed-composition combo definitions.",
+    "uiOnlyInPhase2": [
+      "shared recipe assignments beyond the primary variant target",
+      "direct-stock sellable mappings",
+      "existing availability and schedules",
+      "daily sales/tenders",
+      "receipts/waste/counts",
+      "prep observations"
+    ],
+    "excluded": "Live POS credentials; users/passwords; purchase-order, transfer and production transaction imports.",
+    "calculationImplementation": "XLSX formulas provide readiness checks/counts only. Cost/consumption/valuation expressions specify proposed QOS functionality, not implemented spreadsheet calculations."
+  }
+}
