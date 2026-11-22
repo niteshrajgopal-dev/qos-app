@@ -341,7 +341,7 @@ export function ModifierGroupEditor({
     setError(null);
     setMessage(null);
 
-    let failure: string | null = null;
+    let failure: string;
     try {
       const response = await staffApiFetch(
         `/api/tenants/${tenantId}/catalogue/modifier-groups/${groupPublicId}`,
@@ -355,25 +355,19 @@ export function ModifierGroupEditor({
         error?: string;
       };
 
-      if (!response.ok || !payload.deleted) {
-        throw new Error(
-          payload.error ?? staffUiCopy(locale, "modifierGroupDeleteError"),
-        );
+      if (response.ok && payload.deleted) {
+        // Stay busy until navigation; replace so Back does not return to a
+        // group that no longer exists.
+        router.replace(`/tenants/${tenantId}/catalogue/modifier-groups`);
+        return;
       }
 
-      // Replace so Back does not return to a group that no longer exists.
-      router.replace(`/tenants/${tenantId}/catalogue/modifier-groups`);
-      return;
-    } catch (deleteError) {
-      failure =
-        deleteError instanceof Error
-          ? deleteError.message
-          : staffUiCopy(locale, "modifierGroupDeleteError");
-    } finally {
-      setDeleting(false);
-      setBusy(false);
+      failure = payload.error ?? staffUiCopy(locale, "modifierGroupDeleteError");
+    } catch {
+      failure = staffUiCopy(locale, "modifierGroupDeleteError");
     }
 
+    setDeleting(false);
     // Refresh the attached count and version, then keep the server's reason visible.
     await loadGroup();
     setError(failure);
