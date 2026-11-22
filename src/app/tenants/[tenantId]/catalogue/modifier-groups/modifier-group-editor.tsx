@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { ConfirmDialog } from "@/components/Modal";
+import { PortalNotice } from "@/components/portal/workspace/PortalWorkspace";
 import {
   ChannelPricesBlock,
   SalesChannelAddForm,
@@ -10,14 +12,13 @@ import {
 } from "@/components/staff/catalogue/channel-price-grid";
 import type { ChannelPriceRowView } from "@/components/staff/catalogue/channel-price-state";
 import { useChannelPriceBundle } from "@/components/staff/catalogue/use-channel-price-bundle";
-import { PortalNotice } from "@/components/portal/workspace/PortalWorkspace";
 import {
   optionalNumberText,
   parseOptionalWholeNumber,
 } from "@/app/tenants/[tenantId]/catalogue/products/selling-attributes-form";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-import { staffUiCopy } from "@/lib/staff/locale";
+import { staffCount, staffUiCopy } from "@/lib/staff/locale";
 
 type ModifierGroupEditorProps = {
   tenantId: string;
@@ -83,6 +84,8 @@ export function ModifierGroupEditor({
   const { locale } = useStaffLocale();
   const [group, setGroup] = useState<GroupState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [newOption, setNewOption] = useState({
@@ -323,6 +326,54 @@ export function ModifierGroupEditor({
     } finally {
       setBusy(false);
     }
+  }
+
+  async function deleteGroup() {
+    if (!group) {
+      return;
+    }
+
+    setDeleteOpen(false);
+    setBusy(true);
+    setDeleting(true);
+    setError(null);
+    setMessage(null);
+
+    let failure: string | null = null;
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/modifier-groups/${groupPublicId}`,
+        {
+          method: "DELETE",
+          body: JSON.stringify({ expectedVersion: group.version }),
+        },
+      );
+      const payload = (await response.json()) as {
+        deleted?: { publicId: string };
+        error?: string;
+      };
+
+      if (!response.ok || !payload.deleted) {
+        throw new Error(
+          payload.error ?? staffUiCopy(locale, "modifierGroupDeleteError"),
+        );
+      }
+
+      window.location.href = `/tenants/${tenantId}/catalogue/modifier-groups`;
+      return;
+    } catch (deleteError) {
+      failure =
+        deleteError instanceof Error
+          ? deleteError.message
+          : staffUiCopy(locale, "modifierGroupDeleteError");
+    } finally {
+      setDeleting(false);
+      setBusy(false);
+    }
+
+    // Refresh the attached count and version, then keep the server's reason visible.
+    await loadGroup();
+    setError(failure);
   }
 
   if (!group) {
@@ -576,7 +627,7 @@ export function ModifierGroupEditor({
                     }
                     className="qos-btn" data-variant="secondary" data-size="sm"
                   >
-                    Make default
+                    {staffUiCopy(locale, "variantMakeDefault")}
                   </button>
                 ) : null}
                 <button
@@ -674,6 +725,51 @@ export function ModifierGroupEditor({
           Add option
         </button>
       </form>
+
+      <section className="qos-card" data-padding="sm">
+        <h3 className="text-lg font-medium">
+          {staffUiCopy(locale, "modifierGroupDelete")}
+        </h3>
+        {group.affectedProductCount > 0 ? (
+          <>
+            <p className="qos-card-sub">
+              {staffCount(
+                locale,
+                "modifierGroupAttachedProducts",
+                group.affectedProductCount,
+              )}
+            </p>
+            <p className="qos-card-sub">
+              {staffUiCopy(locale, "modifierGroupDeleteBlockedHelp")}
+            </p>
+          </>
+        ) : (
+          <p className="qos-card-sub">
+            {staffUiCopy(locale, "modifierGroupDeleteHelp")}
+          </p>
+        )}
+        <button
+          type="button"
+          disabled={busy || group.affectedProductCount > 0}
+          onClick={() => setDeleteOpen(true)}
+          className="qos-btn" data-variant="danger" data-size="sm"
+        >
+          {deleting
+            ? staffUiCopy(locale, "modifierGroupDeleting")
+            : staffUiCopy(locale, "modifierGroupDelete")}
+        </button>
+      </section>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        tone="danger"
+        title={staffUiCopy(locale, "modifierGroupDeleteConfirmTitle")}
+        description={staffUiCopy(locale, "modifierGroupDeleteConfirmDescription")}
+        confirmLabel={staffUiCopy(locale, "modifierGroupDeleteConfirmLabel")}
+        cancelLabel={staffUiCopy(locale, "cancel")}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={() => void deleteGroup()}
+      />
 
       <Link
         href={`/tenants/${tenantId}/catalogue/modifier-groups`}

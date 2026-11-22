@@ -277,6 +277,16 @@ export const STAFF_UI_COPY = {
     modifierPolicySave: "Save rules",
     modifierPolicyReset: "Reset to group defaults",
     modifierPolicySaved: "Rules saved for this product.",
+    modifierGroupDelete: "Delete",
+    modifierGroupDeleteHelp: "Permanently removes this group and all of its options.",
+    modifierGroupDeleteBlockedHelp:
+      "Detach it from each product first, in the product's Modifier groups section.",
+    modifierGroupDeleteConfirmTitle: "Delete this modifier group?",
+    modifierGroupDeleteConfirmDescription:
+      "The group and its options are removed permanently. This cannot be undone.",
+    modifierGroupDeleteConfirmLabel: "Delete",
+    modifierGroupDeleting: "Deleting…",
+    modifierGroupDeleteError: "Unable to delete modifier group.",
     modifierPolicyResetDone: "Rules reset to the group defaults.",
     modifierPolicySaveError: "Unable to save the rules.",
     modifierPolicyUseGroupDefault: "Use group default",
@@ -1161,6 +1171,16 @@ export const STAFF_UI_COPY = {
     modifierPolicySave: "حفظ القواعد",
     modifierPolicyReset: "إعادة القيم الافتراضية للمجموعة",
     modifierPolicySaved: "تم حفظ القواعد لهذا المنتج.",
+    modifierGroupDelete: "حذف",
+    modifierGroupDeleteHelp: "يحذف هذه المجموعة وكل خياراتها نهائيًا.",
+    modifierGroupDeleteBlockedHelp:
+      "افصلها من كل منتج أولًا، من قسم مجموعات الإضافات في صفحة المنتج.",
+    modifierGroupDeleteConfirmTitle: "حذف مجموعة الإضافات هذه؟",
+    modifierGroupDeleteConfirmDescription:
+      "ستُحذف المجموعة وخياراتها نهائيًا، ولا يمكن التراجع عن ذلك.",
+    modifierGroupDeleteConfirmLabel: "حذف",
+    modifierGroupDeleting: "جارٍ الحذف…",
+    modifierGroupDeleteError: "تعذّر حذف مجموعة الإضافات.",
     modifierPolicyResetDone: "أُعيدت القواعد إلى القيم الافتراضية للمجموعة.",
     modifierPolicySaveError: "تعذّر حفظ القواعد.",
     modifierPolicyUseGroupDefault: "استخدام القيمة الافتراضية للمجموعة",
@@ -1895,6 +1915,10 @@ export const STAFF_COUNT_COPY = {
     productsSearchMatch: { one: "1 product matches", other: "{count} products match" },
     searchProductsPlaceholder: { one: "Search 1 product", other: "Search {count} products" },
     modifierOptions: { one: "1 option", other: "{count} options" },
+    modifierGroupAttachedProducts: {
+      one: "Attached to 1 product",
+      other: "Attached to {count} products",
+    },
   },
   ar: {
     products: {
@@ -1952,6 +1976,14 @@ export const STAFF_COUNT_COPY = {
       few: "{count} خيارات",
       many: "{count} خيارًا",
       other: "{count} خيار",
+    },
+    modifierGroupAttachedProducts: {
+      zero: "غير مرتبطة بأي منتج",
+      one: "مرتبطة بمنتج واحد",
+      two: "مرتبطة بمنتجين",
+      few: "مرتبطة بـ{count} منتجات",
+      many: "مرتبطة بـ{count} منتجًا",
+      other: "مرتبطة بـ{count} منتج",
     },
   },
 } as const satisfies Record<StaffLocale, Record<string, StaffCountForms>>;

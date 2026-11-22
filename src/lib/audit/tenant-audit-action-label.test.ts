@@ -25,6 +25,15 @@ describe("tenantAuditActionLabel", () => {
     expect(tenantAuditEntityLabel("catalogue_product", "ar")).toBe("منتج");
   });
 
+  it("labels modifier group deletion in both languages", () => {
+    expect(tenantAuditActionLabel("catalogue.modifier_group.delete", "en")).toBe(
+      "Modifier group deleted",
+    );
+    expect(tenantAuditActionLabel("catalogue.modifier_group.delete", "ar")).toBe(
+      "تم حذف مجموعة إضافات",
+    );
+  });
+
   it("falls back by area, then generically, instead of echoing the action string", () => {
     expect(tenantAuditActionLabel("catalogue.something_new", "en")).toBe("Catalogue updated");
     expect(tenantAuditActionLabel("catalogue.something_new", "ar")).toBe("تم تحديث الكتالوج");

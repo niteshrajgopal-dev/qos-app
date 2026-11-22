@@ -75,6 +75,7 @@ const AUDIT_ACTION_LABELS: Record<string, Bilingual> = {
   "catalogue.menu.publish": { en: "Menu published", ar: "تم نشر القائمة" },
   "catalogue.modifier_group.attach": { en: "Modifier group attached", ar: "تم ربط مجموعة إضافات" },
   "catalogue.modifier_group.create": { en: "Modifier group created", ar: "تم إنشاء مجموعة إضافات" },
+  "catalogue.modifier_group.delete": { en: "Modifier group deleted", ar: "تم حذف مجموعة إضافات" },
   "catalogue.modifier_group.detach": { en: "Modifier group detached", ar: "تم فصل مجموعة إضافات" },
   "catalogue.modifier_group.reorder_on_product": {
     en: "Modifier groups reordered",

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/db";
 import { catalogueErrorResponse } from "@/lib/catalogue/http";
 import {
+  deleteModifierGroup,
   getModifierGroup,
   updateModifierGroup,
 } from "@/lib/catalogue/modifiers";
@@ -53,6 +54,35 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
 
     return NextResponse.json({ group });
+  } catch (error) {
+    return catalogueErrorResponse(error);
+  }
+}
+
+/** Hard delete; refused with 409 while any product still uses the group. */
+export async function DELETE(request: Request, context: RouteContext) {
+  try {
+    const { tenantId, groupPublicId } = await context.params;
+    const identity = await requireStaffIdentity(request);
+    const membership = await requireActiveStaffMembership(
+      db,
+      tenantId,
+      identity.subject,
+    );
+    const body = (await request.json()) as Parameters<
+      typeof deleteModifierGroup
+    >[3];
+
+    const deleted = await deleteModifierGroup(
+      db,
+      tenantId,
+      groupPublicId,
+      body,
+      identity.subject,
+      membership,
+    );
+
+    return NextResponse.json({ deleted });
   } catch (error) {
     return catalogueErrorResponse(error);
   }
