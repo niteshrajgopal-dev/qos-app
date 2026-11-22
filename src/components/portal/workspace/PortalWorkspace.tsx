@@ -54,8 +54,19 @@ export function PortalPageHeader({
   );
 }
 
-export function PortalStatGrid({ children }: { children: ReactNode }) {
-  return <div className="qosp-stats-grid">{children}</div>;
+export function PortalStatGrid({
+  children,
+  columns,
+}: {
+  children: ReactNode;
+  /** Optional column count. The Foodics result panel uses 2 so four tiles stay 2×2 at desktop instead of 3+1. */
+  columns?: 2 | 3;
+}) {
+  return (
+    <div className="qosp-stats-grid" {...(columns ? { "data-columns": String(columns) } : {})}>
+      {children}
+    </div>
+  );
 }
 
 export function PortalStat({
@@ -80,13 +91,16 @@ export type PortalBadgeTone = "positive" | "warm" | "neutral" | "danger";
 
 export function PortalBadge({
   tone = "neutral",
+  wrap = false,
   children,
 }: {
   tone?: PortalBadgeTone;
+  /** Allow a long status label to wrap. Other badges stay on one line. */
+  wrap?: boolean;
   children: ReactNode;
 }) {
   return (
-    <span className="qosp-badge" data-tone={tone}>
+    <span className="qosp-badge" data-tone={tone} {...(wrap ? { "data-wrap": "true" } : {})}>
       {children}
     </span>
   );
