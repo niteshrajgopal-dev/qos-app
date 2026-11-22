@@ -152,9 +152,11 @@ describe("workbook review wording", () => {
   it("shows money columns in minor units, as their label says, with the money value beside them", () => {
     // Intl puts a no-break space between the currency code and the amount.
     expect(formatReviewValue("en", "AED", "amount_minor", "1800")).toBe("1800 (AED\u00a018.00)");
+    // Arabic uses the same ISO parenthetical so the LTR diff stays 1800 → 1900.
     const ar = formatReviewValue("ar", "AED", "price_minor", "1900")!;
     expect(ar.startsWith("1900 (")).toBe(true);
     expect(ar).toContain("19.00");
+    expect(ar).toBe(formatReviewValue("en", "AED", "price_minor", "1900"));
     expect(formatReviewValue("en", "AED", "amount_minor", "1800.5")).toBe("1800.5");
     expect(formatReviewValue("en", "", "amount_minor", "1800")).toBe("1800");
     expect(formatReviewValue("en", "AED", "sku", "1800")).toBe("1800");

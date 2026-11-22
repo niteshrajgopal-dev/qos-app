@@ -279,8 +279,11 @@ export function formatMinorUnits(locale: StaffLocale, currency: string, minor: s
 }
 
 /** A minor-unit amount as typed, with its money value beside it (`1800` AED → `1800 (AED 18.00)`); anything else verbatim. */
-export function describeMinorUnits(locale: StaffLocale, currency: string, minor: string) {
-  const money = formatMinorUnits(locale, currency, minor);
+export function describeMinorUnits(_locale: StaffLocale, currency: string, minor: string) {
+  /* The parenthetical always uses the English ISO format (`AED 18.00`).
+     Arabic NumberFormat puts د.إ after the amount, and those marks reorder
+     `1800 → 1900` once the value sits inside the LTR diff. */
+  const money = formatMinorUnits("en", currency, minor);
   return money === minor ? minor : `${minor} (${money})`;
 }
 

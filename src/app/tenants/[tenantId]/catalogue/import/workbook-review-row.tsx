@@ -252,10 +252,10 @@ export function WorkbookReviewRow({
           <h4 className="qosp-field-label qosp-panel-body">{t("reviewRowChanges")}</h4>
           <ul className="qosp-diff" aria-label={t("reviewRowChanges")}>
             {row.changes.map((change) => (
-              <li key={change.column} data-kind={change.after === null ? "removed" : "added"}>
+              <li key={change.column} data-kind={change.after === null ? "removed" : "added"} dir="ltr">
                 <span dir="ltr">{change.column}</span>
                 {": "}
-                <span dir="ltr">
+                <span>
                   <bdi>{formatReviewValue(locale, currency, change.column, change.before) ?? t(row.classification === "create" ? "reviewRowNew" : "reviewRowBlank")}</bdi>
                   {" → "}
                   <bdi>{formatReviewValue(locale, currency, change.column, change.after) ?? t("reviewRowCleared")}</bdi>
