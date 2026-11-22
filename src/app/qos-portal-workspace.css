@@ -190,6 +190,9 @@
   gap: 16px;
   margin-bottom: 27px;
 }
+.qosp-stats-grid[data-columns="2"] {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
 .qosp-stat {
   padding: 22px 24px;
   display: flex;
@@ -333,6 +336,14 @@
   color: var(--portal-rose);
   background: #f3939314;
   border-color: #f3939340;
+}
+/* Long status labels (Foodics "Sheets not read" credentials badge) wrap inside the card. */
+.qosp-badge[data-wrap="true"] {
+  white-space: normal;
+  min-width: 0;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  text-align: start;
 }
 
 /* ---------- Notices ---------- */

@@ -99,7 +99,7 @@ export function FoodicsMenuResult({
       </div>
 
       <div className="qosp-panel-body">
-        <PortalStatGrid>
+        <PortalStatGrid columns={2}>
           <PortalStat label={t("importStatReady")} value={String(result.summary.recognizedRows)} sub={t("importStatReadySub")} />
           <PortalStat
             label={t("importStatDeferred")}
@@ -162,7 +162,10 @@ export function FoodicsMenuResult({
                   </bdi>
                 </div>
                 <div className="qosp-branch-row-status">
-                  <PortalBadge tone={ignored.reason === "credentials" ? "warm" : "neutral"}>
+                  <PortalBadge
+                    tone={ignored.reason === "credentials" ? "warm" : "neutral"}
+                    wrap={ignored.reason === "credentials"}
+                  >
                     {t(ignored.reason === "credentials" ? "importIgnoredCredentials" : "importIgnoredGuidance")}
                   </PortalBadge>
                 </div>
