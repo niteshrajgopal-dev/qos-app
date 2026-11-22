@@ -94,6 +94,24 @@ describe("staff locale", () => {
     expect(staffCount("en", "modifierOptions", 4)).toBe("4 options");
   });
 
+  it("counts workbook review phrases with the right noun form (QOS-194)", () => {
+    expect(staffCount("en", "reviewRows", 1)).toBe("1 row");
+    expect(staffCount("en", "reviewRows", 148)).toBe("148 rows");
+    expect(staffCount("en", "reviewAcksPending", 0)).toBe("0 acknowledgements pending");
+    expect(staffCount("en", "reviewAcksPending", 1)).toBe("1 acknowledgement pending");
+    expect(staffCount("en", "reviewAcksPending", 2)).toBe("2 acknowledgements pending");
+    expect(staffCount("en", "reviewUnsentDecisions", 1)).toContain("1 decision not sent yet");
+    expect(staffCount("en", "reviewUnsentDecisions", 1)).toContain("record it");
+    expect(staffCount("en", "reviewUnsentDecisions", 3)).toContain("record them");
+    expect(staffCount("ar", "reviewRows", 1)).toBe("صف واحد");
+    expect(staffCount("ar", "reviewRows", 2)).toBe("صفان");
+    expect(staffCount("ar", "reviewRows", 3)).toBe("3 صفوف");
+    expect(staffCount("ar", "reviewRows", 11)).toBe("11 صفًا");
+    expect(staffCount("ar", "reviewRows", 100)).toBe("100 صف");
+    expect(staffCount("ar", "reviewAckPartial", 1)).toContain("صف واحد");
+    expect(staffCount("ar", "reviewAckPartial", 2)).toContain("صفان");
+  });
+
   it("fills named placeholders in staff copy", () => {
     expect(staffCopyWith("en", "paginationRange", { from: 1, to: 24, total: 148 })).toBe(
       "1–24 of 148",

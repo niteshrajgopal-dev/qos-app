@@ -6,7 +6,7 @@ import { PortalBadge, type PortalBadgeTone } from "@/components/portal/workspace
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { Radio } from "@/design-system/components/primitives/Radio";
 import { isolateText } from "@/lib/staff/branch-copy";
-import { staffCopyWith, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
+import { staffCopyWith, staffCount, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 import { WORKBOOK_SEVERITY_COPY } from "@/lib/workbook/import-view";
 import type { RowApplyState } from "@/lib/workbook/apply/model";
 import {
@@ -15,6 +15,7 @@ import {
   APPLY_ROW_STATE_COPY,
   describeApplyFailure,
   describeReviewDiagnostic,
+  describeReviewOwner,
   diagnosticLocation,
   formatApplyTime,
   formatReviewValue,
@@ -254,9 +255,11 @@ export function WorkbookReviewRow({
               <li key={change.column} data-kind={change.after === null ? "removed" : "added"}>
                 <span dir="ltr">{change.column}</span>
                 {": "}
-                <bdi>{formatReviewValue(locale, currency, change.column, change.before) ?? t(row.classification === "create" ? "reviewRowNew" : "reviewRowBlank")}</bdi>
-                {" → "}
-                <bdi>{formatReviewValue(locale, currency, change.column, change.after) ?? t("reviewRowCleared")}</bdi>
+                <span dir="ltr">
+                  <bdi>{formatReviewValue(locale, currency, change.column, change.before) ?? t(row.classification === "create" ? "reviewRowNew" : "reviewRowBlank")}</bdi>
+                  {" → "}
+                  <bdi>{formatReviewValue(locale, currency, change.column, change.after) ?? t("reviewRowCleared")}</bdi>
+                </span>
                 {change.cell ? (
                   <>
                     {" "}
@@ -289,7 +292,7 @@ export function WorkbookReviewRow({
                 ) : (
                   <bdi>{field.value}</bdi>
                 )}{" "}
-                <PortalBadge tone="warm">{staffCopyWith(locale, "reviewFieldOwner", { owner: isolateText(field.owner) })}</PortalBadge>
+                <PortalBadge tone="warm">{staffCopyWith(locale, "reviewFieldOwner", { owner: isolateText(describeReviewOwner(locale, field.owner)) })}</PortalBadge>
               </li>
             ))}
           </ul>
@@ -346,7 +349,7 @@ export function WorkbookReviewRow({
                     </code>
                   </>
                 ) : null}
-                {candidate.variantCount !== undefined ? <> {staffCopyWith(locale, "reviewCandidateVariants", { count: candidate.variantCount })}</> : null}
+                {candidate.variantCount !== undefined ? <> {staffCount(locale, "reviewVariants", candidate.variantCount)}</> : null}
                 {candidate.isDefault ? (
                   <>
                     {" "}

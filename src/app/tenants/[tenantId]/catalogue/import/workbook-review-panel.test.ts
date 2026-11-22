@@ -215,6 +215,40 @@ describe("workbook review panel", () => {
     expect(html).toContain(STAFF_UI_COPY.en.applyRetryHelp);
   });
 
+  it("agrees counted nouns with the number: one acknowledgement, one row, one variant", () => {
+    const first = result.rows.findIndex((row) => row.sheet === "Products" && row.classification === "conflicting");
+    expect(first).toBeGreaterThanOrEqual(0);
+    const single: WorkbookReviewResult = {
+      ...result,
+      counts: { ...result.counts, acknowledgementsPending: 1 },
+      acknowledgements: { required: [{ kind: "acknowledge_partial_apply", rows: 1 }], given: [] },
+      rows: result.rows.map((row, index) =>
+        index === first
+          ? { ...row, candidates: [{ publicId: "prd_americano_1a2b3c4d", label: { en: "Americano", ar: "أمريكانو" }, variantCount: 1, kind: "name_collision" as const }] }
+          : row,
+      ),
+    };
+    const html = render("en", single);
+    expect(html).toContain("1 acknowledgement pending");
+    expect(html).toContain("1 row will not be applied: it is invalid");
+    expect(html).toContain("1 variant<");
+    expect(html).not.toMatch(/\b1 (rows|acknowledgements|variants)\b/);
+  });
+
+  it("names sheets and owners in Arabic on the field decisions, keeping the contract name as code", () => {
+    const html = render("ar");
+    const ar = STAFF_UI_COPY.ar;
+    expect(result.fieldDecisions.some((field) => field.sheet === "Products" && field.owner === "QOS-194 review; apply in QOS-217")).toBe(true);
+    expect(html).toContain(`<bdi>${ar.reviewSheetProducts}</bdi>`);
+    expect(html).toContain(`<code class="qosp-code" dir="ltr">Products</code>`);
+    expect(html).toContain(ar.reviewOwnerValidated);
+    expect(html).not.toContain("QOS-194 review; apply in QOS-217");
+    expect(html).not.toContain(`<bdi dir="ltr">Products</bdi>`);
+    const en = render("en");
+    expect(en).toContain(`<bdi dir="ltr">Products</bdi>`);
+    expect(en).toContain("QOS-194 review; apply in QOS-217");
+  });
+
   it("the apply section never uses browser storage, a browser confirm or simulated rows", () => {
     const source = readFileSync(path.join(__dirname, "workbook-apply-panel.tsx"), "utf8");
     expect(source).not.toMatch(/localStorage|sessionStorage|window\.confirm|confirm\(|demoRows/);
