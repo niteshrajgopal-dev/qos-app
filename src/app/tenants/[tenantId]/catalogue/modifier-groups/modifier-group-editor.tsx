@@ -745,16 +745,18 @@ export function ModifierGroupEditor({
             {staffUiCopy(locale, "modifierGroupDeleteHelp")}
           </p>
         )}
-        <button
-          type="button"
-          disabled={busy || group.affectedProductCount > 0}
-          onClick={() => setDeleteOpen(true)}
-          className="qos-btn" data-variant="danger" data-size="sm"
-        >
-          {deleting
-            ? staffUiCopy(locale, "modifierGroupDeleting")
-            : staffUiCopy(locale, "modifierGroupDelete")}
-        </button>
+        <div className="mt-3">
+          <button
+            type="button"
+            disabled={busy || group.affectedProductCount > 0}
+            onClick={() => setDeleteOpen(true)}
+            className="qos-btn" data-variant="danger" data-size="sm"
+          >
+            {deleting
+              ? staffUiCopy(locale, "modifierGroupDeleting")
+              : staffUiCopy(locale, "modifierGroupDelete")}
+          </button>
+        </div>
       </section>
 
       <ConfirmDialog
