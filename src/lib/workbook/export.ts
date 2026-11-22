@@ -113,6 +113,77 @@ function translationStamps(entry: { en?: { updatedAt: Date }; ar?: { updatedAt: 
   return [entry?.en?.updatedAt, entry?.ar?.updatedAt];
 }
 
+/* Per-entity revision recipes. The export writes them as `expected_revision`;
+   the workbook apply (QOS-217) recomputes the same tokens for one record
+   immediately before mutating it. Change a recipe only here. */
+type Stamped = { updatedAt: Date };
+type Versioned = { updatedAt: Date; translationVersion: number };
+type ByLocale<T> = { en?: T; ar?: T } | undefined;
+
+export const REVISION = {
+  location: (row: { publicId: string; updatedAt: Date }) => revisionToken("location", row.publicId, [row.updatedAt]),
+  category: (row: { publicId: string; version: number; updatedAt: Date }, names: ByLocale<Stamped>) =>
+    revisionToken("category", row.publicId, [row.version, row.updatedAt, ...translationStamps(names)]),
+  product: (row: { publicId: string; version: number; updatedAt: Date; primaryMediaAssetId: string | null }, names: ByLocale<Versioned>) =>
+    revisionToken("product", row.publicId, [
+      row.version,
+      row.updatedAt,
+      row.primaryMediaAssetId,
+      names?.en?.updatedAt,
+      names?.en?.translationVersion,
+      names?.ar?.updatedAt,
+      names?.ar?.translationVersion,
+    ]),
+  productCategory: (row: { id: string; createdAt: Date; sortOrder: number }) =>
+    revisionToken("product_category", row.id, [row.createdAt, row.sortOrder]),
+  variant: (
+    row: { publicId: string; updatedAt: Date },
+    labels: ByLocale<Stamped>,
+    price: { currency: string; version: number; updatedAt: Date } | undefined,
+  ) =>
+    revisionToken("variant", row.publicId, [
+      row.updatedAt,
+      labels?.en?.updatedAt,
+      labels?.ar?.updatedAt,
+      price?.currency,
+      price?.version,
+      price?.updatedAt,
+    ]),
+  branchPrice: (row: { id: string; updatedAt: Date; amountMinor: number; centralPriceVersionAtOverride: number }) =>
+    revisionToken("branch_price", row.id, [row.updatedAt, row.amountMinor, row.centralPriceVersionAtOverride]),
+  modifierGroup: (row: { publicId: string; version: number; updatedAt: Date }, names: ByLocale<Stamped>) =>
+    revisionToken("modifier_group", row.publicId, [row.version, row.updatedAt, ...translationStamps(names)]),
+  modifierOption: (row: { publicId: string; updatedAt: Date }, names: ByLocale<Stamped>) =>
+    revisionToken("modifier_option", row.publicId, [row.updatedAt, ...translationStamps(names)]),
+  productModifier: (row: { id: string; createdAt: Date; sortOrder: number; version: number; updatedAt: Date }) =>
+    revisionToken("product_modifier", row.id, [row.createdAt, row.sortOrder, row.version, row.updatedAt]),
+  menu: (row: { publicId: string; version: number; updatedAt: Date }, names: ByLocale<Versioned>) =>
+    revisionToken("menu", row.publicId, [
+      row.version,
+      row.updatedAt,
+      names?.en?.updatedAt,
+      names?.en?.translationVersion,
+      names?.ar?.updatedAt,
+      names?.ar?.translationVersion,
+    ]),
+  menuBranch: (row: { id: string; createdAt: Date }) => revisionToken("menu_branch", row.id, [row.createdAt]),
+  menuSection: (row: { publicId: string; updatedAt: Date }, names: ByLocale<Versioned>) =>
+    revisionToken("menu_section", row.publicId, [
+      row.updatedAt,
+      names?.en?.updatedAt,
+      names?.en?.translationVersion,
+      names?.ar?.updatedAt,
+      names?.ar?.translationVersion,
+    ]),
+  menuItem: (row: { id: string; updatedAt: Date; sortOrder: number; archived: boolean }) =>
+    revisionToken("menu_item", row.id, [row.updatedAt, row.sortOrder, row.archived]),
+};
+
+/** Groups translation rows by owner and locale (en/ar only). */
+export function translationsByOwner<T extends { locale: string }>(rows: T[], ownerId: (row: T) => string) {
+  return byLocale(rows, ownerId);
+}
+
 export type CurrentRecordExport = {
   manifest: WorkbookManifest;
   records: Record<SupportedEntitySheet, Row[]>;
@@ -441,7 +512,7 @@ export async function loadCurrentRecordExport(
         timezone: row.timezone,
         slug: row.slug,
         status: row.status,
-        expected_revision: revisionToken("location", row.publicId, [row.updatedAt]),
+        expected_revision: REVISION.location(row),
         clear_fields: "",
       })),
       Categories: categoryRows.map((row) => {
@@ -455,7 +526,7 @@ export async function loadCurrentRecordExport(
           display_name_ar: text(names?.ar?.displayName),
           sort_order: text(row.sortOrder),
           status: row.status,
-          expected_revision: revisionToken("category", row.publicId, [row.version, row.updatedAt, ...translationStamps(names)]),
+          expected_revision: REVISION.category(row, names),
           clear_fields: "",
         };
       }),
@@ -476,15 +547,7 @@ export async function loadCurrentRecordExport(
           // Blank means "keep the current image"; QOS media is not re-ingested from an export.
           image_url: "",
           status: row.status,
-          expected_revision: revisionToken("product", row.publicId, [
-            row.version,
-            row.updatedAt,
-            row.primaryMediaAssetId,
-            names?.en?.updatedAt,
-            names?.en?.translationVersion,
-            names?.ar?.updatedAt,
-            names?.ar?.translationVersion,
-          ]),
+          expected_revision: REVISION.product(row, names),
           clear_fields: "",
         };
       }),
@@ -499,7 +562,7 @@ export async function loadCurrentRecordExport(
             product_key: product,
             category_key: category,
             sort_order: text(row.sortOrder),
-            expected_revision: revisionToken("product_category", row.id, [row.createdAt, row.sortOrder]),
+            expected_revision: REVISION.productCategory(row),
             clear_fields: "",
           };
         }),
@@ -525,14 +588,7 @@ export async function loadCurrentRecordExport(
             status: row.status,
             price_tax_basis: "",
             tax_rate_basis_points: "",
-            expected_revision: revisionToken("variant", row.publicId, [
-              row.updatedAt,
-              labels?.en?.updatedAt,
-              labels?.ar?.updatedAt,
-              price?.currency,
-              price?.version,
-              price?.updatedAt,
-            ]),
+            expected_revision: REVISION.variant(row, labels, price),
             clear_fields: "",
           };
         }),
@@ -551,11 +607,7 @@ export async function loadCurrentRecordExport(
             amount_minor: text(row.amountMinor),
             currency: row.currency.trim(),
             central_price_version: text(row.centralPriceVersionAtOverride),
-            expected_revision: revisionToken("branch_price", row.id, [
-              row.updatedAt,
-              row.amountMinor,
-              row.centralPriceVersionAtOverride,
-            ]),
+            expected_revision: REVISION.branchPrice(row),
             clear_fields: "",
           };
         }),
@@ -573,7 +625,7 @@ export async function loadCurrentRecordExport(
           min_selections: text(row.minSelections),
           max_selections: text(row.maxSelections),
           status: row.status,
-          expected_revision: revisionToken("modifier_group", row.publicId, [row.version, row.updatedAt, ...translationStamps(names)]),
+          expected_revision: REVISION.modifierGroup(row, names),
           clear_fields: "",
         };
       }),
@@ -594,7 +646,7 @@ export async function loadCurrentRecordExport(
             max_quantity: text(row.maxQuantity),
             sort_order: text(row.sortOrder),
             status: row.status,
-            expected_revision: revisionToken("modifier_option", row.publicId, [row.updatedAt, ...translationStamps(names)]),
+            expected_revision: REVISION.modifierOption(row, names),
             clear_fields: "",
           };
         })
@@ -622,12 +674,7 @@ export async function loadCurrentRecordExport(
             selection_count_mode: text(row.selectionCountMode),
             // Free-option allowances are unsupported; never exported as a value.
             free_options_count: "",
-            expected_revision: revisionToken("product_modifier", row.id, [
-              row.createdAt,
-              row.sortOrder,
-              row.version,
-              row.updatedAt,
-            ]),
+            expected_revision: REVISION.productModifier(row),
             clear_fields: "",
           };
         }),
@@ -645,14 +692,7 @@ export async function loadCurrentRecordExport(
           description_en: text(names?.en?.description),
           description_ar: text(names?.ar?.description),
           status: row.status,
-          expected_revision: revisionToken("menu", row.publicId, [
-            row.version,
-            row.updatedAt,
-            names?.en?.updatedAt,
-            names?.en?.translationVersion,
-            names?.ar?.updatedAt,
-            names?.ar?.translationVersion,
-          ]),
+          expected_revision: REVISION.menu(row, names),
           clear_fields: "",
         };
       }),
@@ -666,7 +706,7 @@ export async function loadCurrentRecordExport(
             action: EXPORT_ROW_ACTION,
             menu_key: menu,
             branch_key: branch,
-            expected_revision: revisionToken("menu_branch", row.id, [row.createdAt]),
+            expected_revision: REVISION.menuBranch(row),
             clear_fields: "",
           };
         }),
@@ -685,13 +725,7 @@ export async function loadCurrentRecordExport(
             display_name_ar: text(names?.ar?.displayName),
             sort_order: text(row.sortOrder),
             archived: bool(row.archived),
-            expected_revision: revisionToken("menu_section", row.publicId, [
-              row.updatedAt,
-              names?.en?.updatedAt,
-              names?.en?.translationVersion,
-              names?.ar?.updatedAt,
-              names?.ar?.translationVersion,
-            ]),
+            expected_revision: REVISION.menuSection(row, names),
             clear_fields: "",
           };
         })
@@ -713,7 +747,7 @@ export async function loadCurrentRecordExport(
             product_key: product,
             sort_order: text(row.sortOrder),
             archived: bool(row.archived),
-            expected_revision: revisionToken("menu_item", row.id, [row.updatedAt, row.sortOrder, row.archived]),
+            expected_revision: REVISION.menuItem(row),
             clear_fields: "",
           };
         })

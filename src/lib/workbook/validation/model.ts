@@ -1,3 +1,4 @@
+import type { PlanApplyView, RowApplyOutcome } from "@/lib/workbook/apply/model";
 import type { WorkbookSheetSupport } from "@/lib/workbook/contract";
 import type { CapabilityClass } from "@/lib/workbook/dictionary";
 import type { FoodicsCapability, FoodicsRequiredMapping } from "@/lib/workbook/foodics-menu/reader";
@@ -161,6 +162,8 @@ export type ReviewRow = {
   acknowledgedCollision?: boolean;
   decision: RowDecision | null;
   source?: ReviewProvenance;
+  /** Outcome of the latest apply of this row (QOS-217); absent until the plan is applied. */
+  apply?: RowApplyOutcome;
 };
 
 /** Display-only parts of a review row, stored beside its values. */
@@ -219,7 +222,8 @@ export type ReviewContext = {
   ignoredSheets?: IgnoredSheet[];
 };
 
-export type PlanStatus = "review_ready" | "stale";
+/** `applying`, `applied` and `apply_failed` are QOS-217's (migration 0058). */
+export type PlanStatus = "review_ready" | "stale" | "applying" | "applied" | "apply_failed";
 
 export type PlanHeader = {
   publicId: string;
@@ -250,6 +254,8 @@ export type WorkbookReviewResult = WorkbookReview & {
   plan: PlanHeader;
   stale?: boolean;
   replayed?: boolean;
+  /** Apply permissions, preview and history (QOS-217). */
+  apply?: PlanApplyView;
 };
 
 /** One sheet of the normalised input, from either profile. */

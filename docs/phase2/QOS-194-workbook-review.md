@@ -23,7 +23,7 @@ Module: `src/lib/workbook/validation/`
 | `graph.ts` | References, link identity by verified endpoints, blocking propagation. |
 | `rules.ts` | Typing, conditional inputs, deferred values (tax with source text), service-parity validation. |
 | `capability.ts` | Field decisions: validated / deferred / rejected / mechanics. |
-| `review.ts` | The engine (`REVIEW_ENGINE_VERSION = "qos194.1"`). |
+| `review.ts` | The engine (`REVIEW_ENGINE_VERSION = "qos217.1"` after QOS-217). |
 | `plan-hash.ts`, `plan-repository.ts`, `service.ts` | Hash, persistence, orchestration. |
 | `correction-report.ts` | XLSX correction report from a stored plan. |
 
@@ -80,6 +80,8 @@ Deferred columns on supported sheets (`price_tax_basis`, `tax_rate_basis_points`
 - `Idempotency-Key` is required on preview; the same key and file replays the stored plan (`replayed: true`); the same key with another file is 409 `idempotency_key_reused`.
 
 ### Contract for QOS-217
+
+Delivered by QOS-217: apply a `review_ready` plan after recomputing `plan_hash` with `hashReview`, through real catalogue services, with typed source links, audit events, per-unit rollback and resumable `apply_failed` retry via re-review. See the QOS-217 apply module and migration 0058.
 
 1. Load the plan by public id inside the tenant context; require `status = review_ready`.
 2. Rebuild the snapshot for the plan's brand and branch scope, recompute `planHash` with `hashReview` over the stored rows and decisions, and require equality with the stored `plan_hash` and with the hash the client sends.

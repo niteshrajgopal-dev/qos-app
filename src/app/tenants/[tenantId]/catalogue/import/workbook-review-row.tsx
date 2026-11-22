@@ -1,14 +1,22 @@
 "use client";
 
+import Link from "next/link";
+
 import { PortalBadge, type PortalBadgeTone } from "@/components/portal/workspace/PortalWorkspace";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { Radio } from "@/design-system/components/primitives/Radio";
 import { isolateText } from "@/lib/staff/branch-copy";
 import { staffCopyWith, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 import { WORKBOOK_SEVERITY_COPY } from "@/lib/workbook/import-view";
+import type { RowApplyState } from "@/lib/workbook/apply/model";
 import {
+  APPLY_IMAGE_COPY,
+  APPLY_FAILURE_REASON_COPY,
+  APPLY_ROW_STATE_COPY,
+  describeApplyFailure,
   describeReviewDiagnostic,
   diagnosticLocation,
+  formatApplyTime,
   formatReviewValue,
   REVIEW_CLASSIFICATION_COPY,
   REVIEW_OPERATION_COPY,
@@ -22,7 +30,9 @@ import type { ReviewClassification, ReviewRow, RowDecision, RowRef } from "@/lib
    later (tax with its source text), notes with the cell to correct, what it
    blocks or waits for, and the decision controls for a conflicting row. A
    decision only changes the plan when the review is re-run; nothing here
-   applies anything. */
+   applies anything. After an apply (QOS-217) the row also shows its
+   outcome: saved or why not, values not saved, its source links and the
+   editor of the saved record. */
 
 export const CLASSIFICATION_TONE: Record<ReviewClassification, PortalBadgeTone> = {
   create: "positive",
@@ -33,6 +43,15 @@ export const CLASSIFICATION_TONE: Record<ReviewClassification, PortalBadgeTone> 
   invalid: "danger",
   blocked: "danger",
   unsupported: "neutral",
+};
+
+export const APPLY_STATE_TONE: Record<RowApplyState, PortalBadgeTone> = {
+  pending: "neutral",
+  applied: "positive",
+  already_applied: "positive",
+  failed: "danger",
+  not_applied: "neutral",
+  deferred_only: "warm",
 };
 
 const SEVERITY_TONE = { error: "danger", warning: "warm", info: "neutral" } as const;
@@ -73,12 +92,15 @@ export function decisionChoices(row: ReviewRow): DecisionKind[] {
 export function WorkbookReviewRow({
   row,
   currency,
+  editorHref = null,
   decision,
   onDecision,
   onGoTo,
 }: {
   row: ReviewRow;
   currency: string;
+  /** Editor of the record this row was saved as, when it was saved. */
+  editorHref?: string | null;
   /** The decision as the operator has it now (possibly not sent yet). */
   decision: RowDecision | null;
   onDecision: (decision: RowDecision | null) => void;
@@ -90,6 +112,8 @@ export function WorkbookReviewRow({
   const choices = decisionChoices(row);
   const name = `${reviewRowAnchor(row)}-decision`;
   const matchable = (row.candidates ?? []).filter((candidate) => candidate.kind !== "linked");
+  const outcome = row.apply;
+  const notAppliedReason = outcome?.result?.reason;
   const choose = (kind: DecisionKind | null) => {
     if (!kind) return onDecision(null);
     const base = { sheet: row.sheet, row: row.row, key: row.key };
@@ -150,6 +174,77 @@ export function WorkbookReviewRow({
           </div>
         ) : null}
       </dl>
+
+      {outcome ? (
+        <div className="qosp-panel-body qosp-stack">
+          <h4 className="qosp-field-label">{t("applyRowTitle")}</h4>
+          <div className="qosp-meta-row">
+            <PortalBadge tone={APPLY_STATE_TONE[outcome.state]}>{t(APPLY_ROW_STATE_COPY[outcome.state])}</PortalBadge>
+            {outcome.appliedPublicId ? (
+              <code className="qosp-code" dir="ltr">
+                {outcome.appliedPublicId}
+              </code>
+            ) : null}
+            {outcome.appliedAt ? (
+              <span className="qosp-meta-line">{staffCopyWith(locale, "applyRowSavedAt", { time: isolateText(formatApplyTime(locale, outcome.appliedAt)) })}</span>
+            ) : null}
+          </div>
+          {outcome.error ? (
+            <div>
+              <p className="qosp-panel-help">{describeApplyFailure(locale, outcome.error)}</p>
+              {outcome.error.field ? (
+                <p className="qosp-meta-line">
+                  {staffCopyWith(locale, "applyRowFailureField", { field: isolateText(outcome.error.field) })}
+                </p>
+              ) : null}
+              {outcome.error.reason && !(outcome.error.reason in APPLY_FAILURE_REASON_COPY) ? (
+                <p className="qosp-meta-line">
+                  <code className="qosp-code" dir="ltr">
+                    {outcome.error.reason}
+                  </code>
+                </p>
+              ) : null}
+              {outcome.error.responsible ? (
+                <button className="qos-btn" data-variant="ghost" type="button" onClick={() => onGoTo(outcome.error!.responsible!)}>
+                  {t("reviewRowGoTo")}
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          {outcome.state === "not_applied" && notAppliedReason && notAppliedReason in REVIEW_CLASSIFICATION_COPY ? (
+            <p className="qosp-meta-line">
+              {staffCopyWith(locale, "applyRowNotAppliedReason", { reason: t(REVIEW_CLASSIFICATION_COPY[notAppliedReason as ReviewClassification]) })}
+            </p>
+          ) : null}
+          {outcome.result && outcome.result.deferred.length > 0 ? (
+            <p className="qosp-meta-line">
+              {staffCopyWith(locale, "applyRowDeferredNotSaved", { columns: isolateText(outcome.result.deferred.map((entry) => entry.column).join(", ")) })}
+            </p>
+          ) : null}
+          {outcome.result?.image ? <p className="qosp-meta-line">{t(APPLY_IMAGE_COPY[outcome.result.image.status])}</p> : null}
+          {outcome.result?.links && outcome.result.links.length > 0 ? (
+            <>
+              <h5 className="qosp-field-label">{t("applyRowLinks")}</h5>
+              <ul className="qosp-plain-list qosp-panel-help">
+                {outcome.result.links.map((link) => (
+                  <li key={`${link.namespace}:${link.entityType}:${link.sourceKey}`}>
+                    <code className="qosp-code" dir="ltr">
+                      {`${link.namespace}:${link.sourceKey} → ${link.targetPublicId}`}
+                    </code>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {editorHref ? (
+            <div className="qosp-button-row">
+              <Link className="qos-btn" data-variant="secondary" href={editorHref}>
+                {t("applyRowOpenEditor")}
+              </Link>
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
       {row.changes.length > 0 ? (
         <>

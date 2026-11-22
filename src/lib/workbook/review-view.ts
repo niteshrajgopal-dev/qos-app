@@ -1,4 +1,12 @@
 import { staffCopyWith, staffUiCopy, type StaffLocale, type StaffUiCopyKey } from "@/lib/staff/locale";
+import type {
+  ApplyBlockReason,
+  ApplyFailure,
+  ApplyFailureCode,
+  ApplyImageOutcome,
+  ApplyStatus,
+  RowApplyState,
+} from "@/lib/workbook/apply/model";
 import { describeWorkbookApiError, WORKBOOK_ISSUE_COPY, type WorkbookApiError } from "@/lib/workbook/import-view";
 import type { WorkbookIssueCode } from "@/lib/workbook/reader";
 import type { WorkbookReviewErrorCode } from "@/lib/workbook/validation/errors";
@@ -8,6 +16,7 @@ import type {
   ReviewClassification,
   ReviewDiagnostic,
   ReviewDiagnosticCode,
+  PlanStatus,
   ReviewOperation,
   ReviewReadinessBlocker,
   ReviewRow,
@@ -127,6 +136,8 @@ export const REVIEW_ERROR_COPY: Record<WorkbookReviewErrorCode, StaffUiCopyKey> 
   plan_not_yours: "reviewErrorPlanNotYours",
   plan_hash_mismatch: "reviewErrorPlanHashMismatch",
   decisions_invalid: "reviewErrorDecisionsInvalid",
+  apply_in_progress: "applyErrorInProgress",
+  plan_applied: "applyErrorPlanApplied",
 };
 
 /** Row filters, in the order the panel shows them: rows needing a decision first. */
@@ -228,4 +239,225 @@ export function describeReviewApiError(locale: StaffLocale, status: number, body
     });
   }
   return describeWorkbookApiError(locale, status, body);
+}
+
+/* Workbook apply (QOS-217). Every state, failure code and block reason the
+   server sends has a key here; the Record types make a missing one a type
+   error. An apply saves drafts: nothing here says published or approved. */
+
+export const PLAN_STATUS_COPY: Record<PlanStatus, StaffUiCopyKey> = {
+  review_ready: "reviewStatusReady",
+  stale: "reviewStatusStale",
+  applying: "applyStatusApplying",
+  applied: "applyStatusApplied",
+  apply_failed: "applyStatusFailed",
+};
+
+export const APPLY_BLOCK_REASON_COPY: Record<ApplyBlockReason, StaffUiCopyKey> = {
+  not_administrator: "applyBlockNotAdministrator",
+  review_incomplete: "applyBlockReviewIncomplete",
+  stale: "applyBlockStale",
+  applying: "applyBlockApplying",
+  applied: "applyBlockApplied",
+  apply_failed: "applyBlockApplyFailed",
+};
+
+export const APPLY_ROW_STATE_COPY: Record<RowApplyState, StaffUiCopyKey> = {
+  pending: "applyRowPending",
+  applied: "applyRowApplied",
+  already_applied: "applyRowAlreadyApplied",
+  failed: "applyRowFailed",
+  not_applied: "applyRowNotApplied",
+  deferred_only: "applyRowDeferredOnly",
+};
+
+export const APPLY_FAILURE_COPY: Record<ApplyFailureCode, StaffUiCopyKey> = {
+  conflict: "applyFailConflict",
+  service_validation: "applyFailServiceValidation",
+  forbidden: "applyFailForbidden",
+  target_not_found: "applyFailTargetNotFound",
+  unique_violation: "applyFailUniqueViolation",
+  stale_revision: "applyFailStaleRevision",
+  dependency_unresolved: "applyFailDependencyUnresolved",
+  branch_not_permitted: "applyFailBranchNotPermitted",
+  brand_mismatch: "applyFailBrandMismatch",
+  archived_target: "applyFailArchivedTarget",
+  unsupported_field: "applyFailUnsupportedField",
+  unexpected: "applyFailUnexpected",
+};
+
+/** Rule reasons that make a failure code more specific. */
+export const APPLY_FAILURE_REASON_COPY: Record<string, StaffUiCopyKey> = {
+  branch_price_default_variant_only: "applyReasonBranchPriceDefaultVariantOnly",
+  status_requires_publication: "applyReasonStatusRequiresPublication",
+  menu_requires_branch: "applyReasonMenuRequiresBranch",
+};
+
+export const APPLY_ATTEMPT_STATUS_COPY: Record<ApplyStatus, StaffUiCopyKey> = {
+  applying: "applyAttemptApplying",
+  completed: "applyAttemptCompleted",
+  failed: "applyAttemptFailed",
+  interrupted: "applyAttemptInterrupted",
+};
+
+export const APPLY_IMAGE_COPY: Record<ApplyImageOutcome["status"], StaffUiCopyKey> = {
+  uploaded: "applyImageUploaded",
+  already_present: "applyImageAlreadyPresent",
+  failed: "applyImageFailed",
+  skipped: "applyImageSkipped",
+};
+
+export const APPLY_API_ERROR_CODES = [
+  "idempotency_key_required",
+  "apply_body_invalid",
+  "apply_requires_administrator",
+  "tenant_inactive",
+  "plan_not_found",
+  "plan_hash_mismatch",
+  "plan_stale",
+  "apply_in_progress",
+  "plan_applied",
+  "plan_rereview_required",
+  "review_incomplete",
+  "idempotency_key_reused",
+] as const;
+export type ApplyApiErrorCode = (typeof APPLY_API_ERROR_CODES)[number];
+
+export const APPLY_ERROR_COPY: Record<ApplyApiErrorCode, StaffUiCopyKey> = {
+  idempotency_key_required: "applyErrorKeyRequired",
+  apply_body_invalid: "applyErrorBodyInvalid",
+  apply_requires_administrator: "applyErrorRequiresAdministrator",
+  tenant_inactive: "applyErrorTenantInactive",
+  plan_not_found: "reviewErrorPlanNotFound",
+  plan_hash_mismatch: "applyErrorHashMismatch",
+  plan_stale: "applyErrorPlanStale",
+  apply_in_progress: "applyErrorInProgress",
+  plan_applied: "applyErrorPlanApplied",
+  plan_rereview_required: "applyErrorRereviewRequired",
+  review_incomplete: "applyErrorReviewIncomplete",
+  idempotency_key_reused: "applyErrorKeyReused",
+};
+
+/** Localised sentence for a failed apply request, from its status and code. */
+export function describeApplyApiError(locale: StaffLocale, status: number, body: ReviewApiError | null) {
+  const code = body?.code;
+  if (code && code in APPLY_ERROR_COPY) return staffUiCopy(locale, APPLY_ERROR_COPY[code as ApplyApiErrorCode]);
+  return describeReviewApiError(locale, status, body);
+}
+
+/** One row's apply failure: the sentence for its code, made specific by its rule reason when known. */
+export function describeApplyFailure(locale: StaffLocale, failure: Pick<ApplyFailure, "code" | "reason">) {
+  const base = staffUiCopy(locale, APPLY_FAILURE_COPY[failure.code] ?? "applyFailUnexpected");
+  const reasonKey = failure.reason ? APPLY_FAILURE_REASON_COPY[failure.reason] : undefined;
+  return reasonKey ? `${base} ${staffUiCopy(locale, reasonKey)}` : base;
+}
+
+/** Saved states: the row's record exists in the catalogue after the apply. */
+export function isSavedApplyState(state: RowApplyState) {
+  return state === "applied" || state === "already_applied";
+}
+
+export type ApplySheetSummary = { sheet: string; saved: number; notApplied: number; failed: number; deferredValues: number };
+
+/** Saved versus parsed, per sheet, from the rows' latest apply outcome; sheets keep their plan order. */
+export function summariseApplyBySheet(rows: ReviewRow[]): ApplySheetSummary[] {
+  const bySheet = new Map<string, ApplySheetSummary>();
+  for (const row of rows) {
+    if (!row.apply) continue;
+    const entry = bySheet.get(row.sheet) ?? { sheet: row.sheet, saved: 0, notApplied: 0, failed: 0, deferredValues: 0 };
+    if (isSavedApplyState(row.apply.state)) entry.saved += 1;
+    else if (row.apply.state === "failed") entry.failed += 1;
+    else entry.notApplied += 1;
+    entry.deferredValues += row.deferredFields.length;
+    bySheet.set(row.sheet, entry);
+  }
+  return [...bySheet.values()];
+}
+
+/** Rows of a plan by sheet and key, so a row can find the record its parent was saved as. */
+export function indexReviewRows(rows: ReviewRow[]) {
+  return new Map(rows.map((row) => [`${row.sheet}\u0000${row.key}`, row]));
+}
+
+const PUBLIC_ID_PREFIX = {
+  product: /^prd_/,
+  menu: /^men_/,
+  section: /^sec_/,
+  modifierGroup: /^modgrp_/,
+  category: /^cat_/,
+} as const;
+
+/** Public id of a parent row: the key itself when it is a QOS id, else what that row was saved as or matched to. */
+function parentPublicId(index: Map<string, ReviewRow>, sheet: string, key: string | undefined, prefix: RegExp) {
+  if (!key) return null;
+  if (prefix.test(key)) return key;
+  const parent = index.get(`${sheet}\u0000${key}`);
+  if (!parent) return null;
+  for (const candidate of [parent.apply?.appliedPublicId, parent.identity.targetPublicId]) {
+    if (candidate && prefix.test(candidate)) return candidate;
+  }
+  return null;
+}
+
+function ownPublicId(row: ReviewRow, prefix: RegExp) {
+  for (const candidate of [row.apply?.appliedPublicId, row.identity.targetPublicId]) {
+    if (candidate && prefix.test(candidate)) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Editor for a saved row, using the staff routes under /tenants/{id}/catalogue:
+ * products, variants and their links open the product editor; menus and their
+ * sections, items and branches the menu editor; modifier groups and options the
+ * modifier group editor; categories the category editor. Null when the record
+ * is unknown or the row was not saved.
+ */
+export function applyEditorHref(tenantId: string, row: ReviewRow, index: Map<string, ReviewRow>) {
+  if (!row.apply || !isSavedApplyState(row.apply.state)) return null;
+  const after = row.after ?? {};
+  const base = `/tenants/${tenantId}/catalogue`;
+  const product = (id: string | null) => (id ? `${base}/products/${id}/edit` : null);
+  const menu = (id: string | null) => (id ? `${base}/menus/${id}/edit` : null);
+  const group = (id: string | null) => (id ? `${base}/modifier-groups/${id}/edit` : null);
+  switch (row.sheet) {
+    case "Products":
+      return product(ownPublicId(row, PUBLIC_ID_PREFIX.product));
+    case "Variants":
+    case "Product Categories":
+    case "Product Modifiers":
+      return product(parentPublicId(index, "Products", after.product_key, PUBLIC_ID_PREFIX.product));
+    case "Branch Prices": {
+      const variant = after.variant_key ? index.get(`Variants\u0000${after.variant_key}`) : undefined;
+      return product(parentPublicId(index, "Products", variant?.after?.product_key, PUBLIC_ID_PREFIX.product));
+    }
+    case "Menus":
+      return menu(ownPublicId(row, PUBLIC_ID_PREFIX.menu));
+    case "Menu Sections":
+    case "Menu Branches":
+      return menu(parentPublicId(index, "Menus", after.menu_key, PUBLIC_ID_PREFIX.menu));
+    case "Menu Items": {
+      const section = after.section_key ? index.get(`Menu Sections\u0000${after.section_key}`) : undefined;
+      return menu(parentPublicId(index, "Menus", section?.after?.menu_key, PUBLIC_ID_PREFIX.menu));
+    }
+    case "Modifier Groups":
+      return group(ownPublicId(row, PUBLIC_ID_PREFIX.modifierGroup));
+    case "Modifier Options":
+      return group(parentPublicId(index, "Modifier Groups", after.modifier_group_key, PUBLIC_ID_PREFIX.modifierGroup));
+    case "Categories": {
+      const id = ownPublicId(row, PUBLIC_ID_PREFIX.category);
+      return id ? `${base}/categories/${id}/edit` : `${base}/categories`;
+    }
+    default:
+      return null;
+  }
+}
+
+const DATE_LOCALES: Record<StaffLocale, string> = { en: "en-AE", ar: "ar-AE" };
+
+/** Date and time of an apply, Latin digits in both languages like the rest of the staff portal. */
+export function formatApplyTime(locale: StaffLocale, value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat(DATE_LOCALES[locale], { dateStyle: "medium", timeStyle: "short", numberingSystem: "latn" }).format(date);
 }

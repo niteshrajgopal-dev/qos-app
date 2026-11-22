@@ -5,6 +5,7 @@ import { requireStaffIdentity } from "@/lib/staff/auth";
 import { requireBranchContextMembership } from "@/lib/staff/branch-context";
 import { staffPrivateCacheControl } from "@/lib/staff/session";
 import { readWorkbookUploadForm, workbookErrorResponse } from "@/lib/workbook/http";
+import { withApplyView } from "@/lib/workbook/apply";
 import { parseDecisionsField, previewWorkbook, WorkbookReviewError } from "@/lib/workbook/validation";
 
 export const dynamic = "force-dynamic";
@@ -34,7 +35,7 @@ export async function POST(request: Request, context: RouteContext) {
       return upload;
     }
 
-    const result = await previewWorkbook(
+    const previewed = await previewWorkbook(
       db,
       tenantId,
       membership,
@@ -48,6 +49,7 @@ export async function POST(request: Request, context: RouteContext) {
       },
       idempotencyKey,
     );
+    const result = await withApplyView(db, tenantId, membership, previewed);
     return NextResponse.json(result, { headers: staffPrivateCacheControl() });
   } catch (error) {
     return workbookErrorResponse(error);

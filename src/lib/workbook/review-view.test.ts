@@ -1,7 +1,22 @@
 import { describe, expect, it } from "vitest";
 
 import { STAFF_UI_COPY } from "@/lib/staff/locale";
+import { APPLY_FAILURE_CODES, ROW_APPLY_STATES, type RowApplyOutcome } from "@/lib/workbook/apply/model";
 import {
+  APPLY_API_ERROR_CODES,
+  APPLY_ATTEMPT_STATUS_COPY,
+  APPLY_BLOCK_REASON_COPY,
+  APPLY_ERROR_COPY,
+  APPLY_FAILURE_COPY,
+  APPLY_FAILURE_REASON_COPY,
+  APPLY_IMAGE_COPY,
+  APPLY_ROW_STATE_COPY,
+  applyEditorHref,
+  describeApplyApiError,
+  describeApplyFailure,
+  indexReviewRows,
+  PLAN_STATUS_COPY,
+  summariseApplyBySheet,
   describeReviewApiError,
   describeReviewDiagnostic,
   diagnosticLocation,
@@ -124,5 +139,91 @@ describe("workbook review wording", () => {
     expect(describeReviewApiError("ar", 403, { code: "plan_not_yours" })).toMatch(/[؀-ۿ]/);
     expect(describeReviewApiError("en", 400, { code: "brand_required" })).toBe(STAFF_UI_COPY.en.importBrandRequired);
     expect(describeReviewApiError("en", 401, null)).toBe(STAFF_UI_COPY.en.workbookErrorSignedOut);
+  });
+});
+
+const APPLY_KEYS = [
+  ...Object.values(APPLY_ROW_STATE_COPY),
+  ...Object.values(APPLY_FAILURE_COPY),
+  ...Object.values(APPLY_FAILURE_REASON_COPY),
+  ...Object.values(APPLY_BLOCK_REASON_COPY),
+  ...Object.values(APPLY_ATTEMPT_STATUS_COPY),
+  ...Object.values(APPLY_IMAGE_COPY),
+  ...Object.values(APPLY_ERROR_COPY),
+  ...Object.values(PLAN_STATUS_COPY),
+];
+
+/** Words of two or more letters written fully in capitals, except acronyms the staff copy already uses. */
+function shouting(text: string) {
+  const words = text.replace(/\{\w+\}/g, "").match(/\b[A-Z]{2,}\b/g) ?? [];
+  return words.filter((word) => !["QOS", "AED", "SKU", "XLSX"].includes(word));
+}
+
+function outcome(partial: Partial<RowApplyOutcome>): RowApplyOutcome {
+  return { state: "applied", appliedPublicId: null, appliedAt: null, applyPublicId: "wba_1", error: null, result: null, ...partial };
+}
+
+describe("workbook apply wording", () => {
+  it("covers every row state, failure code and block reason with real English and Arabic", () => {
+    expect(Object.keys(APPLY_ROW_STATE_COPY).sort()).toEqual([...ROW_APPLY_STATES].sort());
+    expect(Object.keys(APPLY_FAILURE_COPY).sort()).toEqual([...APPLY_FAILURE_CODES].sort());
+    expect(Object.keys(APPLY_BLOCK_REASON_COPY).sort()).toEqual(
+      ["not_administrator", "review_incomplete", "stale", "applying", "applied", "apply_failed"].sort(),
+    );
+    expect(Object.keys(APPLY_ERROR_COPY).sort()).toEqual([...APPLY_API_ERROR_CODES].sort());
+    for (const key of APPLY_KEYS) {
+      expect(STAFF_UI_COPY.en[key], key).toBeTruthy();
+      expect(STAFF_UI_COPY.ar[key], key).toMatch(/[؀-ۿ]/);
+      expect(shouting(STAFF_UI_COPY.en[key]), key).toEqual([]);
+      expect(shouting(STAFF_UI_COPY.ar[key]), key).toEqual([]);
+    }
+  });
+
+  it("keeps apply placeholders in parity and never shouts", () => {
+    const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((match) => match[1]).sort();
+    for (const key of Object.keys(STAFF_UI_COPY.en) as Array<keyof typeof STAFF_UI_COPY.en>) {
+      if (!key.startsWith("apply")) continue;
+      expect(placeholders(STAFF_UI_COPY.ar[key]), key).toEqual(placeholders(STAFF_UI_COPY.en[key]));
+      for (const locale of ["en", "ar"] as const) {
+        expect(STAFF_UI_COPY[locale][key].trim(), key).not.toBe("");
+        expect(shouting(STAFF_UI_COPY[locale][key]), key).toEqual([]);
+      }
+    }
+  });
+
+  it("explains failures by code and rule reason, and apply API errors by code", () => {
+    expect(describeApplyFailure("en", { code: "conflict" })).toBe(STAFF_UI_COPY.en.applyFailConflict);
+    expect(describeApplyFailure("en", { code: "service_validation", reason: "branch_price_default_variant_only" })).toContain(
+      STAFF_UI_COPY.en.applyReasonBranchPriceDefaultVariantOnly,
+    );
+    expect(describeApplyFailure("ar", { code: "unexpected", reason: "menu_requires_branch" })).toContain(STAFF_UI_COPY.ar.applyReasonMenuRequiresBranch);
+    expect(describeApplyApiError("en", 403, { code: "apply_requires_administrator" })).toBe(STAFF_UI_COPY.en.applyErrorRequiresAdministrator);
+    expect(describeApplyApiError("ar", 409, { code: "plan_stale" })).toBe(STAFF_UI_COPY.ar.applyErrorPlanStale);
+    expect(describeReviewApiError("en", 409, { code: "plan_applied" })).toBe(STAFF_UI_COPY.en.applyErrorPlanApplied);
+    expect(describeApplyApiError("en", 401, null)).toBe(STAFF_UI_COPY.en.workbookErrorSignedOut);
+  });
+
+  it("summarises saved versus parsed per sheet and links saved rows to their editor", () => {
+    const deferred = [{ column: "tax_rate_basis_points", value: "500", owner: "QOS-212" }];
+    const rows = [
+      row({ sheet: "Products", key: "p1", apply: outcome({ appliedPublicId: "prd_latte_1a2b3c4d" }) }),
+      row({ sheet: "Variants", key: "v1", after: { product_key: "p1" }, deferredFields: deferred, apply: outcome({ state: "already_applied", appliedPublicId: "var_x" }) }),
+      row({ sheet: "Variants", key: "v2", after: { product_key: "p1" }, apply: outcome({ state: "failed", error: { code: "conflict", message: "x" } }) }),
+      row({ sheet: "Branch Prices", key: "bp1", after: { variant_key: "v1" }, apply: outcome({ appliedPublicId: "0000-link" }) }),
+      row({ sheet: "Menu Items", key: "mi1", after: { section_key: "s1" }, apply: outcome({ appliedPublicId: "mit_1" }) }),
+      row({ sheet: "Menu Sections", key: "s1", after: { menu_key: "men_breakfast_12345678" }, apply: outcome({ appliedPublicId: "sec_1" }) }),
+      row({ sheet: "Modifier Options", key: "o1", after: { modifier_group_key: "g1" }, apply: outcome({ state: "not_applied" }) }),
+      row({ sheet: "Categories", key: "c1", apply: outcome({ appliedPublicId: "cat_hot_12345678" }) }),
+    ];
+    expect(summariseApplyBySheet(rows).find((entry) => entry.sheet === "Variants")).toEqual({ sheet: "Variants", saved: 1, notApplied: 0, failed: 1, deferredValues: 1 });
+    const index = indexReviewRows(rows);
+    const tenant = "t1";
+    expect(applyEditorHref(tenant, rows[0], index)).toBe("/tenants/t1/catalogue/products/prd_latte_1a2b3c4d/edit");
+    expect(applyEditorHref(tenant, rows[1], index)).toBe("/tenants/t1/catalogue/products/prd_latte_1a2b3c4d/edit");
+    expect(applyEditorHref(tenant, rows[2], index)).toBeNull();
+    expect(applyEditorHref(tenant, rows[3], index)).toBe("/tenants/t1/catalogue/products/prd_latte_1a2b3c4d/edit");
+    expect(applyEditorHref(tenant, rows[4], index)).toBe("/tenants/t1/catalogue/menus/men_breakfast_12345678/edit");
+    expect(applyEditorHref(tenant, rows[6], index)).toBeNull();
+    expect(applyEditorHref(tenant, rows[7], index)).toBe("/tenants/t1/catalogue/categories/cat_hot_12345678/edit");
   });
 });

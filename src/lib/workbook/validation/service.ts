@@ -174,7 +174,7 @@ export async function previewWorkbook(
  * A plan holds branch rows of its branch scope. Someone who may not read
  * every branch of that scope gets 403, the same rule the export applies.
  */
-async function assertPlanScopeReadable(db: DbClient, tenantId: string, membership: ActiveStaffMembership, scope: "all" | string[]) {
+export async function assertPlanScopeReadable(db: DbClient, tenantId: string, membership: ActiveStaffMembership, scope: "all" | string[]) {
   const context = await loadBranchContext(db, tenantId, membership);
   const permitted = new Set(context.branches.map((branch) => branch.publicId));
   const readable = scope === "all" ? membership.role === "administrator" : scope.every((publicId) => permitted.has(publicId));
@@ -196,12 +196,16 @@ export async function getWorkbookPlan(
 ): Promise<WorkbookReviewResult> {
   const { plan, rows } = await withTenantContext(db, tenantId, (tx) => loadPlan(tx, tenantId, planPublicId));
   await assertPlanScopeReadable(db, tenantId, membership, plan.branchScope);
+  let stale = plan.status === "stale";
+  // Staleness is judged only before apply: an applying, applied or failed plan keeps its status (QOS-217).
+  if (plan.status !== "review_ready") {
+    return resultFromPlan(plan, rows, { stale });
+  }
   const source = await loadSnapshotSource(db, tenantId, membership, {
     brand: plan.context.context.brandPublicId,
     sourceNamespace: plan.sourceNamespace,
   });
   const scoped = restrictSourceToScope(source, plan.branchScope);
-  let stale = plan.status === "stale";
   if (scoped && snapshotHashOf(scoped) !== plan.snapshotHash) {
     stale = true;
     if (plan.status === "review_ready") {
@@ -238,6 +242,12 @@ export async function reReviewWorkbookPlan(
   const { plan, rows } = await withTenantContext(db, tenantId, (tx) => loadPlan(tx, tenantId, planPublicId));
   if (membership.role !== "administrator" && plan.createdBySubject !== subject) {
     throw new WorkbookReviewError("plan_not_yours", "Only the person who created this review or an administrator can change it.", 403);
+  }
+  if (plan.status === "applying") {
+    throw new WorkbookReviewError("apply_in_progress", "This plan is being applied. Wait for the apply to finish.", 409);
+  }
+  if (plan.status === "applied") {
+    throw new WorkbookReviewError("plan_applied", "This plan has been applied. Upload the workbook again to review new changes.", 409);
   }
   if (request.expectedPlanHash !== plan.planHash) {
     throw new WorkbookReviewError("plan_hash_mismatch", "This review changed since you loaded it. Load it again.", 409);

@@ -16,9 +16,15 @@ describe("product modifier assignment policy migration file (0054)", () => {
     ) as { entries: Array<{ idx: number; tag: string; when: number }> };
     const entry = journal.entries.find((candidate) => candidate.idx === 54);
     expect(entry).toMatchObject({ tag: "0054_product_modifier_assignment_policy", when: 1792700000000 });
-    expect(journal.entries.map((candidate) => candidate.idx)).toEqual(
-      journal.entries.map((_, index) => index),
-    );
+    const predecessor = journal.entries.find((candidate) => candidate.idx === 53);
+    expect(predecessor).toMatchObject({ tag: "0053_translation_admin_review_revert_approval" });
+    const position = journal.entries.findIndex((candidate) => candidate.idx === 54);
+    expect(journal.entries[position - 1]).toBe(predecessor);
+    // Later reserved numbers (0056, 0057, then 0058) may leave gaps; idx and when stay strictly increasing.
+    for (let index = 1; index < journal.entries.length; index += 1) {
+      expect(journal.entries[index]!.idx).toBeGreaterThan(journal.entries[index - 1]!.idx);
+      expect(journal.entries[index]!.when).toBeGreaterThan(journal.entries[index - 1]!.when);
+    }
   });
 });
 

@@ -10,7 +10,9 @@ export type WorkbookReviewErrorCode =
   | "plan_not_found"
   | "plan_not_yours"
   | "plan_hash_mismatch"
-  | "decisions_invalid";
+  | "decisions_invalid"
+  | "apply_in_progress"
+  | "plan_applied";
 
 export class WorkbookReviewError extends Error {
   readonly code: WorkbookReviewErrorCode;

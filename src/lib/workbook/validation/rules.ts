@@ -213,6 +213,67 @@ export function deferredFieldsOf(work: WorkRow): ReviewDeferredField[] {
 /* Service parity                                                      */
 /* ------------------------------------------------------------------ */
 
+function parityRefusal(field: string, reason: string, message: string): ReviewDiagnostic {
+  return { severity: "error", code: "service_validation", params: { field, message, reason } };
+}
+
+/** The effective default flag of the variant a branch price row names: the workbook row's value, else the record's. */
+function variantIsDefault(work: WorkRow, snapshot: ReviewSnapshot) {
+  const edge = work.edges.find((entry) => entry.column === "variant_key");
+  if (edge) {
+    const target = edge.target;
+    return (target.after?.is_default ?? target.typed.is_default ?? target.before?.is_default ?? "") === "TRUE";
+  }
+  const variant = work.endpoints.variant_key ? snapshot.records.Variants.get(work.endpoints.variant_key) : undefined;
+  return variant?.is_default === "TRUE";
+}
+
+/**
+ * Foodics conversion writes `draft` on every sheet to mean "do not publish".
+ * On a product or menu update that is not a restore, that is not a request
+ * to change status — drop it so the rest of the row can still apply.
+ */
+export function dropImportStatus(work: WorkRow) {
+  if ((work.sheet !== "Products" && work.sheet !== "Menus") || work.classification !== "update") return;
+  const change = work.changes.find((entry) => entry.column === "status");
+  if (!change) return;
+  const before = work.before?.status;
+  if (change.after === "draft" && before !== "archived") {
+    work.changes = work.changes.filter((entry) => entry.column !== "status");
+    if (work.after && before !== undefined) work.after.status = before;
+  }
+}
+
+/**
+ * Service parity rules QOS-217 adds (decisions D-STATUS-FIELD, D-BRANCH-PRICE
+ * and the menu location rule): what no catalogue service can do is refused at
+ * review, so preview rejects what apply would reject. Apply rechecks them.
+ * Workbook `draft` on an update is stripped by `dropImportStatus` first.
+ */
+export function checkApplyParity(work: WorkRow, context: ServiceContext): ReviewDiagnostic | null {
+  const create = work.operation === "create";
+  const status = create ? work.after?.status : work.changes.find((change) => change.column === "status")?.after;
+  if (work.sheet === "Products" || work.sheet === "Menus") {
+    if (create && status !== undefined && status !== "draft") {
+      return parityRefusal("status", "status_requires_publication", "New records are saved as drafts; only publication activates them.");
+    }
+    if (!create && status !== undefined) {
+      const before = work.before?.status;
+      const productLifecycle = work.sheet === "Products" && (status === "archived" || (before === "archived" && status === "draft"));
+      if (!productLifecycle) {
+        return parityRefusal("status", "status_requires_publication", "No service changes this status; publish or use the editor.");
+      }
+    }
+  }
+  if (work.sheet === "Menus" && create && context.menuLocations(work.key).length === 0) {
+    return parityRefusal("locationIds", "menu_requires_branch", "A new menu needs at least one Menu Branches row in this workbook.");
+  }
+  if (work.sheet === "Branch Prices" && !variantIsDefault(work, context.snapshot)) {
+    return parityRefusal("variant_key", "branch_price_default_variant_only", "Branch prices can be set for the default variant only.");
+  }
+  return null;
+}
+
 export type ServiceContext = {
   snapshot: ReviewSnapshot;
   /** Price of the default variant the workbook gives a new product, when valid. */

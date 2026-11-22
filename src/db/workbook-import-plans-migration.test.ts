@@ -83,7 +83,7 @@ integrationDescribe("workbook import plans migration (0055)", () => {
       sql`INSERT INTO qos.workbook_import_plan_rows (tenant_id, plan_id, sheet, row_number, entity_key, requested_action, classification, "values")
           VALUES (${quotes.tenant.id}, ${planId}, 'Products', 7, 'p', 'create', 'applied', '{}'::jsonb)`,
     ).rejects.toMatchObject({ code: "23514" });
-    await expect(sql`UPDATE qos.workbook_import_plans SET status = 'applied' WHERE id = ${planId}`).rejects.toMatchObject({ code: "23514" });
+    await expect(sql`UPDATE qos.workbook_import_plans SET status = 'bogus' WHERE id = ${planId}`).rejects.toMatchObject({ code: "23514" });
     await sql`INSERT INTO qos.workbook_import_plan_rows (tenant_id, plan_id, sheet, row_number, entity_key, requested_action, classification, "values")
               VALUES (${quotes.tenant.id}, ${planId}, 'Products', 7, 'p', 'create', 'create', '{}'::jsonb)`;
 
