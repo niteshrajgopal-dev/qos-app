@@ -7,6 +7,7 @@ import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 import { WorkbookParseError } from "@/lib/workbook/errors";
 import { WorkbookExportError } from "@/lib/workbook/export";
 import { WORKBOOK_LIMITS } from "@/lib/workbook/limits";
+import { WorkbookReviewError } from "@/lib/workbook/validation/errors";
 
 /* Workbook routes answer with a stable `code` the staff UI translates.
    Authentication and membership errors keep the shared staff semantics
@@ -23,6 +24,13 @@ export function workbookErrorResponse(error: unknown) {
   }
 
   if (error instanceof WorkbookExportError) {
+    return NextResponse.json(
+      { error: error.message, code: error.code, ...error.details },
+      { status: error.statusCode, headers },
+    );
+  }
+
+  if (error instanceof WorkbookReviewError) {
     return NextResponse.json(
       { error: error.message, code: error.code, ...error.details },
       { status: error.statusCode, headers },
@@ -53,13 +61,17 @@ function tooLarge(): never {
 }
 
 /**
- * Reads the multipart upload shared by parse and convert: the `file` and an
- * optional `brand`. Oversize bodies are refused before and after reading.
- * Returns a 400 response when no file was sent.
+ * Reads the multipart upload shared by parse, convert and preview: the `file`,
+ * an optional `brand`, and for preview (QOS-194) an optional `branch` and
+ * `decisions` (parse and convert ignore those two). Oversize bodies are
+ * refused before and after reading. Returns a 400 response when no file was
+ * sent.
  */
 export async function readWorkbookUploadForm(
   request: Request,
-): Promise<{ fileName: string; bytes: Buffer; brand: string | null } | NextResponse> {
+): Promise<
+  { fileName: string; bytes: Buffer; brand: string | null; branch: string | null; decisions: string | null } | NextResponse
+> {
   const contentLength = Number.parseInt(request.headers.get("content-length") ?? "", 10);
   if (Number.isFinite(contentLength) && contentLength > WORKBOOK_LIMITS.maxFileBytes + MULTIPART_OVERHEAD_BYTES) {
     tooLarge();
@@ -77,9 +89,13 @@ export async function readWorkbookUploadForm(
     tooLarge();
   }
   const brand = formData.get("brand");
+  const branch = formData.get("branch");
+  const decisions = formData.get("decisions");
   return {
     fileName: file.name,
     bytes: Buffer.from(await file.arrayBuffer()),
     brand: typeof brand === "string" && brand.trim() ? brand.trim() : null,
+    branch: typeof branch === "string" && branch.trim() ? branch.trim() : null,
+    decisions: typeof decisions === "string" && decisions.trim() ? decisions : null,
   };
 }

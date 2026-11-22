@@ -51,6 +51,9 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/import/workbook-import-panel.tsx",
   // QOS-216 Foodics menu workbook recognition and conversion result
   "app/tenants/[tenantId]/catalogue/import/foodics-menu-result.tsx",
+  // QOS-194 workbook review panel and row
+  "app/tenants/[tenantId]/catalogue/import/workbook-review-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/import/workbook-review-row.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -99,6 +102,9 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/import/workbook-import-panel.tsx",
   // QOS-216 Foodics menu workbook recognition and conversion result
   "app/tenants/[tenantId]/catalogue/import/foodics-menu-result.tsx",
+  // QOS-194 workbook review panel and row
+  "app/tenants/[tenantId]/catalogue/import/workbook-review-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/import/workbook-review-row.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -196,6 +202,12 @@ const FORBIDDEN_LITERALS = [
   '"Group default"',
   '"Product override"',
   "up to {",
+  // QOS-194 workbook review
+  ">Review against QOS records<",
+  ">Re-run review with decisions<",
+  ">Download correction report<",
+  '"Needs decision"',
+  ">Match existing<",
 ];
 
 describe("staff admin audited surfaces", () => {
