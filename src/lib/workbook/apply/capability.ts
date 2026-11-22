@@ -45,6 +45,7 @@ export const FIELD_CAPABILITIES: Record<SupportedEntitySheet, readonly string[]>
     "sort_order",
     "status",
   ],
+  // v1.1 assignment policy columns are persistable in the catalogue but applied by QOS-200, not this leaf.
   "Product Modifiers": ["sort_order"],
   Menus: ["internal_name", "display_name_en", "display_name_ar", "description_en", "description_ar", "status"],
   "Menu Branches": [],

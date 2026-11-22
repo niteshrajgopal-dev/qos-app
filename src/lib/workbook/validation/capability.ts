@@ -1,5 +1,9 @@
 import { contractSheet, isDeferredField, sheetSupport } from "@/lib/workbook/contract";
 import { capabilityFor, SOURCE_MAP_SHEET } from "@/lib/workbook/dictionary";
+import {
+  PRODUCT_MODIFIER_ASSIGNMENT_CAPABILITIES,
+  type ProductModifierAssignmentField,
+} from "@/lib/workbook/product-modifier-assignment-capabilities";
 import { sheetOwner } from "@/lib/workbook/validation/actions";
 import type { FieldDecision, ReviewInput } from "@/lib/workbook/validation/model";
 
@@ -18,17 +22,33 @@ const MECHANICS_COLUMNS = new Set(["action", "expected_revision", "clear_fields"
 /** Source text kept beside a column QOS already reads (price, option price, ingredient cost, tax rate). Provenance, not an extra value. */
 export const PROVENANCE_COPIES = new Set(["price", "tax", "option_price", "ingredient_cost"]);
 
-/** Owner of a deferred value: the dictionary 1.1 entry when there is one, else the owner of its sheet. */
-export function deferredOwner(sheet: string, column: string) {
-  return capabilityFor(sheet, column)?.owner ?? sheetOwner(sheet);
+/** Assignment-policy columns QOS-212 can store, but workbook apply is QOS-200's. */
+export const PRODUCT_MODIFIER_POLICY_APPLY_OWNER = "QOS-200 apply";
+
+function productModifierAssignmentCapability(sheet: string, column: string) {
+  if (sheet !== "Product Modifiers") return undefined;
+  return PRODUCT_MODIFIER_ASSIGNMENT_CAPABILITIES[column as ProductModifierAssignmentField];
 }
 
-/** Whether a column of a supported sheet is recognised but not yet storable in QOS. */
+/** Owner of a deferred value: the dictionary 1.1 entry when there is one, else the owner of its sheet. */
+export function deferredOwner(sheet: string, column: string) {
+  const fromDictionary = capabilityFor(sheet, column)?.owner;
+  if (fromDictionary) return fromDictionary;
+  const assignment = productModifierAssignmentCapability(sheet, column);
+  if (assignment?.apply === "QOS-200") return PRODUCT_MODIFIER_POLICY_APPLY_OWNER;
+  return sheetOwner(sheet);
+}
+
+/** Whether a column of a supported sheet is not applied by this leaf.
+    Includes dictionary/contract deferred fields, and the v1.1 Product
+    Modifiers policy columns whose workbook apply belongs to QOS-200. */
 export function isDeferredColumn(sheet: string, column: string) {
   if (sheetSupport(sheet) !== "supported") return true;
   const definition = contractSheet(sheet).columns.find((candidate) => candidate.key === column);
   if (definition && isDeferredField(definition)) return true;
-  return capabilityFor(sheet, column)?.class === "deferred";
+  if (capabilityFor(sheet, column)?.class === "deferred") return true;
+  const assignment = productModifierAssignmentCapability(sheet, column);
+  return assignment?.apply === "QOS-200";
 }
 
 export function decideField(sheet: string, column: string): Omit<FieldDecision, "rowsWithValues"> {

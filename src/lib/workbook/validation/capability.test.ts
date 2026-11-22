@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { SOURCE_MAP_SHEET } from "@/lib/workbook/dictionary";
-import { computeFieldDecisions, decideField, VALIDATED_OWNER } from "@/lib/workbook/validation/capability";
+import {
+  computeFieldDecisions,
+  decideField,
+  PRODUCT_MODIFIER_POLICY_APPLY_OWNER,
+  VALIDATED_OWNER,
+} from "@/lib/workbook/validation/capability";
 import { qosInput } from "@/lib/workbook/validation/test-support";
 
 describe("field decisions", () => {
@@ -21,6 +26,16 @@ describe("field decisions", () => {
       expect(decision.decision, `${sheet}.${column}`).toBe("deferred");
       expect(decision.owner, `${sheet}.${column}`).toMatch(/QOS-21[2-5]/);
     }
+  });
+
+  it("defers v1.1 Product Modifiers policy columns to QOS-200 apply", () => {
+    for (const column of ["min_selections", "max_selections", "repeat_allowed", "selection_count_mode"]) {
+      expect(decideField("Product Modifiers", column), column).toMatchObject({
+        decision: "deferred",
+        owner: PRODUCT_MODIFIER_POLICY_APPLY_OWNER,
+      });
+    }
+    expect(decideField("Product Modifiers", "sort_order")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER });
   });
 
   it("calls supported columns validated, steering columns mechanics and Phase 3 sheets rejected", () => {

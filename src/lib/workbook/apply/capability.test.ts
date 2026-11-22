@@ -38,6 +38,10 @@ describe("FIELD_CAPABILITIES", () => {
     expect(isDeferredColumn("Variants", "price_tax_basis")).toBe(true);
     expect(isDeferredColumn("Variants", "tax_rate_basis_points")).toBe(true);
     expect(isDeferredColumn("Product Modifiers", "free_options_count")).toBe(true);
+    for (const column of ["min_selections", "max_selections", "repeat_allowed", "selection_count_mode"]) {
+      expect(isDeferredColumn("Product Modifiers", column), column).toBe(true);
+      expect(FIELD_CAPABILITIES["Product Modifiers"], column).not.toContain(column);
+    }
     expect(FIELD_CAPABILITIES.Variants).not.toContain("price_tax_basis");
     expect(FIELD_CAPABILITIES.Variants).not.toContain("tax_rate_basis_points");
     const deferred = splitDeferred("Variants", [
