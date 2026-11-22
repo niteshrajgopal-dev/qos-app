@@ -1,3 +1,7 @@
+import {
+  CHANNEL_PRICE_APPLY_OWNER,
+  type ChannelSheetName,
+} from "@/lib/workbook/channel-price-capabilities";
 import { contractSheet, sheetSupport, type SupportedEntitySheet } from "@/lib/workbook/contract";
 import type { ReviewOperation } from "@/lib/workbook/validation/model";
 
@@ -6,7 +10,7 @@ import type { ReviewOperation } from "@/lib/workbook/validation/model";
    Everything else is classified unsupported with its owner, never silently
    mapped to something else. Flip a cell here once a service lands. */
 
-export const WORKBOOK_ACTIONS = ["create", "update", "archive", "remove_link", "reset_to_central", "skip"] as const;
+export const WORKBOOK_ACTIONS = ["create", "update", "archive", "remove_link", "reset_to_central", "set", "skip"] as const;
 export type WorkbookAction = (typeof WORKBOOK_ACTIONS)[number];
 
 type ActionSupport = { operation: ReviewOperation | "skip" } | { unsupported: string };
@@ -22,6 +26,16 @@ export const BRANCHES_OWNER = "Settings → Branches (QOS-192)";
 
 export const MENUS_ARCHIVE_OWNER = "Menu editor (no menu archive service yet)";
 
+export { CHANNEL_PRICE_APPLY_OWNER };
+
+const CHANNEL_SHEETS: ReadonlySet<string> = new Set<ChannelSheetName>([
+  "Sales Channels",
+  "Variant Channel Prices",
+  "Modifier Option Channel Prices",
+]);
+
+const CHANNEL_WRITE_UNSUPPORTED = { unsupported: CHANNEL_PRICE_APPLY_OWNER } as const;
+
 export const ACTION_MATRIX: Record<SupportedEntitySheet, Partial<Record<WorkbookAction, ActionSupport>>> = {
   Branches: { create: { unsupported: BRANCHES_OWNER }, update: { unsupported: BRANCHES_OWNER }, skip: SKIP },
   Categories: { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
@@ -29,8 +43,12 @@ export const ACTION_MATRIX: Record<SupportedEntitySheet, Partial<Record<Workbook
   "Product Categories": { create: CREATE, update: UPDATE, remove_link: REMOVE_LINK, skip: SKIP },
   Variants: { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
   "Branch Prices": { create: CREATE, update: UPDATE, reset_to_central: { operation: "reset_to_central" }, skip: SKIP },
+  // Catalogue services exist; workbook apply of v1.2 channel sheets is QOS-200.
+  "Sales Channels": { skip: SKIP },
+  "Variant Channel Prices": { set: CHANNEL_WRITE_UNSUPPORTED, reset_to_central: CHANNEL_WRITE_UNSUPPORTED, skip: SKIP },
   "Modifier Groups": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
   "Modifier Options": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  "Modifier Option Channel Prices": { set: CHANNEL_WRITE_UNSUPPORTED, reset_to_central: CHANNEL_WRITE_UNSUPPORTED, skip: SKIP },
   "Product Modifiers": { create: CREATE, update: UPDATE, remove_link: REMOVE_LINK, skip: SKIP },
   // No service archives a menu (QOS-217, D-MENU-ARCHIVE); flip back when one lands.
   Menus: { create: CREATE, update: UPDATE, archive: { unsupported: MENUS_ARCHIVE_OWNER }, skip: SKIP },
@@ -53,6 +71,11 @@ export function resolveAction(sheet: SupportedEntitySheet, raw: string): ActionR
   const allowed = contractSheet(sheet).columns.find((column) => column.key === "action")?.values ?? [];
   const text = raw.trim();
   if (!text) {
+    // Sales Channels has no action column. Price-sheet exports leave action
+    // blank to keep the current value. This leaf does not apply either; skip.
+    if (CHANNEL_SHEETS.has(sheet)) {
+      return { kind: "operation", action: "skip", operation: "skip", normalized: false };
+    }
     return { kind: "invalid", code: "action_required", value: "", allowed: allowed.join(", ") };
   }
   const action = WORKBOOK_ACTIONS.find((candidate) => candidate === text.toLowerCase());

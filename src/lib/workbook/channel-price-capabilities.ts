@@ -7,6 +7,9 @@ import { contractSheet } from "@/lib/workbook/contract";
    (`deferred`). Nothing here applies anything. Kept separate from any other
    ticket's capability file on purpose. */
 
+/** Workbook apply of these sheets is QOS-200's, not this leaf. */
+export const CHANNEL_PRICE_APPLY_OWNER = "QOS-200 apply";
+
 export type ChannelFieldCapability = "persistable" | "review_only" | "deferred";
 
 export type ChannelSheetName = "Sales Channels" | "Variant Channel Prices" | "Modifier Option Channel Prices";
