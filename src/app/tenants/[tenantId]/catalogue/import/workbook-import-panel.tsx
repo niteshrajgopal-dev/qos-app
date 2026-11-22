@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { FoodicsMenuResult } from "@/app/tenants/[tenantId]/catalogue/import/foodics-menu-result";
 import { usePortalShell } from "@/components/portal/portal-shell-context";
 import {
   PortalBadge,
@@ -33,7 +34,8 @@ import type { WorkbookIssue, WorkbookParseResult } from "@/lib/workbook/reader";
    current-record export, and read an uploaded file. Reading is stateless:
    the result lists what QOS found and how each sheet is classified, and
    says plainly that nothing has been imported. Review and apply are later
-   leaves (QOS-194, QOS-200). */
+   leaves (QOS-194, QOS-200). A Foodics menu workbook (QOS-216) is recognised
+   by its layout and can be downloaded converted into a QOS workbook. */
 
 const SUPPORT_TONE: Record<WorkbookSheetSupport, PortalBadgeTone> = {
   supported: "positive",
@@ -72,11 +74,25 @@ export function WorkbookImportPanel({
   const [reading, setReading] = useState(false);
   const [result, setResult] = useState<WorkbookParseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [converting, setConverting] = useState(false);
+  const [sourceBrand, setSourceBrand] = useState("");
 
   const branchName =
     branch.status === "ready"
       ? (branchSelectionName(locale, branch.selection, branch.branches) ?? t("noBranches"))
       : t(branch.status === "error" ? "branchUnavailable" : "branchLoading");
+
+  const saveDownload = async (response: Response, fallback: string) => {
+    const blob = await response.blob();
+    const href = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = href;
+    anchor.download = attachmentFileName(response.headers.get("content-disposition"), fallback);
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(href), 0);
+  };
 
   const download = async (kind: "template" | "export") => {
     setDownloading(kind);
@@ -98,15 +114,7 @@ export function WorkbookImportPanel({
         return;
       }
 
-      const blob = await response.blob();
-      const href = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = href;
-      anchor.download = attachmentFileName(response.headers.get("content-disposition"), `qos-${kind}.xlsx`);
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(href), 0);
+      await saveDownload(response, `qos-${kind}.xlsx`);
     } catch {
       setError(t("workbookErrorGeneric"));
     } finally {
@@ -125,6 +133,7 @@ export function WorkbookImportPanel({
     try {
       const formData = new FormData();
       formData.set("file", file);
+      if (sourceBrand) formData.set("brand", sourceBrand);
       const response = await staffApiFetch(`${basePath}/parse`, { method: "POST", body: formData });
       const body = (await response.json().catch(() => null)) as WorkbookParseResult | WorkbookApiError | null;
       if (!response.ok || !body || !("profile" in body)) {
@@ -139,8 +148,35 @@ export function WorkbookImportPanel({
     }
   };
 
+  // Stateless conversion of a recognised Foodics menu workbook: the same file
+  // is sent again and the canonical QOS workbook comes back as a download.
+  const convertFile = async () => {
+    if (!file) {
+      setError(t("workbookErrorFileRequired"));
+      return;
+    }
+    setConverting(true);
+    setError(null);
+    try {
+      const formData = new FormData();
+      formData.set("file", file);
+      if (sourceBrand) formData.set("brand", sourceBrand);
+      const response = await staffApiFetch(`${basePath}/convert`, { method: "POST", body: formData });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => null)) as WorkbookApiError | null;
+        setError(describeWorkbookApiError(locale, response.status, body));
+        return;
+      }
+      await saveDownload(response, "qos-converted-foodics-menu-v1.xlsx");
+    } catch {
+      setError(t("workbookErrorGeneric"));
+    } finally {
+      setConverting(false);
+    }
+  };
+
   const issues =
-    result?.profile === "qos_extended_v1"
+    result?.profile === "qos_extended_v1" || result?.profile === "foodics_menu_v1"
       ? [...result.issues, ...result.sheets.flatMap((sheet) => sheet.issues)].sort(
           (a, b) => SEVERITY_ORDER[a.severity] - SEVERITY_ORDER[b.severity],
         )
@@ -150,10 +186,38 @@ export function WorkbookImportPanel({
       ? result.sheets.filter((sheet) => sheet.rowCount > 0 || sheet.issues.length > 0)
       : [];
 
+  const issueList =
+    issues.length > 0 ? (
+      <>
+        <h3 className="qosp-subcard-title qosp-panel-body">{t("importIssuesTitle")}</h3>
+        <ul className="qosp-branch-list qosp-panel-body" aria-label={t("importIssuesTitle")}>
+          {issues.slice(0, MAX_ISSUES_SHOWN).map((issue, index) => (
+            <li key={`${issue.code}-${issue.sheet ?? ""}-${issue.row ?? ""}-${issue.column ?? ""}-${index}`} className="qosp-subcard">
+              <div className="qosp-meta-row">
+                <PortalBadge tone={SEVERITY_TONE[issue.severity]}>{t(WORKBOOK_SEVERITY_COPY[issue.severity])}</PortalBadge>
+                {workbookIssueLocation(issue) ? (
+                  <code className="qosp-code" dir="ltr">
+                    {workbookIssueLocation(issue)}
+                  </code>
+                ) : null}
+              </div>
+              <p className="qosp-panel-help">{describeWorkbookIssue(locale, issue)}</p>
+            </li>
+          ))}
+        </ul>
+        {issues.length > MAX_ISSUES_SHOWN ? (
+          <p className="qosp-meta-line">
+            {staffCopyWith(locale, "importIssuesMore", { count: issues.length - MAX_ISSUES_SHOWN })}
+          </p>
+        ) : null}
+      </>
+    ) : null;
+
   return (
     <div className="qosp-stack">
       <PortalPanel>
         <p className="qosp-panel-help">{t("importWorkbookHelp")}</p>
+        <p className="qosp-panel-help">{t("importFoodicsHelp")}</p>
         <div className="qosp-panel-body">
           <PortalNotice tone="info">{t("importWorkbookNotApplied")}</PortalNotice>
         </div>
@@ -241,6 +305,17 @@ export function WorkbookImportPanel({
         </PortalPanel>
       ) : null}
 
+      {result?.profile === "foodics_menu_v1" ? (
+        <FoodicsMenuResult
+          result={result}
+          brand={sourceBrand}
+          onBrandChange={setSourceBrand}
+          converting={converting}
+          onConvert={() => void convertFile()}
+          issueList={issueList}
+        />
+      ) : null}
+
       {result?.profile === "qos_extended_v1" ? (
         <PortalPanel>
           <h2 className="qosp-panel-title">{t("importResultTitle")}</h2>
@@ -316,31 +391,7 @@ export function WorkbookImportPanel({
             </>
           ) : null}
 
-          {issues.length > 0 ? (
-            <>
-              <h3 className="qosp-subcard-title qosp-panel-body">{t("importIssuesTitle")}</h3>
-              <ul className="qosp-branch-list qosp-panel-body" aria-label={t("importIssuesTitle")}>
-                {issues.slice(0, MAX_ISSUES_SHOWN).map((issue, index) => (
-                  <li key={`${issue.code}-${issue.sheet ?? ""}-${issue.row ?? ""}-${issue.column ?? ""}-${index}`} className="qosp-subcard">
-                    <div className="qosp-meta-row">
-                      <PortalBadge tone={SEVERITY_TONE[issue.severity]}>{t(WORKBOOK_SEVERITY_COPY[issue.severity])}</PortalBadge>
-                      {workbookIssueLocation(issue) ? (
-                        <code className="qosp-code" dir="ltr">
-                          {workbookIssueLocation(issue)}
-                        </code>
-                      ) : null}
-                    </div>
-                    <p className="qosp-panel-help">{describeWorkbookIssue(locale, issue)}</p>
-                  </li>
-                ))}
-              </ul>
-              {issues.length > MAX_ISSUES_SHOWN ? (
-                <p className="qosp-meta-line">
-                  {staffCopyWith(locale, "importIssuesMore", { count: issues.length - MAX_ISSUES_SHOWN })}
-                </p>
-              ) : null}
-            </>
-          ) : null}
+          {issueList}
         </PortalPanel>
       ) : null}
     </div>

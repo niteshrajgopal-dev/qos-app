@@ -1,0 +1,563 @@
+{
+  "profile": "foodics_menu_v1",
+  "version": 1,
+  "note": "Source header roles and aliases for the Foodics menu workbook layout. Matching prefers the full header text, then the first-line/primary label (help text after 'example' on later lines is ignored). Template typo 'languge' is treated as 'language' and 'Preperation' as 'preparation'. Slot is a tiebreaker only. Labels observed on the SHA-verified original (21 Nov 2026, Asia/Dubai) are included alongside the earlier short aliases so the sanitized fixture still matches.",
+  "regions": {
+    "categories": [
+      {
+        "role": "name_en",
+        "slot": "F",
+        "aliases": [
+          "name",
+          "name en",
+          "category name",
+          "category name en",
+          "english name",
+          "name english",
+          "category",
+          "category name in main language"
+        ]
+      },
+      {
+        "role": "name_ar",
+        "slot": "G",
+        "aliases": [
+          "name ar",
+          "arabic name",
+          "name arabic",
+          "category name ar",
+          "الاسم",
+          "الاسم بالعربية",
+          "category name in localized language"
+        ]
+      }
+    ],
+    "products": [
+      {
+        "role": "name_en",
+        "slot": "D",
+        "aliases": [
+          "name",
+          "name en",
+          "product name",
+          "product name en",
+          "english name",
+          "item name",
+          "name of the product in main language"
+        ]
+      },
+      {
+        "role": "name_ar",
+        "slot": "E",
+        "aliases": [
+          "name ar",
+          "arabic name",
+          "product name ar",
+          "الاسم",
+          "name of the product in localized language"
+        ]
+      },
+      {
+        "role": "description_en",
+        "slot": "Q",
+        "aliases": [
+          "description",
+          "description en",
+          "english description",
+          "product description main language"
+        ]
+      },
+      {
+        "role": "description_ar",
+        "slot": "R",
+        "aliases": [
+          "description ar",
+          "arabic description",
+          "الوصف",
+          "product description localized"
+        ]
+      },
+      {
+        "role": "category",
+        "slot": "F",
+        "aliases": [
+          "category",
+          "category name",
+          "category en"
+        ]
+      },
+      {
+        "role": "sku",
+        "slot": "I",
+        "aliases": [
+          "sku",
+          "product code",
+          "code",
+          "item code",
+          "reference"
+        ]
+      },
+      {
+        "role": "barcode",
+        "slot": "P",
+        "aliases": [
+          "barcode",
+          "bar code",
+          "ean",
+          "upc"
+        ]
+      },
+      {
+        "role": "price",
+        "slot": "I",
+        "aliases": [
+          "price",
+          "base price",
+          "selling price",
+          "default price",
+          "price aed",
+          "product price"
+        ]
+      },
+      {
+        "role": "channel_price",
+        "slot": "J-L",
+        "aliases": [],
+        "channelPrice": true
+      },
+      {
+        "role": "tax",
+        "slot": "M",
+        "aliases": [
+          "tax",
+          "tax group",
+          "tax rate",
+          "vat",
+          "vat %",
+          "tax %",
+          "tax%"
+        ]
+      },
+      {
+        "role": "tax_type",
+        "slot": "N",
+        "aliases": [
+          "type of tax",
+          "tax type",
+          "tax basis"
+        ]
+      },
+      {
+        "role": "cost",
+        "slot": "O",
+        "aliases": [
+          "cost",
+          "cost price",
+          "unit cost",
+          "product cost"
+        ]
+      },
+      {
+        "role": "selling_method",
+        "slot": "G",
+        "aliases": [
+          "selling method",
+          "sold by",
+          "sold by weight",
+          "pricing method",
+          "is sold by weight"
+        ]
+      },
+      {
+        "role": "is_stock_product",
+        "slot": "H",
+        "aliases": [
+          "is a stock product",
+          "stock product",
+          "is stock product"
+        ]
+      },
+      {
+        "role": "is_active",
+        "slot": "S",
+        "aliases": [
+          "active",
+          "is active",
+          "status",
+          "enabled"
+        ]
+      },
+      {
+        "role": "calories",
+        "slot": "T",
+        "aliases": [
+          "calories",
+          "kcal",
+          "nutrition calories"
+        ]
+      },
+      {
+        "role": "preparation_time",
+        "slot": "S",
+        "aliases": [
+          "preparation time",
+          "prep time",
+          "preparation minutes",
+          "product preparation time"
+        ]
+      },
+      {
+        "role": "walking_time",
+        "slot": "U",
+        "aliases": [
+          "walking time required to burn this meal", "walking time required to burn this meal minutes",
+          "walking time"
+        ]
+      },
+      {
+        "role": "high_salt",
+        "slot": "V",
+        "aliases": [
+          "is high salt",
+          "high salt"
+        ]
+      },
+      {
+        "role": "image",
+        "slot": "V",
+        "aliases": [
+          "image",
+          "image url",
+          "photo"
+        ]
+      }
+    ],
+    "ingredients": [
+      {
+        "role": "name_en",
+        "slot": "D",
+        "aliases": [
+          "name",
+          "ingredient",
+          "ingredient name",
+          "item",
+          "inventory item name",
+          "inventory item name in main language"
+        ]
+      },
+      {
+        "role": "name_ar",
+        "slot": "E",
+        "aliases": [
+          "name ar",
+          "الاسم",
+          "inventory item name in localized language"
+        ]
+      },
+      {
+        "role": "storage_unit",
+        "slot": "F",
+        "aliases": [
+          "storage unit",
+          "purchase unit",
+          "unit",
+          "stock unit",
+          "inventory unit"
+        ]
+      },
+      {
+        "role": "recipe_unit",
+        "slot": "G",
+        "aliases": [
+          "recipe unit",
+          "usage unit",
+          "ingredient unit",
+          "consumption unit"
+        ]
+      },
+      {
+        "role": "units_per_storage",
+        "slot": "H",
+        "aliases": [
+          "conversion",
+          "conversion factor",
+          "factor",
+          "units per storage unit",
+          "recipe units per storage unit",
+          "storage to ingredient factor"
+        ]
+      },
+      {
+        "role": "cost",
+        "slot": "I",
+        "aliases": [
+          "cost",
+          "cost per unit",
+          "unit cost",
+          "purchase cost",
+          "price",
+          "inventory material cost", "inventory material cost purchase price from supplier"
+        ]
+      },
+      {
+        "role": "inventory_category",
+        "slot": "J",
+        "aliases": [
+          "category",
+          "inventory category",
+          "group",
+          "type",
+          "inventory item category"
+        ]
+      }
+    ],
+    "product_recipe_lines": [
+      {
+        "role": "product",
+        "slot": "L",
+        "aliases": [
+          "product",
+          "product name",
+          "item"
+        ]
+      },
+      {
+        "role": "ingredient",
+        "slot": "M",
+        "aliases": [
+          "ingredient",
+          "ingredient name",
+          "ingredient name inventory item"
+        ]
+      },
+      {
+        "role": "quantity",
+        "slot": "N",
+        "aliases": [
+          "quantity",
+          "qty",
+          "amount",
+          "quantity recipe unit",
+          "quantity of ingredient", "quantity of ingredient must be more than 0"
+        ]
+      }
+    ],
+    "modifiers": [
+      {
+        "role": "group_en",
+        "slot": "F",
+        "aliases": [
+          "modifier",
+          "modifier name",
+          "modifier group",
+          "group",
+          "group name",
+          "modifier en",
+          "the name of the modifier group",
+          "the name of the modifier group in main language"
+        ]
+      },
+      {
+        "role": "group_ar",
+        "slot": "G",
+        "aliases": [
+          "modifier ar",
+          "group ar",
+          "group name ar",
+          "the name of the modifier group in localized language"
+        ]
+      },
+      {
+        "role": "option_en",
+        "slot": "H",
+        "aliases": [
+          "option",
+          "option name",
+          "modifier option",
+          "option en",
+          "the name of the modifier option in main language"
+        ]
+      },
+      {
+        "role": "option_ar",
+        "slot": "I",
+        "aliases": [
+          "option ar",
+          "option name ar",
+          "the name of the modifier option in localized language"
+        ]
+      },
+      {
+        "role": "price",
+        "slot": "J",
+        "aliases": [
+          "price",
+          "option price",
+          "extra price",
+          "modifier option price"
+        ]
+      },
+      {
+        "role": "channel_price",
+        "slot": "K-M",
+        "aliases": [],
+        "channelPrice": true
+      },
+      {
+        "role": "cost",
+        "slot": "N",
+        "aliases": [
+          "cost",
+          "option cost",
+          "the cost of the modifier option"
+        ]
+      },
+      {
+        "role": "calories",
+        "slot": "O",
+        "aliases": [
+          "calories",
+          "kcal",
+          "calories for modifier option"
+        ]
+      }
+    ],
+    "modifier_ingredient_lines": [
+      {
+        "role": "option",
+        "slot": "R",
+        "aliases": [
+          "option",
+          "modifier option",
+          "group option",
+          "modifier name and modifier option"
+        ]
+      },
+      {
+        "role": "ingredient",
+        "slot": "S",
+        "aliases": [
+          "ingredient",
+          "ingredient name",
+          "ingredient name inventory item"
+        ]
+      },
+      {
+        "role": "quantity",
+        "slot": "T",
+        "aliases": [
+          "quantity",
+          "qty",
+          "amount",
+          "quantity recipe unit",
+          "quantity of ingredient", "quantity of ingredient must be more than 0"
+        ]
+      }
+    ],
+    "assignments": [
+      {
+        "role": "product",
+        "slot": "D",
+        "aliases": [
+          "product",
+          "product name",
+          "item"
+        ]
+      },
+      {
+        "role": "group",
+        "slot": "E",
+        "aliases": [
+          "modifier",
+          "modifier group",
+          "group",
+          "modifier name"
+        ]
+      },
+      {
+        "role": "min",
+        "slot": "F",
+        "aliases": [
+          "min",
+          "minimum",
+          "min selections",
+          "min options",
+          "minimum modifier options"
+        ]
+      },
+      {
+        "role": "max",
+        "slot": "G",
+        "aliases": [
+          "max",
+          "maximum",
+          "max selections",
+          "max options",
+          "maximum modifier options"
+        ]
+      },
+      {
+        "role": "required",
+        "slot": "H",
+        "aliases": [
+          "required",
+          "is required",
+          "mandatory"
+        ]
+      },
+      {
+        "role": "free_options",
+        "slot": "H",
+        "aliases": [
+          "free",
+          "free options",
+          "free quantity",
+          "included",
+          "number of free options"
+        ]
+      },
+      {
+        "role": "allow_repeat",
+        "slot": "I",
+        "aliases": [
+          "can a customer order the same topping option twice",
+          "allow repeat",
+          "repeat option"
+        ]
+      }
+    ],
+    "prepared_recipe_lines": [
+      {
+        "role": "prepared_item",
+        "slot": "I",
+        "aliases": [
+          "prepared item",
+          "sub recipe",
+          "semi finished",
+          "prepared ingredient",
+          "recipe",
+          "inventory material"
+        ]
+      },
+      {
+        "role": "ingredient",
+        "slot": "J",
+        "aliases": [
+          "ingredient",
+          "ingredient name"
+        ]
+      },
+      {
+        "role": "quantity",
+        "slot": "K",
+        "aliases": [
+          "quantity",
+          "qty",
+          "amount",
+          "quantity recipe unit",
+          "quantity of ingredient", "quantity of ingredient must be more than 0"
+        ]
+      }
+    ]
+  }
+}

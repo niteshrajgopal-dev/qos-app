@@ -6,6 +6,7 @@ import { buildCatalogueImportSampleXlsx, CATALOGUE_IMPORT_SAMPLE_CSV } from "@/l
 import { parseSpreadsheetUpload } from "@/lib/catalogue/catalogue-import-parser";
 import { contractSheet, tableColumnKeys, WORKBOOK_CONTRACT } from "@/lib/workbook/contract";
 import { WorkbookParseError } from "@/lib/workbook/errors";
+import { buildFoodicsMenuFixture } from "@/lib/workbook/foodics-menu/fixture";
 import { WORKBOOK_LIMITS } from "@/lib/workbook/limits";
 import {
   parseWorkbookUpload,
@@ -399,6 +400,12 @@ describe("parseWorkbookUpload: legacy flat profile", () => {
     expect(result.headers).toEqual(legacy.headers);
     expect(result.rows).toEqual(legacy.rows);
     expect(result.suggestedMapping).toMatchObject({ sourceId: "source_id", amountMinor: "amount_minor" });
+  });
+
+  it("checks the Foodics menu layout before the legacy fallback, so that layout is never read as a flat file", async () => {
+    const result = await parseWorkbookUpload({ fileName: "menu.xlsx", bytes: await buildFoodicsMenuFixture({ prefillLastRow: 30 }) });
+    expect(result.profile).toBe("foodics_menu_v1");
+    expect(result).not.toHaveProperty("headers");
   });
 
   it("treats an XLSX without the manifest as the legacy first-worksheet profile", async () => {

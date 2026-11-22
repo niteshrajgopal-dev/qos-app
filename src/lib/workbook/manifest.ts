@@ -1,4 +1,5 @@
 import { WORKBOOK_CONTRACT, WORKBOOK_LAYOUT, WORKBOOK_PROFILE_ID } from "@/lib/workbook/contract";
+import { EXTRA_CONTEXT_FIELDS } from "@/lib/workbook/dictionary";
 import { WorkbookParseError } from "@/lib/workbook/errors";
 import { cellKey, type XlsxPackage } from "@/lib/workbook/ooxml";
 import type { WorkbookIssue, WorkbookParseOptions } from "@/lib/workbook/reader";
@@ -33,7 +34,7 @@ function invalid(message: string): never {
 export function readWorkbookManifest(
   pkg: XlsxPackage,
   options: WorkbookParseOptions,
-): { manifest: WorkbookManifest; issues: WorkbookIssue[] } {
+): { manifest: WorkbookManifest; extensions: Record<string, string>; issues: WorkbookIssue[] } {
   const tableName = WORKBOOK_LAYOUT.manifestTable;
   let located: { cells: XlsxPackage["sheets"][number]["cells"]; table: XlsxPackage["sheets"][number]["tables"][number] } | null =
     null;
@@ -78,7 +79,7 @@ export function readWorkbookManifest(
       invalid(`${tableName} lists ${field} more than once.`);
     }
     values.set(field, valueCell?.text.trim() ?? "");
-    if (!MANIFEST_FIELDS.includes(field)) {
+    if (!MANIFEST_FIELDS.includes(field) && !EXTRA_CONTEXT_FIELDS.includes(field)) {
       issues.push({ severity: "warning", code: "manifest_unknown_field", sheet: tableName, row, params: { field } });
     }
   }
@@ -105,6 +106,11 @@ export function readWorkbookManifest(
     MANIFEST_FIELDS.map((field) => [field, values.get(field) ?? ""]),
   ) as WorkbookManifest;
   manifest.template_version = WORKBOOK_CONTRACT.version;
+  // Dictionary 1.1 context fields (for example source_profile on a converted
+  // workbook) are returned beside the manifest and never change its meaning.
+  const extensions = Object.fromEntries(
+    EXTRA_CONTEXT_FIELDS.filter((field) => values.get(field)).map((field) => [field, values.get(field)!]),
+  );
 
   if (options.tenantPublicId && manifest.tenant_public_id && manifest.tenant_public_id !== options.tenantPublicId) {
     issues.push({
@@ -118,5 +124,5 @@ export function readWorkbookManifest(
     issues.push({ severity: "error", code: "brand_mismatch", sheet: tableName, params: { found: manifest.brand_public_id } });
   }
 
-  return { manifest, issues };
+  return { manifest, extensions, issues };
 }
