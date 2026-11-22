@@ -23,6 +23,7 @@ import {
   catalogueVariants,
   catalogueVariantTranslations,
 } from "@/db/schema";
+import { resolveEffectiveSelectionBounds } from "@/lib/catalogue/modifier-assignment-policy";
 import { type TenantDbExecutor, withTenantContext } from "@/lib/tenant/context";
 
 export type CatalogueVariantView = {
@@ -145,6 +146,8 @@ export async function getCatalogueProductView(
         publicId: catalogueModifierGroups.publicId,
         minSelections: catalogueModifierGroups.minSelections,
         maxSelections: catalogueModifierGroups.maxSelections,
+        overrideMinSelections: catalogueProductModifierGroups.minSelections,
+        overrideMaxSelections: catalogueProductModifierGroups.maxSelections,
         groupId: catalogueModifierGroups.id,
         displayName: catalogueModifierGroupTranslations.displayName,
       })
@@ -214,10 +217,15 @@ export async function getCatalogueProductView(
         .orderBy(asc(catalogueModifierOptions.sortOrder));
 
       for (const group of productModifierGroups) {
+        // This product's bounds: assignment overrides applied (QOS-212).
+        const bounds = resolveEffectiveSelectionBounds(group, {
+          minSelections: group.overrideMinSelections,
+          maxSelections: group.overrideMaxSelections,
+        });
         modifierGroups.push({
           publicId: group.publicId,
-          minSelections: group.minSelections,
-          maxSelections: group.maxSelections,
+          minSelections: bounds.effectiveMinSelections,
+          maxSelections: bounds.effectiveMaxSelections,
           displayName: group.displayName,
           options: options
             .filter((option) => option.groupId === group.groupId)

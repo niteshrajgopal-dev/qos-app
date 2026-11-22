@@ -1,6 +1,6 @@
 {
-  "version": "1.0",
-  "asOf": "2026-11-16",
+  "version": "1.1",
+  "asOf": "2026-11-21",
   "repositorySnapshot": "99d8106f386bcd349f8f51b263481bb90227d0fc",
   "layout": {
     "extendedHeaderRow": 6,
@@ -21,12 +21,12 @@
     },
     {
       "field": "template_version",
-      "value": "1.0",
+      "value": "1.1",
       "rule": "Retain the workbook format version."
     },
     {
       "field": "prepared_on",
-      "value": "2026-11-16",
+      "value": "2026-11-21",
       "rule": "Template preparation date; not a business-data cutoff."
     },
     {
@@ -1448,6 +1448,60 @@
           "phase": "Existing",
           "importSupport": "Multi-sheet extension required",
           "min": 0
+        },
+        {
+          "key": "min_selections",
+          "label": "min selections",
+          "type": "integer",
+          "required": false,
+          "description": "Minimum selections for this group on this product only. Blank inherits the group's min_selections. Counted as set by selection_count_mode.",
+          "mapping": "catalogue_product_modifier_groups.min_selections",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0,
+          "since": "1.1"
+        },
+        {
+          "key": "max_selections",
+          "label": "max selections",
+          "type": "integer",
+          "required": false,
+          "description": "Maximum selections for this group on this product only; cannot be below the effective minimum. Blank inherits the group's max_selections.",
+          "mapping": "catalogue_product_modifier_groups.max_selections",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0,
+          "since": "1.1"
+        },
+        {
+          "key": "repeat_allowed",
+          "label": "repeat allowed",
+          "type": "text",
+          "required": false,
+          "description": "Whether options may be chosen more than once on this product. FALSE limits every option to one. TRUE keeps each option's own allows_quantity and max_quantity and never raises them; it needs at least one active option that can repeat. Blank inherits the option limits.",
+          "mapping": "catalogue_product_modifier_groups.repeat_allowed",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "since": "1.1"
+        },
+        {
+          "key": "selection_count_mode",
+          "label": "selection count mode",
+          "type": "text",
+          "required": false,
+          "description": "How min and max are counted on this product. Blank means distinct_options: each chosen option counts once, whatever its quantity. total_quantity adds up option quantities and must be chosen explicitly; QOS never infers it from another system's layout. Any other value is held for review.",
+          "mapping": "catalogue_product_modifier_groups.selection_count_mode",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "distinct_options",
+            "total_quantity"
+          ],
+          "since": "1.1"
         },
         {
           "key": "free_options_count",
@@ -4421,7 +4475,7 @@
   "rules": [
     [
       "Scope and version",
-      "Workbook contract v1.0, 16 November 2026. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
+      "Workbook contract v1.1, 21 November 2026. v1.1 adds the Product Modifiers assignment policy columns (min_selections, max_selections, repeat_allowed, selection_count_mode); QOS still reads v1.0 workbooks, which simply lack them. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
     ],
     [
       "Current upload profile",

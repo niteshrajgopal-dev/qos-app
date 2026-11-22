@@ -478,6 +478,47 @@ article.qosp-subcard > .qosp-button-row {
   flex: 1 1 240px;
   min-width: 0;
 }
+/* Product modifier policy (QOS-212): sits under the attached group row. */
+.qosp-policy {
+  flex: 1 1 100%;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  border-top: 1px solid #ffffff14;
+  padding-top: 14px;
+}
+.qosp-policy-title {
+  font-size: 13px;
+  font-weight: 400;
+  margin: 0;
+  color: var(--portal-text-soft);
+}
+.qosp-policy-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+.qosp-policy-item {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.qosp-policy-item dt {
+  font-size: 12px;
+  color: var(--portal-muted);
+}
+.qosp-policy-item dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: var(--portal-text);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
 .qosp-text-link {
   display: inline-flex;
   align-items: center;

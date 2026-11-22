@@ -309,7 +309,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(XLSX);
     expect(response.headers.get("content-disposition")).toBe(
-      'attachment; filename="qos-menu-and-operations-template-v1.0.xlsx"',
+      'attachment; filename="qos-menu-and-operations-template-v1.1.xlsx"',
     );
     expect(response.headers.get("cache-control")).toBe("private, no-store");
 
@@ -336,7 +336,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(body.summary.errors).toBe(0);
     expect(body.manifest).toMatchObject({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.0",
+      template_version: "1.1",
       tenant_public_id: "ten_quotes_dev",
       brand_public_id: "brd_quotes",
       source_namespace: "qos:ten_quotes_dev",
@@ -390,7 +390,15 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     });
     expect(sheetRows(body, "Product Categories")[0]!.qos_product_category_id).toMatch(/^[0-9a-f-]{36}$/);
     expect(sheetRows(body, "Modifier Options")[0]).toMatchObject({ modifier_group_key: "mg_milk", price_minor: "300", display_name_ar: "حليب الشوفان" });
-    expect(sheetRows(body, "Product Modifiers")[0]).toMatchObject({ product_key: "prd_flat_white", modifier_group_key: "mg_milk" });
+    expect(sheetRows(body, "Product Modifiers")[0]).toMatchObject({
+      product_key: "prd_flat_white",
+      modifier_group_key: "mg_milk",
+      min_selections: "",
+      max_selections: "",
+      repeat_allowed: "",
+      selection_count_mode: "",
+      free_options_count: "",
+    });
     expect(sheetRows(body, "Menus")[0]).toMatchObject({ menu_key: "menu_main", display_name_ar: "القائمة الرئيسية", status: "draft" });
     expect(sheetRows(body, "Menu Branches").map((row) => row.branch_key)).toEqual(["loc_quotes_hbz", "loc_quotes_hct"]);
     expect(sheetRows(body, "Menu Sections")[0]).toMatchObject({ section_key: "sec_coffee", menu_key: "menu_main", archived: "FALSE" });
@@ -398,6 +406,34 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     for (const sheet of ["Units", "Opening Stock", "Future Combos", "Current Import"]) {
       expect(body.sheets.find((entry) => entry.sheet === sheet)!.rowCount, sheet).toBe(0);
     }
+  });
+
+  it("exports product modifier assignment overrides and folds the assignment version into its revision", async () => {
+    const { tenantId, productId } = await seed();
+    const exportModifiers = async () => {
+      const body = (await (await parseAs(ADMIN, tenantId, await bytesOf(await exportAs(ADMIN, tenantId)))).json()) as ExtendedWorkbookParseResult;
+      expect(body.summary.errors).toBe(0);
+      return sheetRows(body, "Product Modifiers");
+    };
+
+    const [before] = await exportModifiers();
+    const [link] = await db
+      .update(catalogueProductModifierGroups)
+      .set({ minSelections: 1, maxSelections: 2, repeatAllowed: false, selectionCountMode: "total_quantity", version: 2 })
+      .where(eq(catalogueProductModifierGroups.productId, productId))
+      .returning();
+
+    const [after] = await exportModifiers();
+    expect(after).toMatchObject({
+      qos_product_modifier_id: link!.id,
+      min_selections: "1",
+      max_selections: "2",
+      repeat_allowed: "FALSE",
+      selection_count_mode: "total_quantity",
+      free_options_count: "",
+    });
+    expect(after!.expected_revision).toMatch(/^rv1\./);
+    expect(after!.expected_revision).not.toBe(before!.expected_revision);
   });
 
   it("limits branch rows, branch prices and menu branches to the caller's permitted branches", async () => {

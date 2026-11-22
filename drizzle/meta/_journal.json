@@ -379,6 +379,13 @@
       "when": 1792600000000,
       "tag": "0053_translation_admin_review_revert_approval",
       "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1792700000000,
+      "tag": "0054_product_modifier_assignment_policy",
+      "breakpoints": true
     }
   ]
 }

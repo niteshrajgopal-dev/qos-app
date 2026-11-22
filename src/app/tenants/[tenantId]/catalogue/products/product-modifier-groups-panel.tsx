@@ -9,11 +9,14 @@ import {
   PortalField,
   PortalNotice,
 } from "@/components/portal/workspace/PortalWorkspace";
+import { ProductModifierAssignmentPolicyEditor } from "@/app/tenants/[tenantId]/catalogue/products/product-modifier-assignment-policy-editor";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
+import type { AssignmentPolicyPatchBody } from "@/lib/catalogue/modifier-assignment-policy-ui";
+import type { ProductModifierGroupAssignmentView } from "@/lib/catalogue/modifiers";
 import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
 import { productEditorChildMutationsDisabled } from "@/lib/catalogue/product-editor-mutation-ui";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-import { staffCount, staffUiCopy } from "@/lib/staff/locale";
+import { staffCount, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 
 type ProductModifierGroupsPanelProps = {
   tenantId: string;
@@ -27,16 +30,9 @@ type AvailableGroup = {
   translations: { en: { displayName: string } };
 };
 
-type AssignedGroup = {
-  modifierGroupPublicId: string;
-  sortOrder: number;
-  translations: { en: { displayName: string } };
-  options: Array<{ publicId: string; priceMinor: number }>;
-};
-
 type ProductModifierView = {
   productVersion: number;
-  modifierGroups: AssignedGroup[];
+  modifierGroups: ProductModifierGroupAssignmentView[];
 };
 
 export function ProductModifierGroupsPanel({
@@ -186,6 +182,46 @@ export function ProductModifierGroupsPanel({
     }
   }
 
+  async function savePolicy(
+    groupPublicId: string,
+    body: AssignmentPolicyPatchBody,
+    successKey: StaffUiCopyKey,
+  ) {
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/modifier-groups/${groupPublicId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        },
+      );
+      const payload = (await response.json()) as ProductModifierView & {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? copy("modifierPolicySaveError"));
+      }
+
+      setView(payload);
+      setMessage(copy(successKey));
+      return true;
+    } catch (saveError) {
+      setError(
+        saveError instanceof Error
+          ? saveError.message
+          : copy("modifierPolicySaveError"),
+      );
+      return false;
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const unattachedGroups = availableGroups.filter(
     (group) =>
       !view?.modifierGroups.some(
@@ -211,7 +247,9 @@ export function ProductModifierGroupsPanel({
             <li key={group.modifierGroupPublicId} className="qosp-subcard qosp-attached-row">
               <div className="qosp-attached-body">
                 <h3 className="qosp-subcard-title">
-                  {group.translations.en.displayName || group.modifierGroupPublicId}
+                  {group.translations[locale]?.displayName ||
+                    group.translations.en.displayName ||
+                    group.modifierGroupPublicId}
                 </h3>
                 <p className="qosp-meta-line">
                   <span dir="ltr">{group.modifierGroupPublicId}</span>
@@ -227,6 +265,16 @@ export function ProductModifierGroupsPanel({
               >
                 {copy("modifierDetach")}
               </button>
+              {view ? (
+                <ProductModifierAssignmentPolicyEditor
+                  locale={locale}
+                  groupPublicId={group.modifierGroupPublicId}
+                  assignment={group}
+                  productVersion={view.productVersion}
+                  disabled={busy || mutationsDisabled}
+                  onSave={savePolicy}
+                />
+              ) : null}
             </li>
           ))}
         </ul>

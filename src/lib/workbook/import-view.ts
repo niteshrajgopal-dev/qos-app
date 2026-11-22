@@ -14,6 +14,7 @@ export const WORKBOOK_ISSUE_COPY: Record<WorkbookIssueCode, StaffUiCopyKey> = {
   cell_error: "issueCellError",
   identifier_number: "issueIdentifierNumber",
   deferred_field: "issueDeferredField",
+  ambiguous_selection_count_mode: "issueAmbiguousSelectionCountMode",
   deferred_sheet: "issueDeferredSheet",
   opening_stock_draft: "issueOpeningStockDraft",
   rejected_sheet: "issueRejectedSheet",

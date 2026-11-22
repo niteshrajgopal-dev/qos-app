@@ -20,6 +20,7 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/menus/menu-editor.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-variants-panel.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/products/product-modifier-assignment-policy-editor.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-new-screen.tsx",
   "app/tenants/[tenantId]/catalogue/products/new/page.tsx",
   "components/portal/workspace/PortalWorkspace.tsx",
@@ -69,6 +70,7 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/products/product-editor-section.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-variants-panel.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/products/product-modifier-assignment-policy-editor.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-removed-photo-history.tsx",
   "app/tenants/[tenantId]/catalogue/products/ai-description-review.tsx",
   "app/tenants/[tenantId]/catalogue/menus/menu-editor.tsx",
@@ -186,6 +188,14 @@ const FORBIDDEN_LITERALS = [
   ">Source workbook recognised<",
   ">Required mappings<",
   ">Sheets not read<",
+  // QOS-212 product modifier policy editor
+  ">Edit rules<",
+  ">Save rules<",
+  ">Reset to group defaults<",
+  '"Rules for this product"',
+  '"Group default"',
+  '"Product override"',
+  "up to {",
 ];
 
 describe("staff admin audited surfaces", () => {
