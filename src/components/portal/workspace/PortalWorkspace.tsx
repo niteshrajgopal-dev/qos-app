@@ -260,7 +260,7 @@ export function PortalFileInput({
         {staffUiCopy(locale, "chooseFile")}
       </label>
       <span className="qosp-file-name">
-        {fileName ?? staffUiCopy(locale, "noFileChosen")}
+        {fileName === null ? staffUiCopy(locale, "noFileChosen") : <bdi dir="ltr">{fileName}</bdi>}
       </span>
     </div>
   );
