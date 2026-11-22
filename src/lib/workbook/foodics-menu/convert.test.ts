@@ -62,7 +62,7 @@ describe("convert a Foodics menu workbook into a QOS workbook", () => {
     expect(parsed.isExport).toBe(false);
     expect(parsed.manifest).toMatchObject({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.0",
+      template_version: WORKBOOK_CONTRACT.version,
       tenant_public_id: "ten_test",
       brand_public_id: "brd_one",
       source_namespace: "foodics-menu-v1:ten_test",
