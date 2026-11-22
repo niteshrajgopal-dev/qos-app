@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { ConfirmDialog } from "@/components/Modal";
@@ -82,6 +83,7 @@ export function ModifierGroupEditor({
   groupPublicId,
 }: ModifierGroupEditorProps) {
   const { locale } = useStaffLocale();
+  const router = useRouter();
   const [group, setGroup] = useState<GroupState | null>(null);
   const [busy, setBusy] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
@@ -359,7 +361,8 @@ export function ModifierGroupEditor({
         );
       }
 
-      window.location.href = `/tenants/${tenantId}/catalogue/modifier-groups`;
+      // Replace so Back does not return to a group that no longer exists.
+      router.replace(`/tenants/${tenantId}/catalogue/modifier-groups`);
       return;
     } catch (deleteError) {
       failure =
