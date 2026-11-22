@@ -20,7 +20,7 @@ describe("product modifier assignment policy migration file (0054)", () => {
     expect(predecessor).toMatchObject({ tag: "0053_translation_admin_review_revert_approval" });
     const position = journal.entries.findIndex((candidate) => candidate.idx === 54);
     expect(journal.entries[position - 1]).toBe(predecessor);
-    // Later reserved numbers (0056, 0057, then 0058) may leave gaps; idx and when stay strictly increasing.
+    // 0057 is reserved for QOS-214 and may stay a gap; idx and when stay strictly increasing.
     for (let index = 1; index < journal.entries.length; index += 1) {
       expect(journal.entries[index]!.idx).toBeGreaterThan(journal.entries[index - 1]!.idx);
       expect(journal.entries[index]!.when).toBeGreaterThan(journal.entries[index - 1]!.when);

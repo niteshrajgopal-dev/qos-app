@@ -12,6 +12,13 @@ import {
   PortalField,
   PortalNotice,
 } from "@/components/portal/workspace/PortalWorkspace";
+import {
+  ChannelPricesBlock,
+  SalesChannelAddForm,
+  salesChannelCreateBody,
+} from "@/components/staff/catalogue/channel-price-grid";
+import type { ChannelPriceRowView } from "@/components/staff/catalogue/channel-price-state";
+import { useChannelPriceBundle } from "@/components/staff/catalogue/use-channel-price-bundle";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
@@ -40,6 +47,16 @@ type VariantsResponse = {
   productVersion: number;
   canEditPrice: boolean;
   variants: VariantRow[];
+};
+
+type ProductChannelPrices = {
+  canEditPrice: boolean;
+  channels: Array<{ publicId: string; workbookSlot: string | null }>;
+  variants: Array<{
+    variantPublicId: string;
+    centralAmountMinor: number | null;
+    rows: ChannelPriceRowView[];
+  }>;
 };
 
 type ProductVariantsPanelProps = {
@@ -96,6 +113,37 @@ export function ProductVariantsPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  const channelPricesBase = `/api/tenants/${tenantId}/catalogue/products/${productPublicId}`;
+  const channelPrices = useChannelPriceBundle<ProductChannelPrices>(
+    `${channelPricesBase}/channel-prices`,
+    view?.productVersion,
+    staffUiCopy(locale, "channelPriceLoadError"),
+  );
+  const channelCanEdit = Boolean(channelPrices.bundle?.canEditPrice) && !productReadOnly;
+
+  function variantChannelRows(variantPublicId: string) {
+    const entry = channelPrices.bundle?.variants.find((candidate) => candidate.variantPublicId === variantPublicId);
+    return entry && entry.centralAmountMinor != null ? entry.rows : null;
+  }
+
+  function saveChannelPrice(variantPublicId: string, row: ChannelPriceRowView, amountMinor: number) {
+    return channelPrices.mutate(
+      `${channelPricesBase}/variants/${variantPublicId}/channel-prices/${row.channelPublicId}`,
+      { method: "PUT", body: JSON.stringify({ amountMinor, expectedVersion: row.version }) },
+      copy("channelPriceSaveError"),
+      copy("channelPriceSaved"),
+    );
+  }
+
+  function resetChannelPrice(variantPublicId: string, row: ChannelPriceRowView) {
+    return channelPrices.mutate(
+      `${channelPricesBase}/variants/${variantPublicId}/channel-prices/${row.channelPublicId}/reset`,
+      { method: "POST", body: JSON.stringify({ expectedVersion: row.version }) },
+      copy("channelPriceSaveError"),
+      copy("channelPriceResetDone"),
+    );
+  }
 
   const activeVariants = useMemo(
     () => view?.variants.filter((variant) => variant.status === "active") ?? [],
@@ -472,9 +520,42 @@ export function ProductVariantsPanel({
                 ) : null}
               </div>
             ) : null}
+
+            {variant.status === "active" ? (
+              <ChannelPricesBlock
+                locale={locale}
+                channelCount={channelPrices.bundle?.channels.length ?? 0}
+                rows={variantChannelRows(variant.publicId)}
+                canEdit={channelCanEdit}
+                disabled={productReadOnly || channelPrices.busy}
+                onSave={(row, amountMinor) => saveChannelPrice(variant.publicId, row, amountMinor)}
+                onReset={(row) => resetChannelPrice(variant.publicId, row)}
+              />
+            ) : null}
           </article>
         );
       })}
+
+      {channelPrices.error ? <PortalNotice tone="error">{channelPrices.error}</PortalNotice> : null}
+      {channelPrices.message ? <PortalNotice tone="success">{channelPrices.message}</PortalNotice> : null}
+      {channelCanEdit ? (
+        <SalesChannelAddForm
+          locale={locale}
+          disabled={channelPrices.busy}
+          takenSlots={(channelPrices.bundle?.channels ?? []).flatMap((channel) =>
+            channel.workbookSlot ? [channel.workbookSlot] : [],
+          )}
+          onAdd={(draft) =>
+            channelPrices.mutate(
+              `/api/tenants/${tenantId}/catalogue/sales-channels`,
+              { method: "POST", body: JSON.stringify(salesChannelCreateBody(draft)) },
+              copy("salesChannelAddError"),
+              copy("salesChannelAdded"),
+              true,
+            )
+          }
+        />
+      ) : null}
 
       {productVariantsPanelShowsAddForm(productReadOnly) ? (
         <form

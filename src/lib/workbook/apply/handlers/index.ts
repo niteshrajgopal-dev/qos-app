@@ -1,5 +1,6 @@
 import type { SupportedEntitySheet } from "@/lib/workbook/contract";
 import { applyBranches } from "@/lib/workbook/apply/handlers/branches";
+import { applyChannelSheets } from "@/lib/workbook/apply/handlers/channel-prices";
 import { applyBranchPrices } from "@/lib/workbook/apply/handlers/branch-prices";
 import { applyCategories } from "@/lib/workbook/apply/handlers/categories";
 import { applyMenuBranches } from "@/lib/workbook/apply/handlers/menu-branches";
@@ -22,8 +23,11 @@ export const HANDLERS: Record<SupportedEntitySheet, SheetHandler> = {
   "Product Categories": applyProductCategories,
   Variants: applyVariants,
   "Branch Prices": applyBranchPrices,
+  "Sales Channels": applyChannelSheets,
+  "Variant Channel Prices": applyChannelSheets,
   "Modifier Groups": applyModifierGroups,
   "Modifier Options": applyModifierOptions,
+  "Modifier Option Channel Prices": applyChannelSheets,
   "Product Modifiers": applyProductModifiers,
   Menus: applyMenus,
   "Menu Branches": applyMenuBranches,

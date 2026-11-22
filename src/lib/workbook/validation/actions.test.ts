@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { SUPPORTED_ENTITY_SHEETS } from "@/lib/workbook/contract";
+import { CHANNEL_PRICE_APPLY_OWNER } from "@/lib/workbook/channel-price-capabilities";
 import { ACTION_MATRIX, resolveAction } from "@/lib/workbook/validation/actions";
 import type { ReviewRow } from "@/lib/workbook/validation/model";
 import { reviewWorkbook } from "@/lib/workbook/validation/review";
@@ -24,6 +25,17 @@ describe("action matrix", () => {
     expect(resolveAction("Products", "delete")).toMatchObject({ kind: "invalid", code: "action_unknown" });
     expect(resolveAction("Products", "")).toMatchObject({ kind: "invalid", code: "action_required" });
     expect(resolveAction("Products", "Update")).toMatchObject({ kind: "operation", operation: "update", normalized: true });
+    expect(resolveAction("Sales Channels", "")).toMatchObject({ kind: "operation", operation: "skip" });
+    expect(resolveAction("Variant Channel Prices", "")).toMatchObject({ kind: "operation", operation: "skip" });
+    expect(resolveAction("Variant Channel Prices", "set")).toMatchObject({
+      kind: "unsupported",
+      owner: CHANNEL_PRICE_APPLY_OWNER,
+    });
+    expect(resolveAction("Modifier Option Channel Prices", "reset_to_central")).toMatchObject({
+      kind: "unsupported",
+      owner: CHANNEL_PRICE_APPLY_OWNER,
+    });
+    expect(resolveAction("Products", "set")).toMatchObject({ kind: "invalid", code: "action_not_allowed_for_sheet" });
     for (const sheet of SUPPORTED_ENTITY_SHEETS) {
       expect(ACTION_MATRIX[sheet].skip, sheet).toEqual({ operation: "skip" });
     }

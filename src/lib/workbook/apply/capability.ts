@@ -33,6 +33,9 @@ export const FIELD_CAPABILITIES: Record<SupportedEntitySheet, readonly string[]>
   "Product Categories": ["sort_order"],
   Variants: ["variant_label_en", "variant_label_ar", "is_default", "sort_order", "sku", "barcode", "amount_minor", "currency", "status"],
   "Branch Prices": ["amount_minor", "currency"],
+  // v1.2 channel prices are persistable in the catalogue but applied by QOS-200, not this leaf.
+  "Sales Channels": [],
+  "Variant Channel Prices": [],
   "Modifier Groups": ["internal_name", "display_name_en", "display_name_ar", "min_selections", "max_selections", "status"],
   "Modifier Options": [
     "display_name_en",
@@ -45,6 +48,7 @@ export const FIELD_CAPABILITIES: Record<SupportedEntitySheet, readonly string[]>
     "sort_order",
     "status",
   ],
+  "Modifier Option Channel Prices": [],
   // v1.1 assignment policy columns are persistable in the catalogue but applied by QOS-200, not this leaf.
   "Product Modifiers": ["sort_order"],
   Menus: ["internal_name", "display_name_en", "display_name_ar", "description_en", "description_ar", "status"],

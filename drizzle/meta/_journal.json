@@ -395,6 +395,13 @@
       "breakpoints": true
     },
     {
+      "idx": 56,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0056_sales_channel_prices",
+      "breakpoints": true
+    },
+    {
       "idx": 58,
       "version": "7",
       "when": 1793100000000,

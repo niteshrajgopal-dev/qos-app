@@ -3,8 +3,9 @@ import contractJson from "@/lib/workbook/qos-workbook-contract.v1.json";
 /* The QOS workbook data contract. v1.0 (16 November 2026) was committed
    verbatim from the Phase 2 pack (SHA-256 d36471c7…8520c). v1.1 (21 November
    2026, QOS-212) adds four Product Modifiers assignment policy columns,
-   marked `since: "1.1"`; nothing else changed. It is the source of truth for
-   sheet names, table names, header and data rows, columns and the manifest.
+   marked `since: "1.1"`; v1.2 (QOS-213) adds the three sales-channel sheets,
+   each marked `sinceVersion: "1.2"`. It is the source of truth for sheet
+   names, table names, header and data rows, columns and the manifest.
    Nothing here is inferred from a file name. */
 
 export type WorkbookColumnDefinition = {
@@ -38,6 +39,8 @@ export type WorkbookSheetDefinition = {
   capacity: number;
   columns: WorkbookColumnDefinition[];
   raw?: boolean;
+  /** Contract version that introduced the sheet; older files are not expected to carry it. */
+  sinceVersion?: string;
 };
 
 export type WorkbookContextField = {
@@ -71,11 +74,11 @@ export const WORKBOOK_CONTRACT = contractJson as unknown as WorkbookContract;
 export const WORKBOOK_PROFILE_ID = "qos-extended-v1-proposed";
 export const WORKBOOK_TEMPLATE_VERSION = WORKBOOK_CONTRACT.version;
 
-/** Template versions QOS reads. Older files lack the columns added since. */
-export const SUPPORTED_TEMPLATE_VERSIONS = ["1.0", "1.1"] as const;
+/** Template versions QOS reads. Older files lack the columns and sheets added since. */
+export const SUPPORTED_TEMPLATE_VERSIONS = ["1.0", "1.1", "1.2"] as const;
 
 function versionParts(version: string) {
-  return version.split(".").map((part) => Number(part));
+  return version.split(".").map((part) => Number.parseInt(part, 10) || 0);
 }
 
 function compareVersions(a: string, b: string) {
@@ -88,11 +91,16 @@ function compareVersions(a: string, b: string) {
 export function columnExpectedInVersion(column: WorkbookColumnDefinition, templateVersion: string) {
   return compareVersions(column.since ?? "1.0", templateVersion) <= 0;
 }
+
+/** Whether a workbook of `templateVersion` is expected to carry this sheet. */
+export function sheetExpectedInVersion(sheet: WorkbookSheetDefinition, templateVersion: string) {
+  return compareVersions(sheet.sinceVersion ?? "1.0", templateVersion) <= 0;
+}
 export const WORKBOOK_LAYOUT = WORKBOOK_CONTRACT.layout;
 export const ROW_CHECK_COLUMN = "row_check";
 
-/* The pack's 31-sheet workbook wraps the 28 contract sheets in three guidance
-   sheets. They carry instructions only and are never read as business rows. */
+/* The workbook wraps the contract sheets (28 in the 1.0 pack, 31 from 1.2)
+   in three guidance sheets. They carry instructions only and are never read as business rows. */
 export const START_HERE_SHEET = "Start Here";
 export const FIELD_GUIDE_SHEET = "Field Guide";
 export const IMPORT_RULES_SHEET = "Import Rules";
@@ -140,8 +148,11 @@ export const SUPPORTED_ENTITY_SHEETS = [
   "Product Categories",
   "Variants",
   "Branch Prices",
+  "Sales Channels",
+  "Variant Channel Prices",
   "Modifier Groups",
   "Modifier Options",
+  "Modifier Option Channel Prices",
   "Product Modifiers",
   "Menus",
   "Menu Branches",

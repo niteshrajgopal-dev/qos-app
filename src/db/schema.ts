@@ -907,6 +907,234 @@ export const catalogueModifierOptionTranslations = qos.table(
   ],
 );
 
+/* QOS-213: tenant sales-channel identities (aggregators and other channels)
+   and their separate variant / modifier-option price lists. A channel is not
+   a location: it has no branch, no stock and no storefront. Absence of a
+   price row means "no explicit channel price" (inherit central); a row with
+   amount_minor = 0 is a genuine zero price. Migration 0056. */
+export const salesChannels = qos.table(
+  "sales_channels",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    code: text("code").notNull(),
+    displayName: text("display_name").notNull(),
+    kind: text("kind").notNull().default("aggregator"),
+    workbookSlot: text("workbook_slot"),
+    status: text("status").notNull().default("active"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    unique("sales_channels_tenant_public_id_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    unique("sales_channels_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("sales_channels_tenant_code_unique").on(table.tenantId, table.code),
+    uniqueIndex("sales_channels_tenant_workbook_slot_unique")
+      .on(table.tenantId, table.workbookSlot)
+      .where(sql`"workbook_slot" IS NOT NULL`),
+    check(
+      "sales_channels_public_id_format",
+      sql`${table.publicId} ~ '^schan_[a-z0-9_-]+$'`,
+    ),
+    check(
+      "sales_channels_code_format",
+      sql`${table.code} ~ '^[a-z0-9_]+$' AND char_length(${table.code}) <= 64`,
+    ),
+    check(
+      "sales_channels_display_name_len",
+      sql`char_length(btrim(${table.displayName})) BETWEEN 1 AND 120`,
+    ),
+    check("sales_channels_kind_check", sql`${table.kind} IN ('aggregator', 'other')`),
+    check(
+      "sales_channels_workbook_slot_check",
+      sql`${table.workbookSlot} IS NULL OR ${table.workbookSlot} IN ('aggregator_1', 'aggregator_2', 'aggregator_3')`,
+    ),
+    check("sales_channels_status_check", sql`${table.status} IN ('active', 'archived')`),
+    check("sales_channels_version_check", sql`${table.version} >= 1`),
+    index("sales_channels_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const catalogueVariantChannelPrices = qos.table(
+  "catalogue_variant_channel_prices",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    variantId: uuid("variant_id").notNull(),
+    channelId: uuid("channel_id").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    amountMinor: integer("amount_minor").notNull(),
+    version: integer("version").notNull().default(1),
+    centralPriceVersionAtOverride: integer(
+      "central_price_version_at_override",
+    ).notNull(),
+    createdBySubject: text("created_by_subject").notNull(),
+    updatedBySubject: text("updated_by_subject").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "catalogue_variant_channel_prices_variant_fk",
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [catalogueVariants.tenantId, catalogueVariants.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "catalogue_variant_channel_prices_channel_fk",
+      columns: [table.tenantId, table.channelId],
+      foreignColumns: [salesChannels.tenantId, salesChannels.id],
+    }).onDelete("restrict"),
+    unique("catalogue_variant_channel_prices_unique").on(
+      table.tenantId,
+      table.variantId,
+      table.channelId,
+      table.currency,
+    ),
+    check(
+      "catalogue_variant_channel_prices_amount_check",
+      sql`${table.amountMinor} >= 0`,
+    ),
+    check(
+      "catalogue_variant_channel_prices_version_check",
+      sql`${table.version} >= 1`,
+    ),
+    index("catalogue_variant_channel_prices_tenant_id_idx").on(table.tenantId),
+  ],
+);
+
+export const catalogueModifierOptionChannelPrices = qos.table(
+  "catalogue_modifier_option_channel_prices",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    modifierOptionId: uuid("modifier_option_id").notNull(),
+    channelId: uuid("channel_id").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    amountMinor: integer("amount_minor").notNull(),
+    version: integer("version").notNull().default(1),
+    createdBySubject: text("created_by_subject").notNull(),
+    updatedBySubject: text("updated_by_subject").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "catalogue_modifier_option_channel_prices_option_fk",
+      columns: [table.tenantId, table.modifierOptionId],
+      foreignColumns: [
+        catalogueModifierOptions.tenantId,
+        catalogueModifierOptions.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "catalogue_modifier_option_channel_prices_channel_fk",
+      columns: [table.tenantId, table.channelId],
+      foreignColumns: [salesChannels.tenantId, salesChannels.id],
+    }).onDelete("restrict"),
+    unique("catalogue_modifier_option_channel_prices_unique").on(
+      table.tenantId,
+      table.modifierOptionId,
+      table.channelId,
+      table.currency,
+    ),
+    check(
+      "catalogue_modifier_option_channel_prices_amount_check",
+      sql`${table.amountMinor} >= 0`,
+    ),
+    check(
+      "catalogue_modifier_option_channel_prices_version_check",
+      sql`${table.version} >= 1`,
+    ),
+    index("catalogue_modifier_option_channel_prices_tenant_id_idx").on(
+      table.tenantId,
+    ),
+  ],
+);
+
+export const catalogueVariantChannelPriceResetAudits = qos.table(
+  "catalogue_variant_channel_price_reset_audits",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    variantId: uuid("variant_id").notNull(),
+    channelId: uuid("channel_id").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    previousAmountMinor: integer("previous_amount_minor").notNull(),
+    resetBySubject: text("reset_by_subject").notNull(),
+    resetAt: timestamp("reset_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "catalogue_variant_channel_price_reset_audits_variant_fk",
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [catalogueVariants.tenantId, catalogueVariants.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "catalogue_variant_channel_price_reset_audits_channel_fk",
+      columns: [table.tenantId, table.channelId],
+      foreignColumns: [salesChannels.tenantId, salesChannels.id],
+    }).onDelete("restrict"),
+    index("catalogue_variant_channel_price_reset_audits_tenant_id_idx").on(
+      table.tenantId,
+    ),
+  ],
+);
+
+export const catalogueModifierOptionChannelPriceResetAudits = qos.table(
+  "catalogue_option_channel_price_reset_audits",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    modifierOptionId: uuid("modifier_option_id").notNull(),
+    channelId: uuid("channel_id").notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    previousAmountMinor: integer("previous_amount_minor").notNull(),
+    resetBySubject: text("reset_by_subject").notNull(),
+    resetAt: timestamp("reset_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => [
+    foreignKey({
+      name: "catalogue_option_channel_price_reset_audits_option_fk",
+      columns: [table.tenantId, table.modifierOptionId],
+      foreignColumns: [
+        catalogueModifierOptions.tenantId,
+        catalogueModifierOptions.id,
+      ],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "catalogue_option_channel_price_reset_audits_channel_fk",
+      columns: [table.tenantId, table.channelId],
+      foreignColumns: [salesChannels.tenantId, salesChannels.id],
+    }).onDelete("restrict"),
+    index(
+      "catalogue_option_channel_price_reset_audits_tenant_id_idx",
+    ).on(table.tenantId),
+  ],
+);
+
 export const catalogueProductModifierGroups = qos.table(
   "catalogue_product_modifier_groups",
   {

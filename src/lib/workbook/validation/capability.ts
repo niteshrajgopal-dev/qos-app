@@ -1,3 +1,8 @@
+import {
+  CHANNEL_PRICE_APPLY_OWNER,
+  channelFieldCapability,
+  type ChannelSheetName,
+} from "@/lib/workbook/channel-price-capabilities";
 import { contractSheet, isDeferredField, sheetSupport } from "@/lib/workbook/contract";
 import { capabilityFor, SOURCE_MAP_SHEET } from "@/lib/workbook/dictionary";
 import {
@@ -25,9 +30,20 @@ export const PROVENANCE_COPIES = new Set(["price", "tax", "option_price", "ingre
 /** Assignment-policy columns QOS-212 can store, but workbook apply is QOS-200's. */
 export const PRODUCT_MODIFIER_POLICY_APPLY_OWNER = "QOS-200 apply";
 
+export { CHANNEL_PRICE_APPLY_OWNER };
+
 function productModifierAssignmentCapability(sheet: string, column: string) {
   if (sheet !== "Product Modifiers") return undefined;
   return PRODUCT_MODIFIER_ASSIGNMENT_CAPABILITIES[column as ProductModifierAssignmentField];
+}
+
+function channelPriceApplyDeferred(sheet: string, column: string) {
+  if (sheet !== "Sales Channels" && sheet !== "Variant Channel Prices" && sheet !== "Modifier Option Channel Prices") {
+    return false;
+  }
+  const capability = channelFieldCapability(sheet as ChannelSheetName, column);
+  // Persistable values and review-only lookup fields are applied by QOS-200.
+  return capability === "persistable" || capability === "review_only";
 }
 
 /** Owner of a deferred value: the dictionary 1.1 entry when there is one, else the owner of its sheet. */
@@ -36,6 +52,7 @@ export function deferredOwner(sheet: string, column: string) {
   if (fromDictionary) return fromDictionary;
   const assignment = productModifierAssignmentCapability(sheet, column);
   if (assignment?.apply === "QOS-200") return PRODUCT_MODIFIER_POLICY_APPLY_OWNER;
+  if (channelPriceApplyDeferred(sheet, column)) return CHANNEL_PRICE_APPLY_OWNER;
   return sheetOwner(sheet);
 }
 
@@ -48,7 +65,8 @@ export function isDeferredColumn(sheet: string, column: string) {
   if (definition && isDeferredField(definition)) return true;
   if (capabilityFor(sheet, column)?.class === "deferred") return true;
   const assignment = productModifierAssignmentCapability(sheet, column);
-  return assignment?.apply === "QOS-200";
+  if (assignment?.apply === "QOS-200") return true;
+  return channelPriceApplyDeferred(sheet, column);
 }
 
 export function decideField(sheet: string, column: string): Omit<FieldDecision, "rowsWithValues"> {

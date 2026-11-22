@@ -43,6 +43,17 @@ describe("FIELD_CAPABILITIES", () => {
       expect(FIELD_CAPABILITIES["Product Modifiers"], column).not.toContain(column);
     }
     expect(FIELD_CAPABILITIES.Variants).not.toContain("price_tax_basis");
+    expect(FIELD_CAPABILITIES["Sales Channels"]).toEqual([]);
+    expect(FIELD_CAPABILITIES["Variant Channel Prices"]).toEqual([]);
+    expect(FIELD_CAPABILITIES["Modifier Option Channel Prices"]).toEqual([]);
+    for (const [sheet, column] of [
+      ["Sales Channels", "channel_code"],
+      ["Sales Channels", "display_name"],
+      ["Variant Channel Prices", "amount_minor"],
+      ["Modifier Option Channel Prices", "amount_minor"],
+    ] as const) {
+      expect(isDeferredColumn(sheet, column), `${sheet}.${column}`).toBe(true);
+    }
     expect(FIELD_CAPABILITIES.Variants).not.toContain("tax_rate_basis_points");
     const deferred = splitDeferred("Variants", [
       { column: "tax_rate_basis_points", owner: "QOS-215", value: "500" },

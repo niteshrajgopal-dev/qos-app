@@ -4,6 +4,7 @@ import { SOURCE_MAP_SHEET } from "@/lib/workbook/dictionary";
 import {
   computeFieldDecisions,
   decideField,
+  CHANNEL_PRICE_APPLY_OWNER,
   PRODUCT_MODIFIER_POLICY_APPLY_OWNER,
   VALIDATED_OWNER,
 } from "@/lib/workbook/validation/capability";
@@ -36,6 +37,29 @@ describe("field decisions", () => {
       });
     }
     expect(decideField("Product Modifiers", "sort_order")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER });
+  });
+
+  it("defers v1.2 persistable channel-price columns to QOS-200 apply", () => {
+    for (const [sheet, column] of [
+      ["Sales Channels", "channel_code"],
+      ["Sales Channels", "display_name"],
+      ["Sales Channels", "kind"],
+      ["Sales Channels", "workbook_slot"],
+      ["Sales Channels", "status"],
+      ["Variant Channel Prices", "amount_minor"],
+      ["Variant Channel Prices", "currency"],
+      ["Variant Channel Prices", "workbook_slot"],
+      ["Modifier Option Channel Prices", "amount_minor"],
+      ["Modifier Option Channel Prices", "currency"],
+      ["Modifier Option Channel Prices", "workbook_slot"],
+    ] as const) {
+      expect(decideField(sheet, column), `${sheet}.${column}`).toMatchObject({
+        decision: "deferred",
+        owner: CHANNEL_PRICE_APPLY_OWNER,
+      });
+    }
+    expect(decideField("Variant Channel Prices", "action")).toMatchObject({ decision: "mechanics" });
+    expect(decideField("Sales Channels", "expected_revision")).toMatchObject({ decision: "mechanics" });
   });
 
   it("calls supported columns validated, steering columns mechanics and Phase 3 sheets rejected", () => {
