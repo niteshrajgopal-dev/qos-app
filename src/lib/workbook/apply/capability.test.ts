@@ -55,6 +55,21 @@ describe("FIELD_CAPABILITIES", () => {
       expect(isDeferredColumn(sheet, column), `${sheet}.${column}`).toBe(true);
     }
     expect(FIELD_CAPABILITIES.Variants).not.toContain("tax_rate_basis_points");
+    for (const [sheet, column] of [
+      ["Products", "preparation_time_minutes"],
+      ["Products", "walking_time_minutes"],
+      ["Products", "high_salt"],
+      ["Products", "is_stock_product"],
+      ["Variants", "selling_quantity_basis"],
+      ["Variants", "price_unit"],
+      ["Variants", "price_unit_quantity"],
+      ["Modifier Options", "nutrition_calories"],
+    ] as const) {
+      expect(isDeferredColumn(sheet, column), `${sheet}.${column}`).toBe(true);
+      expect(FIELD_CAPABILITIES[sheet], `${sheet}.${column}`).not.toContain(column);
+    }
+    expect(FIELD_CAPABILITIES.Products).toContain("nutrition_calories");
+    expect(isDeferredColumn("Products", "nutrition_calories")).toBe(false);
     const deferred = splitDeferred("Variants", [
       { column: "tax_rate_basis_points", owner: "QOS-215", value: "500" },
       { column: "product_cost", owner: "QOS-215", value: "1.20" },

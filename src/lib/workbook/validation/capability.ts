@@ -9,6 +9,10 @@ import {
   PRODUCT_MODIFIER_ASSIGNMENT_CAPABILITIES,
   type ProductModifierAssignmentField,
 } from "@/lib/workbook/product-modifier-assignment-capabilities";
+import {
+  SELLING_ATTRIBUTE_APPLY_OWNER,
+  sellingAttributeColumnCapability,
+} from "@/lib/workbook/selling-attributes-capabilities";
 import { sheetOwner } from "@/lib/workbook/validation/actions";
 import type { FieldDecision, ReviewInput } from "@/lib/workbook/validation/model";
 
@@ -30,7 +34,7 @@ export const PROVENANCE_COPIES = new Set(["price", "tax", "option_price", "ingre
 /** Assignment-policy columns QOS-212 can store, but workbook apply is QOS-200's. */
 export const PRODUCT_MODIFIER_POLICY_APPLY_OWNER = "QOS-200 apply";
 
-export { CHANNEL_PRICE_APPLY_OWNER };
+export { CHANNEL_PRICE_APPLY_OWNER, SELLING_ATTRIBUTE_APPLY_OWNER };
 
 function productModifierAssignmentCapability(sheet: string, column: string) {
   if (sheet !== "Product Modifiers") return undefined;
@@ -53,12 +57,14 @@ export function deferredOwner(sheet: string, column: string) {
   const assignment = productModifierAssignmentCapability(sheet, column);
   if (assignment?.apply === "QOS-200") return PRODUCT_MODIFIER_POLICY_APPLY_OWNER;
   if (channelPriceApplyDeferred(sheet, column)) return CHANNEL_PRICE_APPLY_OWNER;
+  if (sellingAttributeColumnCapability(sheet, column)) return SELLING_ATTRIBUTE_APPLY_OWNER;
   return sheetOwner(sheet);
 }
 
 /** Whether a column of a supported sheet is not applied by this leaf.
     Includes dictionary/contract deferred fields, and the v1.1 Product
-    Modifiers policy columns whose workbook apply belongs to QOS-200. */
+    Modifiers policy columns, v1.2 channel-price columns and v1.3 selling-attribute
+    columns whose workbook apply belongs to QOS-200. */
 export function isDeferredColumn(sheet: string, column: string) {
   if (sheetSupport(sheet) !== "supported") return true;
   const definition = contractSheet(sheet).columns.find((candidate) => candidate.key === column);
@@ -66,7 +72,8 @@ export function isDeferredColumn(sheet: string, column: string) {
   if (capabilityFor(sheet, column)?.class === "deferred") return true;
   const assignment = productModifierAssignmentCapability(sheet, column);
   if (assignment?.apply === "QOS-200") return true;
-  return channelPriceApplyDeferred(sheet, column);
+  if (channelPriceApplyDeferred(sheet, column)) return true;
+  return Boolean(sellingAttributeColumnCapability(sheet, column));
 }
 
 export function decideField(sheet: string, column: string): Omit<FieldDecision, "rowsWithValues"> {

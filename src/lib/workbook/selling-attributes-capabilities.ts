@@ -122,6 +122,16 @@ export function sellingAttributeCapability(key: string) {
   return SELLING_ATTRIBUTE_CAPABILITIES.find((capability) => capability.key === key);
 }
 
+/** v1.3 selling-attribute columns are persistable in the catalogue, but workbook apply is QOS-200's. */
+export const SELLING_ATTRIBUTE_APPLY_OWNER = "QOS-200 apply";
+
+/** The persistable capability behind a v1.3 contract column, or undefined for any other column. */
+export function sellingAttributeColumnCapability(sheet: string, column: string) {
+  return SELLING_ATTRIBUTE_CAPABILITIES.find(
+    (capability) => capability.classification === "persistable" && capability.sheet === sheet && capability.column === column,
+  );
+}
+
 export type SellingAttributeDiagnostic = {
   severity: "error" | "warning";
   classification: SellingAttributeCapabilityClass | "invalid";

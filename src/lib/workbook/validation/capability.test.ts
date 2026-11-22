@@ -6,6 +6,7 @@ import {
   decideField,
   CHANNEL_PRICE_APPLY_OWNER,
   PRODUCT_MODIFIER_POLICY_APPLY_OWNER,
+  SELLING_ATTRIBUTE_APPLY_OWNER,
   VALIDATED_OWNER,
 } from "@/lib/workbook/validation/capability";
 import { qosInput } from "@/lib/workbook/validation/test-support";
@@ -60,6 +61,27 @@ describe("field decisions", () => {
     }
     expect(decideField("Variant Channel Prices", "action")).toMatchObject({ decision: "mechanics" });
     expect(decideField("Sales Channels", "expected_revision")).toMatchObject({ decision: "mechanics" });
+  });
+
+  it("defers v1.3 selling-attribute columns to QOS-200 apply and keeps Products.nutrition_calories validated", () => {
+    for (const [sheet, column] of [
+      ["Products", "preparation_time_minutes"],
+      ["Products", "walking_time_minutes"],
+      ["Products", "high_salt"],
+      ["Products", "is_stock_product"],
+      ["Variants", "selling_quantity_basis"],
+      ["Variants", "price_unit"],
+      ["Variants", "price_unit_quantity"],
+      ["Modifier Options", "nutrition_calories"],
+    ] as const) {
+      expect(decideField(sheet, column), `${sheet}.${column}`).toMatchObject({
+        decision: "deferred",
+        owner: SELLING_ATTRIBUTE_APPLY_OWNER,
+      });
+    }
+    // The 1.0 Products.nutrition_calories column is a different field and stays validated.
+    expect(decideField("Products", "nutrition_calories")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER });
+    expect(decideField("Variants", "amount_minor")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER });
   });
 
   it("calls supported columns validated, steering columns mechanics and Phase 3 sheets rejected", () => {
