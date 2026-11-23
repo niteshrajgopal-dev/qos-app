@@ -542,6 +542,15 @@ describe("QOS-195 inventory copy", () => {
     expect(letters === "" || letters !== letters.toUpperCase()).toBe(true);
   });
 
+  it("keeps the inventory notice free of ticket IDs and English in Arabic", () => {
+    const en = STAFF_UI_COPY.en.inventoryEmptyBody;
+    const ar = STAFF_UI_COPY.ar.inventoryEmptyBody;
+    expect(en).toBe("Stock levels, suppliers, categories and costs are coming soon.");
+    for (const text of [en, ar]) expect(text).not.toMatch(/QOS|\d/);
+    expect(ar).toMatch(/[\u0600-\u06FF]/);
+    expect(ar).not.toMatch(/[A-Za-z]/);
+  });
+
   it("references every key from the inventory surfaces", () => {
     const unused = QOS_195_COPY_KEYS.filter((key) => !sources.includes(`"${key}"`));
     expect(unused).toEqual([]);

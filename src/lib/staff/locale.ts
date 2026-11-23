@@ -429,7 +429,7 @@ export const STAFF_UI_COPY = {
     inventoryDescription:
       "Ingredients, units, suppliers and stock levels for each branch.",
     inventoryEmptyBody:
-      "Stock levels arrive with QOS‑201; suppliers with QOS‑196; categories and costs with QOS‑197.",
+      "Stock levels, suppliers, categories and costs are coming soon.",
     kitchenDescription: "Prep targets and counts for the selected branch.",
     kitchenEmptyBody:
       "Kitchen prep arrives with QOS‑207 and QOS‑208. No prep targets or counts exist yet.",
@@ -1518,7 +1518,7 @@ export const STAFF_UI_COPY = {
     inventoryDescription:
       "المكونات والوحدات والموردون ومستويات المخزون لكل فرع.",
     inventoryEmptyBody:
-      "تصل مستويات المخزون مع المهمة QOS‑201، والموردون مع المهمة QOS‑196، والتصنيفات والتكاليف مع المهمة QOS‑197.",
+      "مستويات المخزون والموردون والتصنيفات والتكاليف قادمة قريبًا.",
     kitchenDescription: "أهداف التحضير وعمليات العدّ للفرع المحدد.",
     kitchenEmptyBody:
       "يصل تحضير المطبخ مع المهمتين QOS‑207 وQOS‑208. لا توجد أهداف تحضير أو عمليات عدّ بعد.",
