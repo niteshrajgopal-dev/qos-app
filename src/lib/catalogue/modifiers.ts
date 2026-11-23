@@ -28,6 +28,7 @@ import {
   type AttachModifierGroupInput,
   type CreateModifierGroupInput,
   type CreateModifierOptionInput,
+  type DeleteModifierGroupInput,
   type ReorderModifierOptionsInput,
   type ReorderProductModifierGroupsInput,
   type UpdateModifierGroupInput,
@@ -36,6 +37,7 @@ import {
   validateAttachModifierGroupInput,
   validateCreateModifierGroupInput,
   validateCreateModifierOptionInput,
+  validateDeleteModifierGroupInput,
   validateReorderModifierOptionsInput,
   validateReorderProductModifierGroupsInput,
   validateUpdateModifierGroupInput,
@@ -56,6 +58,8 @@ import {
   loadCatalogueProductForMutationInTx,
 } from "@/lib/catalogue/product-mutation-policy";
 import { withTenantContext } from "@/lib/tenant/context";
+
+export const MODIFIER_GROUP_ASSIGNED_CODE = "modifier_group_assigned";
 
 export class CatalogueModifierError extends Error {
   readonly statusCode: number;
@@ -876,6 +880,146 @@ export async function updateModifierGroup(
       });
 
       return loadModifierGroupEditorView(tx, tenantId, group.id);
+    });
+  } catch (error) {
+    return mapCatalogueError(error);
+  }
+}
+
+/**
+ * Hard-deletes a modifier group and all of its options. Refused while any
+ * product still references the group; nothing outside the group, its options
+ * and their translations is touched.
+ */
+export async function deleteModifierGroup(
+  db: DbClient,
+  tenantId: string,
+  groupPublicId: string,
+  input: DeleteModifierGroupInput,
+  staffSubject: string,
+  membership: ActiveStaffMembership,
+): Promise<{ publicId: string; version: number; optionPublicIds: string[] }> {
+  try {
+    const { expectedVersion } = validateDeleteModifierGroupInput(input);
+
+    return await withTenantContext(db, tenantId, async (tx) => {
+      // Row lock serialises against a concurrent attach, whose FK check takes
+      // a KEY SHARE lock on this row.
+      const [group] = await tx
+        .select()
+        .from(catalogueModifierGroups)
+        .where(
+          and(
+            eq(catalogueModifierGroups.tenantId, tenantId),
+            eq(catalogueModifierGroups.publicId, groupPublicId),
+          ),
+        )
+        .limit(1)
+        .for("update");
+
+      if (!group) {
+        throw new CatalogueModifierError("Modifier group not found.", 404);
+      }
+
+      const versionConflict = () =>
+        new CatalogueModifierConflictError(
+          "Modifier group was updated elsewhere. Reload and try again.",
+          "expectedVersion",
+        );
+
+      if (group.version !== expectedVersion) {
+        throw versionConflict();
+      }
+
+      if ((await countAffectedProducts(tx, tenantId, group.id)) > 0) {
+        throw new CatalogueModifierConflictError(
+          "Detach this modifier group from all products before deleting it.",
+          "affectedProductCount",
+          MODIFIER_GROUP_ASSIGNED_CODE,
+        );
+      }
+
+      const options = await tx
+        .select({
+          id: catalogueModifierOptions.id,
+          publicId: catalogueModifierOptions.publicId,
+        })
+        .from(catalogueModifierOptions)
+        .where(
+          and(
+            eq(catalogueModifierOptions.tenantId, tenantId),
+            eq(catalogueModifierOptions.modifierGroupId, group.id),
+          ),
+        )
+        .orderBy(asc(catalogueModifierOptions.sortOrder));
+      const optionIds = options.map((option) => option.id);
+      const optionPublicIds = options.map((option) => option.publicId);
+
+      if (optionIds.length > 0) {
+        await tx
+          .delete(catalogueModifierOptionTranslations)
+          .where(
+            and(
+              eq(catalogueModifierOptionTranslations.tenantId, tenantId),
+              inArray(
+                catalogueModifierOptionTranslations.modifierOptionId,
+                optionIds,
+              ),
+            ),
+          );
+
+        await tx
+          .delete(catalogueModifierOptions)
+          .where(
+            and(
+              eq(catalogueModifierOptions.tenantId, tenantId),
+              inArray(catalogueModifierOptions.id, optionIds),
+            ),
+          );
+      }
+
+      await tx
+        .delete(catalogueModifierGroupTranslations)
+        .where(
+          and(
+            eq(catalogueModifierGroupTranslations.tenantId, tenantId),
+            eq(catalogueModifierGroupTranslations.modifierGroupId, group.id),
+          ),
+        );
+
+      const [deleted] = await tx
+        .delete(catalogueModifierGroups)
+        .where(
+          and(
+            eq(catalogueModifierGroups.tenantId, tenantId),
+            eq(catalogueModifierGroups.id, group.id),
+            eq(catalogueModifierGroups.version, expectedVersion),
+          ),
+        )
+        .returning({ id: catalogueModifierGroups.id });
+
+      if (!deleted) {
+        throw versionConflict();
+      }
+
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        actorSubject: staffSubject,
+        actorClass: auditActorClassFromStaffRole(membership.role),
+        action: "catalogue.modifier_group.delete",
+        entityType: "catalogue_modifier_group",
+        entityPublicId: groupPublicId,
+        entityVersion: group.version,
+        changeSummary: {
+          internalName: group.internalName,
+          status: group.status,
+          optionPublicIds,
+          optionCount: optionPublicIds.length,
+          affectedProductCount: 0,
+        },
+      });
+
+      return { publicId: group.publicId, version: group.version, optionPublicIds };
     });
   } catch (error) {
     return mapCatalogueError(error);

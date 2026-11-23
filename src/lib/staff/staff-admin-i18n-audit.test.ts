@@ -64,6 +64,8 @@ const AUDITED_SURFACES = [
   "components/staff/catalogue/use-channel-price-bundle.ts",
   // QOS-214 selling attributes and supplied nutrition fields
   "app/tenants/[tenantId]/catalogue/products/selling-attributes-fields.tsx",
+  // Modifier group editor: delete block (rest of the editor is not yet localised)
+  "app/tenants/[tenantId]/catalogue/modifier-groups/modifier-group-editor.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -241,6 +243,10 @@ const FORBIDDEN_LITERALS = [
   ">Not declared<",
   ">Unknown<",
   '"Calories (optional)"',
+  // Modifier group delete
+  '"Delete this modifier group?"',
+  '"Unable to delete modifier group."',
+  ">Delete<",
 ];
 
 /* Every QOS-214 key has English and Arabic copy, and the Arabic is Arabic. */

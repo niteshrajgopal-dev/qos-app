@@ -29,6 +29,10 @@ export type UpdateModifierGroupInput = {
   translations?: Partial<Record<ProductLocale, ModifierTranslationInput>>;
 };
 
+export type DeleteModifierGroupInput = {
+  expectedVersion: number;
+};
+
 export type CreateModifierOptionInput = {
   expectedGroupVersion: number;
   publicId?: string;
@@ -228,6 +232,24 @@ export function validateUpdateModifierGroupInput(input: UpdateModifierGroupInput
     status: input.status,
     translations: normalizeTranslations(input.translations),
   };
+}
+
+export function validateDeleteModifierGroupInput(
+  input: DeleteModifierGroupInput | null | undefined,
+) {
+  const expectedVersion = input?.expectedVersion;
+  if (
+    typeof expectedVersion !== "number" ||
+    !Number.isInteger(expectedVersion) ||
+    expectedVersion < 1
+  ) {
+    throw new CatalogueValidationError(
+      "expectedVersion must be a positive integer.",
+      "expectedVersion",
+    );
+  }
+
+  return { expectedVersion };
 }
 
 export function validateCreateModifierOptionInput(
