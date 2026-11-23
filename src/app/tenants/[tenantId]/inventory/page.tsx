@@ -1,5 +1,12 @@
-import { Phase2EntryScreen } from "@/components/staff/phase2-entry-screen";
+import { InventoryScreen } from "./inventory-screen";
 
-export default function TenantInventoryPage() {
-  return <Phase2EntryScreen area="inventory" />;
+type PageProps = {
+  params: Promise<{ tenantId: string }>;
+  searchParams: Promise<{ tab?: string | string[] }>;
+};
+
+export default async function TenantInventoryPage({ params, searchParams }: PageProps) {
+  const { tenantId } = await params;
+  const { tab } = await searchParams;
+  return <InventoryScreen tenantId={tenantId} initialTab={tab === "units" ? "units" : "items"} />;
 }

@@ -1341,3 +1341,47 @@ article.qosp-subcard > .qosp-button-row {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- Inventory units, items and conversions (QOS-195) ----------
+   Rows reuse the branch-row stack so lists reflow at 360px; sentences are
+   plain paragraphs that wrap, and codes and numbers sit in LTR isolates. */
+.qosp-inventory-units {
+  margin: 0;
+}
+.qosp-inventory-unit-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  min-width: 0;
+}
+.qosp-inventory-unit-line dd {
+  margin: 0;
+  color: var(--portal-text-soft);
+}
+.qosp-inventory-preview,
+.qosp-inventory-rule {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.qosp-inventory-sentence {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--portal-text);
+  overflow-wrap: anywhere;
+}
+.qosp-inventory-path,
+.qosp-inventory-rule-meta {
+  margin-bottom: 0;
+}
+.qosp-inventory-actions {
+  margin-top: 16px;
+}
+.qosp-inventory-history > summary {
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--portal-text-soft);
+}

@@ -15,18 +15,12 @@ import { staffCopyWith, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/loc
    (QOS-192). They show no data, offer no actions and name the leaf that
    delivers the area, plus the branch context the area will open in. */
 
-export type Phase2EntryArea = "inventory" | "kitchen" | "sales" | "reports" | "recipes";
+export type Phase2EntryArea = "kitchen" | "sales" | "reports" | "recipes";
 
 const AREA_COPY: Record<
   Phase2EntryArea,
   { title: StaffUiCopyKey; description: StaffUiCopyKey; body: StaffUiCopyKey; icon: string }
 > = {
-  inventory: {
-    title: "ingredientsAndStock",
-    description: "inventoryDescription",
-    body: "inventoryEmptyBody",
-    icon: "boxes",
-  },
   kitchen: {
     title: "kitchen",
     description: "kitchenDescription",

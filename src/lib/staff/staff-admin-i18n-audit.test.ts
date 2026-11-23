@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-import { STAFF_UI_COPY, type StaffUiCopyKey } from "@/lib/staff/locale";
+import { STAFF_COUNT_COPY, STAFF_UI_COPY, staffCount, type StaffUiCopyKey } from "@/lib/staff/locale";
 
 const ROOT = path.join(process.cwd(), "src");
 
@@ -67,7 +67,17 @@ const AUDITED_SURFACES = [
   // Modifier group editor: delete block (rest of the editor is not yet localised)
   "app/tenants/[tenantId]/catalogue/modifier-groups/modifier-group-editor.tsx",
   // QOS-215 selling tax and reference cost fields
-  "app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields.tsx",
+  "app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields.tsx",  // QOS-195 inventory units, items and item conversions
+  "app/tenants/[tenantId]/inventory/inventory-screen.tsx",
+  "app/tenants/[tenantId]/inventory/inventory-client.ts",
+  "app/tenants/[tenantId]/inventory/unit-editor.tsx",
+  "app/tenants/[tenantId]/inventory/item-editor.tsx",
+  "app/tenants/[tenantId]/inventory/item-conversions-panel.tsx",
+  "app/tenants/[tenantId]/inventory/conversion-preview-panel.tsx",
+  "app/tenants/[tenantId]/inventory/units/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/units/[unitPublicId]/edit/page.tsx",
+  "app/tenants/[tenantId]/inventory/items/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/items/[itemPublicId]/page.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -126,7 +136,17 @@ const PORTAL_RESTYLED_SURFACES = [
   "components/staff/catalogue/channel-price-state.ts",
   "components/staff/catalogue/use-channel-price-bundle.ts",
   "app/tenants/[tenantId]/catalogue/products/selling-attributes-fields.tsx",
-  "app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields.tsx",
+  "app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields.tsx",  // QOS-195 inventory units, items and item conversions
+  "app/tenants/[tenantId]/inventory/inventory-screen.tsx",
+  "app/tenants/[tenantId]/inventory/inventory-client.ts",
+  "app/tenants/[tenantId]/inventory/unit-editor.tsx",
+  "app/tenants/[tenantId]/inventory/item-editor.tsx",
+  "app/tenants/[tenantId]/inventory/item-conversions-panel.tsx",
+  "app/tenants/[tenantId]/inventory/conversion-preview-panel.tsx",
+  "app/tenants/[tenantId]/inventory/units/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/units/[unitPublicId]/edit/page.tsx",
+  "app/tenants/[tenantId]/inventory/items/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/items/[itemPublicId]/page.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -260,6 +280,19 @@ const FORBIDDEN_LITERALS = [
   '"Price tax basis"',
   '"Tax rate"',
   '"No cost policy"',
+  // QOS-195 inventory units, items and conversions
+  ">Add item<",
+  ">Add custom unit<",
+  ">Add standard unit<",
+  ">Save unit<",
+  ">Save item<",
+  ">Change factor<",
+  ">End this rule<",
+  ">Add conversion<",
+  '"Conversions for this item"',
+  '"How quantities convert"',
+  '"Storage unit"',
+  '"Not set"',
 ];
 
 /* Every QOS-214 key has English and Arabic copy, and the Arabic is Arabic. */
@@ -371,5 +404,164 @@ describe("QOS-215 selling tax and reference cost copy", () => {
   it("references every key from the surfaces that render it", () => {
     const unused = keys.filter((key) => !sources.includes(`"${key}"`));
     expect(unused).toEqual([]);
+  });
+});
+
+/* QOS-195: every inventory key has English and Arabic copy, the Arabic is
+   Arabic with no English words left in it, nothing is shouted, and every key
+   is rendered by the inventory surfaces. Unit codes are data, not copy. */
+const QOS_195_COPY_KEYS = [
+  "inventoryTabsLabel",
+  "inventoryItemsTab",
+  "inventoryUnitsTab",
+  "inventoryMasterDataNote",
+  "inventoryReadOnlyNote",
+  "inventoryLoading",
+  "inventoryItemsEmpty",
+  "inventoryUnitsEmpty",
+  "inventoryBack",
+  "inventoryStatusActive",
+  "inventoryStatusArchived",
+  "addItem",
+  "addStandardUnit",
+  "addCustomUnit",
+  "openItem",
+  "editUnit",
+  "newItemTitle",
+  "standardUnitPicker",
+  "standardUnitHelp",
+  "customUnitHelp",
+  "allStandardUnitsAdded",
+  "selectUnit",
+  "unitCode",
+  "unitCodeHelp",
+  "unitNameEn",
+  "unitNameAr",
+  "quantityKind",
+  "quantityKindMass",
+  "quantityKindVolume",
+  "quantityKindCount",
+  "quantityKindPack",
+  "decimalPlaces",
+  "decimalPlacesHelp",
+  "standardUnitBadge",
+  "customUnitBadge",
+  "unitCodeImmutable",
+  "unitUsage",
+  "saveUnit",
+  "unitSaved",
+  "archiveUnit",
+  "restoreUnit",
+  "archiveUnitConfirm",
+  "unitInUse",
+  "unitArchivedNote",
+  "itemNameEn",
+  "itemNameAr",
+  "itemKind",
+  "itemKindPurchased",
+  "itemKindPrepared",
+  "storageUnit",
+  "recipeUnit",
+  "purchaseUnit",
+  "unitNotSet",
+  "saveItem",
+  "itemSaved",
+  "archiveItem",
+  "restoreItem",
+  "archiveItemConfirm",
+  "itemArchivedNote",
+  "conversionsTitle",
+  "conversionsHelp",
+  "conversionsEmpty",
+  "conversionRule",
+  "conversionEffectiveFrom",
+  "conversionEffectiveTo",
+  "conversionRevision",
+  "conversionCurrent",
+  "conversionJustificationLine",
+  "conversionSaved",
+  "addConversion",
+  "fromUnit",
+  "toUnit",
+  "factor",
+  "factorHelp",
+  "justification",
+  "justificationHelp",
+  "effectiveFrom",
+  "closeConversionDate",
+  "reviseConversion",
+  "reviseConversionHelp",
+  "saveConversionVersion",
+  "closeConversion",
+  "closeConversionConfirm",
+  "conversionHistory",
+  "conversionHistoryHelp",
+  "conversionPreviewTitle",
+  "previewStorageRecipe",
+  "previewPurchaseStorage",
+  "previewPurchaseRecipe",
+  "previewLine",
+  "previewRounded",
+  "previewReceiptExample",
+  "previewRecipeExample",
+  "previewPathLabel",
+  "previewViaStandard",
+  "previewViaRule",
+  "previewMissingNoRule",
+  "previewMissingMassVolume",
+  "previewMissingPack",
+  "previewMissingDesignation",
+  "previewMissingArchived",
+  "previewComplete",
+  "previewIncomplete",
+  "inventoryLoadError",
+  "inventorySaveError",
+  "versionConflict",
+] as const satisfies readonly StaffUiCopyKey[];
+
+describe("QOS-195 inventory copy", () => {
+  const sources = [
+    "app/tenants/[tenantId]/inventory/inventory-screen.tsx",
+    "app/tenants/[tenantId]/inventory/inventory-client.ts",
+    "app/tenants/[tenantId]/inventory/unit-editor.tsx",
+    "app/tenants/[tenantId]/inventory/item-editor.tsx",
+    "app/tenants/[tenantId]/inventory/item-conversions-panel.tsx",
+    "app/tenants/[tenantId]/inventory/conversion-preview-panel.tsx",
+    "lib/inventory/conversion-preview.ts",
+  ]
+    .map((relative) => readFileSync(path.join(ROOT, relative), "utf8"))
+    .join("\n");
+
+  it.each(QOS_195_COPY_KEYS)("%s has English and Arabic text with no English left in Arabic", (key) => {
+    const en = STAFF_UI_COPY.en[key];
+    const ar = STAFF_UI_COPY.ar[key];
+    expect(en.trim().length).toBeGreaterThan(0);
+    expect(ar).toMatch(/[\u0600-\u06FF]|^1 \{from\} = \{factor\} \{to\}$/);
+    expect(ar.replace(/\{\w+\}/g, "")).not.toMatch(/[A-Za-z]/);
+    const letters = en.replace(/\{\w+\}/g, "").replace(/[^A-Za-z]/g, "");
+    expect(letters === "" || letters !== letters.toUpperCase()).toBe(true);
+  });
+
+  it("references every key from the inventory surfaces", () => {
+    const unused = QOS_195_COPY_KEYS.filter((key) => !sources.includes(`"${key}"`));
+    expect(unused).toEqual([]);
+  });
+
+  it("has Arabic plural forms for the inventory counts", () => {
+    for (const key of ["inventoryItems", "inventoryUnits", "conversionRules", "conversionVersions"] as const) {
+      const forms = STAFF_COUNT_COPY.ar[key];
+      expect(Object.keys(forms).sort(), key).toEqual(["few", "many", "one", "other", "two", "zero"]);
+      for (const text of Object.values(forms)) {
+        expect(text, key).toMatch(/[\u0600-\u06FF]/);
+        expect(text.replace("{count}", ""), key).not.toMatch(/[A-Za-z]/);
+      }
+    }
+    expect(staffCount("ar", "inventoryUnits", 2)).toBe("وحدتان");
+    expect(staffCount("ar", "conversionVersions", 11)).toBe("11 إصدارًا");
+    expect(staffCount("en", "conversionRules", 1)).toBe("1 current rule");
+  });
+
+  it("keeps the inventory surfaces free of all-caps styling", () => {
+    expect(sources).not.toMatch(/uppercase/i);
   });
 });
