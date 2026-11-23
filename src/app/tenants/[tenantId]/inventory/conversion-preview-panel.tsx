@@ -42,8 +42,12 @@ export function ConversionPreviewPanel({ preview }: { preview: ItemQuantityPrevi
                 </PortalBadge>
               ) : sentences ? (
                 <>
-                  <p className="qosp-inventory-sentence">{sentences.forward}</p>
-                  <p className="qosp-inventory-sentence">{sentences.inverse}</p>
+                  <p className="qosp-inventory-sentence">
+                    <bdi dir="ltr">{sentences.forward}</bdi>
+                  </p>
+                  <p className="qosp-inventory-sentence">
+                    <bdi dir="ltr">{sentences.inverse}</bdi>
+                  </p>
                   {sentences.example ? <p className="qosp-inventory-sentence">{sentences.example}</p> : null}
                   {sentences.rounding.map((line) => (
                     <p key={line} className="qosp-meta-line">
@@ -61,7 +65,7 @@ export function ConversionPreviewPanel({ preview }: { preview: ItemQuantityPrevi
                       </span>
                       {pair.result.path.map((hop, index) => (
                         <Fragment key={`${hop.fromCode}-${hop.toCode}-${index}`}>
-                          <PortalBadge tone={hop.source === "standard" ? "positive" : "neutral"}>
+                          <PortalBadge tone={hop.source === "standard" ? "positive" : "neutral"} wrap>
                             <bdi dir="ltr">{`${hop.fromCode} → ${hop.toCode}`}</bdi>
                             {" · "}
                             {t(hop.source === "standard" ? "previewViaStandard" : "previewViaRule")}

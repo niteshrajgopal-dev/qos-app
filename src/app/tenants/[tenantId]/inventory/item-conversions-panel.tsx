@@ -147,7 +147,9 @@ export function ItemConversionsPanel({
         <ul className="qosp-branch-list qosp-panel-body" aria-label={t("conversionsTitle")}>
           {detail.rules.map((rule) => (
             <li key={rule.publicId} className="qosp-subcard qosp-inventory-rule">
-              <p className="qosp-inventory-sentence">{ruleText(locale, rule)}</p>
+              <p className="qosp-inventory-sentence">
+                <bdi dir="ltr">{ruleText(locale, rule)}</bdi>
+              </p>
               <RuleMeta rule={rule} />
               {rule.justification ? (
                 <p className="qosp-meta-line">{staffCopyWith(locale, "conversionJustificationLine", { text: isolateText(rule.justification) })}</p>
@@ -276,7 +278,9 @@ export function ItemConversionsPanel({
           <ul className="qosp-branch-list qosp-panel-body" aria-label={t("conversionHistory")}>
             {detail.history.map((rule) => (
               <li key={rule.publicId} className="qosp-subcard" data-muted={rule.current ? undefined : "true"}>
-                <p className="qosp-inventory-sentence">{ruleText(locale, rule)}</p>
+                <p className="qosp-inventory-sentence">
+                <bdi dir="ltr">{ruleText(locale, rule)}</bdi>
+              </p>
                 <RuleMeta rule={rule} />
                 {rule.justification ? (
                   <p className="qosp-meta-line">
@@ -293,7 +297,7 @@ export function ItemConversionsPanel({
         open={dialog !== null}
         size="sm"
         title={dialog ? t(dialog.kind === "revise" ? "reviseConversion" : "closeConversion") : null}
-        description={dialog ? <p className="qosp-inventory-sentence">{ruleText(locale, dialog.rule)}</p> : null}
+        description={dialog ? <p className="qosp-inventory-sentence"><bdi dir="ltr">{ruleText(locale, dialog.rule)}</bdi></p> : null}
         onClose={() => setDialog(null)}
         footer={
           <>
