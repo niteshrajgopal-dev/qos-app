@@ -4284,6 +4284,176 @@ export const aiJobAttempts = qos.table(
   ],
 );
 
+/* QOS-195 inventory units, items and item-scoped unit conversions (0060).
+   Units and items are edited in place with a version bump; conversions are
+   append-only version rows (qos_app may only set effective_to). */
+export const inventoryUnits = qos.table(
+  "inventory_units",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    code: text("code").notNull(),
+    nameEn: text("name_en").notNull(),
+    nameAr: text("name_ar").notNull(),
+    quantityKind: text("quantity_kind").notNull().$type<"mass" | "volume" | "count" | "pack">(),
+    standardCode: text("standard_code").$type<"mg" | "g" | "kg" | "ml" | "cl" | "l" | "piece">(),
+    decimalPlaces: integer("decimal_places").notNull(),
+    status: text("status").notNull().default("active").$type<"active" | "archived">(),
+    version: integer("version").notNull().default(1),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("inventory_units_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("inventory_units_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    unique("inventory_units_tenant_code_unique").on(table.tenantId, table.code),
+    uniqueIndex("inventory_units_tenant_standard_code_unique")
+      .on(table.tenantId, table.standardCode)
+      .where(sql`standard_code IS NOT NULL`),
+    index("inventory_units_tenant_id_idx").on(table.tenantId),
+    check("inventory_units_public_id_check", sql`${table.publicId} ~ '^unit_[a-z0-9_-]+$'`),
+    check("inventory_units_code_check", sql`${table.code} ~ '^[a-z0-9][a-z0-9_-]{0,23}$'`),
+    check("inventory_units_name_en_check", sql`char_length(btrim(${table.nameEn})) BETWEEN 1 AND 80`),
+    check("inventory_units_name_ar_check", sql`char_length(btrim(${table.nameAr})) BETWEEN 1 AND 80`),
+    check(
+      "inventory_units_quantity_kind_check",
+      sql`${table.quantityKind} IN ('mass', 'volume', 'count', 'pack')`,
+    ),
+    check(
+      "inventory_units_standard_code_check",
+      sql`${table.standardCode} IS NULL OR ${table.standardCode} IN ('mg', 'g', 'kg', 'ml', 'cl', 'l', 'piece')`,
+    ),
+    check("inventory_units_decimal_places_check", sql`${table.decimalPlaces} BETWEEN 0 AND 6`),
+    check("inventory_units_status_check", sql`${table.status} IN ('active', 'archived')`),
+    check("inventory_units_version_check", sql`${table.version} >= 1`),
+  ],
+);
+
+export const inventoryItems = qos.table(
+  "inventory_items",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    nameEn: text("name_en").notNull(),
+    nameAr: text("name_ar"),
+    kind: text("kind").notNull().$type<"purchased" | "prepared">(),
+    storageUnitId: uuid("storage_unit_id"),
+    recipeUnitId: uuid("recipe_unit_id"),
+    purchaseUnitId: uuid("purchase_unit_id"),
+    status: text("status").notNull().default("active").$type<"active" | "archived">(),
+    version: integer("version").notNull().default(1),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("inventory_items_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("inventory_items_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    foreignKey({
+      name: "inventory_items_storage_unit_fk",
+      columns: [table.tenantId, table.storageUnitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "inventory_items_recipe_unit_fk",
+      columns: [table.tenantId, table.recipeUnitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "inventory_items_purchase_unit_fk",
+      columns: [table.tenantId, table.purchaseUnitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    index("inventory_items_tenant_id_idx").on(table.tenantId),
+    check("inventory_items_public_id_check", sql`${table.publicId} ~ '^item_[a-z0-9_-]+$'`),
+    check("inventory_items_name_en_check", sql`char_length(btrim(${table.nameEn})) BETWEEN 1 AND 120`),
+    check(
+      "inventory_items_name_ar_check",
+      sql`${table.nameAr} IS NULL OR char_length(btrim(${table.nameAr})) BETWEEN 1 AND 120`,
+    ),
+    check("inventory_items_kind_check", sql`${table.kind} IN ('purchased', 'prepared')`),
+    check("inventory_items_status_check", sql`${table.status} IN ('active', 'archived')`),
+    check("inventory_items_version_check", sql`${table.version} >= 1`),
+  ],
+);
+
+export const inventoryItemConversions = qos.table(
+  "inventory_item_conversions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    publicId: text("public_id").notNull(),
+    itemId: uuid("item_id").notNull(),
+    fromUnitId: uuid("from_unit_id").notNull(),
+    toUnitId: uuid("to_unit_id").notNull(),
+    /** 1 from unit = factor_micros / 1_000_000 to units, for this item only. */
+    factorMicros: bigint("factor_micros", { mode: "bigint" }).notNull(),
+    justification: text("justification"),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveTo: date("effective_to"),
+    revision: integer("revision").notNull(),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+  },
+  (table) => [
+    unique("inventory_item_conversions_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    unique("inventory_item_conversions_revision_unique").on(
+      table.tenantId,
+      table.itemId,
+      table.fromUnitId,
+      table.toUnitId,
+      table.revision,
+    ),
+    foreignKey({
+      name: "inventory_item_conversions_item_fk",
+      columns: [table.tenantId, table.itemId],
+      foreignColumns: [inventoryItems.tenantId, inventoryItems.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "inventory_item_conversions_from_unit_fk",
+      columns: [table.tenantId, table.fromUnitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "inventory_item_conversions_to_unit_fk",
+      columns: [table.tenantId, table.toUnitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    uniqueIndex("inventory_item_conversions_current_unique")
+      .on(table.tenantId, table.itemId, table.fromUnitId, table.toUnitId)
+      .where(sql`effective_to IS NULL`),
+    index("inventory_item_conversions_tenant_item_idx").on(table.tenantId, table.itemId),
+    check("inventory_item_conversions_public_id_check", sql`${table.publicId} ~ '^conv_[a-z0-9_-]+$'`),
+    check("inventory_item_conversions_units_check", sql`${table.fromUnitId} <> ${table.toUnitId}`),
+    check("inventory_item_conversions_factor_check", sql`${table.factorMicros} > 0`),
+    check(
+      "inventory_item_conversions_justification_check",
+      sql`${table.justification} IS NULL OR char_length(${table.justification}) <= 200`,
+    ),
+    check(
+      "inventory_item_conversions_dates_check",
+      sql`${table.effectiveTo} IS NULL OR ${table.effectiveTo} >= ${table.effectiveFrom}`,
+    ),
+    check("inventory_item_conversions_revision_check", sql`${table.revision} >= 1`),
+  ],
+);
+
+export type InventoryUnitRecord = typeof inventoryUnits.$inferSelect;
+export type InventoryItemRecord = typeof inventoryItems.$inferSelect;
+export type InventoryItemConversionRecord = typeof inventoryItemConversions.$inferSelect;
+
 export const schema = {
   tenants,
   organizations,

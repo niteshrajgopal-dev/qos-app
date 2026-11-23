@@ -1,0 +1,119 @@
+import type { StaffLocale } from "@/lib/staff/locale";
+
+/* QOS-195 staff copy for inventory API error codes. The API message stays
+   English for logs and API clients; the staff UI shows this copy instead. */
+
+type Bilingual = Record<StaffLocale, string>;
+
+export const INVENTORY_ERROR_COPY = {
+  administrator_required: {
+    en: "Only administrators can change units, items and conversions.",
+    ar: "يمكن للمسؤولين فقط تغيير الوحدات والأصناف والتحويلات.",
+  },
+  tenant_inactive: { en: "This business is not active.", ar: "هذا النشاط غير نشط." },
+  body_invalid: { en: "The request could not be read. Try again.", ar: "تعذّرت قراءة الطلب. حاول مرة أخرى." },
+  source_invalid: { en: "Choose a standard or a custom unit.", ar: "اختر وحدة قياسية أو مخصصة." },
+  standard_code_unknown: { en: "Choose a standard unit from the list.", ar: "اختر وحدة قياسية من القائمة." },
+  standard_code_taken: { en: "This standard unit has already been added.", ar: "أُضيفت هذه الوحدة القياسية بالفعل." },
+  unit_code_taken: { en: "Another unit already uses this code.", ar: "يستخدم هذا الرمزَ وحدةٌ أخرى بالفعل." },
+  code_invalid: {
+    en: "Use 1 to 24 lowercase letters, digits, hyphens or underscores for the code.",
+    ar: "استخدم للرمز من 1 إلى 24 حرفًا لاتينيًا صغيرًا أو رقمًا أو شرطة أو شرطة سفلية.",
+  },
+  code_reserved_for_standard: {
+    en: "This code belongs to a standard unit. Add it as a standard unit so its exact conversions apply.",
+    ar: "هذا الرمز لوحدة قياسية. أضفها كوحدة قياسية لتنطبق تحويلاتها الدقيقة.",
+  },
+  name_required: { en: "Enter a name.", ar: "أدخل اسمًا." },
+  name_too_long: { en: "This name is too long.", ar: "هذا الاسم طويل جدًا." },
+  quantity_kind_invalid: { en: "Choose mass, volume, count or pack.", ar: "اختر كتلة أو حجمًا أو عددًا أو عبوة." },
+  decimal_places_out_of_range: {
+    en: "Decimal places must be a whole number from 0 to 6.",
+    ar: "يجب أن تكون المنازل العشرية عددًا صحيحًا من 0 إلى 6.",
+  },
+  immutable_field: {
+    en: "The code cannot change after the unit is created. Rename the unit instead.",
+    ar: "لا يمكن تغيير الرمز بعد إنشاء الوحدة. أعد تسمية الوحدة بدلًا من ذلك.",
+  },
+  unit_in_use: {
+    en: "This unit is used by an item or a current conversion and cannot be archived.",
+    ar: "هذه الوحدة مستخدمة في صنف أو تحويل حالي ولا يمكن أرشفتها.",
+  },
+  unit_not_found: { en: "This unit was not found.", ar: "لم يتم العثور على هذه الوحدة." },
+  unit_archived: {
+    en: "Archived units cannot be used here. Restore the unit first.",
+    ar: "لا يمكن استخدام الوحدات المؤرشفة هنا. استعد الوحدة أولًا.",
+  },
+  item_not_found: { en: "This item was not found.", ar: "لم يتم العثور على هذا الصنف." },
+  item_archived: {
+    en: "This item is archived. Restore it to change its conversions.",
+    ar: "هذا الصنف مؤرشف. استعده لتغيير تحويلاته.",
+  },
+  kind_invalid: { en: "Choose purchased or prepared.", ar: "اختر مشترى أو محضّر." },
+  status_invalid: { en: "Choose active or archived.", ar: "اختر نشط أو مؤرشف." },
+  factor_invalid: {
+    en: "Enter the factor as a plain decimal number, for example 12 or 0.5.",
+    ar: "أدخل المعامل كرقم عشري بسيط، مثل 12 أو 0.5.",
+  },
+  factor_not_positive: { en: "The factor must be greater than zero.", ar: "يجب أن يكون المعامل أكبر من صفر." },
+  factor_too_precise: {
+    en: "The factor can have at most 6 decimal places.",
+    ar: "يمكن أن يحتوي المعامل على 6 منازل عشرية على الأكثر.",
+  },
+  same_unit: { en: "Choose two different units.", ar: "اختر وحدتين مختلفتين." },
+  standard_pair_not_overridable: {
+    en: "These standard units already convert exactly. The standard conversion cannot be overridden per item.",
+    ar: "تتحول هاتان الوحدتان القياسيتان بدقة بالفعل. لا يمكن تجاوز التحويل القياسي لكل صنف.",
+  },
+  justification_required: {
+    en: "A mass to volume rule needs a justification for this item, for example a measured density.",
+    ar: "تحتاج قاعدة الكتلة إلى الحجم إلى مبرر لهذا الصنف، مثل كثافة مقاسة.",
+  },
+  justification_too_long: {
+    en: "The justification can be at most 200 characters.",
+    ar: "يمكن أن يتكون المبرر من 200 حرف على الأكثر.",
+  },
+  justification_invalid: { en: "Enter the justification as text.", ar: "أدخل المبرر كنص." },
+  duplicate_pair: {
+    en: "This item already has a current rule for these units. Change its factor instead.",
+    ar: "لهذا الصنف قاعدة حالية لهاتين الوحدتين بالفعل. غيّر معاملها بدلًا من ذلك.",
+  },
+  already_derivable: {
+    en: "These units already convert through another rule for this item.",
+    ar: "تتحول هاتان الوحدتان بالفعل عبر قاعدة أخرى لهذا الصنف.",
+  },
+  conversion_not_found: { en: "This conversion was not found.", ar: "لم يتم العثور على هذا التحويل." },
+  conversion_not_current: {
+    en: "This version is no longer current. Reload to see the current rule.",
+    ar: "لم يعد هذا الإصدار حاليًا. أعد التحميل لعرض القاعدة الحالية.",
+  },
+  expected_version_mismatch: {
+    en: "This record changed elsewhere. Reload and try again.",
+    ar: "تغيّر هذا السجل في مكان آخر. أعد التحميل وحاول مجددًا.",
+  },
+  expected_version_required: {
+    en: "This record changed elsewhere. Reload and try again.",
+    ar: "تغيّر هذا السجل في مكان آخر. أعد التحميل وحاول مجددًا.",
+  },
+  effective_from_invalid: { en: "Enter a valid date.", ar: "أدخل تاريخًا صحيحًا." },
+  effective_from_before_current: {
+    en: "The date cannot be earlier than the current version. History is not rewritten.",
+    ar: "لا يمكن أن يسبق التاريخ الإصدار الحالي. لا يُعاد كتابة السجل.",
+  },
+  operation_invalid: { en: "The request could not be read. Try again.", ar: "تعذّرت قراءة الطلب. حاول مرة أخرى." },
+  quantity_invalid: { en: "Enter the quantity as a plain decimal number.", ar: "أدخل الكمية كرقم عشري بسيط." },
+  quantity_too_precise: {
+    en: "This quantity has more decimal places than the unit allows.",
+    ar: "تحتوي هذه الكمية على منازل عشرية أكثر مما تسمح به الوحدة.",
+  },
+} as const satisfies Record<string, Bilingual>;
+
+export type InventoryErrorCode = keyof typeof INVENTORY_ERROR_COPY;
+
+/** Staff copy for an API error code; unknown codes fall back to the generic save error. */
+export function inventoryErrorText(locale: StaffLocale, code: string | null | undefined, fallback: string): string {
+  if (code && code in INVENTORY_ERROR_COPY) {
+    return INVENTORY_ERROR_COPY[code as InventoryErrorCode][locale];
+  }
+  return fallback;
+}

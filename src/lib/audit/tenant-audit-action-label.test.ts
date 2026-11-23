@@ -34,6 +34,39 @@ describe("tenantAuditActionLabel", () => {
     );
   });
 
+  it("labels every QOS-195 inventory action, entity and the inventory area in both languages", () => {
+    const actions = [
+      "inventory.unit.create",
+      "inventory.unit.update",
+      "inventory.unit.archive",
+      "inventory.unit.restore",
+      "inventory.item.create",
+      "inventory.item.update",
+      "inventory.item.archive",
+      "inventory.item.restore",
+      "inventory.conversion.create",
+      "inventory.conversion.revise",
+      "inventory.conversion.close",
+    ];
+    const english = actions.map((action) => tenantAuditActionLabel(action, "en"));
+    const arabic = actions.map((action) => tenantAuditActionLabel(action, "ar"));
+    expect(new Set(english).size).toBe(actions.length);
+    expect(new Set(arabic).size).toBe(actions.length);
+    for (const [index, action] of actions.entries()) {
+      expect(english[index], action).not.toBe("Inventory updated");
+      expect(english[index], action).not.toContain(".");
+      expect(arabic[index], action).toMatch(/^[\u0600-\u06FF\s()]+$/);
+    }
+    expect(tenantAuditActionLabel("inventory.conversion.revise", "en")).toBe("Item conversion changed (new version)");
+    expect(tenantAuditActionLabel("inventory.unit.archive", "ar")).toBe("تمت أرشفة وحدة");
+    expect(tenantAuditEntityLabel("inventory_unit", "en")).toBe("Unit");
+    expect(tenantAuditEntityLabel("inventory_item", "ar")).toBe("صنف مخزون");
+    expect(tenantAuditEntityLabel("inventory_item_conversion", "en")).toBe("Item conversion");
+    expect(tenantAuditEntityLabel("inventory_item_conversion", "ar")).toBe("تحويل صنف");
+    expect(tenantAuditActionLabel("inventory.something_new", "en")).toBe("Inventory updated");
+    expect(tenantAuditActionLabel("inventory.something_new", "ar")).toBe("تم تحديث المخزون");
+  });
+
   it("falls back by area, then generically, instead of echoing the action string", () => {
     expect(tenantAuditActionLabel("catalogue.something_new", "en")).toBe("Catalogue updated");
     expect(tenantAuditActionLabel("catalogue.something_new", "ar")).toBe("تم تحديث الكتالوج");
