@@ -66,6 +66,8 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/products/selling-attributes-fields.tsx",
   // Modifier group editor: delete block (rest of the editor is not yet localised)
   "app/tenants/[tenantId]/catalogue/modifier-groups/modifier-group-editor.tsx",
+  // QOS-215 selling tax and reference cost fields
+  "app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -124,6 +126,7 @@ const PORTAL_RESTYLED_SURFACES = [
   "components/staff/catalogue/channel-price-state.ts",
   "components/staff/catalogue/use-channel-price-bundle.ts",
   "app/tenants/[tenantId]/catalogue/products/selling-attributes-fields.tsx",
+  "app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -247,6 +250,16 @@ const FORBIDDEN_LITERALS = [
   '"Delete this modifier group?"',
   '"Unable to delete modifier group."',
   ">Delete<",
+  // QOS-215 selling tax and reference cost
+  ">Save tax<",
+  ">Save manual cost<",
+  ">Use recipe-derived cost<",
+  ">Clear cost policy<",
+  '"Reference cost"',
+  '"Reference margin"',
+  '"Price tax basis"',
+  '"Tax rate"',
+  '"No cost policy"',
 ];
 
 /* Every QOS-214 key has English and Arabic copy, and the Arabic is Arabic. */
@@ -322,4 +335,41 @@ describe("portal restyled surfaces", () => {
       expect(hits, `light palette classes: ${hits.join(", ")}`).toEqual([]);
     });
   }
+});
+
+describe("QOS-215 selling tax and reference cost copy", () => {
+  const keys = Object.keys(STAFF_UI_COPY.en).filter((key) => key.startsWith("sellable")) as Array<
+    keyof (typeof STAFF_UI_COPY)["en"]
+  >;
+  const sources = [
+    "app/tenants/[tenantId]/catalogue/products/sellable-tax-cost-fields.tsx",
+    "app/tenants/[tenantId]/catalogue/products/product-variants-panel.tsx",
+    "app/tenants/[tenantId]/catalogue/modifier-groups/modifier-group-editor.tsx",
+  ]
+    .map((relative) => readFileSync(path.join(ROOT, relative), "utf8"))
+    .join("\n");
+
+  it("has English and Arabic text for every key, Arabic in Arabic script", () => {
+    expect(keys.length).toBeGreaterThan(50);
+    for (const key of keys) {
+      const en = STAFF_UI_COPY.en[key];
+      const ar = STAFF_UI_COPY.ar[key];
+      expect(en.trim(), key).not.toBe("");
+      expect(ar.trim(), key).not.toBe("");
+      expect(ar, key).not.toBe(en);
+      expect(ar, key).toMatch(/[\u0600-\u06FF]/);
+    }
+  });
+
+  it("uses no all-caps English copy", () => {
+    for (const key of keys) {
+      const letters = STAFF_UI_COPY.en[key].replace(/\{\w+\}|QOS/g, "").replace(/[^A-Za-z]/g, "");
+      expect(letters.length === 0 || letters !== letters.toUpperCase(), key).toBe(true);
+    }
+  });
+
+  it("references every key from the surfaces that render it", () => {
+    const unused = keys.filter((key) => !sources.includes(`"${key}"`));
+    expect(unused).toEqual([]);
+  });
 });

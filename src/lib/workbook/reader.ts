@@ -317,7 +317,8 @@ function readContractTable(
   }
 
   const columnIndex = new Map(headers.map((header, index) => [header, table.range.startColumn + index]));
-  // A file is not expected to carry columns added in later contract versions (v1.1 policy, v1.3 selling attributes).
+  // A file is not expected to carry columns added in later contract versions
+  // (v1.1 policy, v1.2 channel sheets, v1.3 selling attributes, v1.4 cost).
   const missing = definition.columns.filter(
     (column) => columnExpectedInVersion(column, templateVersion) && !columnIndex.has(column.key),
   );

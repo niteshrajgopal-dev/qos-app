@@ -31,6 +31,15 @@ import {
   salesChannels,
   tenants,
 } from "@/db/schema";
+import {
+  loadCurrentCostPoliciesInTx,
+  type ReferenceCostPolicyRow,
+} from "@/lib/catalogue/reference-cost-policies";
+import {
+  costTaxBasisWorkbookValue,
+  microsToMajorString,
+  sellingTaxBasisWorkbookValue,
+} from "@/lib/catalogue/selling-tax-cost";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { ALL_BRANCHES, assertReadableBranch, loadBranchContext } from "@/lib/staff/branch-context";
 import { withTenantContext } from "@/lib/tenant/context";
@@ -82,6 +91,28 @@ export function revisionToken(entity: string, id: string, stamps: Stamp[]) {
 /** qos-generated source namespace for exported keys (assumption; see the QOS-193 report). */
 export function exportSourceNamespace(tenantPublicId: string) {
   return `qos:${tenantPublicId}`;
+}
+
+/**
+ * The current reference-cost policy (effective_to IS NULL) as workbook
+ * cells. Superseded policies are history and are not exported as rows.
+ * Recipe-derived policies export a blank amount: QOS-199 computes it.
+ */
+function costPolicyCells(policy: ReferenceCostPolicyRow | undefined): Row {
+  return {
+    cost_method: policy?.method ?? "",
+    reference_cost_amount: policy?.amountMicros == null ? "" : microsToMajorString(policy.amountMicros),
+    cost_currency: policy?.currency?.trim() ?? "",
+    cost_unit: policy?.unit ?? "",
+    cost_tax_basis: costTaxBasisWorkbookValue(policy?.taxBasis ?? null),
+    cost_effective_date: policy?.effectiveFrom ?? "",
+    cost_source: policy?.source ?? "",
+    cost_source_reference: policy?.sourceReference ?? "",
+  };
+}
+
+function costPolicyStamps(policy: { publicId?: string | null; revision?: number | null } | undefined): Stamp[] {
+  return [policy?.publicId, policy?.revision];
 }
 
 function linkKey(...parts: string[]) {
@@ -148,6 +179,7 @@ export const REVISION = {
     row: { publicId: string; updatedAt: Date },
     labels: ByLocale<Stamped>,
     price: { currency: string; version: number; updatedAt: Date } | undefined,
+    costPolicy?: { publicId?: string; revision?: number },
   ) =>
     revisionToken("variant", row.publicId, [
       row.updatedAt,
@@ -156,13 +188,22 @@ export const REVISION = {
       price?.currency,
       price?.version,
       price?.updatedAt,
+      ...costPolicyStamps(costPolicy),
     ]),
   branchPrice: (row: { id: string; updatedAt: Date; amountMinor: number; centralPriceVersionAtOverride: number }) =>
     revisionToken("branch_price", row.id, [row.updatedAt, row.amountMinor, row.centralPriceVersionAtOverride]),
   modifierGroup: (row: { publicId: string; version: number; updatedAt: Date }, names: ByLocale<Stamped>) =>
     revisionToken("modifier_group", row.publicId, [row.version, row.updatedAt, ...translationStamps(names)]),
-  modifierOption: (row: { publicId: string; updatedAt: Date }, names: ByLocale<Stamped>) =>
-    revisionToken("modifier_option", row.publicId, [row.updatedAt, ...translationStamps(names)]),
+  modifierOption: (
+    row: { publicId: string; updatedAt: Date },
+    names: ByLocale<Stamped>,
+    costPolicy?: { publicId?: string; revision?: number },
+  ) =>
+    revisionToken("modifier_option", row.publicId, [
+      row.updatedAt,
+      ...translationStamps(names),
+      ...costPolicyStamps(costPolicy),
+    ]),
   productModifier: (row: { id: string; createdAt: Date; sortOrder: number; version: number; updatedAt: Date }) =>
     revisionToken("product_modifier", row.id, [row.createdAt, row.sortOrder, row.version, row.updatedAt]),
   menu: (row: { publicId: string; version: number; updatedAt: Date }, names: ByLocale<Versioned>) =>
@@ -336,6 +377,7 @@ export async function loadCurrentRecordExport(
             .where(and(eq(catalogueVariants.tenantId, tenantId), inArray(catalogueVariants.productId, productIds)));
     const variantIds = variantRows.map((row) => row.id);
     const variantKey = new Map(variantRows.map((row) => [row.id, row.publicId]));
+    const variantCostPolicies = await loadCurrentCostPoliciesInTx(tx, tenantId, "variant", variantIds);
     const variantTranslations = byLocale(
       variantIds.length === 0
         ? []
@@ -436,6 +478,12 @@ export async function loadCurrentRecordExport(
                 inArray(catalogueModifierOptions.modifierGroupId, groupIds),
               ),
             );
+    const optionCostPolicies = await loadCurrentCostPoliciesInTx(
+      tx,
+      tenantId,
+      "modifier_option",
+      optionRows.map((row) => row.id),
+    );
     const optionTranslations = byLocale(
       optionRows.length === 0
         ? []
@@ -617,6 +665,7 @@ export async function loadCurrentRecordExport(
         variantRows.map((row) => {
           const labels = variantTranslations.get(row.id);
           const price = priceByVariant.get(row.id);
+          const costPolicy = variantCostPolicies.get(row.id);
           return {
             variant_key: row.publicId,
             qos_variant_id: row.publicId,
@@ -634,9 +683,11 @@ export async function loadCurrentRecordExport(
             price_unit: text(row.priceUnit),
             price_unit_quantity: text(row.priceUnitQuantity),
             status: row.status,
-            price_tax_basis: "",
-            tax_rate_basis_points: "",
-            expected_revision: REVISION.variant(row, labels, price),
+            price_tax_basis: sellingTaxBasisWorkbookValue(row.priceTaxBasis ?? null),
+            // 0 is a known 0% rate and is written as "0"; blank means not recorded.
+            tax_rate_basis_points: text(row.taxRateBasisPoints),
+            ...costPolicyCells(costPolicy),
+            expected_revision: REVISION.variant(row, labels, price, costPolicy),
             clear_fields: "",
           };
         }),
@@ -709,6 +760,7 @@ export async function loadCurrentRecordExport(
       "Modifier Options": optionRows
         .map((row) => {
           const names = optionTranslations.get(row.id);
+          const costPolicy = optionCostPolicies.get(row.id);
           return {
             modifier_option_key: row.publicId,
             qos_modifier_option_id: row.publicId,
@@ -724,7 +776,8 @@ export async function loadCurrentRecordExport(
             max_quantity: text(row.maxQuantity),
             sort_order: text(row.sortOrder),
             status: row.status,
-            expected_revision: REVISION.modifierOption(row, names),
+            ...costPolicyCells(costPolicy),
+            expected_revision: REVISION.modifierOption(row, names, costPolicy),
             clear_fields: "",
           };
         })

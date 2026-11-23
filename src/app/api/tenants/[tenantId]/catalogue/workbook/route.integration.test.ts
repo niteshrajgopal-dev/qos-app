@@ -14,6 +14,7 @@ import {
   catalogueModifierGroups,
   catalogueModifierGroupTranslations,
   catalogueModifierOptions,
+  catalogueModifierOptionReferenceCostPolicies,
   catalogueModifierOptionTranslations,
   catalogueProductCategories,
   catalogueProductModifierGroups,
@@ -21,6 +22,7 @@ import {
   catalogueProductTranslations,
   catalogueVariantLocationPriceOverrides,
   catalogueVariantPrices,
+  catalogueVariantReferenceCostPolicies,
   catalogueVariants,
   catalogueVariantTranslations,
   staffIdentities,
@@ -139,8 +141,50 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
 
     const [variant] = await db
       .insert(catalogueVariants)
-      .values({ tenantId, productId: product.id, publicId: "var_flat_white_regular", isDefault: true, sortOrder: 0, sku: "000123-R" })
+      .values({
+        tenantId,
+        productId: product.id,
+        publicId: "var_flat_white_regular",
+        isDefault: true,
+        sortOrder: 0,
+        sku: "000123-R",
+        priceTaxBasis: "inclusive",
+        taxRateBasisPoints: 500,
+        taxProvenance: "operator_entered",
+      })
       .returning();
+    // QOS-215: a superseded manual cost and the current one; only the current row is exported.
+    await db.insert(catalogueVariantReferenceCostPolicies).values([
+      {
+        tenantId,
+        publicId: "vrc_old",
+        variantId: variant.id,
+        method: "manual",
+        amountMicros: BigInt(3_000_000),
+        currency: "AED",
+        unit: "each",
+        taxBasis: "net",
+        effectiveFrom: "2026-10-01",
+        effectiveTo: "2026-11-01",
+        revision: 1,
+        provenance: "operator_entered",
+      },
+      {
+        tenantId,
+        publicId: "vrc_current",
+        variantId: variant.id,
+        method: "manual",
+        amountMicros: BigInt(3_250_001),
+        currency: "AED",
+        unit: "each",
+        taxBasis: "net",
+        effectiveFrom: "2026-11-01",
+        source: "Owner costing sheet",
+        sourceReference: "row 12",
+        revision: 2,
+        provenance: "operator_entered",
+      },
+    ]);
     await db.insert(catalogueVariantTranslations).values([
       { tenantId, variantId: variant.id, locale: "en", displayName: "Regular" },
       { tenantId, variantId: variant.id, locale: "ar", displayName: "عادي" },
@@ -167,6 +211,16 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
       { tenantId, modifierOptionId: option.id, locale: "en", displayName: "Oat milk" },
       { tenantId, modifierOptionId: option.id, locale: "ar", displayName: "حليب الشوفان" },
     ]);
+    await db.insert(catalogueModifierOptionReferenceCostPolicies).values({
+      tenantId,
+      publicId: "orc_oat",
+      modifierOptionId: option.id,
+      method: "recipe_derived",
+      taxBasis: "unconfirmed",
+      effectiveFrom: "2026-11-01",
+      revision: 1,
+      provenance: "operator_entered",
+    });
     await db.insert(catalogueProductModifierGroups).values({ tenantId, productId: product.id, modifierGroupId: group.id, sortOrder: 0 });
 
     const [menu] = await db
@@ -309,7 +363,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(XLSX);
     expect(response.headers.get("content-disposition")).toBe(
-      'attachment; filename="qos-menu-and-operations-template-v1.3.xlsx"',
+      'attachment; filename="qos-menu-and-operations-template-v1.4.xlsx"',
     );
     expect(response.headers.get("cache-control")).toBe("private, no-store");
 
@@ -336,7 +390,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(body.summary.errors).toBe(0);
     expect(body.manifest).toMatchObject({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.3",
+      template_version: "1.4",
       tenant_public_id: "ten_quotes_dev",
       brand_public_id: "brd_quotes",
       source_namespace: "qos:ten_quotes_dev",
@@ -385,7 +439,20 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
       selling_quantity_basis: "",
       price_unit: "",
       price_unit_quantity: "",
+      price_tax_basis: "inclusive",
+      tax_rate_basis_points: "500",
+      cost_method: "manual",
+      reference_cost_amount: "3.250001",
+      cost_currency: "AED",
+      cost_unit: "each",
+      cost_tax_basis: "NET",
+      cost_effective_date: "2026-11-01",
+      cost_source: "Owner costing sheet",
+      cost_source_reference: "row 12",
     });
+    // History is not dumped: one row per variant, carrying the current policy only.
+    expect(sheetRows(body, "Variants")).toHaveLength(1);
+    expect(JSON.stringify(sheetRows(body, "Variants"))).not.toContain("2026-10-01");
     expect(sheetRows(body, "Branch Prices").map((row) => [row.branch_key, row.amount_minor, row.central_price_version])).toEqual([
       ["loc_quotes_hbz", "1900", "1"],
       ["loc_quotes_hct", "2000", "1"],
@@ -402,6 +469,10 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
       price_minor: "300",
       display_name_ar: "حليب الشوفان",
       nutrition_calories: "",
+      cost_method: "recipe_derived",
+      reference_cost_amount: "",
+      cost_tax_basis: "UNCONFIRMED",
+      cost_effective_date: "2026-11-01",
     });
     expect(sheetRows(body, "Product Modifiers")[0]).toMatchObject({
       product_key: "prd_flat_white",

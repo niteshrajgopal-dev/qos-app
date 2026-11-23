@@ -24,6 +24,7 @@ import {
   locations,
   tenants,
 } from "@/db/schema";
+import { loadCurrentCostPoliciesInTx } from "@/lib/catalogue/reference-cost-policies";
 import type { DbTransaction } from "@/lib/tenant/context";
 import { REVISION, translationsByOwner } from "@/lib/workbook/export";
 import { idColumnOf } from "@/lib/workbook/validation/snapshot";
@@ -191,11 +192,15 @@ async function loadProductScope(tx: Tx, tenantId: string, productPublicId: strin
       .from(catalogueVariantPrices)
       .where(and(eq(catalogueVariantPrices.tenantId, tenantId), inArray(catalogueVariantPrices.variantId, ids)));
     const currency = await tenantCurrency(tx, tenantId);
+    const costPolicies = await loadCurrentCostPoliciesInTx(tx, tenantId, "variant", ids);
     for (const variant of variants) {
       // Same choice as the export: the tenant currency when present.
       const own = prices.filter((price) => price.variantId === variant.id).sort((a, b) => a.currency.localeCompare(b.currency));
       const price = own.find((entry) => entry.currency.trim() === currency) ?? own[0];
-      tokens.set(tokenKey("Variants", variant.publicId), REVISION.variant(variant, labels.get(variant.id), price));
+      tokens.set(
+        tokenKey("Variants", variant.publicId),
+        REVISION.variant(variant, labels.get(variant.id), price, costPolicies.get(variant.id)),
+      );
     }
   }
   const assignments = await tx
@@ -236,7 +241,18 @@ async function loadGroupScope(tx: Tx, tenantId: string, groupPublicId: string, t
       ),
     (entry) => entry.modifierOptionId,
   );
-  for (const option of options) tokens.set(tokenKey("Modifier Options", option.publicId), REVISION.modifierOption(option, names.get(option.id)));
+  const costPolicies = await loadCurrentCostPoliciesInTx(
+    tx,
+    tenantId,
+    "modifier_option",
+    options.map((row) => row.id),
+  );
+  for (const option of options) {
+    tokens.set(
+      tokenKey("Modifier Options", option.publicId),
+      REVISION.modifierOption(option, names.get(option.id), costPolicies.get(option.id)),
+    );
+  }
 }
 
 async function loadMenuScope(tx: Tx, tenantId: string, menuPublicId: string, tokens: ScopeTokens) {

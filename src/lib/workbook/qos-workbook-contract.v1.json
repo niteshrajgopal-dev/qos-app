@@ -1,5 +1,5 @@
 {
-  "version": "1.3",
+  "version": "1.4",
   "asOf": "2026-11-21",
   "repositorySnapshot": "99d8106f386bcd349f8f51b263481bb90227d0fc",
   "layout": {
@@ -21,7 +21,7 @@
     },
     {
       "field": "template_version",
-      "value": "1.3",
+      "value": "1.4",
       "rule": "Retain the workbook format version."
     },
     {
@@ -948,14 +948,14 @@
           "label": "price tax basis",
           "type": "text",
           "required": false,
-          "description": "Planning field: confirm whether the displayed price includes tax before computing ingredient margin.",
-          "mapping": "Proposed Phase 2 pricing interpretation",
+          "description": "How the selling price treats tax: inclusive (price includes tax), exclusive (tax is added on top) or unconfirmed. Blank means not recorded. Reference margin stays unavailable until this is inclusive or exclusive. GROSS and NET from earlier files are read as inclusive and exclusive.",
+          "mapping": "catalogue_variants.price_tax_basis",
           "phase": "Phase 2",
           "importSupport": "Multi-sheet extension required",
           "values": [
-            "NET",
-            "GROSS",
-            "UNCONFIRMED"
+            "inclusive",
+            "exclusive",
+            "unconfirmed"
           ]
         },
         {
@@ -963,11 +963,117 @@
           "label": "tax rate basis points",
           "type": "integer",
           "required": false,
-          "description": "Proposed pricing interpretation. 500 basis points means 5 percent. Do not infer tax policy from template examples.",
-          "mapping": "Proposed Phase 2 pricing interpretation",
+          "description": "Selling-price tax rate in whole basis points: 500 means 5 percent, 0 means a known 0 percent rate, blank means not recorded. Do not infer tax policy from template examples.",
+          "mapping": "catalogue_variants.tax_rate_basis_points",
           "phase": "Phase 2",
           "importSupport": "Multi-sheet extension required",
           "min": 0
+        },
+        {
+          "key": "cost_method",
+          "label": "cost method",
+          "type": "text",
+          "required": false,
+          "description": "Reference-cost policy for this variant: manual (an operator-entered amount) or recipe_derived (QOS computes it from the recipe once recipe costing exists). Blank means no policy; it is never read as recipe_derived.",
+          "mapping": "catalogue_variant_reference_cost_policies (current row, effective_to blank).method",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "manual",
+            "recipe_derived"
+          ],
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "reference_cost_amount",
+          "label": "reference cost amount",
+          "type": "decimal",
+          "required": false,
+          "description": "Manual reference cost in major currency units, up to six decimal places (AED 2.50 = 2.5). 0 is a known zero cost; blank is unknown. Leave blank for recipe_derived.",
+          "mapping": "catalogue_variant_reference_cost_policies (current row, effective_to blank).amount_micros (1 major unit = 1,000,000 micros)",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0,
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_currency",
+          "label": "cost currency",
+          "type": "text",
+          "required": false,
+          "description": "Currency of the reference cost. Required with a manual amount.",
+          "mapping": "catalogue_variant_reference_cost_policies (current row, effective_to blank).currency",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "AED"
+          ],
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_unit",
+          "label": "cost unit",
+          "type": "text",
+          "required": false,
+          "description": "Unit the reference cost is quoted per. Margin is compared only for a cost per each variant.",
+          "mapping": "catalogue_variant_reference_cost_policies (current row, effective_to blank).unit",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "each",
+            "kg",
+            "g"
+          ],
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_tax_basis",
+          "label": "cost tax basis",
+          "type": "text",
+          "required": false,
+          "description": "Whether the reference cost includes recoverable tax. UNCONFIRMED (or blank) keeps reference margin unavailable.",
+          "mapping": "catalogue_variant_reference_cost_policies (current row, effective_to blank).tax_basis",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "NET",
+            "GROSS",
+            "UNCONFIRMED"
+          ],
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_effective_date",
+          "label": "cost effective date",
+          "type": "date",
+          "required": false,
+          "description": "Date (YYYY-MM-DD) the policy takes effect. Required with a manual amount. A new policy closes the previous one; history is kept, not rewritten.",
+          "mapping": "catalogue_variant_reference_cost_policies (current row, effective_to blank).effective_from",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_source",
+          "label": "cost source",
+          "type": "text",
+          "required": false,
+          "description": "Where the cost came from, for example a supplier quote or a costing sheet.",
+          "mapping": "catalogue_variant_reference_cost_policies (current row, effective_to blank).source",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_source_reference",
+          "label": "cost source reference",
+          "type": "text",
+          "required": false,
+          "description": "Reference inside that source, such as a quote number or sheet cell.",
+          "mapping": "catalogue_variant_reference_cost_policies (current row, effective_to blank).source_reference",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "sinceVersion": "1.4"
         },
         {
           "key": "expected_revision",
@@ -1656,6 +1762,112 @@
             "active",
             "archived"
           ]
+        },
+        {
+          "key": "cost_method",
+          "label": "cost method",
+          "type": "text",
+          "required": false,
+          "description": "Reference-cost policy for this option: manual (an operator-entered amount) or recipe_derived (QOS computes it from the recipe once recipe costing exists). Blank means no policy; it is never read as recipe_derived.",
+          "mapping": "catalogue_modifier_option_reference_cost_policies (current row, effective_to blank).method",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "manual",
+            "recipe_derived"
+          ],
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "reference_cost_amount",
+          "label": "reference cost amount",
+          "type": "decimal",
+          "required": false,
+          "description": "Manual reference cost in major currency units, up to six decimal places (AED 2.50 = 2.5). 0 is a known zero cost; blank is unknown. Leave blank for recipe_derived.",
+          "mapping": "catalogue_modifier_option_reference_cost_policies (current row, effective_to blank).amount_micros (1 major unit = 1,000,000 micros)",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0,
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_currency",
+          "label": "cost currency",
+          "type": "text",
+          "required": false,
+          "description": "Currency of the reference cost. Required with a manual amount.",
+          "mapping": "catalogue_modifier_option_reference_cost_policies (current row, effective_to blank).currency",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "AED"
+          ],
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_unit",
+          "label": "cost unit",
+          "type": "text",
+          "required": false,
+          "description": "Unit the reference cost is quoted per. Margin is compared only for a cost per each option.",
+          "mapping": "catalogue_modifier_option_reference_cost_policies (current row, effective_to blank).unit",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "each",
+            "kg",
+            "g"
+          ],
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_tax_basis",
+          "label": "cost tax basis",
+          "type": "text",
+          "required": false,
+          "description": "Whether the reference cost includes recoverable tax. UNCONFIRMED (or blank) keeps reference margin unavailable.",
+          "mapping": "catalogue_modifier_option_reference_cost_policies (current row, effective_to blank).tax_basis",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "NET",
+            "GROSS",
+            "UNCONFIRMED"
+          ],
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_effective_date",
+          "label": "cost effective date",
+          "type": "date",
+          "required": false,
+          "description": "Date (YYYY-MM-DD) the policy takes effect. Required with a manual amount. A new policy closes the previous one; history is kept, not rewritten.",
+          "mapping": "catalogue_modifier_option_reference_cost_policies (current row, effective_to blank).effective_from",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_source",
+          "label": "cost source",
+          "type": "text",
+          "required": false,
+          "description": "Where the cost came from, for example a supplier quote or a costing sheet.",
+          "mapping": "catalogue_modifier_option_reference_cost_policies (current row, effective_to blank).source",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "sinceVersion": "1.4"
+        },
+        {
+          "key": "cost_source_reference",
+          "label": "cost source reference",
+          "type": "text",
+          "required": false,
+          "description": "Reference inside that source, such as a quote number or sheet cell.",
+          "mapping": "catalogue_modifier_option_reference_cost_policies (current row, effective_to blank).source_reference",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "sinceVersion": "1.4"
         },
         {
           "key": "expected_revision",
@@ -4901,7 +5113,7 @@
   "rules": [
     [
       "Scope and version",
-      "Workbook contract v1.3, 21 November 2026. v1.1 (QOS-212) added the Product Modifiers assignment policy columns (min_selections, max_selections, repeat_allowed, selection_count_mode); v1.2 (QOS-213) added Sales Channels, Variant Channel Prices and Modifier Option Channel Prices; v1.3 (QOS-214) adds the selling-attribute and nutrition columns (preparation_time_minutes, walking_time_minutes, high_salt, is_stock_product on Products; selling_quantity_basis, price_unit, price_unit_quantity on Variants; nutrition_calories on Modifier Options). QOS still reads v1.0, v1.1 and v1.2 workbooks, which simply lack them. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
+      "Workbook contract v1.4, 21 November 2026. v1.1 (QOS-212) added the Product Modifiers assignment policy columns (min_selections, max_selections, repeat_allowed, selection_count_mode); v1.2 (QOS-213) added Sales Channels, Variant Channel Prices and Modifier Option Channel Prices; v1.3 (QOS-214) adds the selling-attribute and nutrition columns (preparation_time_minutes, walking_time_minutes, high_salt, is_stock_product on Products; selling_quantity_basis, price_unit, price_unit_quantity on Variants; nutrition_calories on Modifier Options); v1.4 (QOS-215) persists the Variants tax columns and adds reference-cost columns to Variants and Modifier Options (cost_method, reference_cost_amount, cost_currency, cost_unit, cost_tax_basis, cost_effective_date, cost_source, cost_source_reference). QOS still reads v1.0, v1.1, v1.2 and v1.3 workbooks, which simply lack the later columns and sheets. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
     ],
     [
       "Current upload profile",

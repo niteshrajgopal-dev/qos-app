@@ -1,3 +1,11 @@
+import {
+  type CostPolicyOperationInput,
+  validateCostPolicyOperation,
+} from "@/lib/catalogue/reference-cost-policies";
+import {
+  SELLING_PRICE_TAX_BASES,
+  type SellingPriceTaxBasis,
+} from "@/lib/catalogue/selling-tax-cost";
 import type { ProductLocale } from "@/lib/catalogue/validation";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
 import {
@@ -22,6 +30,11 @@ export type CreateProductVariantInput = {
   sellingQuantityBasis?: SellingQuantityBasis | null;
   priceUnit?: PriceUnit | null;
   priceUnitQuantity?: number | null;
+  /** QOS-215: omit to leave unrecorded; null records nothing. */
+  priceTaxBasis?: SellingPriceTaxBasis | null;
+  taxRateBasisPoints?: number | null;
+  /** QOS-215: explicit cost-policy operation; omitting it changes nothing. */
+  costPolicy?: CostPolicyOperationInput;
   translations?: Partial<Record<ProductLocale, VariantTranslationInput>>;
 };
 
@@ -36,6 +49,12 @@ export type UpdateProductVariantInput = {
   sellingQuantityBasis?: SellingQuantityBasis | null;
   priceUnit?: PriceUnit | null;
   priceUnitQuantity?: number | null;
+  /** QOS-215: omit to keep the current value; null clears it. */
+  priceTaxBasis?: SellingPriceTaxBasis | null;
+  /** QOS-215: integer basis points (500 = 5%); 0 is a real 0% rate. Omit to keep; null clears. */
+  taxRateBasisPoints?: number | null;
+  /** QOS-215: explicit cost-policy operation; omitting it changes nothing. */
+  costPolicy?: CostPolicyOperationInput;
   translations?: Partial<Record<ProductLocale, VariantTranslationInput>>;
 };
 
@@ -64,6 +83,48 @@ function validatePriceAmount(
   }
 
   return amountMinor;
+}
+
+const MAX_TAX_RATE_BASIS_POINTS = 1_000_000;
+
+/** undefined = unchanged, null = clear, otherwise a stored basis. */
+export function validatePriceTaxBasis(
+  value: unknown,
+): SellingPriceTaxBasis | null | undefined {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  if (
+    typeof value !== "string" ||
+    !(SELLING_PRICE_TAX_BASES as readonly string[]).includes(value)
+  ) {
+    throw new CatalogueValidationError(
+      "priceTaxBasis must be inclusive, exclusive, unconfirmed or null.",
+      "priceTaxBasis",
+    );
+  }
+  return value as SellingPriceTaxBasis;
+}
+
+/** undefined = unchanged, null = clear, 0 = a real 0% rate. */
+export function validateTaxRateBasisPoints(
+  value: unknown,
+): number | null | undefined {
+  if (value === undefined || value === null) {
+    return value;
+  }
+  if (
+    typeof value !== "number" ||
+    !Number.isInteger(value) ||
+    value < 0 ||
+    value > MAX_TAX_RATE_BASIS_POINTS
+  ) {
+    throw new CatalogueValidationError(
+      "taxRateBasisPoints must be a whole number of basis points (500 = 5%), or null.",
+      "taxRateBasisPoints",
+    );
+  }
+  return value;
 }
 
 function validateProductVersion(expectedProductVersion: number) {
@@ -152,6 +213,9 @@ export function validateCreateProductVariantInput(
     sellingQuantityBasis: sellingBasis.sellingQuantityBasis ?? null,
     priceUnit: sellingBasis.priceUnit ?? null,
     priceUnitQuantity: sellingBasis.priceUnitQuantity ?? null,
+    priceTaxBasis: validatePriceTaxBasis(input.priceTaxBasis),
+    taxRateBasisPoints: validateTaxRateBasisPoints(input.taxRateBasisPoints),
+    costPolicy: validateCostPolicyOperation(input.costPolicy),
     translations: normalizeTranslations(input.translations),
   };
 }
@@ -204,6 +268,9 @@ export function validateUpdateProductVariantInput(
       priceUnit: input.priceUnit,
       priceUnitQuantity: input.priceUnitQuantity,
     }),
+    priceTaxBasis: validatePriceTaxBasis(input.priceTaxBasis),
+    taxRateBasisPoints: validateTaxRateBasisPoints(input.taxRateBasisPoints),
+    costPolicy: validateCostPolicyOperation(input.costPolicy),
     translations: normalizeTranslations(input.translations),
   };
 }

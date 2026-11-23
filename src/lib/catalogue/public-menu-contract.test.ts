@@ -125,4 +125,60 @@ describe("public menu contract", () => {
     expect(response.sections[0]?.products[0]?.mediaAssetId).toBeNull();
     expect(Object.keys(response)).not.toContain("internalName");
   });
+
+  it("strips selling tax, reference cost and margin keys a polluted snapshot might carry (QOS-215)", () => {
+    const pollution = {
+      taxRateBasisPoints: 500,
+      priceTaxBasis: "inclusive",
+      taxProvenance: "operator_entered",
+      referenceCost: { policy: { method: "manual", amountMicros: "4000000" } },
+      referenceMargin: { status: "available", marginMicros: "14000000" },
+      amountMicros: "4000000",
+      costMethod: "manual",
+    };
+    const product = snapshot.sections[0]!.products[0]!;
+    const polluted = {
+      ...snapshot,
+      ...pollution,
+      sections: [
+        {
+          ...snapshot.sections[0]!,
+          ...pollution,
+          products: [{ ...product, ...pollution, price: { ...product.price, ...pollution } }],
+        },
+      ],
+    } as unknown as MenuLiveSnapshotPayload;
+
+    const response = toPublicMenuResponse({
+      publicKey: "mqr_test",
+      tenantPublicId: "ten_quotes_dev",
+      locale: "en",
+      snapshot: polluted,
+    });
+
+    const serialized = JSON.stringify(response);
+    for (const key of Object.keys(pollution)) {
+      expect(serialized, key).not.toContain(key);
+    }
+    expect(response.sections[0]?.products[0]?.price).toEqual({
+      amountMinor: 2000,
+      currency: "AED",
+      inheritanceMode: "inherited",
+    });
+    expect(() => assertPublicMenuResponseIsAllowlisted(response)).not.toThrow();
+  });
+
+  it("still rejects a response that leaks cost fields", () => {
+    const response = toPublicMenuResponse({
+      publicKey: "mqr_test",
+      tenantPublicId: "ten_quotes_dev",
+      locale: "en",
+      snapshot,
+    });
+    const leaked = {
+      ...response,
+      sections: [{ ...response.sections[0]!, referenceCost: { amountMicros: "1" } }],
+    } as unknown as typeof response;
+    expect(() => assertPublicMenuResponseIsAllowlisted(leaked)).toThrow(/cost/);
+  });
 });

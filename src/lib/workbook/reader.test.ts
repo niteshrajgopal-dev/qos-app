@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildCatalogueImportSampleXlsx, CATALOGUE_IMPORT_SAMPLE_CSV } from "@/lib/catalogue/catalogue-import-sample";
 import { parseSpreadsheetUpload } from "@/lib/catalogue/catalogue-import-parser";
-import { contractSheet, tableColumnKeys, WORKBOOK_CONTRACT } from "@/lib/workbook/contract";
+import { columnExpectedInVersion, contractSheet, tableColumnKeys, WORKBOOK_CONTRACT } from "@/lib/workbook/contract";
 import { WorkbookParseError } from "@/lib/workbook/errors";
 import { buildFoodicsMenuFixture } from "@/lib/workbook/foodics-menu/fixture";
 import { WORKBOOK_LIMITS } from "@/lib/workbook/limits";
@@ -96,7 +96,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
 
     expect(result.manifest).toEqual({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.3",
+      template_version: "1.4",
       prepared_on: "2026-11-21",
       tenant_public_id: "",
       brand_public_id: "",
@@ -228,13 +228,10 @@ describe("parseWorkbookUpload: expanded profile", () => {
     expect(sheet(result, "Future Combos").issues[0]).toMatchObject({ code: "rejected_sheet" });
     expect(sheet(result, "Current Import")).toMatchObject({ support: "separate_profile", rowCount: 1, rows: [] });
     expect(sheet(result, "Current Import").issues[0]).toMatchObject({ code: "current_import_tab" });
-    expect(sheet(result, "Variants").issues).toContainEqual({
-      sheet: "Variants",
-      severity: "warning",
-      code: "deferred_field",
-      column: "price_tax_basis",
-      params: { count: 1 },
-    });
+    // QOS-215 persists the selling tax basis, so it is no longer a deferred field.
+    expect(sheet(result, "Variants").issues).not.toContainEqual(
+      expect.objectContaining({ code: "deferred_field", column: "price_tax_basis" }),
+    );
     expect(sheet(result, "Product Modifiers").issues).toContainEqual(
       expect.objectContaining({ code: "deferred_field", column: "free_options_count" }),
     );
@@ -359,12 +356,113 @@ describe("parseWorkbookUpload: expanded profile", () => {
     const wrongVersion = await filledWorkbook((workbook) => setManifestValue(workbook, "template_version", "2.0"));
     const error = await parseError("f.xlsx", wrongVersion);
     expect(error.code).toBe("unsupported_version");
-    expect(error.params).toEqual({ version: "2.0", expected: "1.0, 1.1, 1.2, 1.3" });
+    expect(error.params).toEqual({ version: "2.0", expected: "1.0, 1.1, 1.2, 1.3, 1.4" });
 
     const calculated = await filledWorkbook((workbook) =>
       setManifestValue(workbook, "template_version", { formula: '"1.0"', result: "1.0" }),
     );
     expect((await parseError("f.xlsx", calculated)).code).toBe("manifest_invalid");
+  });
+
+  it("reads 1.0 to 1.3 files without warning about the 1.4 cost columns they never had", async () => {
+    const costColumns = (sheet: "Variants" | "Modifier Options") =>
+      contractSheet(sheet).columns.filter((column) => column.sinceVersion === "1.4");
+    expect(costColumns("Variants").map((column) => column.key)).toEqual([
+      "cost_method",
+      "reference_cost_amount",
+      "cost_currency",
+      "cost_unit",
+      "cost_tax_basis",
+      "cost_effective_date",
+      "cost_source",
+      "cost_source_reference",
+    ]);
+    expect(costColumns("Modifier Options")).toHaveLength(8);
+    expect(contractSheet("Variants").columns.map((column) => column.key)).toContain("price_tax_basis");
+
+    const v10Values: Record<string, string> = {
+      variant_key: "latte-regular",
+      action: "create",
+      product_key: "latte",
+      price_tax_basis: "GROSS",
+      tax_rate_basis_points: "500",
+    };
+    const columnsFor = (sheet: "Variants" | "Modifier Options", version: string) =>
+      contractSheet(sheet).columns.filter((column) => columnExpectedInVersion(column, version));
+    const writeVersionTables = (workbook: Awaited<ReturnType<typeof loadWorkbook>>, version: string) => {
+      const variantColumns = columnsFor("Variants", version);
+      const optionColumns = columnsFor("Modifier Options", version);
+      const variants = workbook.getWorksheet("Variants")!;
+      variants.removeTable("QOS_Variants");
+      variants.addTable({
+        name: "QOS_Variants",
+        ref: "A6",
+        columns: [...variantColumns.map((column) => ({ name: column.key })), { name: "row_check" }],
+        rows: [[...variantColumns.map((column) => v10Values[column.key] ?? null), null]],
+      });
+      const options = workbook.getWorksheet("Modifier Options")!;
+      options.removeTable("QOS_Modifier_Options");
+      options.addTable({
+        name: "QOS_Modifier_Options",
+        ref: "A6",
+        columns: [...optionColumns.map((column) => ({ name: column.key })), { name: "row_check" }],
+        rows: [[...optionColumns.map((column) => (column.key === "modifier_option_key" ? "oat" : null)), null]],
+      });
+    };
+
+    for (const version of ["1.0", 1, "1.1", "1.2", "1.3"] as const) {
+      const normalized = version === 1 ? "1.0" : version;
+      const workbook = await loadWorkbook(await template());
+      writeVersionTables(workbook, normalized);
+      setManifestValue(workbook, "template_version", version);
+      const result = extended(await parseWorkbookUpload({ fileName: "old.xlsx", bytes: await saveWorkbook(workbook) }));
+      expect(result.templateVersion, String(version)).toBe(version === 1 ? "1.0" : version);
+      for (const name of ["Variants", "Modifier Options"]) {
+        expect(sheet(result, name).issues.filter((issue) => issue.code === "missing_columns"), `${name} ${version}`).toEqual([]);
+      }
+      expect(sheet(result, "Variants").rows[0]?.values).toMatchObject({ price_tax_basis: "GROSS", tax_rate_basis_points: "500" });
+      expect(sheet(result, "Variants").rows[0]?.values).not.toHaveProperty("cost_method");
+    }
+
+    // A file that claims 1.4 is expected to carry them, so their absence is reported.
+    const workbook = await loadWorkbook(await template());
+    writeVersionTables(workbook, "1.3");
+    const result = extended(await parseWorkbookUpload({ fileName: "new.xlsx", bytes: await saveWorkbook(workbook) }));
+    expect(sheet(result, "Variants").issues).toContainEqual(
+      expect.objectContaining({ severity: "warning", code: "missing_columns", params: { columns: expect.stringContaining("cost_method") } }),
+    );
+  });
+
+  it("reads the 1.4 cost columns on Variants and Modifier Options as written", async () => {
+    const bytes = await filledWorkbook((workbook) => {
+      fillSheet(workbook, "Variants", 6, [
+        {
+          price_tax_basis: "inclusive",
+          tax_rate_basis_points: "0",
+          cost_method: "manual",
+          reference_cost_amount: "1.234567",
+          cost_currency: "AED",
+          cost_unit: "each",
+          cost_tax_basis: "NET",
+          cost_effective_date: "2026-11-22",
+        },
+      ]);
+      fillSheet(workbook, "Modifier Options", 6, [
+        { modifier_option_key: "oat", action: "create", cost_method: "recipe_derived" },
+      ]);
+    });
+    const result = extended(await parseWorkbookUpload({ fileName: "f.xlsx", bytes }));
+    expect(sheet(result, "Variants").rows[0]?.values).toMatchObject({
+      price_tax_basis: "inclusive",
+      tax_rate_basis_points: "0",
+      cost_method: "manual",
+      reference_cost_amount: "1.234567",
+      cost_tax_basis: "NET",
+    });
+    expect(sheet(result, "Modifier Options").rows[0]?.values).toMatchObject({ cost_method: "recipe_derived", reference_cost_amount: "" });
+    for (const name of ["Variants", "Modifier Options"]) {
+      expect(sheet(result, name).issues.filter((issue) => issue.code === "deferred_field" || issue.code === "missing_columns")).toEqual([]);
+    }
   });
 
   it("refuses QOS entity tables without the manifest instead of guessing the context", async () => {

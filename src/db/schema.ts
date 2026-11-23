@@ -16,6 +16,7 @@ import {
   unique,
   uniqueIndex,
   uuid,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 import { pgSchema } from "drizzle-orm/pg-core";
 
@@ -632,6 +633,13 @@ export const catalogueVariants = qos.table(
     sellingQuantityBasis: text("selling_quantity_basis"),
     priceUnit: text("price_unit"),
     priceUnitQuantity: numeric("price_unit_quantity", { mode: "number" }),
+    /** QOS-215: how the selling price treats tax. NULL = not recorded. */
+    priceTaxBasis: text("price_tax_basis").$type<
+      "inclusive" | "exclusive" | "unconfirmed"
+    >(),
+    /** QOS-215: exact tax rate in basis points (500 = 5%). 0 is a real 0% rate; NULL = not recorded. */
+    taxRateBasisPoints: integer("tax_rate_basis_points"),
+    taxProvenance: dataProvenanceEnum("tax_provenance"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -655,6 +663,14 @@ export const catalogueVariants = qos.table(
     check(
       "catalogue_variants_price_unit_quantity_check",
       sql`${table.priceUnitQuantity} IS NULL OR ${table.priceUnitQuantity} > 0`,
+    ),
+    check(
+      "catalogue_variants_price_tax_basis_check",
+      sql`${table.priceTaxBasis} IS NULL OR ${table.priceTaxBasis} IN ('inclusive', 'exclusive', 'unconfirmed')`,
+    ),
+    check(
+      "catalogue_variants_tax_rate_basis_points_check",
+      sql`${table.taxRateBasisPoints} IS NULL OR ${table.taxRateBasisPoints} >= 0`,
     ),
     unique("catalogue_variants_tenant_public_id_unique").on(
       table.tenantId,
@@ -911,6 +927,99 @@ export const catalogueModifierOptions = qos.table(
   ],
 );
 
+
+/* QOS-215 reference-cost policies. Append-only and dated: a successor row
+   closes the previous current row by setting effective_to; amounts are never
+   rewritten (qos_app may UPDATE only effective_to). amount_micros is integer
+   millionths of one major currency unit (1 AED = 1_000_000). */
+function referenceCostPolicyColumns() {
+  return {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    publicId: text("public_id").notNull(),
+    method: text("method").notNull().$type<"manual" | "recipe_derived">(),
+    amountMicros: bigint("amount_micros", { mode: "bigint" }),
+    currency: char("currency", { length: 3 }),
+    unit: text("unit").$type<"each" | "kg" | "g">(),
+    taxBasis: text("tax_basis").$type<"net" | "gross" | "unconfirmed">(),
+    effectiveFrom: date("effective_from"),
+    effectiveTo: date("effective_to"),
+    source: text("source"),
+    sourceReference: text("source_reference"),
+    revision: integer("revision").notNull(),
+    provenance: dataProvenanceEnum("provenance"),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    createdBySubject: text("created_by_subject"),
+  };
+}
+
+function referenceCostPolicyChecks(
+  prefix: string,
+  table: {
+    method: AnyPgColumn;
+    amountMicros: AnyPgColumn;
+    currency: AnyPgColumn;
+    unit: AnyPgColumn;
+    taxBasis: AnyPgColumn;
+    effectiveFrom: AnyPgColumn;
+    effectiveTo: AnyPgColumn;
+    revision: AnyPgColumn;
+  },
+) {
+  return [
+    check(`${prefix}_method_check`, sql`${table.method} IN ('manual', 'recipe_derived')`),
+    check(`${prefix}_amount_check`, sql`${table.amountMicros} IS NULL OR ${table.amountMicros} >= 0`),
+    check(
+      `${prefix}_method_amount_check`,
+      sql`(${table.method} = 'manual' AND ${table.amountMicros} IS NOT NULL AND ${table.currency} IS NOT NULL AND ${table.effectiveFrom} IS NOT NULL) OR (${table.method} = 'recipe_derived' AND ${table.amountMicros} IS NULL)`,
+    ),
+    check(`${prefix}_currency_check`, sql`${table.currency} IS NULL OR ${table.currency} ~ '^[A-Z]{3}$'`),
+    check(`${prefix}_unit_check`, sql`${table.unit} IS NULL OR ${table.unit} IN ('each', 'kg', 'g')`),
+    check(
+      `${prefix}_tax_basis_check`,
+      sql`${table.taxBasis} IS NULL OR ${table.taxBasis} IN ('net', 'gross', 'unconfirmed')`,
+    ),
+    check(
+      `${prefix}_dates_check`,
+      sql`${table.effectiveTo} IS NULL OR ${table.effectiveFrom} IS NULL OR ${table.effectiveTo} >= ${table.effectiveFrom}`,
+    ),
+    check(`${prefix}_revision_check`, sql`${table.revision} >= 1`),
+  ];
+}
+
+export const catalogueVariantReferenceCostPolicies = qos.table(
+  "catalogue_variant_reference_cost_policies",
+  {
+    ...referenceCostPolicyColumns(),
+    variantId: uuid("variant_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "catalogue_variant_ref_cost_variant_fk",
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [catalogueVariants.tenantId, catalogueVariants.id],
+    }).onDelete("restrict"),
+    unique("catalogue_variant_ref_cost_tenant_public_id_unique").on(
+      table.tenantId,
+      table.publicId,
+    ),
+    unique("catalogue_variant_ref_cost_revision_unique").on(
+      table.tenantId,
+      table.variantId,
+      table.revision,
+    ),
+    uniqueIndex("catalogue_variant_ref_cost_current_unique")
+      .on(table.tenantId, table.variantId)
+      .where(sql`effective_to IS NULL`),
+    index("catalogue_variant_ref_cost_tenant_id_idx").on(
+      table.tenantId,
+    ),
+    ...referenceCostPolicyChecks("catalogue_variant_ref_cost", table),
+  ],
+);
+
 export const catalogueModifierOptionTranslations = qos.table(
   "catalogue_modifier_option_translations",
   {
@@ -942,6 +1051,40 @@ export const catalogueModifierOptionTranslations = qos.table(
     index("catalogue_modifier_option_translations_tenant_id_idx").on(
       table.tenantId,
     ),
+  ],
+);
+
+
+export const catalogueModifierOptionReferenceCostPolicies = qos.table(
+  "catalogue_modifier_option_reference_cost_policies",
+  {
+    ...referenceCostPolicyColumns(),
+    modifierOptionId: uuid("modifier_option_id").notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "catalogue_option_ref_cost_option_fk",
+      columns: [table.tenantId, table.modifierOptionId],
+      foreignColumns: [
+        catalogueModifierOptions.tenantId,
+        catalogueModifierOptions.id,
+      ],
+    }).onDelete("restrict"),
+    unique(
+      "catalogue_option_ref_cost_tenant_public_id_unique",
+    ).on(table.tenantId, table.publicId),
+    unique("catalogue_option_ref_cost_revision_unique").on(
+      table.tenantId,
+      table.modifierOptionId,
+      table.revision,
+    ),
+    uniqueIndex("catalogue_option_ref_cost_current_unique")
+      .on(table.tenantId, table.modifierOptionId)
+      .where(sql`effective_to IS NULL`),
+    index("catalogue_option_ref_cost_tenant_id_idx").on(
+      table.tenantId,
+    ),
+    ...referenceCostPolicyChecks("catalogue_option_ref_cost", table),
   ],
 );
 

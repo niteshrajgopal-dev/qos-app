@@ -414,6 +414,13 @@
       "when": 1793100000000,
       "tag": "0058_workbook_import_apply",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1793200000000,
+      "tag": "0059_catalogue_selling_tax_and_reference_costs",
+      "breakpoints": true
     }
   ]
 }

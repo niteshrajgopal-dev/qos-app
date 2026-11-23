@@ -5,6 +5,7 @@ import { parseWorkbookUpload } from "@/lib/workbook/reader";
 import { toReviewInput } from "@/lib/workbook/validation/input";
 import type { ReviewRow } from "@/lib/workbook/validation/model";
 import { reviewWorkbook } from "@/lib/workbook/validation/review";
+import { SELLING_TAX_COST_APPLY_OWNER } from "@/lib/workbook/selling-tax-cost-capabilities";
 import { BRAND, emptySnapshot, snapshotFrom, TENANT } from "@/lib/workbook/validation/test-support";
 
 /* The sanitized Foodics fixture (#93) reviewed through the one engine: the
@@ -62,7 +63,7 @@ describe("Foodics menu review", () => {
 
     const variants = review.rows.filter((row) => row.sheet === "Variants");
     const tax = (row: ReviewRow) => row.deferredFields.find((field) => field.column === "tax_rate_basis_points");
-    expect(tax(variants[0]!)).toMatchObject({ value: "500", owner: expect.stringContaining("QOS-212"), display: { sourceText: "0.05", basisPoints: 500, percentDisplay: "5%" } });
+    expect(tax(variants[0]!)).toMatchObject({ value: "500", owner: SELLING_TAX_COST_APPLY_OWNER, display: { sourceText: "0.05", basisPoints: 500, percentDisplay: "5%" } });
     expect(tax(variants[1]!)).toMatchObject({ display: { sourceText: "5%", basisPoints: 500, percentDisplay: "5%" } });
     // Tax and price basis are never proposed as changes.
     expect(variants[0]!.changes.map((change) => change.column)).not.toContain("tax_rate_basis_points");

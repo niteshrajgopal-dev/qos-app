@@ -53,6 +53,13 @@ import {
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import {
+  applyCostPolicyOperationInTx,
+  loadCurrentCostPoliciesInTx,
+  ReferenceCostPolicyError,
+  type SellableReferenceCostView,
+  toSellableReferenceCostView,
+} from "@/lib/catalogue/reference-cost-policies";
+import {
   CatalogueProductMutationGuardError,
   CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
   loadCatalogueProductForMutationInTx,
@@ -98,6 +105,8 @@ export type ModifierOptionView = {
   currency: string;
   /** Whole kcal; null is unknown (hospitality only). */
   nutritionCalories: number | null;
+  /** QOS-215 current reference-cost policy and how it resolves (never summed with the base). */
+  referenceCost: SellableReferenceCostView;
   translations: Record<ProductLocale, { displayName: string }>;
 };
 
@@ -205,6 +214,10 @@ function mapCatalogueError(error: unknown): never {
 
   if (error instanceof CatalogueValidationError) {
     throw new CatalogueModifierError(error.message, 400, error.field);
+  }
+
+  if (error instanceof ReferenceCostPolicyError) {
+    throw new CatalogueModifierError(error.message, error.statusCode, error.field);
   }
 
   if (error instanceof StaffAuthorizationError) {
@@ -404,6 +417,12 @@ async function loadModifierOptionsInTx(
     tenantId,
     optionRows.map((row) => row.id),
   );
+  const costPolicies = await loadCurrentCostPoliciesInTx(
+    tx,
+    tenantId,
+    "modifier_option",
+    optionRows.map((row) => row.id),
+  );
 
   return optionRows.map((row) => ({
     publicId: row.publicId,
@@ -415,6 +434,7 @@ async function loadModifierOptionsInTx(
     priceMinor: row.priceMinor,
     currency: row.currency.trim(),
     nutritionCalories: row.nutritionCalories,
+    referenceCost: toSellableReferenceCostView(costPolicies.get(row.id)),
     translations: translationsByOptionId.get(row.id) ?? {
       en: { displayName: "" },
       ar: { displayName: "" },
@@ -1040,6 +1060,13 @@ export async function createModifierOption(
         "Administrator membership is required to change modifier prices.",
       );
     }
+    if (input.costPolicy?.operation === "clear") {
+      throw new CatalogueModifierError(
+        "A new option has no cost policy to clear.",
+        400,
+        "costPolicy.operation",
+      );
+    }
 
     return await withTenantContext(db, tenantId, async (tx) => {
       const validated = validateCreateModifierOptionInput(
@@ -1118,6 +1145,20 @@ export async function createModifierOption(
         ar: { displayName: validated.translations.ar?.displayName ?? "" },
       });
 
+      if (validated.costPolicy) {
+        await applyCostPolicyOperationInTx(tx, {
+          tenantId,
+          kind: "modifier_option",
+          sellableId: option.id,
+          sellablePublicId: publicId,
+          operation: validated.costPolicy,
+          membership,
+          actorSubject: staffSubject,
+          provenance: "operator_entered",
+          entityVersion: updatedGroup.version,
+        });
+      }
+
       const options = await loadModifierOptionsInTx(tx, tenantId, group.id);
       const nextRules = toModifierGroupRules(
         {
@@ -1165,6 +1206,11 @@ export async function updateModifierOption(
     if (input.priceMinor != null && membership.role !== "administrator") {
       throw new StaffAuthorizationError(
         "Administrator membership is required to change modifier prices.",
+      );
+    }
+    if (input.costPolicy !== undefined && membership.role !== "administrator") {
+      throw new StaffAuthorizationError(
+        "Administrator membership is required to change modifier reference costs.",
       );
     }
 
@@ -1228,6 +1274,21 @@ export async function updateModifierOption(
         .where(eq(catalogueModifierOptions.id, option.id));
 
       await upsertOptionTranslations(tx, tenantId, option.id, validated.translations);
+
+      // Omitting costPolicy leaves the current policy exactly as it is.
+      if (validated.costPolicy) {
+        await applyCostPolicyOperationInTx(tx, {
+          tenantId,
+          kind: "modifier_option",
+          sellableId: option.id,
+          sellablePublicId: option.publicId,
+          operation: validated.costPolicy,
+          membership,
+          actorSubject: staffSubject,
+          provenance: "operator_entered",
+          entityVersion: updatedGroup.version,
+        });
+      }
 
       const options = await loadModifierOptionsInTx(tx, tenantId, group.id);
       const nextRules = toModifierGroupRules(

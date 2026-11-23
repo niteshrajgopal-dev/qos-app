@@ -33,6 +33,19 @@ import {
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import {
+  applyCostPolicyOperationInTx,
+  loadCurrentCostPoliciesInTx,
+  ReferenceCostPolicyError,
+  referenceMargin,
+  resolveReferenceCost,
+  type ReferenceMarginView,
+  type SellableReferenceCostView,
+  toReferenceMarginView,
+  toSellableReferenceCostView,
+  type ValidatedCostPolicyOperation,
+} from "@/lib/catalogue/reference-cost-policies";
+import type { SellingPriceTaxBasis } from "@/lib/catalogue/selling-tax-cost";
+import {
   CatalogueProductMutationGuardError,
   CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
   loadCatalogueProductForMutationInTx,
@@ -75,6 +88,15 @@ export type DraftProductVariantView = VariantSellingBasisView & {
   currency: string | null;
   amountMinor: number | null;
   priceVersion: number | null;
+  /** QOS-215 selling-price tax interpretation; null = not recorded. */
+  priceTaxBasis: SellingPriceTaxBasis | null;
+  /** Exact rate in basis points; 0 is a real 0% rate, null = not recorded. */
+  taxRateBasisPoints: number | null;
+  taxProvenance: string | null;
+  /** Current reference-cost policy (effective_to IS NULL) and how it resolves. */
+  referenceCost: SellableReferenceCostView;
+  /** Reference margin, or why it is unavailable. Never a fabricated zero. */
+  referenceMargin: ReferenceMarginView;
   translations: Record<ProductLocale, { displayName: string }>;
 };
 
@@ -123,6 +145,10 @@ function mapCatalogueError(error: unknown): never {
 
   if (error instanceof CatalogueValidationError) {
     throw new CatalogueVariantError(error.message, 400, error.field);
+  }
+
+  if (error instanceof ReferenceCostPolicyError) {
+    throw new CatalogueVariantError(error.message, error.statusCode, error.field);
   }
 
   if (error instanceof StaffAuthorizationError) {
@@ -300,7 +326,7 @@ async function loadVariantTranslations(
   return byVariantId;
 }
 
-async function loadProductVariantsInTx(
+export async function loadProductVariantsInTx(
   tx: DbClient,
   tenantId: string,
   productId: string,
@@ -317,6 +343,9 @@ async function loadProductVariantsInTx(
       sellingQuantityBasis: catalogueVariants.sellingQuantityBasis,
       priceUnit: catalogueVariants.priceUnit,
       priceUnitQuantity: catalogueVariants.priceUnitQuantity,
+      priceTaxBasis: catalogueVariants.priceTaxBasis,
+      taxRateBasisPoints: catalogueVariants.taxRateBasisPoints,
+      taxProvenance: catalogueVariants.taxProvenance,
       currency: catalogueVariantPrices.currency,
       amountMinor: catalogueVariantPrices.amountMinor,
       priceVersion: catalogueVariantPrices.version,
@@ -342,23 +371,45 @@ async function loadProductVariantsInTx(
     tenantId,
     variantRows.map((row) => row.id),
   );
+  const costPolicies = await loadCurrentCostPoliciesInTx(
+    tx,
+    tenantId,
+    "variant",
+    variantRows.map((row) => row.id),
+  );
 
-  return variantRows.map((row) => ({
-    publicId: row.publicId,
-    isDefault: row.isDefault,
-    sortOrder: row.sortOrder,
-    status: row.status === "archived" ? "archived" : "active",
-    sku: row.sku,
-    barcode: row.barcode,
-    ...variantSellingBasisFromRow(row),
-    currency: row.currency?.trim() ?? null,
-    amountMinor: row.amountMinor ?? null,
-    priceVersion: row.priceVersion ?? null,
-    translations: translationsByVariantId.get(row.id) ?? {
-      en: { displayName: "" },
-      ar: { displayName: "" },
-    },
-  }));
+  return variantRows.map((row) => {
+    const policy = costPolicies.get(row.id) ?? null;
+    const price = {
+      amountMinor: row.amountMinor ?? null,
+      currency: row.currency?.trim() ?? null,
+      priceTaxBasis: row.priceTaxBasis ?? null,
+      taxRateBasisPoints: row.taxRateBasisPoints ?? null,
+    };
+    return {
+      publicId: row.publicId,
+      isDefault: row.isDefault,
+      sortOrder: row.sortOrder,
+      status: row.status === "archived" ? ("archived" as const) : ("active" as const),
+      sku: row.sku,
+      barcode: row.barcode,
+      ...variantSellingBasisFromRow(row),
+      currency: price.currency,
+      amountMinor: price.amountMinor,
+      priceVersion: row.priceVersion ?? null,
+      priceTaxBasis: price.priceTaxBasis,
+      taxRateBasisPoints: price.taxRateBasisPoints,
+      taxProvenance: row.taxProvenance ?? null,
+      referenceCost: toSellableReferenceCostView(policy),
+      referenceMargin: toReferenceMarginView(
+        referenceMargin(price, resolveReferenceCost(policy)),
+      ),
+      translations: translationsByVariantId.get(row.id) ?? {
+        en: { displayName: "" },
+        ar: { displayName: "" },
+      },
+    };
+  });
 }
 
 function validateActiveVariantLabelSet(
@@ -407,6 +458,11 @@ function validateActiveVariantLabelSet(
       currency: null,
       amountMinor: null,
       priceVersion: null,
+      priceTaxBasis: null,
+      taxRateBasisPoints: null,
+      taxProvenance: null,
+      referenceCost: toSellableReferenceCostView(null),
+      referenceMargin: { status: "unavailable", reason: "missing_price" },
       translations: {
         en: { displayName: candidate.translations.en?.displayName ?? "" },
         ar: { displayName: candidate.translations.ar?.displayName ?? "" },
@@ -550,6 +606,109 @@ async function setVariantPrice(
   return 1;
 }
 
+type VariantTaxPatch = {
+  priceTaxBasis: SellingPriceTaxBasis | null | undefined;
+  taxRateBasisPoints: number | null | undefined;
+};
+
+function variantTaxPatchRequested(patch: VariantTaxPatch) {
+  return patch.priceTaxBasis !== undefined || patch.taxRateBasisPoints !== undefined;
+}
+
+/** Tax and cost-policy writes follow the same administrator rule as variant prices. */
+function assertCanWriteVariantPricing(
+  membership: ActiveStaffMembership,
+  validated: VariantTaxPatch & {
+    amountMinor?: number | null;
+    costPolicy?: ValidatedCostPolicyOperation;
+  },
+) {
+  if (
+    membership.role !== "administrator" &&
+    (validated.amountMinor != null ||
+      variantTaxPatchRequested(validated) ||
+      validated.costPolicy !== undefined)
+  ) {
+    throw new StaffAuthorizationError(
+      "Administrator membership is required to change variant prices, tax or reference costs.",
+    );
+  }
+}
+
+/**
+ * Applies explicit tax fields (undefined keeps, null clears) and audits a
+ * real change. Provenance is operator_entered while anything is recorded,
+ * and null once both fields are cleared.
+ */
+async function applyVariantTaxPatchInTx(
+  tx: DbClient,
+  input: {
+    tenantId: string;
+    variant: {
+      id: string;
+      publicId: string;
+      priceTaxBasis: SellingPriceTaxBasis | null;
+      taxRateBasisPoints: number | null;
+      taxProvenance: string | null;
+    };
+    patch: VariantTaxPatch;
+    membership: ActiveStaffMembership;
+    staffSubject: string;
+    entityVersion: number;
+  },
+) {
+  const { variant, patch } = input;
+  if (!variantTaxPatchRequested(patch)) {
+    return;
+  }
+  const next = {
+    priceTaxBasis:
+      patch.priceTaxBasis === undefined ? variant.priceTaxBasis : patch.priceTaxBasis,
+    taxRateBasisPoints:
+      patch.taxRateBasisPoints === undefined
+        ? variant.taxRateBasisPoints
+        : patch.taxRateBasisPoints,
+  };
+  if (
+    next.priceTaxBasis === variant.priceTaxBasis &&
+    next.taxRateBasisPoints === variant.taxRateBasisPoints
+  ) {
+    return;
+  }
+  const taxProvenance =
+    next.priceTaxBasis == null && next.taxRateBasisPoints == null
+      ? null
+      : ("operator_entered" as const);
+
+  await tx
+    .update(catalogueVariants)
+    .set({ ...next, taxProvenance, updatedAt: new Date() })
+    .where(
+      and(
+        eq(catalogueVariants.tenantId, input.tenantId),
+        eq(catalogueVariants.id, variant.id),
+      ),
+    );
+
+  await recordTenantAuditEventInTx(tx, {
+    tenantId: input.tenantId,
+    actorSubject: input.staffSubject,
+    actorClass: auditActorClassFromStaffRole(input.membership.role),
+    action: "catalogue.variant_tax.update",
+    entityType: "catalogue_variant",
+    entityPublicId: variant.publicId,
+    entityVersion: input.entityVersion,
+    changeSummary: {
+      before: {
+        priceTaxBasis: variant.priceTaxBasis,
+        taxRateBasisPoints: variant.taxRateBasisPoints,
+        taxProvenance: variant.taxProvenance,
+      },
+      after: { ...next, taxProvenance },
+    },
+  });
+}
+
 export async function listProductVariants(
   db: DbClient,
   tenantId: string,
@@ -584,9 +743,12 @@ export async function createProductVariant(
   try {
     const validated = validateCreateProductVariantInput(input);
 
-    if (validated.amountMinor != null && membership.role !== "administrator") {
-      throw new StaffAuthorizationError(
-        "Administrator membership is required to change variant prices.",
+    assertCanWriteVariantPricing(membership, validated);
+    if (validated.costPolicy?.operation === "clear") {
+      throw new CatalogueVariantError(
+        "A new variant has no cost policy to clear.",
+        400,
+        "costPolicy.operation",
       );
     }
 
@@ -674,6 +836,35 @@ export async function createProductVariant(
         })
         .returning();
 
+      await applyVariantTaxPatchInTx(tx, {
+        tenantId,
+        variant: {
+          id: variant.id,
+          publicId,
+          priceTaxBasis: null,
+          taxRateBasisPoints: null,
+          taxProvenance: null,
+        },
+        patch: validated,
+        membership,
+        staffSubject,
+        entityVersion: updatedProduct.version,
+      });
+
+      if (validated.costPolicy) {
+        await applyCostPolicyOperationInTx(tx, {
+          tenantId,
+          kind: "variant",
+          sellableId: variant.id,
+          sellablePublicId: publicId,
+          operation: validated.costPolicy,
+          membership,
+          actorSubject: staffSubject,
+          provenance: "operator_entered",
+          entityVersion: updatedProduct.version,
+        });
+      }
+
       await upsertVariantTranslations(tx, tenantId, variant.id, {
         en: {
           displayName: validated.translations.en?.displayName ?? "",
@@ -760,6 +951,7 @@ export async function updateProductVariant(
         "Administrator membership is required to change variant prices.",
       );
     }
+    assertCanWriteVariantPricing(membership, validated);
 
     return await withTenantContext(db, tenantId, async (tx) => {
       const product = await loadCatalogueProductForMutationInTx(
@@ -906,6 +1098,36 @@ export async function updateProductVariant(
       }
 
       await upsertVariantTranslations(tx, tenantId, variant.id, validated.translations);
+
+      await applyVariantTaxPatchInTx(tx, {
+        tenantId,
+        variant: {
+          id: variant.id,
+          publicId: variant.publicId,
+          priceTaxBasis: variant.priceTaxBasis ?? null,
+          taxRateBasisPoints: variant.taxRateBasisPoints ?? null,
+          taxProvenance: variant.taxProvenance ?? null,
+        },
+        patch: validated,
+        membership,
+        staffSubject,
+        entityVersion: updatedProduct.version,
+      });
+
+      // Omitting costPolicy leaves the current policy exactly as it is.
+      if (validated.costPolicy) {
+        await applyCostPolicyOperationInTx(tx, {
+          tenantId,
+          kind: "variant",
+          sellableId: variant.id,
+          sellablePublicId: variant.publicId,
+          operation: validated.costPolicy,
+          membership,
+          actorSubject: staffSubject,
+          provenance: "operator_entered",
+          entityVersion: updatedProduct.version,
+        });
+      }
 
       let priceVersion: number | null = null;
       if (validated.amountMinor !== undefined) {
