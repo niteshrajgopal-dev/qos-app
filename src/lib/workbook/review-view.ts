@@ -1,4 +1,4 @@
-import { staffCopyWith, staffUiCopy, type StaffLocale, type StaffUiCopyKey } from "@/lib/staff/locale";
+import { staffCopyWith, staffCount, staffUiCopy, type StaffCountKey, type StaffLocale, type StaffUiCopyKey } from "@/lib/staff/locale";
 import type {
   ApplyBlockReason,
   ApplyFailure,
@@ -140,6 +140,60 @@ export const REVIEW_ERROR_COPY: Record<WorkbookReviewErrorCode, StaffUiCopyKey> 
   plan_applied: "applyErrorPlanApplied",
 };
 
+/* Display names of the contract sheets. English is the contract name itself;
+   unknown sheets (deferred or rejected ones) show their name as is. */
+export const REVIEW_SHEET_COPY: Partial<Record<string, StaffUiCopyKey>> = {
+  Branches: "reviewSheetBranches",
+  Categories: "reviewSheetCategories",
+  Products: "reviewSheetProducts",
+  "Product Categories": "reviewSheetProductCategories",
+  Variants: "reviewSheetVariants",
+  "Branch Prices": "reviewSheetBranchPrices",
+  "Sales Channels": "reviewSheetSalesChannels",
+  "Variant Channel Prices": "reviewSheetVariantChannelPrices",
+  "Modifier Groups": "reviewSheetModifierGroups",
+  "Modifier Options": "reviewSheetModifierOptions",
+  "Modifier Option Channel Prices": "reviewSheetModifierOptionChannelPrices",
+  "Product Modifiers": "reviewSheetProductModifiers",
+  Menus: "reviewSheetMenus",
+  "Menu Branches": "reviewSheetMenuBranches",
+  "Menu Sections": "reviewSheetMenuSections",
+  "Menu Items": "reviewSheetMenuItems",
+  "Source Map": "reviewSheetSourceMap",
+};
+
+export function sheetLabel(locale: StaffLocale, sheet: string) {
+  const key = REVIEW_SHEET_COPY[sheet];
+  return key ? staffUiCopy(locale, key) : sheet;
+}
+
+/* Owners the server sends with field decisions, deferred values and
+   unsupported actions, keyed by their literal text (validation/capability.ts,
+   validation/actions.ts and the workbook dictionary; those server modules stay
+   out of the client bundle). An unknown owner is shown as sent. */
+export const REVIEW_OWNER_COPY: Partial<Record<string, StaffUiCopyKey>> = {
+  "QOS-194 review; apply in QOS-217": "reviewOwnerValidated",
+  "QOS-194 review": "reviewOwnerMechanics",
+  "QOS-200 apply": "reviewOwnerQos200Apply",
+  "QOS-194 validate, QOS-200 apply": "reviewOwnerValidateQos200Apply",
+  "QOS-195/197/198/199 per QOS-216; apply QOS-200": "reviewOwnerDomainServicesQos216",
+  "QOS-212–215 per QOS-216": "reviewOwnerQos212to215",
+  "QOS-195–199 domain services; apply in QOS-200": "reviewOwnerDomainServices",
+  "Phase 3 (combos are rejected in Phase 2)": "reviewOwnerPhase3Combos",
+};
+
+export function describeReviewOwner(locale: StaffLocale, owner: string) {
+  const key = REVIEW_OWNER_COPY[owner];
+  return key ? staffUiCopy(locale, key) : owner;
+}
+
+/** Numeric diagnostic parameters shown as a counted phrase, so the noun agrees with the number. */
+const COUNTED_PARAMS: Partial<Record<ReviewDiagnosticCode, Record<string, StaffCountKey>>> = {
+  name_collision: { candidates: "reviewSimilarRecords" },
+  update_target_unresolved: { candidates: "reviewSimilarRecords" },
+  deferred_value: { count: "reviewValues" },
+};
+
 /** Row filters, in the order the panel shows them: rows needing a decision first. */
 export const REVIEW_FILTERS = ["needs_decision", "invalid", "blocked", "create", "update", "unchanged", "unsupported", "skipped", "all"] as const;
 export type ReviewFilter = (typeof REVIEW_FILTERS)[number];
@@ -193,6 +247,12 @@ export function describeReviewDiagnostic(locale: StaffLocale, diagnostic: Review
   if (diagnostic.code === "action_unsupported" && typeof values.reason === "string") {
     values.reason = staffUiCopy(locale, values.reason === "unsupported_sheet" ? "reviewReasonUnsupportedSheet" : "reviewReasonUnsupportedAction");
   }
+  if (diagnostic.code === "action_unsupported" && typeof values.owner === "string") {
+    values.owner = describeReviewOwner(locale, values.owner);
+  }
+  for (const [param, countKey] of Object.entries(COUNTED_PARAMS[diagnostic.code as ReviewDiagnosticCode] ?? {})) {
+    if (typeof values[param] === "number") values[param] = staffCount(locale, countKey, values[param]);
+  }
   if (diagnostic.code === "blocked_by_dependency" && typeof values.reason === "string" && values.reason in REVIEW_CLASSIFICATION_COPY) {
     values.reason = staffUiCopy(locale, REVIEW_CLASSIFICATION_COPY[values.reason as ReviewClassification]);
   }
@@ -218,12 +278,24 @@ export function formatMinorUnits(locale: StaffLocale, currency: string, minor: s
   return format.format(Number(major));
 }
 
+/** A minor-unit amount as typed, with its money value beside it (`1800` AED → `1800 (AED 18.00)`); anything else verbatim. */
+export function describeMinorUnits(_locale: StaffLocale, currency: string, minor: string) {
+  /* The parenthetical always uses the English ISO format (`AED 18.00`).
+     Arabic NumberFormat puts د.إ after the amount, and those marks reorder
+     `1800 → 1900` once the value sits inside the LTR diff. */
+  const money = formatMinorUnits("en", currency, minor);
+  return money === minor ? minor : `${minor} (${money})`;
+}
+
+/* Minor units are the canonical value of these columns everywhere: the
+   review shows them as typed with the money beside them, and the correction
+   report keeps expected and found in raw minor units. */
 const MONEY_COLUMNS = new Set(["amount_minor", "price_minor"]);
 
-/** A before or after value as shown: money columns formatted, everything else verbatim. */
+/** A before or after value as shown: money columns in minor units with their money value, everything else verbatim. */
 export function formatReviewValue(locale: StaffLocale, currency: string, column: string, value: string | null) {
   if (value === null) return null;
-  return MONEY_COLUMNS.has(column) ? formatMinorUnits(locale, currency, value) : value;
+  return MONEY_COLUMNS.has(column) ? describeMinorUnits(locale, currency, value) : value;
 }
 
 export type ReviewApiError = WorkbookApiError & { reason?: string; found?: string; expected?: string };

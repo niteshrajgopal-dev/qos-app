@@ -18,12 +18,13 @@ import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { Checkbox } from "@/design-system/components/primitives/Checkbox";
 import { isolateText } from "@/lib/staff/branch-copy";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
-import { staffCopyWith, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
+import { staffCopyWith, staffCount, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 import { attachmentFileName } from "@/lib/workbook/import-view";
 import {
   applyEditorHref,
   describeReviewApiError,
   describeReviewDiagnostic,
+  describeReviewOwner,
   filterReviewRows,
   indexReviewRows,
   PLAN_STATUS_COPY,
@@ -34,6 +35,7 @@ import {
   REVIEW_FILTER_COPY,
   REVIEW_FILTERS,
   reviewRowAnchor,
+  sheetLabel,
   type ReviewApiError,
   type ReviewFilter,
 } from "@/lib/workbook/review-view";
@@ -343,7 +345,10 @@ export function WorkbookReviewPanel({
           ))}
         </PortalStatGrid>
         <p className="qosp-meta-line">
-          {staffCopyWith(locale, "reviewCountsSub", { deferred: result.counts.deferredValues, pending: result.counts.acknowledgementsPending })}
+          {staffCopyWith(locale, "reviewCountsSub", {
+            deferred: staffCount(locale, "reviewDeferredValues", result.counts.deferredValues),
+            pending: staffCount(locale, "reviewAcksPending", result.counts.acknowledgementsPending),
+          })}
         </p>
         <p className="qosp-meta-line">
           {result.readiness.reviewComplete
@@ -364,24 +369,38 @@ export function WorkbookReviewPanel({
               for (const entry of result.fieldDecisions.filter((field) => field.decision === decision)) {
                 bySheet.set(entry.sheet, [...(bySheet.get(entry.sheet) ?? []), entry]);
               }
-              return [...bySheet].map(([sheetName, entries]) => (
-                <li key={`${decision}-${sheetName}`} className="qosp-subcard">
-                  <div className="qosp-meta-row">
-                    <PortalBadge tone={FIELD_DECISION_TONE[decision]}>{t(REVIEW_FIELD_DECISION_COPY[decision])}</PortalBadge>
-                    <bdi dir="ltr">{sheetName}</bdi>
-                  </div>
-                  <p className="qosp-panel-help">
-                    <code className="qosp-code" dir="ltr">
-                      {entries.map((entry) => entry.column).join(", ")}
-                    </code>
-                  </p>
-                  <p className="qosp-meta-line">
-                    {staffCopyWith(locale, "reviewFieldOwner", { owner: isolateText([...new Set(entries.map((entry) => entry.owner))].join("; ")) })}
-                    {" · "}
-                    {staffCopyWith(locale, "reviewFieldRows", { count: Math.max(...entries.map((entry) => entry.rowsWithValues)) })}
-                  </p>
-                </li>
-              ));
+              return [...bySheet].map(([sheetName, entries]) => {
+                const label = sheetLabel(locale, sheetName);
+                return (
+                  <li key={`${decision}-${sheetName}`} className="qosp-subcard">
+                    <div className="qosp-meta-row">
+                      <PortalBadge tone={FIELD_DECISION_TONE[decision]}>{t(REVIEW_FIELD_DECISION_COPY[decision])}</PortalBadge>
+                      {label === sheetName ? (
+                        <bdi dir="ltr">{sheetName}</bdi>
+                      ) : (
+                        <>
+                          <bdi>{label}</bdi>
+                          <code className="qosp-code" dir="ltr">
+                            {sheetName}
+                          </code>
+                        </>
+                      )}
+                    </div>
+                    <p className="qosp-panel-help">
+                      <code className="qosp-code" dir="ltr">
+                        {entries.map((entry) => entry.column).join(", ")}
+                      </code>
+                    </p>
+                    <p className="qosp-meta-line">
+                      {staffCopyWith(locale, "reviewFieldOwner", {
+                        owner: isolateText([...new Set(entries.map((entry) => describeReviewOwner(locale, entry.owner)))].join(locale === "ar" ? "؛ " : "; ")),
+                      })}
+                      {" · "}
+                      {staffCount(locale, "reviewRows", Math.max(...entries.map((entry) => entry.rowsWithValues)))}
+                    </p>
+                  </li>
+                );
+              });
             })}
           </ul>
         </>
@@ -402,7 +421,7 @@ export function WorkbookReviewPanel({
                     key={sheetName}
                     checked={checked}
                     onChange={(event) => toggleDeferredSheet(sheetName, columns, event.target.checked)}
-                    label={staffCopyWith(locale, "reviewAckDeferred", { columns: isolateText(columns.join(", ")), sheet: isolateText(sheetName) })}
+                    label={staffCopyWith(locale, "reviewAckDeferred", { columns: isolateText(columns.join(", ")), sheet: isolateText(sheetLabel(locale, sheetName)) })}
                   />
                 );
               })}
@@ -410,14 +429,14 @@ export function WorkbookReviewPanel({
                 <Checkbox
                   checked={acknowledgements.has("acknowledge_warnings")}
                   onChange={(event) => togglePlain("acknowledge_warnings", event.target.checked)}
-                  label={staffCopyWith(locale, "reviewAckWarnings", { rows: warnings.rows })}
+                  label={staffCount(locale, "reviewAckWarnings", warnings.rows)}
                 />
               ) : null}
               {partial ? (
                 <Checkbox
                   checked={acknowledgements.has("acknowledge_partial_apply")}
                   onChange={(event) => togglePlain("acknowledge_partial_apply", event.target.checked)}
-                  label={staffCopyWith(locale, "reviewAckPartial", { rows: partial.rows })}
+                  label={staffCount(locale, "reviewAckPartial", partial.rows)}
                 />
               ) : null}
             </div>
@@ -430,7 +449,7 @@ export function WorkbookReviewPanel({
           <PortalNotice tone="error">{error}</PortalNotice>
         </div>
       ) : null}
-      {unsent > 0 ? <p className="qosp-meta-line qosp-panel-body">{staffCopyWith(locale, "reviewUnsentDecisions", { count: unsent })}</p> : null}
+      {unsent > 0 ? <p className="qosp-meta-line qosp-panel-body">{staffCount(locale, "reviewUnsentDecisions", unsent)}</p> : null}
       <div className="qosp-button-row qosp-panel-body">
         <button className="qos-btn" data-variant="primary" type="button" disabled={busy !== null || applyLocked} onClick={() => void rerun()}>
           {busy === "rerun" ? t("reviewRerunBusy") : t("reviewRerun")}
@@ -474,8 +493,8 @@ export function WorkbookReviewPanel({
           >
             <option value="">{t("reviewSheetAll")}</option>
             {sheets.map((name) => (
-              <option key={name} value={name} dir="ltr">
-                {name}
+              <option key={name} value={name}>
+                {sheetLabel(locale, name)}
               </option>
             ))}
           </select>

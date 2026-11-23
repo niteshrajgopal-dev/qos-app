@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { STAFF_UI_COPY } from "@/lib/staff/locale";
+import { SUPPORTED_ENTITY_SHEETS } from "@/lib/workbook/contract";
+import dictionary from "@/lib/workbook/qos-workbook-dictionary.v1.1.json";
 import { APPLY_FAILURE_CODES, ROW_APPLY_STATES, type RowApplyOutcome } from "@/lib/workbook/apply/model";
 import {
   APPLY_API_ERROR_CODES,
@@ -19,6 +21,7 @@ import {
   summariseApplyBySheet,
   describeReviewApiError,
   describeReviewDiagnostic,
+  describeReviewOwner,
   diagnosticLocation,
   filterReviewRows,
   formatMinorUnits,
@@ -32,8 +35,18 @@ import {
   REVIEW_FIELD_DECISION_COPY,
   REVIEW_FILTER_COPY,
   REVIEW_OPERATION_COPY,
+  REVIEW_OWNER_COPY,
+  REVIEW_SHEET_COPY,
   rowLocation,
+  sheetLabel,
 } from "@/lib/workbook/review-view";
+import { sheetOwner } from "@/lib/workbook/validation/actions";
+import {
+  CHANNEL_PRICE_APPLY_OWNER,
+  MECHANICS_OWNER,
+  PRODUCT_MODIFIER_POLICY_APPLY_OWNER,
+  VALIDATED_OWNER,
+} from "@/lib/workbook/validation/capability";
 import { REVIEW_CLASSIFICATIONS, REVIEW_DIAGNOSTIC_CODES, REVIEW_OPERATIONS, type ReviewRow } from "@/lib/workbook/validation/model";
 
 const ALL_KEYS = [
@@ -46,7 +59,19 @@ const ALL_KEYS = [
   ...Object.values(REVIEW_BLOCKER_COPY),
   ...Object.values(REVIEW_ERROR_COPY),
   ...Object.values(REVIEW_FILTER_COPY),
+  ...(Object.values(REVIEW_SHEET_COPY) as Array<keyof typeof STAFF_UI_COPY.en>),
+  ...(Object.values(REVIEW_OWNER_COPY) as Array<keyof typeof STAFF_UI_COPY.en>),
 ];
+
+/** Every distinct owner the workbook dictionary assigns to a column group. */
+function dictionaryOwners() {
+  const owners = new Set<string>();
+  JSON.stringify(dictionary, (key, value) => {
+    if (key === "owner" && typeof value === "string") owners.add(value);
+    return value;
+  });
+  return [...owners];
+}
 
 function row(partial: Partial<ReviewRow>): ReviewRow {
   return {
@@ -122,6 +147,69 @@ describe("workbook review wording", () => {
     expect(formatMinorUnits("en", "AED", "12.50")).toBe("12.50");
     expect(formatReviewValue("en", "AED", "sku", "000123")).toBe("000123");
     expect(formatReviewValue("en", "AED", "amount_minor", null)).toBeNull();
+  });
+
+  it("shows money columns in minor units, as their label says, with the money value beside them", () => {
+    // Intl puts a no-break space between the currency code and the amount.
+    expect(formatReviewValue("en", "AED", "amount_minor", "1800")).toBe("1800 (AED\u00a018.00)");
+    // Arabic uses the same ISO parenthetical so the LTR diff stays 1800 → 1900.
+    const ar = formatReviewValue("ar", "AED", "price_minor", "1900")!;
+    expect(ar.startsWith("1900 (")).toBe(true);
+    expect(ar).toContain("19.00");
+    expect(ar).toBe(formatReviewValue("en", "AED", "price_minor", "1900"));
+    expect(formatReviewValue("en", "AED", "amount_minor", "1800.5")).toBe("1800.5");
+    expect(formatReviewValue("en", "", "amount_minor", "1800")).toBe("1800");
+    expect(formatReviewValue("en", "AED", "sku", "1800")).toBe("1800");
+  });
+
+  it("counts similar records with the right noun form in both languages", () => {
+    for (const code of ["name_collision", "update_target_unresolved"] as const) {
+      const one = describeReviewDiagnostic("en", { severity: "error", code, params: { candidates: 1 } });
+      const two = describeReviewDiagnostic("en", { severity: "error", code, params: { candidates: 2 } });
+      expect(one, code).toContain("1 existing record has a similar name");
+      expect(two, code).toContain("2 existing records have a similar name");
+      const ar = describeReviewDiagnostic("ar", { severity: "error", code, params: { candidates: 2 } });
+      expect(ar, code).toContain("سجلين موجودين");
+      expect(ar, code).not.toMatch(/\{\w+\}/);
+    }
+    expect(describeReviewDiagnostic("en", { severity: "error", code: "name_collision", params: { candidates: 1 } })).toMatch(/^1 existing record has a similar name\./);
+    expect(describeReviewDiagnostic("en", { severity: "info", code: "deferred_value", params: { count: 1 } })).toBe("1 value kept for later, not counted as changes.");
+  });
+
+  it("names every contract sheet in both languages, English being the contract name", () => {
+    for (const sheet of [...SUPPORTED_ENTITY_SHEETS, "Source Map"]) {
+      const key = REVIEW_SHEET_COPY[sheet];
+      expect(key, sheet).toBeDefined();
+      expect(STAFF_UI_COPY.en[key!], sheet).toBe(sheet);
+      expect(STAFF_UI_COPY.ar[key!], sheet).toMatch(/[؀-ۿ]/);
+      expect(sheetLabel("en", sheet)).toBe(sheet);
+    }
+    expect(sheetLabel("ar", "Menu Items")).not.toBe("Menu Items");
+    expect(sheetLabel("ar", "Future Combos")).toBe("Future Combos");
+  });
+
+  it("has wording for every owner the server sends, and shows an unknown one as sent", () => {
+    const owners = [
+      VALIDATED_OWNER,
+      MECHANICS_OWNER,
+      CHANNEL_PRICE_APPLY_OWNER,
+      PRODUCT_MODIFIER_POLICY_APPLY_OWNER,
+      sheetOwner("Products"),
+      sheetOwner("Future Combos"),
+      ...dictionaryOwners(),
+    ];
+    expect(dictionaryOwners().length).toBeGreaterThan(0);
+    for (const owner of owners) {
+      const key = REVIEW_OWNER_COPY[owner];
+      expect(key, owner).toBeDefined();
+      expect(STAFF_UI_COPY.en[key!], owner).toBe(owner);
+    }
+    expect(describeReviewOwner("ar", VALIDATED_OWNER)).toMatch(/[؀-ۿ]/);
+    expect(describeReviewOwner("ar", VALIDATED_OWNER)).not.toBe(VALIDATED_OWNER);
+    expect(describeReviewOwner("en", VALIDATED_OWNER)).toBe(VALIDATED_OWNER);
+    expect(describeReviewOwner("ar", "QOS-999 later")).toBe("QOS-999 later");
+    const unsupported = describeReviewDiagnostic("ar", { severity: "info", code: "action_unsupported", params: { reason: "unsupported_sheet", owner: sheetOwner("Future Combos") } });
+    expect(unsupported).toContain(STAFF_UI_COPY.ar.reviewOwnerPhase3Combos);
   });
 
   it("names Excel locations and filters rows needing a decision first", () => {

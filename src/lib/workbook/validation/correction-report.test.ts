@@ -71,6 +71,16 @@ describe("correction report", () => {
     expect(en.worksheet.getCell("C2").numFmt).toBe("@");
   });
 
+  it("keeps money in raw minor units, as typed, never formatted as currency", async () => {
+    const en = await sheetValues(await buildCorrectionReport(result(), "en"), "Corrections");
+    const code = CORRECTION_COLUMNS.indexOf("code");
+    const minor = en.rows.find((row) => row[code] === "malformed_minor_units")!;
+    expect(minor[CORRECTION_COLUMNS.indexOf("found")]).toBe("12.50");
+    for (const row of en.rows) {
+      for (const cell of row) expect(String(cell)).not.toContain("AED");
+    }
+  });
+
   it("carries the summary and the plan context, and is named after the plan and revision", async () => {
     const plan = result();
     const bytes = await buildCorrectionReport(plan, "en");
