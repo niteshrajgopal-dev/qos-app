@@ -4,14 +4,18 @@ import { staffIdentities, staffMemberships } from "@/db/schema";
 import { grantRoleMembership, hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { StaffAuthError } from "@/lib/staff/session";
 import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
-import { createTenantHierarchy } from "@/lib/tenant/repository";
+import { createTenantHierarchy, ensureSeedLocation } from "@/lib/tenant/repository";
 
 import { PATCH as patchConversion } from "./items/[itemPublicId]/conversions/[conversionPublicId]/route";
 import { POST as postConversion } from "./items/[itemPublicId]/conversions/route";
 import { GET as getItem, PATCH as patchItem } from "./items/[itemPublicId]/route";
 import { GET as listItems, POST as postItem } from "./items/route";
+import { GET as getSupplier, PATCH as patchSupplier } from "./suppliers/[supplierPublicId]/route";
+import { GET as listSuppliers, POST as postSupplier } from "./suppliers/route";
 import { GET as getUnit, PATCH as patchUnit } from "./units/[unitPublicId]/route";
 import { GET as listUnits, POST as postUnit } from "./units/route";
+import { GET as getWarehouse, PATCH as patchWarehouse } from "./warehouses/[warehousePublicId]/route";
+import { GET as listWarehouses, POST as postWarehouse } from "./warehouses/route";
 
 const staffMocks = vi.hoisted(() => ({ requireStaffIdentity: vi.fn() }));
 
@@ -51,7 +55,7 @@ integrationDescribe("inventory routes", () => {
   }
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.inventory_item_conversions, qos.inventory_items, qos.inventory_units, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.inventory_item_conversions, qos.inventory_items, qos.inventory_units, qos.inventory_warehouses, qos.inventory_suppliers, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
     staffMocks.requireStaffIdentity.mockReset();
     tenantId = (await createTenantHierarchy(db, quotesTenantFixture())).tenant.id;
     otherTenantId = (await createTenantHierarchy(db, flowerTenantFixture())).tenant.id;
@@ -158,7 +162,7 @@ integrationDescribe("inventory routes", () => {
       ),
     );
     expect(withRule.status).toBe(200);
-    expect(Object.keys(withRule.body).sort()).toEqual(["history", "item", "preview", "rules", "units"]);
+    expect(Object.keys(withRule.body).sort()).toEqual(["history", "item", "preview", "rules", "suppliers", "units"]);
     const rule = (withRule.body.rules as Array<Json>)[0]!;
     expect(rule).toMatchObject({ factor: "12", factorMicros: "12000000", revision: 1, effectiveFrom: "2026-11-01" });
     expect(typeof rule.factor).toBe("string");
@@ -235,5 +239,219 @@ integrationDescribe("inventory routes", () => {
     expect(
       await call(patchConversion(request("PATCH", { operation: "delete", expectedRevision: 1 }), ctx({ itemPublicId: item.publicId, conversionPublicId: "conv_x" }))),
     ).toEqual({ status: 400, body: expect.objectContaining({ code: "operation_invalid" }) });
+  });
+
+  /* QOS-196 suppliers and warehouses. */
+
+  async function secondLocation() {
+    const [brand] = await sqlClient<{ id: string }[]>`SELECT id FROM qos.brands WHERE tenant_id = ${tenantId}`;
+    return ensureSeedLocation(db, {
+      tenantId,
+      brandId: brand!.id,
+      publicId: "loc_quotes_hct",
+      name: "HCT Academic City",
+      slug: "hct-academic-city",
+      timezone: "Asia/Dubai",
+    });
+  }
+
+  it("answers 401 without a staff session on every supplier and warehouse handler", async () => {
+    staffMocks.requireStaffIdentity.mockRejectedValue(new StaffAuthError("Sign in required."));
+    const responses = await Promise.all([
+      listSuppliers(request("GET"), ctx({})),
+      postSupplier(request("POST", {}), ctx({})),
+      getSupplier(request("GET"), ctx({ supplierPublicId: "sup_x" })),
+      patchSupplier(request("PATCH", {}), ctx({ supplierPublicId: "sup_x" })),
+      listWarehouses(request("GET"), ctx({})),
+      postWarehouse(request("POST", {}), ctx({})),
+      getWarehouse(request("GET"), ctx({ warehousePublicId: "wh_x" })),
+      patchWarehouse(request("PATCH", {}), ctx({ warehousePublicId: "wh_x" })),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual(Array(8).fill(401));
+  });
+
+  it("round-trips a supplier and a warehouse through the routes with the documented shapes", async () => {
+    signIn(ADMIN);
+    const full = {
+      nameEn: "Gulf Supply",
+      nameAr: "الخليج للتوريد",
+      code: "GS-1",
+      contactName: "Sara",
+      phone: "+971 4 555 0101",
+      email: "orders@gulf.ae",
+      address: "Al Quoz, Dubai",
+      notes: "Mornings only.",
+    };
+    const created = await call(postSupplier(request("POST", full), ctx({})));
+    expect(created.status).toBe(200);
+    const detail = created.body.supplier as { supplier: Json; items: unknown[]; dependencies: unknown[] };
+    expect(Object.keys(detail).sort()).toEqual(["dependencies", "items", "supplier"]);
+    expect(detail.supplier).toMatchObject({ ...full, status: "active", version: 1 });
+    const supplierPublicId = detail.supplier.publicId as string;
+    const twin = await call(postSupplier(request("POST", { nameEn: "Gulf Supply" }), ctx({})));
+    expect((twin.body.supplier as { supplier: Json }).supplier.publicId).not.toBe(supplierPublicId);
+    const listed = await call(listSuppliers(request("GET"), ctx({})));
+    expect(Object.keys(listed.body)).toEqual(["suppliers"]);
+    expect(listed.body.suppliers).toHaveLength(2);
+    const reread = await call(getSupplier(request("GET"), ctx({ supplierPublicId })));
+    expect(reread.body).toEqual(detail);
+    const patched = await call(patchSupplier(request("PATCH", { expectedVersion: 1, email: null }), ctx({ supplierPublicId })));
+    expect(patched.body.supplier).toMatchObject({ email: null, phone: full.phone, version: 2 });
+
+    const posted = await call(
+      postWarehouse(request("POST", { locationPublicId: "loc_quotes_hbz", code: "HBZ", nameEn: "HBZ store", notes: "Back room." }), ctx({})),
+    );
+    expect(posted.status).toBe(200);
+    const warehouse = posted.body.warehouse as { warehouse: Json; dependencies: unknown[] };
+    expect(Object.keys(warehouse).sort()).toEqual(["dependencies", "warehouse"]);
+    expect(warehouse.warehouse).toMatchObject({
+      code: "HBZ",
+      nameEn: "HBZ store",
+      notes: "Back room.",
+      branch: { publicId: "loc_quotes_hbz", name: "HBZ Stadium", status: "active", timezone: "Asia/Dubai" },
+    });
+    const warehousePublicId = warehouse.warehouse.publicId as string;
+    expect((await call(getWarehouse(request("GET"), ctx({ warehousePublicId })))).body).toEqual(warehouse);
+    expect((await call(listWarehouses(request("GET"), ctx({})))).body).toEqual({ warehouses: [warehouse.warehouse] });
+
+    // Items accept and return the default supplier.
+    const item = await call(postItem(request("POST", { nameEn: "Milk", kind: "purchased", defaultSupplierPublicId: supplierPublicId }), ctx({})));
+    const itemDetail = item.body.item as { item: Json; suppliers: Json[] };
+    expect(itemDetail.item.defaultSupplierPublicId).toBe(supplierPublicId);
+    expect(itemDetail.suppliers.map((supplier) => supplier.publicId)).toContain(supplierPublicId);
+    const cleared = await call(
+      patchItem(request("PATCH", { expectedVersion: 1, defaultSupplierPublicId: null }), ctx({ itemPublicId: itemDetail.item.publicId as string })),
+    );
+    expect((cleared.body.item as Json).defaultSupplierPublicId).toBeNull();
+  });
+
+  it("lets a user read suppliers and scoped warehouses but answers 403 on writes and out-of-scope warehouses", async () => {
+    signIn(ADMIN);
+    const hct = await secondLocation();
+    const supplier = ((await call(postSupplier(request("POST", { nameEn: "Gulf Supply" }), ctx({})))).body.supplier as { supplier: Json })
+      .supplier;
+    const hbzWarehouse = (
+      (await call(postWarehouse(request("POST", { locationPublicId: "loc_quotes_hbz", code: "HBZ", nameEn: "HBZ" }), ctx({})))).body
+        .warehouse as { warehouse: Json }
+    ).warehouse;
+    const hctWarehouse = (
+      (await call(postWarehouse(request("POST", { locationPublicId: hct.publicId, code: "HCT", nameEn: "HCT" }), ctx({})))).body
+        .warehouse as { warehouse: Json }
+    ).warehouse;
+    await sqlClient`
+      INSERT INTO qos.staff_location_scopes (tenant_id, staff_membership_id, location_id)
+      SELECT m.tenant_id, m.id, l.id FROM qos.staff_memberships m
+      JOIN qos.staff_identities i ON i.id = m.staff_identity_id
+      JOIN qos.locations l ON l.tenant_id = m.tenant_id AND l.public_id = 'loc_quotes_hbz'
+      WHERE i.provider_subject = ${USER} AND m.tenant_id = ${tenantId}`;
+
+    signIn(USER);
+    expect((await call(listSuppliers(request("GET"), ctx({})))).body.suppliers).toHaveLength(1);
+    expect((await call(getSupplier(request("GET"), ctx({ supplierPublicId: supplier.publicId as string })))).status).toBe(200);
+    const visible = await call(listWarehouses(request("GET"), ctx({})));
+    expect((visible.body.warehouses as Json[]).map((warehouse) => warehouse.publicId)).toEqual([hbzWarehouse.publicId]);
+    expect((await call(getWarehouse(request("GET"), ctx({ warehousePublicId: hbzWarehouse.publicId as string })))).status).toBe(200);
+    expect(await call(getWarehouse(request("GET"), ctx({ warehousePublicId: hctWarehouse.publicId as string })))).toEqual({
+      status: 403,
+      body: expect.objectContaining({ code: "branch_not_permitted" }),
+    });
+    const writes = await Promise.all([
+      call(postSupplier(request("POST", { nameEn: "Sneaky" }), ctx({}))),
+      call(patchSupplier(request("PATCH", { expectedVersion: 1, nameEn: "Hijack" }), ctx({ supplierPublicId: supplier.publicId as string }))),
+      call(postWarehouse(request("POST", { locationPublicId: "loc_quotes_hbz", code: "U1", nameEn: "U" }), ctx({}))),
+      call(
+        patchWarehouse(request("PATCH", { expectedVersion: 1, status: "archived" }), ctx({ warehousePublicId: hbzWarehouse.publicId as string })),
+      ),
+    ]);
+    for (const write of writes) {
+      expect(write).toEqual({ status: 403, body: expect.objectContaining({ code: "administrator_required" }) });
+    }
+    const [counts] = await sqlClient<{ suppliers: number; warehouses: number }[]>`
+      SELECT (SELECT count(*)::int FROM qos.inventory_suppliers) AS suppliers,
+             (SELECT count(*)::int FROM qos.inventory_warehouses WHERE status = 'active') AS warehouses`;
+    expect(counts).toEqual({ suppliers: 1, warehouses: 2 });
+
+    signIn(OUTSIDER);
+    expect((await call(listSuppliers(request("GET"), ctx({})))).status).toBe(403);
+    expect((await call(listWarehouses(request("GET"), ctx({})))).status).toBe(403);
+    expect((await call(postWarehouse(request("POST", { locationPublicId: "loc_quotes_hbz", code: "X", nameEn: "X" }), ctx({})))).status).toBe(403);
+  });
+
+  it("answers 404 for unknown or another business's supplier, warehouse and location ids", async () => {
+    signIn(ADMIN);
+    const supplier = ((await call(postSupplier(request("POST", { nameEn: "Gulf Supply" }), ctx({})))).body.supplier as { supplier: Json })
+      .supplier;
+    const warehouse = (
+      (await call(postWarehouse(request("POST", { locationPublicId: "loc_quotes_hbz", code: "HBZ", nameEn: "HBZ" }), ctx({})))).body
+        .warehouse as { warehouse: Json }
+    ).warehouse;
+    expect(await call(getSupplier(request("GET"), ctx({ supplierPublicId: "sup_nope" })))).toEqual({
+      status: 404,
+      body: expect.objectContaining({ code: "supplier_not_found" }),
+    });
+    expect((await call(getWarehouse(request("GET"), ctx({ warehousePublicId: "wh_nope" })))).status).toBe(404);
+    expect(
+      await call(postWarehouse(request("POST", { locationPublicId: "loc_flowers_main", code: "F1", nameEn: "F" }), ctx({}))),
+    ).toEqual({ status: 404, body: expect.objectContaining({ code: "location_not_found", field: "locationPublicId" }) });
+    expect(await call(postWarehouse(request("POST", { locationPublicId: "all", code: "F1", nameEn: "F" }), ctx({})))).toEqual({
+      status: 400,
+      body: expect.objectContaining({ code: "location_required" }),
+    });
+    signIn(OUTSIDER);
+    const foreign = <T extends Json>(params: T) => ({ params: Promise.resolve({ tenantId: otherTenantId, ...params }) });
+    expect((await call(getSupplier(request("GET"), foreign({ supplierPublicId: supplier.publicId as string })))).status).toBe(404);
+    expect((await call(getWarehouse(request("GET"), foreign({ warehousePublicId: warehouse.publicId as string })))).status).toBe(404);
+    expect(
+      (await call(patchWarehouse(request("PATCH", { expectedVersion: 1, nameEn: "Hijack" }), foreign({ warehousePublicId: warehouse.publicId as string })))).status,
+    ).toBe(404);
+    expect(
+      (await call(postWarehouse(request("POST", { locationPublicId: "loc_quotes_hbz", code: "HIJACK", nameEn: "Hijack" }), foreign({})))).body,
+    ).toMatchObject({ code: "location_not_found" });
+    signIn(ADMIN);
+    expect((await call(getWarehouse(request("GET"), ctx({ warehousePublicId: warehouse.publicId as string })))).body.warehouse).toMatchObject({
+      nameEn: "HBZ",
+      version: 1,
+    });
+  });
+
+  it("answers 409 with the dependencies for a supplier in use, a reassignment and a duplicate branch warehouse", async () => {
+    signIn(ADMIN);
+    const hct = await secondLocation();
+    const supplier = ((await call(postSupplier(request("POST", { nameEn: "Gulf Supply", code: "GS-1" }), ctx({})))).body.supplier as {
+      supplier: Json;
+    }).supplier;
+    await call(postItem(request("POST", { nameEn: "Milk", kind: "purchased", defaultSupplierPublicId: supplier.publicId }), ctx({})));
+    expect(
+      await call(patchSupplier(request("PATCH", { expectedVersion: 1, status: "archived" }), ctx({ supplierPublicId: supplier.publicId as string }))),
+    ).toEqual({
+      status: 409,
+      body: expect.objectContaining({ code: "supplier_in_use", field: "status", dependencies: [{ kind: "inventory_items", count: 1 }] }),
+    });
+    expect(await call(postSupplier(request("POST", { nameEn: "Other", code: "gs-1" }), ctx({})))).toEqual({
+      status: 409,
+      body: expect.objectContaining({ code: "supplier_code_taken" }),
+    });
+    const warehouse = (
+      (await call(postWarehouse(request("POST", { locationPublicId: "loc_quotes_hbz", code: "HBZ", nameEn: "HBZ" }), ctx({})))).body
+        .warehouse as { warehouse: Json }
+    ).warehouse;
+    expect(
+      await call(
+        patchWarehouse(
+          request("PATCH", { expectedVersion: 1, locationPublicId: hct.publicId }),
+          ctx({ warehousePublicId: warehouse.publicId as string }),
+        ),
+      ),
+    ).toEqual({ status: 409, body: expect.objectContaining({ code: "location_immutable", field: "locationPublicId", dependencies: [] }) });
+    expect(await call(postWarehouse(request("POST", { locationPublicId: "loc_quotes_hbz", code: "HBZ2", nameEn: "Again" }), ctx({})))).toEqual({
+      status: 409,
+      body: expect.objectContaining({ code: "warehouse_branch_taken", field: "locationPublicId" }),
+    });
+    expect(
+      await call(patchWarehouse(request("PATCH", { expectedVersion: 9, nameEn: "Stale" }), ctx({ warehousePublicId: warehouse.publicId as string }))),
+    ).toEqual({ status: 409, body: expect.objectContaining({ code: "expected_version_mismatch" }) });
+    const [location] = await sqlClient<{ name: string; status: string }[]>`
+      SELECT name, status::text FROM qos.locations WHERE public_id = 'loc_quotes_hbz'`;
+    expect(location).toEqual({ name: "HBZ Stadium", status: "active" });
   });
 });

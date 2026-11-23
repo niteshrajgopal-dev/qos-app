@@ -1,4 +1,4 @@
-import { and, asc, eq, type SQL } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
 import {
@@ -96,7 +96,7 @@ export async function warehouseDependencies(tx: DbClient, tenantId: string, ware
   return [];
 }
 
-function warehouseQuery(tx: DbClient, tenantId: string, where?: SQL) {
+function warehouseQuery(tx: DbClient, tenantId: string) {
   return tx
     .select({ warehouse: inventoryWarehouses, location: locations })
     .from(inventoryWarehouses)
@@ -104,7 +104,7 @@ function warehouseQuery(tx: DbClient, tenantId: string, where?: SQL) {
       locations,
       and(eq(locations.tenantId, inventoryWarehouses.tenantId), eq(locations.id, inventoryWarehouses.locationId)),
     )
-    .where(and(eq(inventoryWarehouses.tenantId, tenantId), where));
+    .where(eq(inventoryWarehouses.tenantId, tenantId));
 }
 
 async function hasLocationScope(tx: DbClient, tenantId: string, membership: ActiveStaffMembership, locationId: string) {
@@ -131,12 +131,22 @@ async function loadWarehouseInTx(
   if (typeof warehousePublicId !== "string" || !warehousePublicId) {
     throw new InventoryError("Warehouse not found.", 404, "warehouse_not_found", "warehousePublicId");
   }
-  const query = warehouseQuery(tx, tenantId, eq(inventoryWarehouses.publicId, warehousePublicId)).limit(1);
-  const [row] = lock ? await query.for(lock, { of: inventoryWarehouses }) : await query;
-  if (!row) {
+  const query = tx
+    .select()
+    .from(inventoryWarehouses)
+    .where(and(eq(inventoryWarehouses.tenantId, tenantId), eq(inventoryWarehouses.publicId, warehousePublicId)))
+    .limit(1);
+  const [warehouse] = lock ? await query.for(lock) : await query;
+  if (!warehouse) {
     throw new InventoryError("Warehouse not found.", 404, "warehouse_not_found", "warehousePublicId");
   }
-  return row;
+  // Read only: the location row is never locked for update or written here.
+  const [location] = await tx
+    .select()
+    .from(locations)
+    .where(and(eq(locations.tenantId, tenantId), eq(locations.id, warehouse.locationId)))
+    .limit(1);
+  return { warehouse, location: location! };
 }
 
 /**

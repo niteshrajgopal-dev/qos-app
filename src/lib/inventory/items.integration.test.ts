@@ -11,6 +11,7 @@ import {
   USER,
 } from "@/lib/inventory/integration-helpers";
 import { createItem, getItem, listItems, updateItem } from "@/lib/inventory/items";
+import { createSupplier, getSupplier, updateSupplier } from "@/lib/inventory/suppliers";
 import { createUnit, updateUnit } from "@/lib/inventory/units";
 import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
@@ -180,5 +181,105 @@ integrationDescribe("inventory items service", () => {
       await rejection(createItem(db, other, ADMIN, ACTOR, { nameEn: "Flour", kind: "purchased", storageUnitPublicId: units.kg })),
     ).toMatchObject({ statusCode: 404, code: "unit_not_found" });
     expect((await listItems(db, other)).items).toEqual([]);
+  });
+
+  it("sets, changes and clears an item's default supplier and reloads it, without touching other items", async () => {
+    const gulfDubai = await createSupplier(db, tenantId, ADMIN, ACTOR, { nameEn: "Gulf Supply", code: "GS-DXB" });
+    const gulfAbuDhabi = await createSupplier(db, tenantId, ADMIN, ACTOR, { nameEn: "Gulf Supply", code: "GS-AUH" });
+    const milk = await createItem(db, tenantId, ADMIN, ACTOR, {
+      nameEn: "Milk",
+      kind: "purchased",
+      defaultSupplierPublicId: gulfDubai.supplier.publicId,
+    });
+    const flour = await createItem(db, tenantId, ADMIN, ACTOR, {
+      nameEn: "Flour",
+      kind: "purchased",
+      defaultSupplierPublicId: gulfDubai.supplier.publicId,
+    });
+    expect(milk.item.defaultSupplierPublicId).toBe(gulfDubai.supplier.publicId);
+    expect(milk.suppliers.map((supplier) => supplier.publicId).sort()).toEqual(
+      [gulfDubai.supplier.publicId, gulfAbuDhabi.supplier.publicId].sort(),
+    );
+    expect(await getItem(db, tenantId, milk.item.publicId)).toEqual(milk);
+
+    // Same name, different supplier: switching is a real change of supplier.
+    const switched = await updateItem(db, tenantId, ADMIN, ACTOR, milk.item.publicId, {
+      expectedVersion: 1,
+      defaultSupplierPublicId: gulfAbuDhabi.supplier.publicId,
+    });
+    expect(switched.item.defaultSupplierPublicId).toBe(gulfAbuDhabi.supplier.publicId);
+    expect((await getItem(db, tenantId, flour.item.publicId)).item.defaultSupplierPublicId).toBe(gulfDubai.supplier.publicId);
+    expect((await getSupplier(db, tenantId, gulfDubai.supplier.publicId)).items.map((item) => item.nameEn)).toEqual(["Flour"]);
+    expect((await getSupplier(db, tenantId, gulfAbuDhabi.supplier.publicId)).items.map((item) => item.nameEn)).toEqual(["Milk"]);
+
+    // Omitting the field leaves it; null clears it.
+    const renamed = await updateItem(db, tenantId, ADMIN, ACTOR, milk.item.publicId, { expectedVersion: 2, nameEn: "Fresh milk" });
+    expect(renamed.item.defaultSupplierPublicId).toBe(gulfAbuDhabi.supplier.publicId);
+    const cleared = await updateItem(db, tenantId, ADMIN, ACTOR, milk.item.publicId, { expectedVersion: 3, defaultSupplierPublicId: null });
+    expect(cleared.item.defaultSupplierPublicId).toBeNull();
+    expect((await getItem(db, tenantId, flour.item.publicId)).item.defaultSupplierPublicId).toBe(gulfDubai.supplier.publicId);
+    const listed = (await listItems(db, tenantId)).items;
+    expect(listed.map((item) => [item.nameEn, item.defaultSupplierPublicId])).toEqual([
+      ["Flour", gulfDubai.supplier.publicId],
+      ["Fresh milk", null],
+    ]);
+    const audit = (await auditActions(sql, tenantId)).filter((row) => row.entity_public_id === milk.item.publicId);
+    expect(audit.map((row) => row.action)).toEqual([
+      "inventory.item.create",
+      "inventory.item.update",
+      "inventory.item.update",
+      "inventory.item.update",
+    ]);
+    expect(audit[1]!.change_summary).toMatchObject({ before: { defaultSupplier: "GS-DXB" }, after: { defaultSupplier: "GS-AUH" } });
+    expect(audit[3]!.change_summary).toMatchObject({ before: { defaultSupplier: "GS-AUH" }, after: { defaultSupplier: null } });
+  });
+
+  it("refuses an archived supplier unless it is already the default, and shows it on the item while referenced", async () => {
+    const supplier = await createSupplier(db, tenantId, ADMIN, ACTOR, { nameEn: "Old Farm" });
+    const item = await createItem(db, tenantId, ADMIN, ACTOR, {
+      nameEn: "Eggs",
+      kind: "purchased",
+      defaultSupplierPublicId: supplier.supplier.publicId,
+    });
+    await updateItem(db, tenantId, ADMIN, ACTOR, item.item.publicId, { expectedVersion: 1, status: "archived" });
+    await updateSupplier(db, tenantId, ADMIN, ACTOR, supplier.supplier.publicId, { expectedVersion: 1, status: "archived" });
+    expect(
+      await rejection(
+        createItem(db, tenantId, ADMIN, ACTOR, { nameEn: "Duck eggs", kind: "purchased", defaultSupplierPublicId: supplier.supplier.publicId }),
+      ),
+    ).toEqual({ statusCode: 400, code: "supplier_archived", field: "defaultSupplierPublicId" });
+    const detail = await getItem(db, tenantId, item.item.publicId);
+    expect(detail.suppliers).toEqual([expect.objectContaining({ publicId: supplier.supplier.publicId, status: "archived" })]);
+    // Re-saving the item with its unchanged archived default is allowed.
+    const kept = await updateItem(db, tenantId, ADMIN, ACTOR, item.item.publicId, {
+      expectedVersion: 2,
+      status: "active",
+      defaultSupplierPublicId: supplier.supplier.publicId,
+    });
+    expect(kept.item).toMatchObject({ status: "active", defaultSupplierPublicId: supplier.supplier.publicId });
+    const other = await createItem(db, tenantId, ADMIN, ACTOR, { nameEn: "Butter", kind: "purchased" });
+    expect(
+      await rejection(
+        updateItem(db, tenantId, ADMIN, ACTOR, other.item.publicId, { expectedVersion: 1, defaultSupplierPublicId: supplier.supplier.publicId }),
+      ),
+    ).toMatchObject({ statusCode: 400, code: "supplier_archived" });
+    expect((await getItem(db, tenantId, other.item.publicId)).suppliers).toEqual([]);
+  });
+
+  it("refuses another tenant's or an unknown supplier with 404 and writes nothing", async () => {
+    const other = (await createTenantHierarchy(db, flowerTenantFixture())).tenant.id;
+    const theirs = await createSupplier(db, other, ADMIN, ACTOR, { nameEn: "Flower Farm" });
+    expect(
+      await rejection(
+        createItem(db, tenantId, ADMIN, ACTOR, { nameEn: "Roses", kind: "purchased", defaultSupplierPublicId: theirs.supplier.publicId }),
+      ),
+    ).toEqual({ statusCode: 404, code: "supplier_not_found", field: "defaultSupplierPublicId" });
+    const item = await createItem(db, tenantId, ADMIN, ACTOR, { nameEn: "Sugar", kind: "purchased" });
+    expect(
+      await rejection(updateItem(db, tenantId, ADMIN, ACTOR, item.item.publicId, { expectedVersion: 1, defaultSupplierPublicId: "sup_nope_00000000" })),
+    ).toMatchObject({ statusCode: 404, code: "supplier_not_found" });
+    expect((await getItem(db, tenantId, item.item.publicId)).item).toMatchObject({ version: 1, defaultSupplierPublicId: null });
+    expect((await getSupplier(db, other, theirs.supplier.publicId)).items).toEqual([]);
+    expect((await listItems(db, tenantId)).items.map((entry) => entry.nameEn)).toEqual(["Sugar"]);
   });
 });
