@@ -209,7 +209,9 @@ export async function createConversion(
         .select({ revision: max(inventoryItemConversions.revision), effectiveTo: max(inventoryItemConversions.effectiveTo) })
         .from(inventoryItemConversions)
         .where(pairFilter);
-      const effectiveFrom = requestedFrom ?? (await tenantToday(tx, tenantId, now));
+      // Without a date the rule starts today, or when the pair's last rule ended if that is later.
+      const today = await tenantToday(tx, tenantId, now);
+      const effectiveFrom = requestedFrom ?? (latest?.effectiveTo && latest.effectiveTo > today ? latest.effectiveTo : today);
       if (latest?.effectiveTo && effectiveFrom < latest.effectiveTo) {
         throw new InventoryError(
           `The effective date cannot be earlier than ${latest.effectiveTo}, when the previous rule for this pair ended. History is not rewritten.`,
@@ -335,7 +337,9 @@ export async function reviseConversion(
         classifyPair(graphUnit(units.get(current.fromUnitId)!), graphUnit(units.get(current.toUnitId)!)),
         { factor: body.factor, justification: body.justification },
       );
-      const effectiveFrom = requestedFrom ?? (await tenantToday(tx, tenantId, now));
+      // Without a date the new version starts today, or on the current version's date if that is later.
+      const today = await tenantToday(tx, tenantId, now);
+      const effectiveFrom = requestedFrom ?? (current.effectiveFrom > today ? current.effectiveFrom : today);
       if (effectiveFrom < current.effectiveFrom) {
         throw new InventoryError(
           `The effective date cannot be earlier than the current version's date (${current.effectiveFrom}). History is not rewritten.`,

@@ -165,6 +165,19 @@ integrationDescribe("inventory item conversions service", () => {
     expect((await getItem(db, tenantId, item.item.publicId)).history.map((row) => row.factor)).toEqual(["10", "12"]);
   });
 
+  it("dates an undated revision of a future rule on the rule's own start date, never before it", async () => {
+    const item = await newItem("Buns");
+    const future = await addRule(item, "packet", "piece", "12", { effectiveFrom: "2099-01-01" });
+    const revised = await reviseConversion(db, tenantId, ADMIN, ACTOR, item.item.publicId, future.rules[0]!.publicId, {
+      expectedRevision: 1,
+      factor: "10",
+    });
+    expect(revised.history.map((row) => [row.revision, row.effectiveFrom, row.effectiveTo])).toEqual([
+      [2, "2099-01-01", null],
+      [1, "2099-01-01", "2099-01-01"],
+    ]);
+  });
+
   it("closes a rule without a successor, keeps history, and lets the pair start again later", async () => {
     const item = await newItem("Buns");
     const first = await addRule(item, "packet", "piece", "12", { effectiveFrom: "2026-11-01" });
