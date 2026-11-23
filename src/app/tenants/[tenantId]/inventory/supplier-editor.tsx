@@ -165,7 +165,7 @@ export function SupplierEditorScreen({ tenantId, supplierPublicId }: { tenantId:
   const typedName = form.nameEn.trim().toLowerCase();
   const duplicateName =
     !detail && typedName !== "" && existing.some((supplier) => supplier.nameEn.trim().toLowerCase() === typedName);
-  const field = (key: keyof Form, props: { dir?: "ltr" | "rtl"; lang?: string; inputMode?: "tel" | "email"; maxLength: number }) => (
+  const field = (key: keyof Form, props: { dir?: "ltr" | "rtl" | "auto"; lang?: string; inputMode?: "tel" | "email"; maxLength: number }) => (
     <input
       className="qos-input"
       value={form[key]}
@@ -209,7 +209,7 @@ export function SupplierEditorScreen({ tenantId, supplierPublicId }: { tenantId:
                 <PortalField label={t("supplierCode")} help={t("supplierCodeHelp")}>
                   {field("code", { dir: "ltr", maxLength: 24 })}
                 </PortalField>
-                <PortalField label={t("supplierContactName")}>{field("contactName", { maxLength: 120 })}</PortalField>
+                <PortalField label={t("supplierContactName")}>{field("contactName", { dir: "auto", maxLength: 120 })}</PortalField>
                 <PortalField label={t("supplierPhone")}>{field("phone", { dir: "ltr", inputMode: "tel", maxLength: 40 })}</PortalField>
                 <PortalField label={t("supplierEmail")}>
                   {field("email", { dir: "ltr", inputMode: "email", maxLength: 254 })}
@@ -217,6 +217,7 @@ export function SupplierEditorScreen({ tenantId, supplierPublicId }: { tenantId:
                 <PortalField label={t("supplierAddress")}>
                   <textarea
                     className="qos-textarea"
+                    dir="auto"
                     rows={3}
                     value={form.address}
                     maxLength={400}
@@ -227,6 +228,7 @@ export function SupplierEditorScreen({ tenantId, supplierPublicId }: { tenantId:
                 <PortalField label={t("inventoryNotes")}>
                   <textarea
                     className="qos-textarea"
+                    dir="auto"
                     rows={3}
                     value={form.notes}
                     maxLength={1000}
@@ -235,14 +237,18 @@ export function SupplierEditorScreen({ tenantId, supplierPublicId }: { tenantId:
                   />
                 </PortalField>
               </div>
-              {duplicateName ? <PortalNotice tone="info">{t("supplierDuplicateNameNote")}</PortalNotice> : null}
-              {detail?.supplier.status === "archived" ? (
-                <PortalNotice tone="warning">{t("supplierArchivedNote")}</PortalNotice>
-              ) : null}
-              {notice?.dependencies ? (
-                <DependencyNotice message={notice.text} dependencies={notice.dependencies} />
-              ) : notice ? (
-                <PortalNotice tone={notice.tone}>{notice.text}</PortalNotice>
+              {duplicateName || detail?.supplier.status === "archived" || notice ? (
+                <div className="qosp-stack qosp-inventory-notices">
+                  {duplicateName ? <PortalNotice tone="info">{t("supplierDuplicateNameNote")}</PortalNotice> : null}
+                  {detail?.supplier.status === "archived" ? (
+                    <PortalNotice tone="warning">{t("supplierArchivedNote")}</PortalNotice>
+                  ) : null}
+                  {notice?.dependencies ? (
+                    <DependencyNotice message={notice.text} dependencies={notice.dependencies} />
+                  ) : notice ? (
+                    <PortalNotice tone={notice.tone}>{notice.text}</PortalNotice>
+                  ) : null}
+                </div>
               ) : null}
               {canEdit ? (
                 <div className="qosp-button-row qosp-inventory-actions">

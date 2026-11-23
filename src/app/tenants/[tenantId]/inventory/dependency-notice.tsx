@@ -18,7 +18,9 @@ export function DependencyNotice({ message, dependencies }: { message: string; d
   return (
     <div className="qosp-stack">
       <PortalNotice tone="error">
-        <strong>{staffUiCopy(locale, "inventoryDependenciesTitle")}</strong> {message}
+        <span>
+          <strong>{staffUiCopy(locale, "inventoryDependenciesTitle")}</strong> {message}
+        </span>
       </PortalNotice>
       {lines.length > 0 ? (
         <ul className="qosp-meta-line">

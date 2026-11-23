@@ -23,7 +23,7 @@ import {
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import type { Dependency } from "@/lib/inventory/errors";
 import type { WarehouseDetailView, WarehouseView } from "@/lib/inventory/warehouses";
-import { staffCopyWith, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
+import { staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 
 /* QOS-196 warehouse screen. On create the branch list is the shell's real
    locations (never All Branches or the unconfirmed business labels), limited
@@ -176,9 +176,7 @@ export function WarehouseEditorScreen({ tenantId, warehousePublicId }: { tenantI
             <div className="qosp-form-grid" data-columns="2">
               <PortalField label={t("warehouseBranch")}>
                 {detail ? (
-                  <span className="qos-input" aria-readonly="true">
-                    <bdi>{detail.warehouse.branch.name}</bdi>
-                  </span>
+                  <input className="qos-input" dir="auto" value={detail.warehouse.branch.name} readOnly />
                 ) : (
                   <select
                     className="qos-input"
@@ -229,6 +227,7 @@ export function WarehouseEditorScreen({ tenantId, warehousePublicId }: { tenantI
               <PortalField label={t("inventoryNotes")}>
                 <textarea
                   className="qos-textarea"
+                  dir="auto"
                   rows={3}
                   value={form.notes}
                   maxLength={400}
@@ -237,22 +236,27 @@ export function WarehouseEditorScreen({ tenantId, warehousePublicId }: { tenantI
                 />
               </PortalField>
             </div>
-            {detail ? (
-              <p className="qosp-meta-line">
-                {staffCopyWith(locale, "warehouseBranchFixedNote", { branch: detail.warehouse.branch.name })}
-              </p>
-            ) : null}
-            {detail?.warehouse.branch.status === "suspended" ? (
-              <PortalNotice tone="warning">{t("warehouseBranchSuspendedNote")}</PortalNotice>
-            ) : null}
-            {detail?.warehouse.status === "archived" ? (
-              <PortalNotice tone="warning">{t("warehouseArchivedNote")}</PortalNotice>
-            ) : null}
-            {notice?.dependencies ? (
-              <DependencyNotice message={notice.text} dependencies={notice.dependencies} />
-            ) : notice ? (
-              <PortalNotice tone={notice.tone}>{notice.text}</PortalNotice>
-            ) : null}
+            <div className="qosp-stack qosp-inventory-notices">
+              {detail ? (
+                <p className="qosp-meta-line">
+                  {/* The branch name is data: isolate it so a Latin name keeps its order inside Arabic copy. */}
+                  {t("warehouseBranchFixedNote")
+                    .split("{branch}")
+                    .flatMap((part, index) => (index === 0 ? [part] : [<bdi key={index}>{detail.warehouse.branch.name}</bdi>, part]))}
+                </p>
+              ) : null}
+              {detail?.warehouse.branch.status === "suspended" ? (
+                <PortalNotice tone="warning">{t("warehouseBranchSuspendedNote")}</PortalNotice>
+              ) : null}
+              {detail?.warehouse.status === "archived" ? (
+                <PortalNotice tone="warning">{t("warehouseArchivedNote")}</PortalNotice>
+              ) : null}
+              {notice?.dependencies ? (
+                <DependencyNotice message={notice.text} dependencies={notice.dependencies} />
+              ) : notice ? (
+                <PortalNotice tone={notice.tone}>{notice.text}</PortalNotice>
+              ) : null}
+            </div>
             {canEdit ? (
               <div className="qosp-button-row qosp-inventory-actions">
                 <button

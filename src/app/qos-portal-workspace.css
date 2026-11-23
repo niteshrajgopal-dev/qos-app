@@ -1393,3 +1393,6 @@ article.qosp-subcard > .qosp-button-row {
   overflow-wrap: anywhere;
   min-width: 0;
 }
+.qosp-inventory-notices {
+  margin-top: 16px;
+}
