@@ -13,6 +13,10 @@ import {
   SELLING_ATTRIBUTE_APPLY_OWNER,
   sellingAttributeColumnCapability,
 } from "@/lib/workbook/selling-attributes-capabilities";
+import {
+  SELLING_TAX_COST_APPLY_OWNER,
+  sellingTaxCostColumnCapability,
+} from "@/lib/workbook/selling-tax-cost-capabilities";
 import { sheetOwner } from "@/lib/workbook/validation/actions";
 import type { FieldDecision, ReviewInput } from "@/lib/workbook/validation/model";
 
@@ -34,7 +38,7 @@ export const PROVENANCE_COPIES = new Set(["price", "tax", "option_price", "ingre
 /** Assignment-policy columns QOS-212 can store, but workbook apply is QOS-200's. */
 export const PRODUCT_MODIFIER_POLICY_APPLY_OWNER = "QOS-200 apply";
 
-export { CHANNEL_PRICE_APPLY_OWNER, SELLING_ATTRIBUTE_APPLY_OWNER };
+export { CHANNEL_PRICE_APPLY_OWNER, SELLING_ATTRIBUTE_APPLY_OWNER, SELLING_TAX_COST_APPLY_OWNER };
 
 function productModifierAssignmentCapability(sheet: string, column: string) {
   if (sheet !== "Product Modifiers") return undefined;
@@ -50,21 +54,22 @@ function channelPriceApplyDeferred(sheet: string, column: string) {
   return capability === "persistable" || capability === "review_only";
 }
 
-/** Owner of a deferred value: the dictionary 1.1 entry when there is one, else the owner of its sheet. */
+/** Owner of a deferred value: a QOS-200 apply-owner when the column is persistable in catalogue but applied later, else the dictionary 1.1 entry when there is one, else the owner of its sheet. */
 export function deferredOwner(sheet: string, column: string) {
-  const fromDictionary = capabilityFor(sheet, column)?.owner;
-  if (fromDictionary) return fromDictionary;
   const assignment = productModifierAssignmentCapability(sheet, column);
   if (assignment?.apply === "QOS-200") return PRODUCT_MODIFIER_POLICY_APPLY_OWNER;
   if (channelPriceApplyDeferred(sheet, column)) return CHANNEL_PRICE_APPLY_OWNER;
   if (sellingAttributeColumnCapability(sheet, column)) return SELLING_ATTRIBUTE_APPLY_OWNER;
+  if (sellingTaxCostColumnCapability(sheet, column)) return SELLING_TAX_COST_APPLY_OWNER;
+  const fromDictionary = capabilityFor(sheet, column)?.owner;
+  if (fromDictionary) return fromDictionary;
   return sheetOwner(sheet);
 }
 
 /** Whether a column of a supported sheet is not applied by this leaf.
     Includes dictionary/contract deferred fields, and the v1.1 Product
-    Modifiers policy columns, v1.2 channel-price columns and v1.3 selling-attribute
-    columns whose workbook apply belongs to QOS-200. */
+    Modifiers policy columns, v1.2 channel-price columns, v1.3 selling-attribute
+    columns and v1.4 tax and reference-cost columns whose workbook apply belongs to QOS-200. */
 export function isDeferredColumn(sheet: string, column: string) {
   if (sheetSupport(sheet) !== "supported") return true;
   const definition = contractSheet(sheet).columns.find((candidate) => candidate.key === column);
@@ -73,7 +78,8 @@ export function isDeferredColumn(sheet: string, column: string) {
   const assignment = productModifierAssignmentCapability(sheet, column);
   if (assignment?.apply === "QOS-200") return true;
   if (channelPriceApplyDeferred(sheet, column)) return true;
-  return Boolean(sellingAttributeColumnCapability(sheet, column));
+  if (sellingAttributeColumnCapability(sheet, column)) return true;
+  return Boolean(sellingTaxCostColumnCapability(sheet, column));
 }
 
 export function decideField(sheet: string, column: string): Omit<FieldDecision, "rowsWithValues"> {

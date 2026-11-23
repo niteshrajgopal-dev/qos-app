@@ -1060,7 +1060,7 @@ export async function createModifierOption(
         "Administrator membership is required to change modifier prices.",
       );
     }
-    if (validated.costPolicy?.operation === "clear") {
+    if (input.costPolicy?.operation === "clear") {
       throw new CatalogueModifierError(
         "A new option has no cost policy to clear.",
         400,
@@ -1208,7 +1208,7 @@ export async function updateModifierOption(
         "Administrator membership is required to change modifier prices.",
       );
     }
-    if (validated.costPolicy !== undefined && membership.role !== "administrator") {
+    if (input.costPolicy !== undefined && membership.role !== "administrator") {
       throw new StaffAuthorizationError(
         "Administrator membership is required to change modifier reference costs.",
       );

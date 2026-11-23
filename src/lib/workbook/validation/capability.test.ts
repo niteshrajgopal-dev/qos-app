@@ -7,6 +7,7 @@ import {
   CHANNEL_PRICE_APPLY_OWNER,
   PRODUCT_MODIFIER_POLICY_APPLY_OWNER,
   SELLING_ATTRIBUTE_APPLY_OWNER,
+  SELLING_TAX_COST_APPLY_OWNER,
   VALIDATED_OWNER,
 } from "@/lib/workbook/validation/capability";
 import { qosInput } from "@/lib/workbook/validation/test-support";
@@ -20,8 +21,6 @@ describe("field decisions", () => {
       [SOURCE_MAP_SHEET, "channel_price:aggregator 3"],
       [SOURCE_MAP_SHEET, "allow_repeat"],
       [SOURCE_MAP_SHEET, "type_of_tax"],
-      ["Variants", "price_tax_basis"],
-      ["Variants", "tax_rate_basis_points"],
       ["Product Modifiers", "free_options_count"],
     ] as const) {
       const decision = decideField(sheet, column);
@@ -82,6 +81,37 @@ describe("field decisions", () => {
     // The 1.0 Products.nutrition_calories column is a different field and stays validated.
     expect(decideField("Products", "nutrition_calories")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER });
     expect(decideField("Variants", "amount_minor")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER });
+  });
+
+  it("defers v1.4 selling-tax and reference-cost columns to QOS-200 apply", () => {
+    const columns = [
+      ["Variants", "price_tax_basis"],
+      ["Variants", "tax_rate_basis_points"],
+      ["Variants", "cost_method"],
+      ["Variants", "reference_cost_amount"],
+      ["Variants", "cost_currency"],
+      ["Variants", "cost_unit"],
+      ["Variants", "cost_tax_basis"],
+      ["Variants", "cost_effective_date"],
+      ["Variants", "cost_source"],
+      ["Variants", "cost_source_reference"],
+      ["Modifier Options", "cost_method"],
+      ["Modifier Options", "reference_cost_amount"],
+      ["Modifier Options", "cost_currency"],
+      ["Modifier Options", "cost_unit"],
+      ["Modifier Options", "cost_tax_basis"],
+      ["Modifier Options", "cost_effective_date"],
+      ["Modifier Options", "cost_source"],
+      ["Modifier Options", "cost_source_reference"],
+    ] as const;
+    for (const [sheet, column] of columns) {
+      expect(decideField(sheet, column), `${sheet}.${column}`).toMatchObject({
+        decision: "deferred",
+        owner: SELLING_TAX_COST_APPLY_OWNER,
+      });
+    }
+    expect(decideField("Variants", "amount_minor")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER });
+    expect(decideField("Modifier Options", "price_minor")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER });
   });
 
   it("calls supported columns validated, steering columns mechanics and Phase 3 sheets rejected", () => {

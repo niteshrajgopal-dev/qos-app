@@ -111,7 +111,7 @@ function costPolicyCells(policy: ReferenceCostPolicyRow | undefined): Row {
   };
 }
 
-function costPolicyStamps(policy: ReferenceCostPolicyRow | undefined): Stamp[] {
+function costPolicyStamps(policy: { publicId?: string | null; revision?: number | null } | undefined): Stamp[] {
   return [policy?.publicId, policy?.revision];
 }
 

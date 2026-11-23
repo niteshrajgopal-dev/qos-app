@@ -64,6 +64,22 @@ describe("FIELD_CAPABILITIES", () => {
       ["Variants", "price_unit"],
       ["Variants", "price_unit_quantity"],
       ["Modifier Options", "nutrition_calories"],
+      ["Variants", "cost_method"],
+      ["Variants", "reference_cost_amount"],
+      ["Variants", "cost_currency"],
+      ["Variants", "cost_unit"],
+      ["Variants", "cost_tax_basis"],
+      ["Variants", "cost_effective_date"],
+      ["Variants", "cost_source"],
+      ["Variants", "cost_source_reference"],
+      ["Modifier Options", "cost_method"],
+      ["Modifier Options", "reference_cost_amount"],
+      ["Modifier Options", "cost_currency"],
+      ["Modifier Options", "cost_unit"],
+      ["Modifier Options", "cost_tax_basis"],
+      ["Modifier Options", "cost_effective_date"],
+      ["Modifier Options", "cost_source"],
+      ["Modifier Options", "cost_source_reference"],
     ] as const) {
       expect(isDeferredColumn(sheet, column), `${sheet}.${column}`).toBe(true);
       expect(FIELD_CAPABILITIES[sheet], `${sheet}.${column}`).not.toContain(column);

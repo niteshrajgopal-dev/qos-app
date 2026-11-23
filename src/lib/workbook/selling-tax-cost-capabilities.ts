@@ -187,6 +187,17 @@ export function sellingTaxCostCapability(id: SellingTaxCostCapabilityId): Sellin
 // ---------------------------------------------------------------------------
 // Review of one workbook row (stateless; nothing is applied)
 
+/** Workbook apply of these persistable columns is QOS-200's, not this leaf. */
+export const SELLING_TAX_COST_APPLY_OWNER = "QOS-200 apply";
+
+/** The persistable tax or current-cost-policy column, or undefined for any other column. */
+export function sellingTaxCostColumnCapability(sheet: string, column: string) {
+  const id = `${sheet}.${column}`;
+  return SELLING_TAX_COST_CAPABILITIES.find(
+    (capability) => capability.status === "persistable" && (capability.columns as readonly string[]).includes(id),
+  );
+}
+
 export type SellingTaxCostDiagnostic = {
   capability: SellingTaxCostCapabilityId;
   /** error: the cell cannot be stored as written. review: storable, but a person must look. */

@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildCatalogueImportSampleXlsx, CATALOGUE_IMPORT_SAMPLE_CSV } from "@/lib/catalogue/catalogue-import-sample";
 import { parseSpreadsheetUpload } from "@/lib/catalogue/catalogue-import-parser";
-import { contractSheet, tableColumnKeys, WORKBOOK_CONTRACT } from "@/lib/workbook/contract";
+import { columnExpectedInVersion, contractSheet, tableColumnKeys, WORKBOOK_CONTRACT } from "@/lib/workbook/contract";
 import { WorkbookParseError } from "@/lib/workbook/errors";
 import { buildFoodicsMenuFixture } from "@/lib/workbook/foodics-menu/fixture";
 import { WORKBOOK_LIMITS } from "@/lib/workbook/limits";
@@ -365,10 +365,20 @@ describe("parseWorkbookUpload: expanded profile", () => {
   });
 
   it("reads 1.0 to 1.3 files without warning about the 1.4 cost columns they never had", async () => {
-    const variantColumns = contractSheet("Variants").columns.filter((column) => !column.sinceVersion);
-    const optionColumns = contractSheet("Modifier Options").columns.filter((column) => !column.sinceVersion);
-    expect(variantColumns.map((column) => column.key)).toContain("price_tax_basis");
-    expect(contractSheet("Variants").columns.length - variantColumns.length).toBe(8);
+    const costColumns = (sheet: "Variants" | "Modifier Options") =>
+      contractSheet(sheet).columns.filter((column) => column.sinceVersion === "1.4");
+    expect(costColumns("Variants").map((column) => column.key)).toEqual([
+      "cost_method",
+      "reference_cost_amount",
+      "cost_currency",
+      "cost_unit",
+      "cost_tax_basis",
+      "cost_effective_date",
+      "cost_source",
+      "cost_source_reference",
+    ]);
+    expect(costColumns("Modifier Options")).toHaveLength(8);
+    expect(contractSheet("Variants").columns.map((column) => column.key)).toContain("price_tax_basis");
 
     const v10Values: Record<string, string> = {
       variant_key: "latte-regular",
@@ -377,7 +387,11 @@ describe("parseWorkbookUpload: expanded profile", () => {
       price_tax_basis: "GROSS",
       tax_rate_basis_points: "500",
     };
-    const v10Tables = (workbook: Awaited<ReturnType<typeof loadWorkbook>>) => {
+    const columnsFor = (sheet: "Variants" | "Modifier Options", version: string) =>
+      contractSheet(sheet).columns.filter((column) => columnExpectedInVersion(column, version));
+    const writeVersionTables = (workbook: Awaited<ReturnType<typeof loadWorkbook>>, version: string) => {
+      const variantColumns = columnsFor("Variants", version);
+      const optionColumns = columnsFor("Modifier Options", version);
       const variants = workbook.getWorksheet("Variants")!;
       variants.removeTable("QOS_Variants");
       variants.addTable({
@@ -397,8 +411,9 @@ describe("parseWorkbookUpload: expanded profile", () => {
     };
 
     for (const version of ["1.0", 1, "1.1", "1.2", "1.3"] as const) {
+      const normalized = version === 1 ? "1.0" : version;
       const workbook = await loadWorkbook(await template());
-      v10Tables(workbook);
+      writeVersionTables(workbook, normalized);
       setManifestValue(workbook, "template_version", version);
       const result = extended(await parseWorkbookUpload({ fileName: "old.xlsx", bytes: await saveWorkbook(workbook) }));
       expect(result.templateVersion, String(version)).toBe(version === 1 ? "1.0" : version);
@@ -411,7 +426,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
 
     // A file that claims 1.4 is expected to carry them, so their absence is reported.
     const workbook = await loadWorkbook(await template());
-    v10Tables(workbook);
+    writeVersionTables(workbook, "1.3");
     const result = extended(await parseWorkbookUpload({ fileName: "new.xlsx", bytes: await saveWorkbook(workbook) }));
     expect(sheet(result, "Variants").issues).toContainEqual(
       expect.objectContaining({ severity: "warning", code: "missing_columns", params: { columns: expect.stringContaining("cost_method") } }),
