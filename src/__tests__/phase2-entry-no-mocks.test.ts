@@ -7,6 +7,13 @@ import { describe, expect, it } from "vitest";
    the prototype's sample stores. */
 const SURFACES = [
   "../app/tenants/[tenantId]/inventory/page.tsx",
+  "../app/tenants/[tenantId]/inventory/inventory-screen.tsx",
+  "../app/tenants/[tenantId]/inventory/inventory-client.ts",
+  "../app/tenants/[tenantId]/inventory/unit-editor.tsx",
+  "../app/tenants/[tenantId]/inventory/item-editor.tsx",
+  "../app/tenants/[tenantId]/inventory/item-conversions-panel.tsx",
+  "../app/tenants/[tenantId]/inventory/conversion-preview-panel.tsx",
+  "../lib/inventory/conversion-preview.ts",
   "../app/tenants/[tenantId]/kitchen/page.tsx",
   "../app/tenants/[tenantId]/sales/page.tsx",
   "../app/tenants/[tenantId]/reports/page.tsx",

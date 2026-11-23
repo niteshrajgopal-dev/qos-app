@@ -421,6 +421,13 @@
       "when": 1793200000000,
       "tag": "0059_catalogue_selling_tax_and_reference_costs",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1793300000000,
+      "tag": "0060_inventory_units_items_conversions",
+      "breakpoints": true
     }
   ]
 }

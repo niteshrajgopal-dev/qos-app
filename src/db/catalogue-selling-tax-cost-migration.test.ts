@@ -80,7 +80,8 @@ integrationDescribe("catalogue selling tax and reference cost migration (0059)",
 
   it("records 0059 in the journal after 0058", async () => {
     const rows = await sql<{ created_at: string }[]>`
-      SELECT created_at::text FROM drizzle.__drizzle_migrations ORDER BY created_at DESC LIMIT 2`;
+      SELECT created_at::text FROM drizzle.__drizzle_migrations
+      WHERE created_at <= 1793200000000 ORDER BY created_at DESC LIMIT 2`;
     expect(rows.map((row) => row.created_at)).toEqual(["1793200000000", "1793100000000"]);
   });
 

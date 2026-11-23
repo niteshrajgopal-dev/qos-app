@@ -1,0 +1,31 @@
+import type { resetAndMigrate } from "@/db/test-utils";
+import type { ActiveStaffMembership } from "@/lib/staff/auth";
+
+/* Shared setup for the QOS-195 service integration tests. */
+
+export type IntegrationConnection = Awaited<ReturnType<typeof resetAndMigrate>>;
+
+export const ADMIN: ActiveStaffMembership = { membershipId: "seed-admin", role: "administrator", staffIdentityId: "seed-admin" };
+export const USER: ActiveStaffMembership = { membershipId: "seed-user", role: "user", staffIdentityId: "seed-user" };
+export const ACTOR = "admin.qos195@test";
+
+export async function truncateInventory(sql: IntegrationConnection["sql"]) {
+  await sql`TRUNCATE TABLE qos.tenant_audit_events, qos.inventory_item_conversions, qos.inventory_items, qos.inventory_units, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+}
+
+export async function auditActions(sql: IntegrationConnection["sql"], tenantId: string) {
+  const rows = await sql<{ action: string; entity_type: string; entity_public_id: string; change_summary: Record<string, unknown> }[]>`
+    SELECT action, entity_type, entity_public_id, change_summary FROM qos.tenant_audit_events
+    WHERE tenant_id = ${tenantId} ORDER BY occurred_at, id`;
+  return rows;
+}
+
+export async function rejection(promise: Promise<unknown>) {
+  try {
+    await promise;
+  } catch (error) {
+    const typed = error as { statusCode?: number; code?: string; field?: string };
+    return { statusCode: typed.statusCode, code: typed.code, field: typed.field };
+  }
+  throw new Error("expected the call to be rejected");
+}

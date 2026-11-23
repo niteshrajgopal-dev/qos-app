@@ -62,9 +62,9 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
         id: "inventory",
         label: "Inventory",
         icon: "boxes",
-        availability: "soon",
+        availability: "ready",
         children: [
-          { id: "inventory", label: "Ingredients and stock", availability: "soon" },
+          { id: "inventory", label: "Ingredients and stock", availability: "ready" },
           { id: "kitchen", label: "Kitchen prep", availability: "soon" },
         ],
       },
@@ -134,7 +134,7 @@ export const STAFF_MORE_NAV_GROUPS: StaffNavGroup[] = [
   {
     label: "Inventory",
     items: [
-      { id: "inventory", label: "Ingredients and stock", availability: "soon" },
+      { id: "inventory", label: "Ingredients and stock", availability: "ready" },
       { id: "kitchen", label: "Kitchen prep", availability: "soon" },
     ],
   },
