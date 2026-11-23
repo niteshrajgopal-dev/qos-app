@@ -1,5 +1,5 @@
 {
-  "version": "1.2",
+  "version": "1.3",
   "asOf": "2026-11-21",
   "repositorySnapshot": "99d8106f386bcd349f8f51b263481bb90227d0fc",
   "layout": {
@@ -21,7 +21,7 @@
     },
     {
       "field": "template_version",
-      "value": "1.2",
+      "value": "1.3",
       "rule": "Retain the workbook format version."
     },
     {
@@ -523,6 +523,60 @@
           "min": 0
         },
         {
+          "key": "preparation_time_minutes",
+          "label": "preparation time minutes",
+          "type": "integer",
+          "required": false,
+          "description": "Preparation time in whole minutes. Blank means unknown; 0 is a real value.",
+          "mapping": "catalogue_products.preparation_time_minutes",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0,
+          "sinceVersion": "1.3"
+        },
+        {
+          "key": "walking_time_minutes",
+          "label": "walking time minutes",
+          "type": "integer",
+          "required": false,
+          "description": "Supplied walking time in whole minutes to burn this item. Hospitality only. Blank means unknown; never calculated from calories.",
+          "mapping": "catalogue_products.walking_time_minutes",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0,
+          "sinceVersion": "1.3"
+        },
+        {
+          "key": "high_salt",
+          "label": "high salt",
+          "type": "text",
+          "required": false,
+          "description": "Supplied high-salt declaration. Hospitality only. TRUE or FALSE; blank means unknown, not FALSE.",
+          "mapping": "catalogue_products.high_salt",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "sinceVersion": "1.3"
+        },
+        {
+          "key": "is_stock_product",
+          "label": "is stock product",
+          "type": "text",
+          "required": false,
+          "description": "Stock-product intent only. TRUE never creates an inventory item, recipe or stock deduction; consumption stays unresolved until an explicit item, quantity and unit link exists. Blank means unknown.",
+          "mapping": "catalogue_products.direct_stock_intent",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "TRUE",
+            "FALSE"
+          ],
+          "sinceVersion": "1.3"
+        },
+        {
           "key": "image_url",
           "label": "image url",
           "type": "url",
@@ -830,6 +884,49 @@
           "values": [
             "AED"
           ]
+        },
+        {
+          "key": "selling_quantity_basis",
+          "label": "selling quantity basis",
+          "type": "text",
+          "required": false,
+          "description": "Recorded selling basis. Blank means undeclared, not per piece. weight without price_unit kg/g and a price_unit_quantity stays unresolved. Does not enable fractional checkout or scales.",
+          "mapping": "catalogue_variants.selling_quantity_basis",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "each",
+            "weight"
+          ],
+          "sinceVersion": "1.3"
+        },
+        {
+          "key": "price_unit",
+          "label": "price unit",
+          "type": "text",
+          "required": false,
+          "description": "Unit the price refers to. each for per-piece; kg or g for weight. Blank means undeclared.",
+          "mapping": "catalogue_variants.price_unit",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "values": [
+            "each",
+            "kg",
+            "g"
+          ],
+          "sinceVersion": "1.3"
+        },
+        {
+          "key": "price_unit_quantity",
+          "label": "price unit quantity",
+          "type": "decimal",
+          "required": false,
+          "description": "Quantity of price_unit the price buys, for example 100 with g. Positive number; blank means undeclared.",
+          "mapping": "catalogue_variants.price_unit_quantity",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "positive": true,
+          "sinceVersion": "1.3"
         },
         {
           "key": "status",
@@ -1482,6 +1579,18 @@
           "values": [
             "AED"
           ]
+        },
+        {
+          "key": "nutrition_calories",
+          "label": "nutrition calories",
+          "type": "integer",
+          "required": false,
+          "description": "Known calorie value for this option in whole kcal. Hospitality only. Blank means unknown; do not enter a guessed zero.",
+          "mapping": "catalogue_modifier_options.nutrition_calories",
+          "phase": "Phase 2",
+          "importSupport": "Multi-sheet extension required",
+          "min": 0,
+          "sinceVersion": "1.3"
         },
         {
           "key": "is_default",
@@ -4792,7 +4901,7 @@
   "rules": [
     [
       "Scope and version",
-      "Workbook contract v1.2, 21 November 2026. v1.1 (QOS-212) added the Product Modifiers assignment policy columns (min_selections, max_selections, repeat_allowed, selection_count_mode); v1.2 (QOS-213) adds Sales Channels, Variant Channel Prices and Modifier Option Channel Prices. QOS still reads v1.0 and v1.1 workbooks, which simply lack them. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
+      "Workbook contract v1.3, 21 November 2026. v1.1 (QOS-212) added the Product Modifiers assignment policy columns (min_selections, max_selections, repeat_allowed, selection_count_mode); v1.2 (QOS-213) added Sales Channels, Variant Channel Prices and Modifier Option Channel Prices; v1.3 (QOS-214) adds the selling-attribute and nutrition columns (preparation_time_minutes, walking_time_minutes, high_salt, is_stock_product on Products; selling_quantity_basis, price_unit, price_unit_quantity on Variants; nutrition_calories on Modifier Options). QOS still reads v1.0, v1.1 and v1.2 workbooks, which simply lack them. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
     ],
     [
       "Current upload profile",

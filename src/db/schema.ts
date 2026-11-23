@@ -9,6 +9,7 @@ import {
   index,
   integer,
   jsonb,
+  numeric,
   primaryKey,
   text,
   timestamp,
@@ -502,6 +503,13 @@ export const catalogueProducts = qos.table(
     barcode: text("barcode"),
     primaryMediaAssetId: uuid("primary_media_asset_id"),
     nutritionCalories: integer("nutrition_calories"),
+    // QOS-214: null is unknown; 0 is a declared value.
+    preparationTimeMinutes: integer("preparation_time_minutes"),
+    walkingTimeMinutes: integer("walking_time_minutes"),
+    highSalt: boolean("high_salt"),
+    // Recorded stock-product intent only. It never creates an inventory item,
+    // recipe or stock deduction (see lib/catalogue/selling-attributes.ts).
+    directStockIntent: boolean("direct_stock_intent"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -514,6 +522,14 @@ export const catalogueProducts = qos.table(
       columns: [table.tenantId, table.brandId],
       foreignColumns: [brands.tenantId, brands.id],
     }).onDelete("restrict"),
+    check(
+      "catalogue_products_preparation_time_minutes_check",
+      sql`${table.preparationTimeMinutes} IS NULL OR ${table.preparationTimeMinutes} >= 0`,
+    ),
+    check(
+      "catalogue_products_walking_time_minutes_check",
+      sql`${table.walkingTimeMinutes} IS NULL OR ${table.walkingTimeMinutes} >= 0`,
+    ),
     unique("catalogue_products_tenant_public_id_unique").on(
       table.tenantId,
       table.publicId,
@@ -612,6 +628,10 @@ export const catalogueVariants = qos.table(
     status: productStatusEnum("status").notNull().default("active"),
     sku: text("sku"),
     barcode: text("barcode"),
+    // QOS-214: null is undeclared, never "per piece".
+    sellingQuantityBasis: text("selling_quantity_basis"),
+    priceUnit: text("price_unit"),
+    priceUnitQuantity: numeric("price_unit_quantity", { mode: "number" }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -624,6 +644,18 @@ export const catalogueVariants = qos.table(
       columns: [table.tenantId, table.productId],
       foreignColumns: [catalogueProducts.tenantId, catalogueProducts.id],
     }).onDelete("restrict"),
+    check(
+      "catalogue_variants_selling_quantity_basis_check",
+      sql`${table.sellingQuantityBasis} IS NULL OR ${table.sellingQuantityBasis} IN ('each', 'weight')`,
+    ),
+    check(
+      "catalogue_variants_price_unit_check",
+      sql`${table.priceUnit} IS NULL OR ${table.priceUnit} IN ('each', 'kg', 'g')`,
+    ),
+    check(
+      "catalogue_variants_price_unit_quantity_check",
+      sql`${table.priceUnitQuantity} IS NULL OR ${table.priceUnitQuantity} > 0`,
+    ),
     unique("catalogue_variants_tenant_public_id_unique").on(
       table.tenantId,
       table.publicId,
@@ -846,6 +878,8 @@ export const catalogueModifierOptions = qos.table(
     status: productStatusEnum("status").notNull().default("active"),
     priceMinor: integer("price_minor").notNull().default(0),
     currency: char("currency", { length: 3 }).notNull().default("AED"),
+    // QOS-214: whole kcal, same convention as catalogue_products.nutrition_calories.
+    nutritionCalories: integer("nutrition_calories"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -854,6 +888,10 @@ export const catalogueModifierOptions = qos.table(
       .defaultNow(),
   },
   (table) => [
+    check(
+      "catalogue_modifier_options_nutrition_calories_check",
+      sql`${table.nutritionCalories} IS NULL OR ${table.nutritionCalories} >= 0`,
+    ),
     foreignKey({
       columns: [table.tenantId, table.modifierGroupId],
       foreignColumns: [

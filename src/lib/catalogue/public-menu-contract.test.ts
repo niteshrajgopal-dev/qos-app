@@ -44,6 +44,45 @@ const snapshot: MenuLiveSnapshotPayload = {
 };
 
 describe("public menu contract", () => {
+  it("never carries QOS-214 selling or nutrition attributes, even if a snapshot did", () => {
+    const product = snapshot.sections[0]!.products[0]!;
+    const polluted = {
+      ...snapshot,
+      sections: [
+        {
+          ...snapshot.sections[0]!,
+          products: [
+            {
+              ...product,
+              preparationTimeMinutes: 7,
+              walkingTimeMinutes: 30,
+              highSalt: true,
+              directStockIntent: true,
+              sellingQuantityBasis: "weight",
+              priceUnit: "g",
+              priceUnitQuantity: 100,
+              nutritionCalories: 120,
+            },
+          ],
+        },
+      ],
+    } as unknown as MenuLiveSnapshotPayload;
+    const response = toPublicMenuResponse({ publicKey: "mqr_test", tenantPublicId: "ten_quotes_dev", locale: "en", snapshot: polluted });
+    expect(() => assertPublicMenuResponseIsAllowlisted(response)).not.toThrow();
+    const serialized = JSON.stringify(response);
+    for (const key of [
+      "preparationTimeMinutes",
+      "walkingTimeMinutes",
+      "highSalt",
+      "directStockIntent",
+      "sellingQuantityBasis",
+      "priceUnit",
+      "nutritionCalories",
+    ]) {
+      expect(serialized).not.toContain(key);
+    }
+  });
+
   it("requires an explicit locale parameter", () => {
     expect(() => parsePublicMenuLocale(null)).toThrow(
       "locale query parameter must be explicitly en or ar.",

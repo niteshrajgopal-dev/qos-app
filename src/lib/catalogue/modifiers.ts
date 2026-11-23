@@ -9,6 +9,7 @@ import {
   catalogueModifierOptions,
   catalogueProductModifierGroups,
   catalogueProducts,
+  tenants,
 } from "@/db/schema";
 import {
   assertModifierAssignmentPolicyIsValid,
@@ -91,6 +92,8 @@ export type ModifierOptionView = {
   status: "active" | "archived";
   priceMinor: number;
   currency: string;
+  /** Whole kcal; null is unknown (hospitality only). */
+  nutritionCalories: number | null;
   translations: Record<ProductLocale, { displayName: string }>;
 };
 
@@ -107,6 +110,8 @@ export type ModifierGroupSummaryView = {
 };
 
 export type ModifierGroupEditorView = ModifierGroupSummaryView & {
+  /** Lets the editor apply the hospitality-only calorie gate. */
+  businessProfile: "hospitality" | "generic_retail";
   options: ModifierOptionView[];
 };
 
@@ -135,6 +140,20 @@ export type ProductModifierGroupsView = {
   productVersion: number;
   modifierGroups: ProductModifierGroupAssignmentView[];
 };
+
+async function loadTenantBusinessProfile(tx: DbClient, tenantId: string) {
+  const [tenant] = await tx
+    .select({ businessProfile: tenants.businessProfile })
+    .from(tenants)
+    .where(eq(tenants.id, tenantId))
+    .limit(1);
+
+  if (!tenant) {
+    throw new CatalogueModifierError("Tenant not found.", 404);
+  }
+
+  return tenant.businessProfile;
+}
 
 function slugify(value: string) {
   return (
@@ -391,6 +410,7 @@ async function loadModifierOptionsInTx(
     status: row.status === "archived" ? "archived" : "active",
     priceMinor: row.priceMinor,
     currency: row.currency.trim(),
+    nutritionCalories: row.nutritionCalories,
     translations: translationsByOptionId.get(row.id) ?? {
       en: { displayName: "" },
       ar: { displayName: "" },
@@ -560,6 +580,7 @@ async function loadModifierGroupEditorView(
     optionCount: options.filter((option) => option.status === "active").length,
     affectedProductCount: await countAffectedProducts(tx, tenantId, group.id),
     translations,
+    businessProfile: await loadTenantBusinessProfile(tx, tenantId),
     options,
   };
 }
@@ -870,8 +891,6 @@ export async function createModifierOption(
   membership: ActiveStaffMembership,
 ): Promise<ModifierGroupEditorView> {
   try {
-    const validated = validateCreateModifierOptionInput(input);
-
     if (membership.role !== "administrator") {
       throw new StaffAuthorizationError(
         "Administrator membership is required to change modifier prices.",
@@ -879,6 +898,10 @@ export async function createModifierOption(
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
+      const validated = validateCreateModifierOptionInput(
+        input,
+        await loadTenantBusinessProfile(tx, tenantId),
+      );
       const group = await loadGroupByPublicId(tx, tenantId, groupPublicId);
 
       if (validated.publicId) {
@@ -942,6 +965,7 @@ export async function createModifierOption(
           maxQuantity: validated.maxQuantity,
           priceMinor: validated.priceMinor,
           currency: validated.currency,
+          nutritionCalories: validated.nutritionCalories,
         })
         .returning();
 
@@ -973,6 +997,7 @@ export async function createModifierOption(
         changeSummary: {
           modifierGroupPublicId: groupPublicId,
           priceMinor: validated.priceMinor,
+          nutritionCalories: validated.nutritionCalories,
         },
       });
 
@@ -993,15 +1018,17 @@ export async function updateModifierOption(
   membership: ActiveStaffMembership,
 ): Promise<ModifierGroupEditorView> {
   try {
-    const validated = validateUpdateModifierOptionInput(input);
-
-    if (validated.priceMinor != null && membership.role !== "administrator") {
+    if (input.priceMinor != null && membership.role !== "administrator") {
       throw new StaffAuthorizationError(
         "Administrator membership is required to change modifier prices.",
       );
     }
 
     return await withTenantContext(db, tenantId, async (tx) => {
+      const validated = validateUpdateModifierOptionInput(
+        input,
+        await loadTenantBusinessProfile(tx, tenantId),
+      );
       const group = await loadGroupByPublicId(tx, tenantId, groupPublicId);
 
       const [option] = await tx
@@ -1048,6 +1075,10 @@ export async function updateModifierOption(
           maxQuantity: validated.maxQuantity ?? option.maxQuantity,
           status: validated.status ?? option.status,
           priceMinor: validated.priceMinor ?? option.priceMinor,
+          nutritionCalories:
+            validated.nutritionCalories === undefined
+              ? option.nutritionCalories
+              : validated.nutritionCalories,
           updatedAt: new Date(),
         })
         .where(eq(catalogueModifierOptions.id, option.id));
@@ -1080,6 +1111,15 @@ export async function updateModifierOption(
         changeSummary: {
           modifierGroupPublicId: groupPublicId,
           status: validated.status ?? option.status,
+          ...(validated.nutritionCalories !== undefined &&
+          validated.nutritionCalories !== option.nutritionCalories
+            ? {
+                nutritionCalories: {
+                  before: option.nutritionCalories,
+                  after: validated.nutritionCalories,
+                },
+              }
+            : {}),
         },
       });
 

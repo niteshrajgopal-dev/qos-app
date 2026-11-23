@@ -419,8 +419,8 @@ export function checkService(work: WorkRow, values: Record<string, string>, cont
           priceMinor: maybeInt(values.price_minor),
           translations: partialTranslations(values, "display_name_en", "display_name_ar"),
         };
-        if (create) validateCreateModifierOptionInput({ ...input, currency: values.currency });
-        else validateUpdateModifierOptionInput({ ...input, status: statusForService(values.status) });
+        if (create) validateCreateModifierOptionInput({ ...input, currency: values.currency }, context.snapshot.businessProfile);
+        else validateUpdateModifierOptionInput({ ...input, status: statusForService(values.status) }, context.snapshot.businessProfile);
         break;
       }
       case "Product Modifiers":

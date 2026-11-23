@@ -11,6 +11,10 @@ import {
 import type { ChannelPriceRowView } from "@/components/staff/catalogue/channel-price-state";
 import { useChannelPriceBundle } from "@/components/staff/catalogue/use-channel-price-bundle";
 import { PortalNotice } from "@/components/portal/workspace/PortalWorkspace";
+import {
+  optionalNumberText,
+  parseOptionalWholeNumber,
+} from "@/app/tenants/[tenantId]/catalogue/products/selling-attributes-form";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { staffUiCopy } from "@/lib/staff/locale";
@@ -28,6 +32,10 @@ type OptionRow = {
   maxQuantity: number;
   status: "active" | "archived";
   priceMinor: number;
+  /** Whole kcal; null is unknown. */
+  nutritionCalories: number | null;
+  /** Local text for the calories input; blank stays unknown. */
+  nutritionCaloriesInput?: string;
   translations: {
     en: { displayName: string };
     ar: { displayName: string };
@@ -41,6 +49,7 @@ type GroupState = {
   maxSelections: number;
   version: number;
   affectedProductCount: number;
+  businessProfile: "hospitality" | "generic_retail";
   translations: {
     en: { displayName: string };
     ar: { displayName: string };
@@ -71,6 +80,7 @@ export function ModifierGroupEditor({
   tenantId,
   groupPublicId,
 }: ModifierGroupEditorProps) {
+  const { locale } = useStaffLocale();
   const [group, setGroup] = useState<GroupState | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +92,6 @@ export function ModifierGroupEditor({
     isDefault: false,
   });
 
-  const { locale } = useStaffLocale();
   const copy = (key: Parameters<typeof staffUiCopy>[1]) => staffUiCopy(locale, key);
   const groupBase = `/api/tenants/${tenantId}/catalogue/modifier-groups/${groupPublicId}`;
   const channelPrices = useChannelPriceBundle<GroupChannelPrices>(
@@ -202,6 +211,17 @@ export function ModifierGroupEditor({
       return;
     }
 
+    const hospitality = group.businessProfile === "hospitality";
+    const nutritionCalories = hospitality
+      ? parseOptionalWholeNumber(
+          option.nutritionCaloriesInput ?? optionalNumberText(option.nutritionCalories),
+        )
+      : undefined;
+    if (nutritionCalories === "invalid") {
+      setError(staffUiCopy(locale, "modifierOptionCaloriesInvalid"));
+      return;
+    }
+
     setBusy(true);
     setError(null);
     setMessage(null);
@@ -218,6 +238,8 @@ export function ModifierGroupEditor({
             isDefault: option.isDefault,
             allowsQuantity: option.allowsQuantity,
             maxQuantity: option.maxQuantity,
+            // Explicit null clears; omitted for non-hospitality businesses.
+            nutritionCalories,
           }),
         },
       );
@@ -501,6 +523,39 @@ export function ModifierGroupEditor({
                   }}
                 />
               </label>
+              {group.businessProfile === "hospitality" ? (
+                <label className="block text-sm">
+                  <span className="font-medium text-zinc-700">
+                    {staffUiCopy(locale, "modifierOptionCaloriesLabel")}
+                  </span>
+                  <span className="block text-xs text-zinc-600">
+                    {staffUiCopy(locale, "modifierOptionCaloriesHelp")}
+                  </span>
+                  <input
+                    className="qos-input"
+                    type="number"
+                    inputMode="numeric"
+                    min="0"
+                    step="1"
+                    dir="ltr"
+                    value={
+                      option.nutritionCaloriesInput ??
+                      optionalNumberText(option.nutritionCalories)
+                    }
+                    disabled={busy || option.status === "archived"}
+                    onChange={(event) =>
+                      setGroup({
+                        ...group,
+                        options: group.options.map((entry) =>
+                          entry.publicId === option.publicId
+                            ? { ...entry, nutritionCaloriesInput: event.target.value }
+                            : entry,
+                        ),
+                      })
+                    }
+                  />
+                </label>
+              ) : null}
             </div>
             {option.status === "active" ? (
               <div className="mt-4 flex flex-wrap gap-2">

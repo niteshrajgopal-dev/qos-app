@@ -1,5 +1,10 @@
 import type { ProductLocale } from "@/lib/catalogue/validation";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
+import {
+  type PriceUnit,
+  type SellingQuantityBasis,
+  validateVariantSellingBasisPatch,
+} from "@/lib/catalogue/selling-attributes";
 
 export type VariantTranslationInput = {
   displayName?: string;
@@ -14,6 +19,9 @@ export type CreateProductVariantInput = {
   barcode?: string | null;
   amountMinor?: number | null;
   currency?: string;
+  sellingQuantityBasis?: SellingQuantityBasis | null;
+  priceUnit?: PriceUnit | null;
+  priceUnitQuantity?: number | null;
   translations?: Partial<Record<ProductLocale, VariantTranslationInput>>;
 };
 
@@ -25,6 +33,9 @@ export type UpdateProductVariantInput = {
   sku?: string | null;
   barcode?: string | null;
   amountMinor?: number | null;
+  sellingQuantityBasis?: SellingQuantityBasis | null;
+  priceUnit?: PriceUnit | null;
+  priceUnitQuantity?: number | null;
   translations?: Partial<Record<ProductLocale, VariantTranslationInput>>;
 };
 
@@ -123,6 +134,12 @@ export function validateCreateProductVariantInput(
     );
   }
 
+  const sellingBasis = validateVariantSellingBasisPatch({
+    sellingQuantityBasis: input.sellingQuantityBasis ?? null,
+    priceUnit: input.priceUnit ?? null,
+    priceUnitQuantity: input.priceUnitQuantity ?? null,
+  });
+
   return {
     expectedProductVersion: input.expectedProductVersion,
     publicId,
@@ -132,6 +149,9 @@ export function validateCreateProductVariantInput(
     barcode: normalizeOptionalIdentifier(input.barcode),
     amountMinor: validatePriceAmount(input.amountMinor),
     currency,
+    sellingQuantityBasis: sellingBasis.sellingQuantityBasis ?? null,
+    priceUnit: sellingBasis.priceUnit ?? null,
+    priceUnitQuantity: sellingBasis.priceUnitQuantity ?? null,
     translations: normalizeTranslations(input.translations),
   };
 }
@@ -179,6 +199,11 @@ export function validateUpdateProductVariantInput(
       input.amountMinor === undefined
         ? undefined
         : validatePriceAmount(input.amountMinor),
+    ...validateVariantSellingBasisPatch({
+      sellingQuantityBasis: input.sellingQuantityBasis,
+      priceUnit: input.priceUnit,
+      priceUnitQuantity: input.priceUnitQuantity,
+    }),
     translations: normalizeTranslations(input.translations),
   };
 }

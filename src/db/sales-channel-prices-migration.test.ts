@@ -18,14 +18,13 @@ const NEW_TABLES = [
 ];
 
 describe("sales channel prices migration journal (0056)", () => {
-  it("records 0056 after 0055 and before 0058, leaving 0057 reserved", () => {
+  it("records 0056 after 0055 and before 0057 (QOS-214), which precedes 0058", () => {
     const journal = JSON.parse(readFileSync(path.join(process.cwd(), "drizzle/meta/_journal.json"), "utf8")) as Journal;
     const position = journal.entries.findIndex((entry) => entry.tag === "0056_sales_channel_prices");
     expect(journal.entries[position]).toMatchObject({ idx: 56, when: 1792900000000 });
     expect(journal.entries[position - 1]).toMatchObject({ idx: 55, tag: "0055_workbook_import_plans" });
-    expect(journal.entries[position + 1]).toMatchObject({ idx: 58, tag: "0058_workbook_import_apply" });
-    // 0057 is reserved for QOS-214 (#97) and is not journalled here.
-    expect(journal.entries.some((entry) => entry.idx === 57)).toBe(false);
+    expect(journal.entries[position + 1]).toMatchObject({ idx: 57, when: 1793000000000, tag: "0057_catalogue_selling_attributes" });
+    expect(journal.entries[position + 2]).toMatchObject({ idx: 58, when: 1793100000000, tag: "0058_workbook_import_apply" });
     for (let index = 1; index < journal.entries.length; index += 1) {
       expect(journal.entries[index]!.idx).toBeGreaterThan(journal.entries[index - 1]!.idx);
       expect(journal.entries[index]!.when).toBeGreaterThan(journal.entries[index - 1]!.when);

@@ -19,7 +19,15 @@ import {
 } from "@/components/staff/catalogue/channel-price-grid";
 import type { ChannelPriceRowView } from "@/components/staff/catalogue/channel-price-state";
 import { useChannelPriceBundle } from "@/components/staff/catalogue/use-channel-price-bundle";
+import {
+  VariantSellingBasisFields,
+} from "@/app/tenants/[tenantId]/catalogue/products/selling-attributes-fields";
+import {
+  optionalNumberText,
+  parseOptionalPositiveNumber,
+} from "@/app/tenants/[tenantId]/catalogue/products/selling-attributes-form";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
+import type { PriceUnit, SellingQuantityBasis } from "@/lib/catalogue/selling-attributes";
 import type { CatalogueProductEditorStatus } from "@/lib/catalogue/product-editor-copy";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { staffUiCopy } from "@/lib/staff/locale";
@@ -36,6 +44,11 @@ type VariantRow = {
   sku: string;
   barcode: string;
   amountMinor: number | null;
+  sellingQuantityBasis: SellingQuantityBasis | null;
+  priceUnit: PriceUnit | null;
+  priceUnitQuantity: number | null;
+  /** Local text for the quantity input; blank stays undeclared. */
+  priceUnitQuantityInput?: string;
   translations: {
     en: VariantTranslation;
     ar: VariantTranslation;
@@ -465,19 +478,43 @@ export function ProductVariantsPanel({
               </PortalField>
             </div>
 
+            <VariantSellingBasisFields
+              locale={locale}
+              disabled={fieldDisabled}
+              value={{
+                sellingQuantityBasis: variant.sellingQuantityBasis,
+                priceUnit: variant.priceUnit,
+                priceUnitQuantityInput:
+                  variant.priceUnitQuantityInput ?? optionalNumberText(variant.priceUnitQuantity),
+              }}
+              onChange={(patch) =>
+                updateVariant(variant.publicId, (entry) => ({ ...entry, ...patch }))
+              }
+            />
+
             {variant.status === "active" && !productReadOnly ? (
               <div className="qosp-button-row">
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() =>
+                  onClick={() => {
+                    const priceUnitQuantity = parseOptionalPositiveNumber(
+                      variant.priceUnitQuantityInput ?? optionalNumberText(variant.priceUnitQuantity),
+                    );
+                    if (priceUnitQuantity === "invalid") {
+                      setError(copy("variantPriceUnitQuantityInvalid"));
+                      return;
+                    }
                     void saveVariant(variant.publicId, {
                       translations: variant.translations,
-                      sku: variant.sku.trim() || null,
-                      barcode: variant.barcode.trim() || null,
+                      sku: variant.sku?.trim() || null,
+                      barcode: variant.barcode?.trim() || null,
                       amountMinor: variant.amountMinor,
-                    })
-                  }
+                      sellingQuantityBasis: variant.sellingQuantityBasis,
+                      priceUnit: variant.priceUnit,
+                      priceUnitQuantity,
+                    });
+                  }}
                   className="qos-btn" data-variant="primary" data-size="sm"
                 >
                   {copy("variantSave")}

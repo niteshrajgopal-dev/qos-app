@@ -12,12 +12,12 @@ const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
 type Journal = { entries: Array<{ idx: number; when: number; tag: string }> };
 
 describe("workbook import apply migration journal (0058)", () => {
-  it("records 0058 after 0056 with strictly increasing idx and when, leaving 0057 reserved", () => {
+  it("records 0058 after 0057 (QOS-214) with strictly increasing idx and when", () => {
     const journal = JSON.parse(readFileSync(path.join(process.cwd(), "drizzle/meta/_journal.json"), "utf8")) as Journal;
     const position = journal.entries.findIndex((candidate) => candidate.tag === "0058_workbook_import_apply");
     expect(journal.entries[position]).toMatchObject({ idx: 58, when: 1793100000000 });
-    expect(journal.entries[position - 1]).toMatchObject({ idx: 56, tag: "0056_sales_channel_prices" });
-    expect(journal.entries.some((entry) => entry.idx === 57)).toBe(false);
+    expect(journal.entries[position - 1]).toMatchObject({ idx: 57, when: 1793000000000, tag: "0057_catalogue_selling_attributes" });
+    expect(journal.entries[position - 2]).toMatchObject({ idx: 56, tag: "0056_sales_channel_prices" });
     for (let index = 1; index < journal.entries.length; index += 1) {
       expect(journal.entries[index]!.idx).toBeGreaterThan(journal.entries[index - 1]!.idx);
       expect(journal.entries[index]!.when).toBeGreaterThan(journal.entries[index - 1]!.when);
