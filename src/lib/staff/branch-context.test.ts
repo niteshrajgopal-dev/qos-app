@@ -7,7 +7,6 @@ import {
   assertReadableBranch,
   assertWarehouseBelongsToBranch,
   type PermittedBranch,
-  WarehouseGuardNotImplementedError,
 } from "@/lib/staff/branch-context";
 
 const HBZ: PermittedBranch = {
@@ -68,9 +67,19 @@ describe("assertReadableBranch", () => {
 });
 
 describe("assertWarehouseBelongsToBranch", () => {
-  it("fails closed until warehouses exist", () => {
-    expect(() => assertWarehouseBelongsToBranch("wh_any", HBZ)).toThrow(
-      WarehouseGuardNotImplementedError,
+  it("returns the branch for an active warehouse of that branch", () => {
+    expect(assertWarehouseBelongsToBranch({ locationPublicId: "loc_quotes_hbz", status: "active" }, HBZ)).toEqual(HBZ);
+  });
+
+  it("rejects a warehouse of another branch", () => {
+    expectForbidden(() =>
+      assertWarehouseBelongsToBranch({ locationPublicId: "loc_quotes_hct", status: "active" }, HBZ),
+    );
+  });
+
+  it("rejects an archived warehouse even at the same branch", () => {
+    expectForbidden(() =>
+      assertWarehouseBelongsToBranch({ locationPublicId: "loc_quotes_hbz", status: "archived" }, HBZ),
     );
   });
 });

@@ -4,9 +4,11 @@ import type { DbClient } from "@/db/client";
 import {
   type InventoryItemConversionRecord,
   type InventoryItemRecord,
+  type InventorySupplierRecord,
   type InventoryUnitRecord,
   inventoryItemConversions,
   inventoryItems,
+  inventorySuppliers,
 } from "@/db/schema";
 import { auditActorClassFromStaffRole, recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import type { GraphRule } from "@/lib/inventory/conversion-graph";
@@ -15,6 +17,7 @@ import { InventoryError } from "@/lib/inventory/errors";
 import { microsToDecimalString } from "@/lib/inventory/quantity-math";
 import {
   asBody,
+  loadSupplierByPublicIdInTx,
   loadTenantUnitsInTx,
   loadUnitByPublicIdInTx,
   parseExpectedVersion,
@@ -24,6 +27,8 @@ import {
   requireInventoryAdministrator,
   shortRandomHex,
   slugify,
+  type SupplierView,
+  toSupplierView,
   toUnitView,
   type UnitView,
   versionConflict,
@@ -33,8 +38,8 @@ import { withTenantContext } from "@/lib/tenant/context";
 
 /* QOS-195 inventory items: the minimal identity (public id, names, kind,
    status and storage/recipe/purchase unit designations) that item-scoped
-   conversions hang off. QOS-197 extends this table with categories,
-   suppliers, dated costs and notes. Names are not identity: a rename keeps
+   conversions hang off. QOS-196 adds the default supplier; QOS-197 extends
+   this table with categories, dated costs and notes. Names are not identity: a rename keeps
    the public id and every rule. */
 
 export const ITEM_NAME_MAX_LENGTH = 120;
@@ -50,6 +55,7 @@ export type ItemView = {
   storageUnitPublicId: string | null;
   recipeUnitPublicId: string | null;
   purchaseUnitPublicId: string | null;
+  defaultSupplierPublicId: string | null;
   provenance: InventoryItemRecord["provenance"];
   createdAt: string;
   updatedAt: string;
@@ -83,6 +89,7 @@ export type ItemSummaryView = {
   storageUnitCode: string | null;
   recipeUnitCode: string | null;
   purchaseUnitCode: string | null;
+  defaultSupplierPublicId: string | null;
   currentRuleCount: number;
   previewStatus: ItemQuantityPreview["status"];
 };
@@ -91,6 +98,8 @@ export type ItemDetailView = {
   item: ItemView;
   /** Active units plus any archived unit this item still references. */
   units: UnitView[];
+  /** Active suppliers plus the archived default supplier this item still references. */
+  suppliers: SupplierView[];
   rules: ConversionView[];
   history: ConversionView[];
   preview: ItemQuantityPreview;
@@ -128,7 +137,11 @@ export function previewForItem(
   });
 }
 
-function toItemView(item: InventoryItemRecord, unitsById: Map<string, InventoryUnitRecord>): ItemView {
+function toItemView(
+  item: InventoryItemRecord,
+  unitsById: Map<string, InventoryUnitRecord>,
+  suppliersById: Map<string, InventorySupplierRecord>,
+): ItemView {
   const publicIdOf = (id: string | null) => (id ? unitsById.get(id)?.publicId ?? null : null);
   return {
     publicId: item.publicId,
@@ -140,6 +153,7 @@ function toItemView(item: InventoryItemRecord, unitsById: Map<string, InventoryU
     storageUnitPublicId: publicIdOf(item.storageUnitId),
     recipeUnitPublicId: publicIdOf(item.recipeUnitId),
     purchaseUnitPublicId: publicIdOf(item.purchaseUnitId),
+    defaultSupplierPublicId: item.defaultSupplierId ? suppliersById.get(item.defaultSupplierId)?.publicId ?? null : null,
     provenance: item.provenance,
     createdAt: item.createdAt.toISOString(),
     updatedAt: item.updatedAt.toISOString(),
@@ -188,6 +202,14 @@ export async function loadItemByPublicIdInTx(
   return row;
 }
 
+async function loadTenantSuppliersInTx(tx: DbClient, tenantId: string): Promise<InventorySupplierRecord[]> {
+  return tx
+    .select()
+    .from(inventorySuppliers)
+    .where(eq(inventorySuppliers.tenantId, tenantId))
+    .orderBy(asc(inventorySuppliers.nameEn), asc(inventorySuppliers.publicId));
+}
+
 export async function loadItemConversionsInTx(tx: DbClient, tenantId: string, itemId: string) {
   return tx
     .select()
@@ -211,6 +233,8 @@ export async function loadItemDetailInTx(tx: DbClient, tenantId: string, itemId:
   }
   const units = await loadTenantUnitsInTx(tx, tenantId);
   const unitsById = new Map(units.map((unit) => [unit.id, unit]));
+  const suppliers = await loadTenantSuppliersInTx(tx, tenantId);
+  const suppliersById = new Map(suppliers.map((supplier) => [supplier.id, supplier]));
   const history = await loadItemConversionsInTx(tx, tenantId, item.id);
   const current = history.filter((row) => row.effectiveTo === null);
   const referenced = new Set<string>(
@@ -219,8 +243,11 @@ export async function loadItemDetailInTx(tx: DbClient, tenantId: string, itemId:
     ),
   );
   return {
-    item: toItemView(item, unitsById),
+    item: toItemView(item, unitsById, suppliersById),
     units: units.filter((unit) => unit.status === "active" || referenced.has(unit.id)).map(toUnitView),
+    suppliers: suppliers
+      .filter((supplier) => supplier.status === "active" || supplier.id === item.defaultSupplierId)
+      .map(toSupplierView),
     rules: current.map((row) => toConversionView(row, unitsById)),
     history: history.map((row) => toConversionView(row, unitsById)),
     preview: previewForItem(item, units, current),
@@ -236,6 +263,7 @@ export async function listItems(db: DbClient, tenantId: string): Promise<{ items
       .orderBy(asc(inventoryItems.nameEn), asc(inventoryItems.publicId));
     const units = await loadTenantUnitsInTx(tx, tenantId);
     const unitsById = new Map(units.map((unit) => [unit.id, unit]));
+    const suppliersById = new Map((await loadTenantSuppliersInTx(tx, tenantId)).map((supplier) => [supplier.id, supplier]));
     const currentRules = await tx
       .select()
       .from(inventoryItemConversions)
@@ -254,6 +282,9 @@ export async function listItems(db: DbClient, tenantId: string): Promise<{ items
           storageUnitCode: codeOf(item.storageUnitId),
           recipeUnitCode: codeOf(item.recipeUnitId),
           purchaseUnitCode: codeOf(item.purchaseUnitId),
+          defaultSupplierPublicId: item.defaultSupplierId
+            ? suppliersById.get(item.defaultSupplierId)?.publicId ?? null
+            : null,
           currentRuleCount: rules.length,
           previewStatus: previewForItem(item, units, rules).status,
         };
@@ -308,12 +339,47 @@ async function resolveDesignations(
   return result;
 }
 
+/**
+ * Resolves `defaultSupplierPublicId`: omitted leaves the default as is, `null`
+ * or "" clears it, otherwise it must be this tenant's supplier. An archived
+ * supplier is refused unless it is already this item's default.
+ */
+async function resolveDefaultSupplier(
+  tx: DbClient,
+  tenantId: string,
+  body: Record<string, unknown>,
+  current: InventoryItemRecord | null,
+): Promise<{ defaultSupplierId?: string | null }> {
+  const value = body.defaultSupplierPublicId;
+  if (value === undefined) return {};
+  if (value === null || value === "") return { defaultSupplierId: null };
+  const supplier = await loadSupplierByPublicIdInTx(tx, tenantId, value, "defaultSupplierPublicId");
+  if (supplier.status !== "active" && current?.defaultSupplierId !== supplier.id) {
+    throw new InventoryError(
+      "This supplier is archived. Restore it before choosing it.",
+      400,
+      "supplier_archived",
+      "defaultSupplierPublicId",
+    );
+  }
+  return { defaultSupplierId: supplier.id };
+}
+
 function generateItemPublicId(nameEn: string) {
   return `item_${slugify(nameEn, "item")}_${shortRandomHex(8)}`;
 }
 
-function auditItem(row: InventoryItemRecord, unitsById?: Map<string, InventoryUnitRecord>) {
+function auditItem(
+  row: InventoryItemRecord,
+  unitsById?: Map<string, InventoryUnitRecord>,
+  suppliersById?: Map<string, InventorySupplierRecord>,
+) {
   const code = (id: string | null) => (id ? unitsById?.get(id)?.code ?? id : null);
+  const supplier = (id: string | null) => {
+    if (!id) return null;
+    const record = suppliersById?.get(id);
+    return record ? record.code ?? record.publicId : id;
+  };
   return {
     nameEn: row.nameEn,
     nameAr: row.nameAr,
@@ -322,6 +388,7 @@ function auditItem(row: InventoryItemRecord, unitsById?: Map<string, InventoryUn
     storageUnit: code(row.storageUnitId),
     recipeUnit: code(row.recipeUnitId),
     purchaseUnit: code(row.purchaseUnitId),
+    defaultSupplier: supplier(row.defaultSupplierId),
   };
 }
 
@@ -339,6 +406,7 @@ export async function createItem(
   const kind = parseKind(body.kind);
   return withTenantContext(db, tenantId, async (tx) => {
     const designations = await resolveDesignations(tx, tenantId, body, null);
+    const defaultSupplier = await resolveDefaultSupplier(tx, tenantId, body, null);
     const [row] = await tx
       .insert(inventoryItems)
       .values({
@@ -350,12 +418,14 @@ export async function createItem(
         storageUnitId: designations.storageUnitId ?? null,
         recipeUnitId: designations.recipeUnitId ?? null,
         purchaseUnitId: designations.purchaseUnitId ?? null,
+        defaultSupplierId: defaultSupplier.defaultSupplierId ?? null,
         provenance: "operator_entered",
         createdBySubject: actorSubject,
         updatedBySubject: actorSubject,
       })
       .returning();
     const unitsById = new Map((await loadTenantUnitsInTx(tx, tenantId)).map((unit) => [unit.id, unit]));
+    const suppliersById = new Map((await loadTenantSuppliersInTx(tx, tenantId)).map((supplier) => [supplier.id, supplier]));
     await recordTenantAuditEventInTx(tx, {
       tenantId,
       actorSubject,
@@ -364,7 +434,7 @@ export async function createItem(
       entityType: "inventory_item",
       entityPublicId: row!.publicId,
       entityVersion: row!.version,
-      changeSummary: { after: auditItem(row!, unitsById) },
+      changeSummary: { after: auditItem(row!, unitsById, suppliersById) },
     });
     return loadItemDetailInTx(tx, tenantId, row!.id);
   });
@@ -391,6 +461,7 @@ export async function updateItem(
       throw versionConflict();
     }
     const designations = await resolveDesignations(tx, tenantId, body, item);
+    const defaultSupplier = await resolveDefaultSupplier(tx, tenantId, body, item);
     const [updated] = await tx
       .update(inventoryItems)
       .set({
@@ -398,6 +469,7 @@ export async function updateItem(
         nameAr: nameAr === undefined ? item.nameAr : nameAr,
         kind: kind ?? item.kind,
         ...designations,
+        ...defaultSupplier,
         status: status ?? item.status,
         version: item.version + 1,
         updatedAt: new Date(),
@@ -409,6 +481,7 @@ export async function updateItem(
       throw versionConflict();
     }
     const unitsById = new Map((await loadTenantUnitsInTx(tx, tenantId)).map((unit) => [unit.id, unit]));
+    const suppliersById = new Map((await loadTenantSuppliersInTx(tx, tenantId)).map((supplier) => [supplier.id, supplier]));
     const action =
       updated.status !== item.status
         ? updated.status === "archived"
@@ -423,7 +496,10 @@ export async function updateItem(
       entityType: "inventory_item",
       entityPublicId: updated.publicId,
       entityVersion: updated.version,
-      changeSummary: { before: auditItem(item, unitsById), after: auditItem(updated, unitsById) },
+      changeSummary: {
+        before: auditItem(item, unitsById, suppliersById),
+        after: auditItem(updated, unitsById, suppliersById),
+      },
     });
     return loadItemDetailInTx(tx, tenantId, updated.id);
   });

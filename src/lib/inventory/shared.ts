@@ -2,18 +2,19 @@ import { and, asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type { DbClient } from "@/db/client";
-import { type InventoryUnitRecord, inventoryUnits, tenants } from "@/db/schema";
+import { type InventorySupplierRecord, type InventoryUnitRecord, inventorySuppliers, inventoryUnits, tenants } from "@/db/schema";
 import { calendarDateInTimeZone, isCalendarDate } from "@/lib/catalogue/selling-tax-cost";
 import { InventoryConflictError, InventoryError } from "@/lib/inventory/errors";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 
-/* Helpers shared by the QOS-195 unit, item and conversion services. */
+/* Helpers shared by the QOS-195 unit, item and conversion services and the
+   QOS-196 supplier and warehouse services. */
 
-/** Units, items and conversions are tenant-wide master data that feed costing (D14 assumption). */
+/** Units, items, conversions, suppliers and warehouses are master data that feed costing (D14 assumption). */
 export function requireInventoryAdministrator(membership: ActiveStaffMembership) {
   if (membership.role !== "administrator") {
     throw new InventoryError(
-      "Only administrators can change units, items and conversions.",
+      "Only administrators can change inventory setup records.",
       403,
       "administrator_required",
     );
@@ -179,6 +180,141 @@ export async function loadUnitByPublicIdInTx(
     .for(lock);
   if (!row) {
     throw new InventoryError("Unit not found.", 404, "unit_not_found", field);
+  }
+  return row;
+}
+
+/* QOS-196 field parsers. `null`, an omitted value or a blank string all mean
+   "no value"; text is trimmed before its length is checked. */
+
+/** Supplier and warehouse reference codes: case kept, compared case-insensitively. */
+export const RECORD_CODE_PATTERN = /^[A-Za-z0-9][A-Za-z0-9_-]{0,23}$/;
+
+export function parseOptionalText(value: unknown, field: string, max: number, code = "text_too_long"): string | null {
+  if (value == null) {
+    return null;
+  }
+  if (typeof value !== "string") {
+    throw new InventoryError("Enter this value as text.", 400, "body_invalid", field);
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.length > max) {
+    throw new InventoryError(`This text can be at most ${max} characters.`, 400, code, field);
+  }
+  return trimmed;
+}
+
+export function parseRecordCode(value: unknown, field = "code"): string {
+  const code = typeof value === "string" ? value.trim() : "";
+  if (!RECORD_CODE_PATTERN.test(code)) {
+    throw new InventoryError(
+      "Use 1 to 24 letters, digits, hyphens or underscores for the code, starting with a letter or digit.",
+      400,
+      "code_invalid",
+      field,
+    );
+  }
+  return code;
+}
+
+export function parseOptionalCode(value: unknown, field = "code"): string | null {
+  if (value == null || (typeof value === "string" && !value.trim())) {
+    return null;
+  }
+  return parseRecordCode(value, field);
+}
+
+const PHONE_PATTERN = /^[0-9 +()-]+$/;
+
+export function parsePhone(value: unknown, field = "phone"): string | null {
+  const phone = parseOptionalText(value, field, 40);
+  if (phone === null) {
+    return null;
+  }
+  if (!PHONE_PATTERN.test(phone) || !/[0-9]/.test(phone)) {
+    throw new InventoryError(
+      "Enter the phone number with digits, spaces, plus or hyphens only.",
+      400,
+      "phone_invalid",
+      field,
+    );
+  }
+  return phone;
+}
+
+/** Format check only: one @ with a dot in the domain and no spaces. */
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export function parseEmail(value: unknown, field = "email"): string | null {
+  const email = parseOptionalText(value, field, 254);
+  if (email === null) {
+    return null;
+  }
+  if (!EMAIL_PATTERN.test(email)) {
+    throw new InventoryError("Enter a valid email address.", 400, "email_invalid", field);
+  }
+  return email;
+}
+
+export type SupplierView = {
+  publicId: string;
+  nameEn: string;
+  nameAr: string | null;
+  code: string | null;
+  contactName: string | null;
+  phone: string | null;
+  email: string | null;
+  address: string | null;
+  notes: string | null;
+  status: InventorySupplierRecord["status"];
+  version: number;
+  provenance: InventorySupplierRecord["provenance"];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function toSupplierView(row: InventorySupplierRecord): SupplierView {
+  return {
+    publicId: row.publicId,
+    nameEn: row.nameEn,
+    nameAr: row.nameAr,
+    code: row.code,
+    contactName: row.contactName,
+    phone: row.phone,
+    email: row.email,
+    address: row.address,
+    notes: row.notes,
+    status: row.status,
+    version: row.version,
+    provenance: row.provenance,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export async function loadSupplierByPublicIdInTx(
+  tx: DbClient,
+  tenantId: string,
+  publicId: unknown,
+  field = "supplierPublicId",
+  lock: "share" | "update" = "share",
+): Promise<InventorySupplierRecord> {
+  if (typeof publicId !== "string" || !publicId) {
+    throw new InventoryError("Supplier not found.", 404, "supplier_not_found", field);
+  }
+  // Same locking rule as units: referencing writers share-lock, archive
+  // update-locks, so a supplier cannot be archived while a new item default commits.
+  const [row] = await tx
+    .select()
+    .from(inventorySuppliers)
+    .where(and(eq(inventorySuppliers.tenantId, tenantId), eq(inventorySuppliers.publicId, publicId)))
+    .limit(1)
+    .for(lock);
+  if (!row) {
+    throw new InventoryError("Supplier not found.", 404, "supplier_not_found", field);
   }
   return row;
 }

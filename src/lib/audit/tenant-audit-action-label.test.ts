@@ -34,7 +34,7 @@ describe("tenantAuditActionLabel", () => {
     );
   });
 
-  it("labels every QOS-195 inventory action, entity and the inventory area in both languages", () => {
+  it("labels every QOS-195 and QOS-196 inventory action, entity and the inventory area in both languages", () => {
     const actions = [
       "inventory.unit.create",
       "inventory.unit.update",
@@ -47,6 +47,14 @@ describe("tenantAuditActionLabel", () => {
       "inventory.conversion.create",
       "inventory.conversion.revise",
       "inventory.conversion.close",
+      "inventory.supplier.create",
+      "inventory.supplier.update",
+      "inventory.supplier.archive",
+      "inventory.supplier.restore",
+      "inventory.warehouse.create",
+      "inventory.warehouse.update",
+      "inventory.warehouse.archive",
+      "inventory.warehouse.restore",
     ];
     const english = actions.map((action) => tenantAuditActionLabel(action, "en"));
     const arabic = actions.map((action) => tenantAuditActionLabel(action, "ar"));
@@ -63,6 +71,12 @@ describe("tenantAuditActionLabel", () => {
     expect(tenantAuditEntityLabel("inventory_item", "ar")).toBe("صنف مخزون");
     expect(tenantAuditEntityLabel("inventory_item_conversion", "en")).toBe("Item conversion");
     expect(tenantAuditEntityLabel("inventory_item_conversion", "ar")).toBe("تحويل صنف");
+    expect(tenantAuditActionLabel("inventory.supplier.archive", "en")).toBe("Supplier archived");
+    expect(tenantAuditActionLabel("inventory.warehouse.create", "ar")).toBe("تم إنشاء مستودع");
+    expect(tenantAuditEntityLabel("inventory_supplier", "en")).toBe("Supplier");
+    expect(tenantAuditEntityLabel("inventory_supplier", "ar")).toBe("مورّد");
+    expect(tenantAuditEntityLabel("inventory_warehouse", "en")).toBe("Warehouse");
+    expect(tenantAuditEntityLabel("inventory_warehouse", "ar")).toBe("مستودع");
     expect(tenantAuditActionLabel("inventory.something_new", "en")).toBe("Inventory updated");
     expect(tenantAuditActionLabel("inventory.something_new", "ar")).toBe("تم تحديث المخزون");
   });

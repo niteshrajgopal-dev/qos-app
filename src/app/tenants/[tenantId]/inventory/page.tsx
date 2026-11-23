@@ -1,4 +1,5 @@
 import { InventoryScreen } from "./inventory-screen";
+import { inventoryTabFrom } from "./inventory-tabs";
 
 type PageProps = {
   params: Promise<{ tenantId: string }>;
@@ -8,5 +9,5 @@ type PageProps = {
 export default async function TenantInventoryPage({ params, searchParams }: PageProps) {
   const { tenantId } = await params;
   const { tab } = await searchParams;
-  return <InventoryScreen tenantId={tenantId} initialTab={tab === "units" ? "units" : "items"} />;
+  return <InventoryScreen tenantId={tenantId} initialTab={inventoryTabFrom(tab)} />;
 }

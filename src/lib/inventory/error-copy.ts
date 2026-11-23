@@ -1,14 +1,14 @@
 import type { StaffLocale } from "@/lib/staff/locale";
 
-/* QOS-195 staff copy for inventory API error codes. The API message stays
+/* QOS-195 and QOS-196 staff copy for inventory API error codes. The API message stays
    English for logs and API clients; the staff UI shows this copy instead. */
 
 type Bilingual = Record<StaffLocale, string>;
 
 export const INVENTORY_ERROR_COPY = {
   administrator_required: {
-    en: "Only administrators can change units, items and conversions.",
-    ar: "يمكن للمسؤولين فقط تغيير الوحدات والأصناف والتحويلات.",
+    en: "Only administrators can change inventory setup records.",
+    ar: "يمكن للمسؤولين فقط تغيير سجلات إعداد المخزون.",
   },
   tenant_inactive: { en: "This business is not active.", ar: "هذا النشاط غير نشط." },
   body_invalid: { en: "The request could not be read. Try again.", ar: "تعذّرت قراءة الطلب. حاول مرة أخرى." },
@@ -17,8 +17,8 @@ export const INVENTORY_ERROR_COPY = {
   standard_code_taken: { en: "This standard unit has already been added.", ar: "أُضيفت هذه الوحدة القياسية بالفعل." },
   unit_code_taken: { en: "Another unit already uses this code.", ar: "يستخدم هذا الرمزَ وحدةٌ أخرى بالفعل." },
   code_invalid: {
-    en: "Use 1 to 24 lowercase letters, digits, hyphens or underscores for the code.",
-    ar: "استخدم للرمز من 1 إلى 24 حرفًا لاتينيًا صغيرًا أو رقمًا أو شرطة أو شرطة سفلية.",
+    en: "Use 1 to 24 letters, digits, hyphens or underscores for the code, starting with a letter or digit.",
+    ar: "استخدم للرمز من 1 إلى 24 حرفًا لاتينيًا أو رقمًا أو شرطة أو شرطة سفلية، يبدأ بحرف أو رقم.",
   },
   code_reserved_for_standard: {
     en: "This code belongs to a standard unit. Add it as a standard unit so its exact conversions apply.",
@@ -106,6 +106,54 @@ export const INVENTORY_ERROR_COPY = {
     en: "This quantity has more decimal places than the unit allows.",
     ar: "تحتوي هذه الكمية على منازل عشرية أكثر مما تسمح به الوحدة.",
   },
+  supplier_not_found: { en: "This supplier was not found.", ar: "لم يتم العثور على هذا المورّد." },
+  supplier_archived: {
+    en: "This supplier is archived. Restore it before choosing it.",
+    ar: "هذا المورّد مؤرشف. استعده قبل اختياره.",
+  },
+  supplier_code_taken: {
+    en: "Another supplier already uses this reference code.",
+    ar: "يستخدم هذا الرمزَ المرجعي مورّدٌ آخر بالفعل.",
+  },
+  supplier_in_use: {
+    en: "Items still use this supplier as their default. Clear it on those items first.",
+    ar: "لا تزال أصناف تستخدم هذا المورّد كمورّد افتراضي. أزله من تلك الأصناف أولًا.",
+  },
+  text_too_long: { en: "This text is too long.", ar: "هذا النص طويل جدًا." },
+  phone_invalid: {
+    en: "Enter the phone number with digits, spaces, plus or hyphens only.",
+    ar: "أدخل رقم الهاتف بأرقام ومسافات وعلامة زائد وشرطات فقط.",
+  },
+  email_invalid: { en: "Enter a valid email address.", ar: "أدخل بريدًا إلكترونيًا صحيحًا." },
+  warehouse_not_found: { en: "This warehouse was not found.", ar: "لم يتم العثور على هذا المستودع." },
+  warehouse_archived: { en: "This warehouse is archived. Restore it first.", ar: "هذا المستودع مؤرشف. استعده أولًا." },
+  warehouse_code_taken: { en: "Another warehouse already uses this code.", ar: "يستخدم هذا الرمزَ مستودعٌ آخر بالفعل." },
+  warehouse_code_immutable: {
+    en: "The code cannot change after the warehouse is created. Rename the warehouse instead.",
+    ar: "لا يمكن تغيير الرمز بعد إنشاء المستودع. أعد تسمية المستودع بدلًا من ذلك.",
+  },
+  warehouse_branch_taken: {
+    en: "This branch already has an active warehouse. The pilot allows one per branch.",
+    ar: "لهذا الفرع مستودع نشط بالفعل. يسمح التجريب بمستودع واحد لكل فرع.",
+  },
+  warehouse_in_use: {
+    en: "This warehouse has stock history and cannot be archived.",
+    ar: "لهذا المستودع سجل مخزون ولا يمكن أرشفته.",
+  },
+  location_required: {
+    en: "Choose one branch. All branches cannot hold a warehouse.",
+    ar: "اختر فرعًا واحدًا. لا يمكن لجميع الفروع أن تحتفظ بمستودع.",
+  },
+  location_not_found: { en: "This branch was not found.", ar: "لم يتم العثور على هذا الفرع." },
+  location_suspended: {
+    en: "This branch is suspended and cannot take a new warehouse.",
+    ar: "هذا الفرع معلّق ولا يمكن إضافة مستودع له.",
+  },
+  location_immutable: {
+    en: "A warehouse stays with its branch so stock history remains traceable. Archive it and add a warehouse at the other branch.",
+    ar: "يبقى المستودع مع فرعه ليظل سجل المخزون قابلًا للتتبع. أرشفه وأضف مستودعًا في الفرع الآخر.",
+  },
+  branch_not_permitted: { en: "Your membership does not include this branch.", ar: "لا تتضمن عضويتك هذا الفرع." },
 } as const satisfies Record<string, Bilingual>;
 
 export type InventoryErrorCode = keyof typeof INVENTORY_ERROR_COPY;

@@ -1,6 +1,7 @@
 "use client";
 
 import { inventoryErrorText } from "@/lib/inventory/error-copy";
+import type { Dependency } from "@/lib/inventory/errors";
 import type { QuantityKind } from "@/lib/inventory/standard-units";
 import { staffApiFetch } from "@/lib/staff/dev-fetch";
 import { type StaffLocale, type StaffUiCopyKey, staffUiCopy } from "@/lib/staff/locale";
@@ -11,7 +12,7 @@ import { type StaffLocale, type StaffUiCopyKey, staffUiCopy } from "@/lib/staff/
 
 export type InventoryApiResult<T> =
   | { ok: true; data: T }
-  | { ok: false; status: number; code: string | null; field: string | null };
+  | { ok: false; status: number; code: string | null; field: string | null; dependencies?: Dependency[] };
 
 export async function inventoryApi<T>(url: string, init?: { method: string; body: unknown }): Promise<InventoryApiResult<T>> {
   try {
@@ -19,9 +20,19 @@ export async function inventoryApi<T>(url: string, init?: { method: string; body
       url,
       init ? { method: init.method, body: JSON.stringify(init.body) } : {},
     );
-    const payload = (await response.json().catch(() => ({}))) as { code?: string; field?: string };
+    const payload = (await response.json().catch(() => ({}))) as {
+      code?: string;
+      field?: string;
+      dependencies?: Dependency[];
+    };
     if (!response.ok) {
-      return { ok: false, status: response.status, code: payload.code ?? null, field: payload.field ?? null };
+      return {
+        ok: false,
+        status: response.status,
+        code: payload.code ?? null,
+        field: payload.field ?? null,
+        ...(Array.isArray(payload.dependencies) ? { dependencies: payload.dependencies } : {}),
+      };
     }
     return { ok: true, data: payload as T };
   } catch {
