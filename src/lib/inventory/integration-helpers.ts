@@ -1,7 +1,7 @@
 import type { resetAndMigrate } from "@/db/test-utils";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 
-/* Shared setup for the QOS-195 service integration tests. */
+/* Shared setup for the QOS-195 and QOS-196 service integration tests. */
 
 export type IntegrationConnection = Awaited<ReturnType<typeof resetAndMigrate>>;
 
@@ -10,12 +10,14 @@ export const USER: ActiveStaffMembership = { membershipId: "seed-user", role: "u
 export const ACTOR = "admin.qos195@test";
 
 export async function truncateInventory(sql: IntegrationConnection["sql"]) {
-  await sql`TRUNCATE TABLE qos.tenant_audit_events, qos.inventory_item_conversions, qos.inventory_items, qos.inventory_units, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+  await sql`TRUNCATE TABLE qos.tenant_audit_events, qos.inventory_item_conversions, qos.inventory_items, qos.inventory_units, qos.inventory_warehouses, qos.inventory_suppliers, qos.staff_location_scopes, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
 }
 
 export async function auditActions(sql: IntegrationConnection["sql"], tenantId: string) {
-  const rows = await sql<{ action: string; entity_type: string; entity_public_id: string; change_summary: Record<string, unknown> }[]>`
-    SELECT action, entity_type, entity_public_id, change_summary FROM qos.tenant_audit_events
+  const rows = await sql<
+    { action: string; entity_type: string; entity_public_id: string; location_id: string | null; change_summary: Record<string, unknown> }[]
+  >`
+    SELECT action, entity_type, entity_public_id, location_id, change_summary FROM qos.tenant_audit_events
     WHERE tenant_id = ${tenantId} ORDER BY occurred_at, id`;
   return rows;
 }

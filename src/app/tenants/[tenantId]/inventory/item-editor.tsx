@@ -23,13 +23,13 @@ import {
 } from "@/components/portal/workspace/PortalWorkspace";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import type { InventoryItemKind, ItemDetailView } from "@/lib/inventory/items";
-import type { UnitView } from "@/lib/inventory/shared";
+import type { SupplierView, UnitView } from "@/lib/inventory/shared";
 import { staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 
 /* QOS-195 item screen: names, kind and the storage / recipe / purchase unit
    designations, then the item's own conversion rules, the preview that
    explains its quantities and the dated history. A rename keeps the item's
-   public id and every rule. */
+   public id and every rule. QOS-196 adds the default supplier. */
 
 type Form = {
   nameEn: string;
@@ -38,6 +38,7 @@ type Form = {
   storageUnitPublicId: string;
   recipeUnitPublicId: string;
   purchaseUnitPublicId: string;
+  defaultSupplierPublicId: string;
 };
 
 const EMPTY_FORM: Form = {
@@ -47,6 +48,7 @@ const EMPTY_FORM: Form = {
   storageUnitPublicId: "",
   recipeUnitPublicId: "",
   purchaseUnitPublicId: "",
+  defaultSupplierPublicId: "",
 };
 
 function formFrom(detail: ItemDetailView): Form {
@@ -57,6 +59,7 @@ function formFrom(detail: ItemDetailView): Form {
     storageUnitPublicId: detail.item.storageUnitPublicId ?? "",
     recipeUnitPublicId: detail.item.recipeUnitPublicId ?? "",
     purchaseUnitPublicId: detail.item.purchaseUnitPublicId ?? "",
+    defaultSupplierPublicId: detail.item.defaultSupplierPublicId ?? "",
   };
 }
 
@@ -73,6 +76,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
   const t = (key: StaffUiCopyKey) => staffUiCopy(locale, key);
   const [detail, setDetail] = useState<ItemDetailView | null>(null);
   const [units, setUnits] = useState<UnitView[]>([]);
+  const [suppliers, setSuppliers] = useState<SupplierView[]>([]);
   const [form, setForm] = useState<Form>(EMPTY_FORM);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -84,6 +88,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
   const applyDetail = useCallback((next: ItemDetailView) => {
     setDetail(next);
     setUnits(next.units);
+    setSuppliers(next.suppliers);
     setForm(formFrom(next));
   }, []);
 
@@ -96,12 +101,16 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
       }
       applyDetail(result.data);
     } else {
-      const result = await inventoryApi<{ units: UnitView[] }>(`/api/tenants/${tenantId}/inventory/units`);
-      if (!result.ok) {
+      const [result, supplierList] = await Promise.all([
+        inventoryApi<{ units: UnitView[] }>(`/api/tenants/${tenantId}/inventory/units`),
+        inventoryApi<{ suppliers: SupplierView[] }>(`/api/tenants/${tenantId}/inventory/suppliers`),
+      ]);
+      if (!result.ok || !supplierList.ok) {
         setLoadFailed(true);
         return;
       }
       setUnits(result.data.units.filter((unit) => unit.status === "active"));
+      setSuppliers(supplierList.data.suppliers.filter((supplier) => supplier.status === "active"));
     }
     setLoaded(true);
   }, [applyDetail, itemPublicId, tenantId]);
@@ -121,6 +130,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
       storageUnitPublicId: form.storageUnitPublicId || null,
       recipeUnitPublicId: form.recipeUnitPublicId || null,
       purchaseUnitPublicId: form.purchaseUnitPublicId || null,
+      defaultSupplierPublicId: form.defaultSupplierPublicId || null,
     };
     const result = detail
       ? await inventoryApi<ItemDetailView>(`/api/tenants/${tenantId}/inventory/items/${detail.item.publicId}`, {
@@ -161,6 +171,10 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
 
   const heading = detail ? localName(locale, detail.item.nameEn, detail.item.nameAr) : null;
   const unitLabel = (unit: UnitView) => `${unit.code} · ${locale === "ar" ? unit.nameAr : unit.nameEn}`;
+  const supplierLabel = (supplier: SupplierView) => {
+    const name = locale === "ar" && supplier.nameAr ? supplier.nameAr : supplier.nameEn;
+    return supplier.code ? `${name} · ${supplier.code}` : name;
+  };
   const readOnly = !canEdit;
 
   return (
@@ -245,6 +259,23 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
                     </select>
                   </PortalField>
                 ))}
+                <PortalField label={t("defaultSupplier")} help={t("defaultSupplierHelp")}>
+                  <select
+                    className="qos-input"
+                    value={form.defaultSupplierPublicId}
+                    disabled={readOnly}
+                    onChange={(event) => setForm({ ...form, defaultSupplierPublicId: event.target.value })}
+                  >
+                    <option value="">{t("unitNotSet")}</option>
+                    {suppliers.map((supplier) => (
+                      <option key={supplier.publicId} value={supplier.publicId}>
+                        {supplier.status === "archived"
+                          ? `${supplierLabel(supplier)} · ${t("inventoryStatusArchived")}`
+                          : supplierLabel(supplier)}
+                      </option>
+                    ))}
+                  </select>
+                </PortalField>
               </div>
               {detail?.item.status === "archived" ? <PortalNotice tone="warning">{t("itemArchivedNote")}</PortalNotice> : null}
               {notice ? <PortalNotice tone={notice.tone}>{notice.text}</PortalNotice> : null}

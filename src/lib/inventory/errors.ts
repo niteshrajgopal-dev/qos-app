@@ -22,3 +22,18 @@ export class InventoryConflictError extends InventoryError {
     this.name = "InventoryConflictError";
   }
 }
+
+/** A record another record still depends on, with how many dependants. */
+export type Dependency = { kind: string; count: number };
+
+/* QOS-196: a 409 that explains which records block the change, so the UI can
+   say why an archive or a reassignment was refused. */
+export class InventoryDependencyError extends InventoryConflictError {
+  readonly dependencies: Dependency[];
+
+  constructor(message: string, code: string, field: string | undefined, dependencies: Dependency[]) {
+    super(message, code, field);
+    this.name = "InventoryDependencyError";
+    this.dependencies = dependencies;
+  }
+}

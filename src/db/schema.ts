@@ -4335,6 +4335,62 @@ export const inventoryUnits = qos.table(
   ],
 );
 
+/* QOS-196 suppliers (0061). Identity is the public id; names are not unique,
+   so two rows with the same name are two suppliers. Archive only. */
+export const inventorySuppliers = qos.table(
+  "inventory_suppliers",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    nameEn: text("name_en").notNull(),
+    nameAr: text("name_ar"),
+    code: text("code"),
+    contactName: text("contact_name"),
+    phone: text("phone"),
+    email: text("email"),
+    address: text("address"),
+    notes: text("notes"),
+    status: text("status").notNull().default("active").$type<"active" | "archived">(),
+    version: integer("version").notNull().default(1),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("inventory_suppliers_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("inventory_suppliers_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    uniqueIndex("inventory_suppliers_tenant_code_unique")
+      .on(table.tenantId, sql`lower(${table.code})`)
+      .where(sql`code IS NOT NULL`),
+    index("inventory_suppliers_tenant_id_idx").on(table.tenantId),
+    check("inventory_suppliers_public_id_check", sql`${table.publicId} ~ '^sup_[a-z0-9_-]+$'`),
+    check("inventory_suppliers_name_en_check", sql`char_length(btrim(${table.nameEn})) BETWEEN 1 AND 120`),
+    check(
+      "inventory_suppliers_name_ar_check",
+      sql`${table.nameAr} IS NULL OR char_length(btrim(${table.nameAr})) BETWEEN 1 AND 120`,
+    ),
+    check(
+      "inventory_suppliers_code_check",
+      sql`${table.code} IS NULL OR ${table.code} ~ '^[A-Za-z0-9][A-Za-z0-9_-]{0,23}$'`,
+    ),
+    check(
+      "inventory_suppliers_contact_name_check",
+      sql`${table.contactName} IS NULL OR char_length(${table.contactName}) <= 120`,
+    ),
+    check("inventory_suppliers_phone_check", sql`${table.phone} IS NULL OR char_length(${table.phone}) <= 40`),
+    check("inventory_suppliers_email_check", sql`${table.email} IS NULL OR char_length(${table.email}) <= 254`),
+    check("inventory_suppliers_address_check", sql`${table.address} IS NULL OR char_length(${table.address}) <= 400`),
+    check("inventory_suppliers_notes_check", sql`${table.notes} IS NULL OR char_length(${table.notes}) <= 1000`),
+    check("inventory_suppliers_status_check", sql`${table.status} IN ('active', 'archived')`),
+    check("inventory_suppliers_version_check", sql`${table.version} >= 1`),
+  ],
+);
+
 export const inventoryItems = qos.table(
   "inventory_items",
   {
@@ -4349,6 +4405,8 @@ export const inventoryItems = qos.table(
     storageUnitId: uuid("storage_unit_id"),
     recipeUnitId: uuid("recipe_unit_id"),
     purchaseUnitId: uuid("purchase_unit_id"),
+    /** QOS-196: the supplier proposed on a direct receipt of this item. */
+    defaultSupplierId: uuid("default_supplier_id"),
     status: text("status").notNull().default("active").$type<"active" | "archived">(),
     version: integer("version").notNull().default(1),
     provenance: dataProvenanceEnum("provenance").notNull(),
@@ -4375,7 +4433,13 @@ export const inventoryItems = qos.table(
       columns: [table.tenantId, table.purchaseUnitId],
       foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
     }).onDelete("restrict"),
+    foreignKey({
+      name: "inventory_items_default_supplier_fk",
+      columns: [table.tenantId, table.defaultSupplierId],
+      foreignColumns: [inventorySuppliers.tenantId, inventorySuppliers.id],
+    }).onDelete("restrict"),
     index("inventory_items_tenant_id_idx").on(table.tenantId),
+    index("inventory_items_tenant_default_supplier_idx").on(table.tenantId, table.defaultSupplierId),
     check("inventory_items_public_id_check", sql`${table.publicId} ~ '^item_[a-z0-9_-]+$'`),
     check("inventory_items_name_en_check", sql`char_length(btrim(${table.nameEn})) BETWEEN 1 AND 120`),
     check(
@@ -4450,9 +4514,61 @@ export const inventoryItemConversions = qos.table(
   ],
 );
 
+/* QOS-196 branch warehouses (0061). A warehouse belongs to exactly one
+   location of its tenant (composite FK); the location never changes after
+   create and at most one active warehouse exists per location. */
+export const inventoryWarehouses = qos.table(
+  "inventory_warehouses",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    locationId: uuid("location_id").notNull(),
+    code: text("code").notNull(),
+    nameEn: text("name_en").notNull(),
+    nameAr: text("name_ar"),
+    notes: text("notes"),
+    status: text("status").notNull().default("active").$type<"active" | "archived">(),
+    version: integer("version").notNull().default(1),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("inventory_warehouses_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("inventory_warehouses_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    foreignKey({
+      name: "inventory_warehouses_location_fk",
+      columns: [table.tenantId, table.locationId],
+      foreignColumns: [locations.tenantId, locations.id],
+    }).onDelete("restrict"),
+    uniqueIndex("inventory_warehouses_tenant_code_unique").on(table.tenantId, sql`lower(${table.code})`),
+    uniqueIndex("inventory_warehouses_active_location_unique")
+      .on(table.tenantId, table.locationId)
+      .where(sql`status = 'active'`),
+    index("inventory_warehouses_tenant_location_idx").on(table.tenantId, table.locationId),
+    check("inventory_warehouses_public_id_check", sql`${table.publicId} ~ '^wh_[a-z0-9_-]+$'`),
+    check("inventory_warehouses_code_check", sql`${table.code} ~ '^[A-Za-z0-9][A-Za-z0-9_-]{0,23}$'`),
+    check("inventory_warehouses_name_en_check", sql`char_length(btrim(${table.nameEn})) BETWEEN 1 AND 120`),
+    check(
+      "inventory_warehouses_name_ar_check",
+      sql`${table.nameAr} IS NULL OR char_length(btrim(${table.nameAr})) BETWEEN 1 AND 120`,
+    ),
+    check("inventory_warehouses_notes_check", sql`${table.notes} IS NULL OR char_length(${table.notes}) <= 400`),
+    check("inventory_warehouses_status_check", sql`${table.status} IN ('active', 'archived')`),
+    check("inventory_warehouses_version_check", sql`${table.version} >= 1`),
+  ],
+);
+
 export type InventoryUnitRecord = typeof inventoryUnits.$inferSelect;
 export type InventoryItemRecord = typeof inventoryItems.$inferSelect;
 export type InventoryItemConversionRecord = typeof inventoryItemConversions.$inferSelect;
+export type InventorySupplierRecord = typeof inventorySuppliers.$inferSelect;
+export type InventoryWarehouseRecord = typeof inventoryWarehouses.$inferSelect;
 
 export const schema = {
   tenants,

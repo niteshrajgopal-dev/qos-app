@@ -5,7 +5,7 @@ Migration `0060_inventory_units_items_conversions` (manual) adds three tenant ta
 | Table | Purpose |
 | --- | --- |
 | `inventory_units` | Tenant units. `code` is unique per tenant and cannot change after create. Renames change `name_en` / `name_ar` only; identity is `public_id`. `standard_code` links a row to the constants in `src/lib/inventory/standard-units.ts` (mg, g, kg, ml, cl, l, piece) with exact factors. `quantity_kind` is `mass`, `volume`, `count` or `pack`. `decimal_places` is 0–6. |
-| `inventory_items` | The minimal item identity: names, kind (`purchased` / `prepared`), status, and the storage, recipe and purchase unit designations. QOS-197 extends this table with categories, suppliers, dated costs and notes. |
+| `inventory_items` | The minimal item identity: names, kind (`purchased` / `prepared`), status, and the storage, recipe and purchase unit designations. QOS-196 adds `default_supplier_id`; QOS-197 extends this table with categories, dated costs and notes. |
 | `inventory_item_conversions` | Item-scoped rules: one row means `1 from_unit = factor_micros / 1_000_000 to_unit` for one item. Rows are append-only versions. A revision closes the current row (`effective_to`) and inserts `revision + 1`. `qos_app` may update only `effective_to`. |
 
 ## Rules enforced by the service

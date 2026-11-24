@@ -201,24 +201,23 @@ export function assertOperationalBranch(
   return branch;
 }
 
-export class WarehouseGuardNotImplementedError extends Error {
-  constructor() {
-    super("Warehouses do not exist yet; they arrive with QOS-196.");
-    this.name = "WarehouseGuardNotImplementedError";
-  }
-}
-
 /**
- * Placeholder for the warehouse half of the posting rule. QOS has no
- * warehouses yet (QOS-196 adds them), so there is nothing to check against.
- * It always throws, so any caller fails closed instead of treating an
- * unchecked warehouse as valid.
+ * Warehouse half of the posting rule (QOS-196). After `assertOperationalBranch`
+ * has resolved one permitted branch, a stock posting may only use an active
+ * warehouse of that same branch. The warehouse must be loaded on the server;
+ * its branch is never taken from the client.
  */
 export function assertWarehouseBelongsToBranch(
-  warehousePublicId: string,
+  warehouse: { locationPublicId: string; status: "active" | "archived" },
   branch: PermittedBranch,
-): never {
-  void warehousePublicId;
-  void branch;
-  throw new WarehouseGuardNotImplementedError();
+): PermittedBranch {
+  if (warehouse.locationPublicId !== branch.publicId) {
+    throw new StaffAuthorizationError("This warehouse belongs to another branch.");
+  }
+
+  if (warehouse.status !== "active") {
+    throw new StaffAuthorizationError("This warehouse is archived.");
+  }
+
+  return branch;
 }

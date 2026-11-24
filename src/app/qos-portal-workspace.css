@@ -1385,3 +1385,14 @@ article.qosp-subcard > .qosp-button-row {
   font-size: 14px;
   color: var(--portal-text-soft);
 }
+
+/* ---------- Inventory suppliers and warehouses (QOS-196) ----------
+   Contact values (phones, emails) are LTR isolates that may be long; they
+   wrap anywhere instead of widening the row at 360px. */
+.qosp-inventory-contact {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.qosp-inventory-notices {
+  margin-top: 16px;
+}

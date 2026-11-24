@@ -78,6 +78,14 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/inventory/units/[unitPublicId]/edit/page.tsx",
   "app/tenants/[tenantId]/inventory/items/new/page.tsx",
   "app/tenants/[tenantId]/inventory/items/[itemPublicId]/page.tsx",
+  // QOS-196 suppliers and branch warehouses
+  "app/tenants/[tenantId]/inventory/supplier-editor.tsx",
+  "app/tenants/[tenantId]/inventory/warehouse-editor.tsx",
+  "app/tenants/[tenantId]/inventory/dependency-notice.tsx",
+  "app/tenants/[tenantId]/inventory/suppliers/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/suppliers/[supplierPublicId]/page.tsx",
+  "app/tenants/[tenantId]/inventory/warehouses/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/warehouses/[warehousePublicId]/page.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -147,6 +155,14 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/inventory/units/[unitPublicId]/edit/page.tsx",
   "app/tenants/[tenantId]/inventory/items/new/page.tsx",
   "app/tenants/[tenantId]/inventory/items/[itemPublicId]/page.tsx",
+  // QOS-196 suppliers and branch warehouses
+  "app/tenants/[tenantId]/inventory/supplier-editor.tsx",
+  "app/tenants/[tenantId]/inventory/warehouse-editor.tsx",
+  "app/tenants/[tenantId]/inventory/dependency-notice.tsx",
+  "app/tenants/[tenantId]/inventory/suppliers/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/suppliers/[supplierPublicId]/page.tsx",
+  "app/tenants/[tenantId]/inventory/warehouses/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/warehouses/[warehousePublicId]/page.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -293,6 +309,16 @@ const FORBIDDEN_LITERALS = [
   '"How quantities convert"',
   '"Storage unit"',
   '"Not set"',
+  // QOS-196 suppliers and branch warehouses
+  ">Add supplier<",
+  ">Add warehouse<",
+  ">Save supplier<",
+  ">Save warehouse<",
+  '"Default supplier"',
+  '"Reference code (optional)"',
+  '"Contact name"',
+  '"Warehouses"',
+  '"Suppliers"',
 ];
 
 /* Every QOS-214 key has English and Arabic copy, and the Arabic is Arabic. */
@@ -545,7 +571,7 @@ describe("QOS-195 inventory copy", () => {
   it("keeps the inventory notice free of ticket IDs and English in Arabic", () => {
     const en = STAFF_UI_COPY.en.inventoryEmptyBody;
     const ar = STAFF_UI_COPY.ar.inventoryEmptyBody;
-    expect(en).toBe("Stock levels, suppliers, categories and costs are coming soon.");
+    expect(en).toBe("Stock levels, categories and costs are coming soon.");
     for (const text of [en, ar]) expect(text).not.toMatch(/QOS|\d/);
     expect(ar).toMatch(/[\u0600-\u06FF]/);
     expect(ar).not.toMatch(/[A-Za-z]/);
@@ -571,6 +597,116 @@ describe("QOS-195 inventory copy", () => {
   });
 
   it("keeps the inventory surfaces free of all-caps styling", () => {
+    expect(sources).not.toMatch(/uppercase/i);
+  });
+});
+
+/* QOS-196: supplier and warehouse copy follows the QOS-195 rules: English and
+   Arabic present, no English left in the Arabic (supplier and warehouse
+   names, codes, phones and emails are data, not copy), nothing shouted, no
+   ticket ids, and every key rendered by the new surfaces. */
+const QOS_196_COPY_KEYS = [
+  "inventorySuppliersTab",
+  "inventoryWarehousesTab",
+  "inventorySuppliersEmpty",
+  "inventoryWarehousesEmpty",
+  "addSupplier",
+  "addWarehouse",
+  "openSupplier",
+  "openWarehouse",
+  "newSupplierTitle",
+  "newWarehouseTitle",
+  "supplierCode",
+  "supplierCodeHelp",
+  "supplierContactName",
+  "supplierPhone",
+  "supplierEmail",
+  "supplierAddress",
+  "inventoryNotes",
+  "supplierContactHelp",
+  "supplierDuplicateNameNote",
+  "saveSupplier",
+  "supplierSaved",
+  "archiveSupplier",
+  "restoreSupplier",
+  "archiveSupplierConfirm",
+  "supplierArchivedNote",
+  "supplierItemsTitle",
+  "supplierItemsHelp",
+  "supplierItemsEmpty",
+  "supplierReceiptsUnavailable",
+  "defaultSupplier",
+  "defaultSupplierHelp",
+  "warehouseBranch",
+  "warehouseBranchHelp",
+  "warehouseCode",
+  "warehouseCodeHelp",
+  "warehouseBranchFixedNote",
+  "warehouseBranchSuspendedNote",
+  "warehouseNoBranchAvailable",
+  "warehouseNoHistory",
+  "saveWarehouse",
+  "warehouseSaved",
+  "archiveWarehouse",
+  "restoreWarehouse",
+  "archiveWarehouseConfirm",
+  "warehouseArchivedNote",
+  "inventoryDependenciesTitle",
+  "inventoryMasterDataNote",
+  "inventoryReadOnlyNote",
+  "inventoryEmptyBody",
+] as const satisfies readonly StaffUiCopyKey[];
+
+describe("QOS-196 supplier and warehouse copy", () => {
+  const sources = [
+    "app/tenants/[tenantId]/inventory/inventory-screen.tsx",
+    "app/tenants/[tenantId]/inventory/item-editor.tsx",
+    "app/tenants/[tenantId]/inventory/supplier-editor.tsx",
+    "app/tenants/[tenantId]/inventory/warehouse-editor.tsx",
+    "app/tenants/[tenantId]/inventory/dependency-notice.tsx",
+  ]
+    .map((relative) => readFileSync(path.join(ROOT, relative), "utf8"))
+    .join("\n");
+
+  it.each(QOS_196_COPY_KEYS)("%s has English and Arabic text with no English, ticket ids or shouting", (key) => {
+    const en = STAFF_UI_COPY.en[key];
+    const ar = STAFF_UI_COPY.ar[key];
+    expect(en.trim().length).toBeGreaterThan(0);
+    expect(ar).toMatch(/[\u0600-\u06FF]/);
+    expect(ar.replace(/\{\w+\}/g, "")).not.toMatch(/[A-Za-z]/);
+    for (const text of [en, ar]) expect(text).not.toMatch(/QOS-\d|[A-Z]{2,}-\d/);
+    const letters = en.replace(/\{\w+\}/g, "").replace(/[^A-Za-z]/g, "");
+    expect(letters !== letters.toUpperCase()).toBe(true);
+    // Sentence case: only the first word starts with a capital letter, except after a full stop.
+    const words = en.replace(/\{\w+\}/g, "").split(/\s+/).filter(Boolean);
+    words.forEach((word, index) => {
+      const sentenceStart = index === 0 || /[.?]$/.test(words[index - 1]!);
+      if (!sentenceStart && word !== "All") expect(word, `${key}: ${en}`).not.toMatch(/^[A-Z]/);
+    });
+  });
+
+  it("references every key from the supplier and warehouse surfaces", () => {
+    const unused = QOS_196_COPY_KEYS.filter((key) => !sources.includes(`"${key}"`));
+    expect(unused).toEqual([]);
+  });
+
+  it("has Arabic plural forms for the supplier and warehouse counts", () => {
+    for (const key of ["inventorySuppliers", "inventoryWarehouses", "supplierItems"] as const) {
+      const forms = STAFF_COUNT_COPY.ar[key];
+      expect(Object.keys(forms).sort(), key).toEqual(["few", "many", "one", "other", "two", "zero"]);
+      for (const text of Object.values(forms)) {
+        expect(text, key).toMatch(/[\u0600-\u06FF]/);
+        expect(text.replace("{count}", ""), key).not.toMatch(/[A-Za-z]/);
+      }
+    }
+    expect(staffCount("ar", "inventorySuppliers", 2)).toBe("مورّدان");
+    expect(staffCount("ar", "inventoryWarehouses", 3)).toBe("3 مستودعات");
+    expect(staffCount("ar", "supplierItems", 11)).toBe("11 صنفًا يستخدم هذا المورّد");
+    expect(staffCount("en", "supplierItems", 1)).toBe("1 item uses this supplier");
+    expect(staffCount("en", "inventoryWarehouses", 2)).toBe("2 warehouses");
+  });
+
+  it("keeps the supplier and warehouse surfaces free of all-caps styling", () => {
     expect(sources).not.toMatch(/uppercase/i);
   });
 });
