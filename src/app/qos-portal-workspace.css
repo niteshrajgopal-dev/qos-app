@@ -1407,8 +1407,11 @@ article.qosp-subcard > .qosp-button-row {
   gap: 14px 16px;
   min-width: 0;
 }
+.qosp-inventory-filters > :first-child {
+  grid-column: 1 / -1;
+}
 .qosp-inventory-filters .qosp-search-field {
-  width: 100%;
+  width: min(100%, 420px);
 }
 .qosp-inventory-cost-amount {
   font-variant-numeric: tabular-nums;
