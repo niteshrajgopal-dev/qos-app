@@ -435,6 +435,13 @@
       "when": 1793400000000,
       "tag": "0061_inventory_suppliers_warehouses",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1793500000000,
+      "tag": "0062_inventory_categories_reference_costs",
+      "breakpoints": true
     }
   ]
 }

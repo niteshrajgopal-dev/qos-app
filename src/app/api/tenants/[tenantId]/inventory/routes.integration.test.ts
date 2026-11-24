@@ -55,7 +55,7 @@ integrationDescribe("inventory routes", () => {
   }
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.inventory_item_conversions, qos.inventory_items, qos.inventory_units, qos.inventory_warehouses, qos.inventory_suppliers, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.inventory_item_reference_costs, qos.inventory_item_conversions, qos.inventory_items, qos.inventory_categories, qos.inventory_units, qos.inventory_warehouses, qos.inventory_suppliers, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
     staffMocks.requireStaffIdentity.mockReset();
     tenantId = (await createTenantHierarchy(db, quotesTenantFixture())).tenant.id;
     otherTenantId = (await createTenantHierarchy(db, flowerTenantFixture())).tenant.id;
@@ -148,7 +148,7 @@ integrationDescribe("inventory routes", () => {
     const unit = await call(getUnit(request("GET"), ctx({ unitPublicId: packet.publicId })));
     expect(unit.body).toEqual({
       unit: expect.objectContaining({ publicId: packet.publicId, code: "packet", nameAr: "علبة", decimalPlaces: 0 }),
-      usage: { itemDesignations: 1, currentRules: 0 },
+      usage: { itemDesignations: 1, currentRules: 0, currentCosts: 0 },
     });
     const renamed = await call(
       patchUnit(request("PATCH", { expectedVersion: 1, nameEn: "Sealed packet", decimalPlaces: 2 }), ctx({ unitPublicId: packet.publicId })),
@@ -162,7 +162,7 @@ integrationDescribe("inventory routes", () => {
       ),
     );
     expect(withRule.status).toBe(200);
-    expect(Object.keys(withRule.body).sort()).toEqual(["history", "item", "preview", "rules", "suppliers", "units"]);
+    expect(Object.keys(withRule.body).sort()).toEqual(["categories", "costHistory", "history", "item", "preview", "referenceCost", "rules", "suppliers", "units"]);
     const rule = (withRule.body.rules as Array<Json>)[0]!;
     expect(rule).toMatchObject({ factor: "12", factorMicros: "12000000", revision: 1, effectiveFrom: "2026-11-01" });
     expect(typeof rule.factor).toBe("string");

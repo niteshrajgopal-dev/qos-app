@@ -1,5 +1,6 @@
 "use client";
 
+import type { CostSource, CostTaxBasis, ItemCostStatus } from "@/lib/inventory/cost-completeness";
 import { inventoryErrorText } from "@/lib/inventory/error-copy";
 import type { Dependency } from "@/lib/inventory/errors";
 import type { QuantityKind } from "@/lib/inventory/standard-units";
@@ -49,6 +50,34 @@ export function inventoryFailureText(
     return staffUiCopy(locale, "versionConflict");
   }
   return inventoryErrorText(locale, failure.code, staffUiCopy(locale, fallback));
+}
+
+export const TAX_BASIS_LABEL: Record<CostTaxBasis, StaffUiCopyKey> = {
+  net: "taxBasisNet",
+  gross: "taxBasisGross",
+  unconfirmed: "taxBasisUnconfirmed",
+};
+
+export const COST_SOURCE_LABEL: Record<CostSource, StaffUiCopyKey> = {
+  manual: "costSourceManual",
+  supplier_quote: "costSourceSupplierQuote",
+  invoice: "costSourceInvoice",
+};
+
+export const COST_STATUS_LABEL: Record<ItemCostStatus, StaffUiCopyKey> = {
+  known: "costKnown",
+  unknown: "costUnknown",
+  known_not_convertible: "costNotConvertible",
+};
+
+/** Localised name of a category by public id, or null when the item has none. */
+export function categoryName(
+  locale: StaffLocale,
+  categories: ReadonlyArray<{ publicId: string; nameEn: string; nameAr: string | null }>,
+  publicId: string | null,
+) {
+  const category = publicId ? categories.find((entry) => entry.publicId === publicId) : undefined;
+  return category ? localName(locale, category.nameEn, category.nameAr) : null;
 }
 
 export const QUANTITY_KIND_LABEL: Record<QuantityKind, StaffUiCopyKey> = {
