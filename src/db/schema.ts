@@ -4814,6 +4814,8 @@ export const recipeVersionLines = qos.table(
   },
   (table) => [
     unique("recipe_version_lines_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    // QOS-199: lets a modifier effect reference a line of the same version by composite FK.
+    unique("recipe_version_lines_tenant_version_id_unique").on(table.tenantId, table.recipeVersionId, table.id),
     foreignKey({
       name: "recipe_version_lines_version_fk",
       columns: [table.tenantId, table.recipeVersionId],
@@ -4959,6 +4961,80 @@ export const recipeSellableLinks = qos.table(
   ],
 );
 
+/* QOS-199: what one selected modifier option adds to, removes from or
+   replaces in one recipe version. remove and replace target a base line of
+   the same version (composite FK); only drafts change (service rule). */
+export const recipeVersionModifierEffects = qos.table(
+  "recipe_version_modifier_effects",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    publicId: text("public_id").notNull(),
+    recipeVersionId: uuid("recipe_version_id").notNull(),
+    modifierOptionId: uuid("modifier_option_id").notNull(),
+    effectType: text("effect_type").notNull().$type<"add" | "remove" | "replace">(),
+    targetLineId: uuid("target_line_id"),
+    itemId: uuid("item_id"),
+    unitId: uuid("unit_id"),
+    /** Per selected option per sold unit, in micros of unit_id; null for remove. */
+    quantityMicros: bigint("quantity_micros", { mode: "bigint" }),
+    notes: text("notes"),
+    position: integer("position").notNull(),
+    status: text("status").notNull().default("active").$type<"active" | "removed">(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("recipe_version_modifier_effects_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    foreignKey({
+      name: "recipe_version_modifier_effects_version_fk",
+      columns: [table.tenantId, table.recipeVersionId],
+      foreignColumns: [recipeVersions.tenantId, recipeVersions.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_version_modifier_effects_option_fk",
+      columns: [table.tenantId, table.modifierOptionId],
+      foreignColumns: [catalogueModifierOptions.tenantId, catalogueModifierOptions.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_version_modifier_effects_target_line_fk",
+      columns: [table.tenantId, table.recipeVersionId, table.targetLineId],
+      foreignColumns: [recipeVersionLines.tenantId, recipeVersionLines.recipeVersionId, recipeVersionLines.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_version_modifier_effects_item_fk",
+      columns: [table.tenantId, table.itemId],
+      foreignColumns: [inventoryItems.tenantId, inventoryItems.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_version_modifier_effects_unit_fk",
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    uniqueIndex("recipe_version_modifier_effects_active_target_unique")
+      .on(table.tenantId, table.recipeVersionId, table.modifierOptionId, table.targetLineId)
+      .where(sql`status = 'active' AND target_line_id IS NOT NULL`),
+    uniqueIndex("recipe_version_modifier_effects_active_add_unique")
+      .on(table.tenantId, table.recipeVersionId, table.modifierOptionId, table.itemId)
+      .where(sql`status = 'active' AND effect_type = 'add'`),
+    index("recipe_version_modifier_effects_tenant_version_idx").on(table.tenantId, table.recipeVersionId),
+    index("recipe_version_modifier_effects_tenant_option_idx").on(table.tenantId, table.modifierOptionId),
+    index("recipe_version_modifier_effects_tenant_item_idx").on(table.tenantId, table.itemId),
+    check("recipe_version_modifier_effects_public_id_check", sql`${table.publicId} ~ '^eff_[a-z0-9_-]+$'`),
+    check("recipe_version_modifier_effects_type_check", sql`${table.effectType} IN ('add', 'remove', 'replace')`),
+    check(
+      "recipe_version_modifier_effects_shape_check",
+      sql`(${table.effectType} = 'add' AND ${table.targetLineId} IS NULL AND ${table.itemId} IS NOT NULL AND ${table.unitId} IS NOT NULL AND ${table.quantityMicros} IS NOT NULL) OR (${table.effectType} = 'remove' AND ${table.targetLineId} IS NOT NULL AND ${table.itemId} IS NULL AND ${table.unitId} IS NULL AND ${table.quantityMicros} IS NULL) OR (${table.effectType} = 'replace' AND ${table.targetLineId} IS NOT NULL AND ${table.itemId} IS NOT NULL AND ${table.unitId} IS NOT NULL AND ${table.quantityMicros} IS NOT NULL)`,
+    ),
+    check("recipe_version_modifier_effects_quantity_check", sql`${table.quantityMicros} IS NULL OR ${table.quantityMicros} > 0`),
+    check("recipe_version_modifier_effects_notes_check", sql`${table.notes} IS NULL OR char_length(${table.notes}) <= 200`),
+    check("recipe_version_modifier_effects_position_check", sql`${table.position} >= 0`),
+    check("recipe_version_modifier_effects_status_check", sql`${table.status} IN ('active', 'removed')`),
+  ],
+);
+
 export type InventoryUnitRecord = typeof inventoryUnits.$inferSelect;
 export type InventoryItemRecord = typeof inventoryItems.$inferSelect;
 export type InventoryItemConversionRecord = typeof inventoryItemConversions.$inferSelect;
@@ -4972,6 +5048,7 @@ export type RecipeVersionLineRecord = typeof recipeVersionLines.$inferSelect;
 export type RecipeVersionStepRecord = typeof recipeVersionSteps.$inferSelect;
 export type RecipeVersionSnapshotRecord = typeof recipeVersionSnapshots.$inferSelect;
 export type RecipeSellableLinkRecord = typeof recipeSellableLinks.$inferSelect;
+export type RecipeVersionModifierEffectRecord = typeof recipeVersionModifierEffects.$inferSelect;
 
 export const schema = {
   tenants,

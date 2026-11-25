@@ -60,6 +60,32 @@ export function equals(a: Rational, b: Rational): boolean {
   return a.numerator === b.numerator && a.denominator === b.denominator;
 }
 
+/* QOS-199: signed sums for modifier effects, where a removal is a negative
+   contribution. Denominators stay positive, so the sign is the numerator's. */
+export function add(a: Rational, b: Rational): Rational {
+  return rational(a.numerator * b.denominator + b.numerator * a.denominator, a.denominator * b.denominator);
+}
+
+export function negate(value: Rational): Rational {
+  return rational(-value.numerator, value.denominator);
+}
+
+export function isNegative(value: Rational): boolean {
+  return value.numerator < ZERO;
+}
+
+/** Rounds half-up (half away from zero) to whole micros; `exact` says whether nothing was lost. */
+export function toMicrosHalfUp(value: Rational): { micros: bigint; exact: boolean } {
+  const negative = value.numerator < ZERO;
+  const scaled = (negative ? -value.numerator : value.numerator) * MICROS_PER_UNIT;
+  let quotient = scaled / value.denominator;
+  const remainder = scaled % value.denominator;
+  if (remainder * TWO >= value.denominator) {
+    quotient += ONE;
+  }
+  return { micros: negative ? -quotient : quotient, exact: remainder === ZERO };
+}
+
 /** True when the value has a finite decimal expansion with at most `places` digits. */
 export function isExactAt(value: Rational, places: number): boolean {
   return (value.numerator * pow10(places)) % value.denominator === ZERO;
