@@ -6,9 +6,13 @@ import { StaffAuthError } from "@/lib/staff/session";
 import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createTenantHierarchy, ensureSeedLocation } from "@/lib/tenant/repository";
 
+import { GET as getCategory, PATCH as patchCategory } from "./categories/[categoryPublicId]/route";
+import { GET as listCategories, POST as postCategory } from "./categories/route";
 import { PATCH as patchConversion } from "./items/[itemPublicId]/conversions/[conversionPublicId]/route";
 import { POST as postConversion } from "./items/[itemPublicId]/conversions/route";
 import { GET as getItem, PATCH as patchItem } from "./items/[itemPublicId]/route";
+import { PATCH as patchReferenceCost } from "./items/[itemPublicId]/reference-costs/[costPublicId]/route";
+import { POST as postReferenceCost } from "./items/[itemPublicId]/reference-costs/route";
 import { GET as listItems, POST as postItem } from "./items/route";
 import { GET as getSupplier, PATCH as patchSupplier } from "./suppliers/[supplierPublicId]/route";
 import { GET as listSuppliers, POST as postSupplier } from "./suppliers/route";
@@ -55,7 +59,7 @@ integrationDescribe("inventory routes", () => {
   }
 
   beforeEach(async () => {
-    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.inventory_item_conversions, qos.inventory_items, qos.inventory_units, qos.inventory_warehouses, qos.inventory_suppliers, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
+    await sqlClient`TRUNCATE TABLE qos.tenant_audit_events, qos.inventory_item_reference_costs, qos.inventory_item_conversions, qos.inventory_items, qos.inventory_categories, qos.inventory_units, qos.inventory_warehouses, qos.inventory_suppliers, qos.staff_memberships, qos.staff_identities, qos.locations, qos.brands, qos.organizations, qos.tenants RESTART IDENTITY CASCADE`;
     staffMocks.requireStaffIdentity.mockReset();
     tenantId = (await createTenantHierarchy(db, quotesTenantFixture())).tenant.id;
     otherTenantId = (await createTenantHierarchy(db, flowerTenantFixture())).tenant.id;
@@ -148,7 +152,7 @@ integrationDescribe("inventory routes", () => {
     const unit = await call(getUnit(request("GET"), ctx({ unitPublicId: packet.publicId })));
     expect(unit.body).toEqual({
       unit: expect.objectContaining({ publicId: packet.publicId, code: "packet", nameAr: "علبة", decimalPlaces: 0 }),
-      usage: { itemDesignations: 1, currentRules: 0 },
+      usage: { itemDesignations: 1, currentRules: 0, currentCosts: 0 },
     });
     const renamed = await call(
       patchUnit(request("PATCH", { expectedVersion: 1, nameEn: "Sealed packet", decimalPlaces: 2 }), ctx({ unitPublicId: packet.publicId })),
@@ -162,7 +166,7 @@ integrationDescribe("inventory routes", () => {
       ),
     );
     expect(withRule.status).toBe(200);
-    expect(Object.keys(withRule.body).sort()).toEqual(["history", "item", "preview", "rules", "suppliers", "units"]);
+    expect(Object.keys(withRule.body).sort()).toEqual(["categories", "costHistory", "history", "item", "preview", "referenceCost", "rules", "suppliers", "units"]);
     const rule = (withRule.body.rules as Array<Json>)[0]!;
     expect(rule).toMatchObject({ factor: "12", factorMicros: "12000000", revision: 1, effectiveFrom: "2026-11-01" });
     expect(typeof rule.factor).toBe("string");
@@ -453,5 +457,215 @@ integrationDescribe("inventory routes", () => {
     const [location] = await sqlClient<{ name: string; status: string }[]>`
       SELECT name, status::text FROM qos.locations WHERE public_id = 'loc_quotes_hbz'`;
     expect(location).toEqual({ name: "HBZ Stadium", status: "active" });
+  });
+  /* QOS-197 categories, item category and notes, and reference costs. */
+
+  it("answers 401 without a staff session on every category and reference cost handler", async () => {
+    staffMocks.requireStaffIdentity.mockRejectedValue(new StaffAuthError("Sign in required."));
+    const responses = await Promise.all([
+      listCategories(request("GET"), ctx({})),
+      postCategory(request("POST", {}), ctx({})),
+      getCategory(request("GET"), ctx({ categoryPublicId: "invcat_x" })),
+      patchCategory(request("PATCH", {}), ctx({ categoryPublicId: "invcat_x" })),
+      postReferenceCost(request("POST", {}), ctx({ itemPublicId: "item_x" })),
+      patchReferenceCost(request("PATCH", {}), ctx({ itemPublicId: "item_x", costPublicId: "cost_x" })),
+    ]);
+    expect(responses.map((response) => response.status)).toEqual(Array(6).fill(401));
+  });
+
+  it("round-trips a category, an item's category and notes, and a reference cost through the routes", async () => {
+    const { piece, packet, item } = await seedCatalogue();
+    const created = await call(postCategory(request("POST", { nameEn: "Bakery", nameAr: "مخبوزات" }), ctx({})));
+    expect(created.status).toBe(200);
+    const category = created.body.category as { category: Json; items: unknown[]; dependencies: unknown[] };
+    expect(Object.keys(category).sort()).toEqual(["category", "dependencies", "items"]);
+    expect(category.category).toMatchObject({ nameEn: "Bakery", nameAr: "مخبوزات", status: "active", version: 1 });
+    const categoryPublicId = category.category.publicId as string;
+    expect((await call(getCategory(request("GET"), ctx({ categoryPublicId })))).body).toEqual(category);
+    const listed = await call(listCategories(request("GET"), ctx({})));
+    expect(listed.body).toEqual({ categories: [{ ...category.category, itemCount: 0, activeItemCount: 0 }] });
+
+    const patched = await call(
+      patchItem(
+        request("PATCH", { expectedVersion: 1, categoryPublicId, notes: "Order two days ahead." }),
+        ctx({ itemPublicId: item.publicId }),
+      ),
+    );
+    expect(patched.status).toBe(200);
+    expect(patched.body.item).toMatchObject({ publicId: item.publicId, categoryPublicId, notes: "Order two days ahead." });
+    expect(patched.body.referenceCost).toEqual({ status: "unknown" });
+    const renamed = await call(patchCategory(request("PATCH", { expectedVersion: 1, nameEn: "Bread" }), ctx({ categoryPublicId })));
+    expect(renamed.body).toMatchObject({ category: { publicId: categoryPublicId, nameEn: "Bread", version: 2 }, items: [{ publicId: item.publicId }] });
+
+    const costed = await call(
+      postReferenceCost(
+        request("POST", {
+          amount: "18.123456",
+          unitPublicId: packet.publicId,
+          taxBasis: "unconfirmed",
+          source: "invoice",
+          sourceReference: "INV-0042",
+          effectiveFrom: "2026-11-01",
+          expectedRevision: null,
+        }),
+        ctx({ itemPublicId: item.publicId }),
+      ),
+    );
+    expect(costed.status).toBe(200);
+    expect(costed.body.referenceCost).toMatchObject({
+      status: "known_not_convertible",
+      amount: "18.123456",
+      amountMicros: "18123456",
+      currency: "AED",
+      taxBasis: "unconfirmed",
+      source: "invoice",
+      sourceReference: "INV-0042",
+      effectiveFrom: "2026-11-01",
+      revision: 1,
+      unit: { publicId: packet.publicId, code: "packet" },
+    });
+    const withRule = await call(
+      postConversion(
+        request("POST", { fromUnitPublicId: packet.publicId, toUnitPublicId: piece.publicId, factor: "12" }),
+        ctx({ itemPublicId: item.publicId }),
+      ),
+    );
+    expect(withRule.body.referenceCost).toMatchObject({
+      status: "known",
+      perStorageUnit: { status: "derived", text: "1.510288", rounded: false, unit: { code: "piece" } },
+    });
+    const costPublicId = (costed.body.costHistory as Json[])[0]!.publicId as string;
+    const cleared = await call(
+      patchReferenceCost(
+        request("PATCH", { operation: "close", expectedRevision: 1, effectiveFrom: "2026-11-10" }),
+        ctx({ itemPublicId: item.publicId, costPublicId }),
+      ),
+    );
+    expect(cleared.status).toBe(200);
+    expect(cleared.body.referenceCost).toEqual({ status: "unknown" });
+    expect((cleared.body.costHistory as Json[]).map((row) => [row.revision, row.amount, row.effectiveTo])).toEqual([[1, "18.123456", "2026-11-10"]]);
+    expect((await call(getItem(request("GET"), ctx({ itemPublicId: item.publicId })))).body).toEqual(cleared.body);
+    const items = await call(listItems(request("GET"), ctx({})));
+    expect(items.body.items).toEqual([
+      expect.objectContaining({ publicId: item.publicId, categoryPublicId, costStatus: "unknown", costSummary: null }),
+    ]);
+  });
+
+  it("lets a user read categories and costs but answers 403 on every category and cost write; other businesses get 403", async () => {
+    const { item } = await seedCatalogue();
+    const category = ((await call(postCategory(request("POST", { nameEn: "Bakery" }), ctx({})))).body.category as { category: Json }).category;
+    const costed = await call(
+      postReferenceCost(request("POST", { amount: "2", taxBasis: "net", source: "manual", expectedRevision: null }), ctx({ itemPublicId: item.publicId })),
+    );
+    const costPublicId = (costed.body.costHistory as Json[])[0]!.publicId as string;
+    signIn(USER);
+    expect((await call(listCategories(request("GET"), ctx({})))).status).toBe(200);
+    expect((await call(getCategory(request("GET"), ctx({ categoryPublicId: category.publicId as string })))).status).toBe(200);
+    expect((await call(getItem(request("GET"), ctx({ itemPublicId: item.publicId })))).body.referenceCost).toMatchObject({ amount: "2" });
+    const writes = await Promise.all([
+      call(postCategory(request("POST", { nameEn: "Sneaky" }), ctx({}))),
+      call(patchCategory(request("PATCH", { expectedVersion: 1, status: "archived" }), ctx({ categoryPublicId: category.publicId as string }))),
+      call(
+        postReferenceCost(request("POST", { amount: "3", taxBasis: "net", source: "manual", expectedRevision: 1 }), ctx({ itemPublicId: item.publicId })),
+      ),
+      call(
+        patchReferenceCost(request("PATCH", { operation: "close", expectedRevision: 1 }), ctx({ itemPublicId: item.publicId, costPublicId })),
+      ),
+      call(patchItem(request("PATCH", { expectedVersion: 1, categoryPublicId: category.publicId }), ctx({ itemPublicId: item.publicId }))),
+    ]);
+    for (const write of writes) {
+      expect(write).toEqual({ status: 403, body: expect.objectContaining({ code: "administrator_required" }) });
+    }
+    const [counts] = await sqlClient<{ categories: number; costs: number; current: number }[]>`
+      SELECT (SELECT count(*)::int FROM qos.inventory_categories WHERE status = 'active') AS categories,
+             (SELECT count(*)::int FROM qos.inventory_item_reference_costs) AS costs,
+             (SELECT count(*)::int FROM qos.inventory_item_reference_costs WHERE effective_to IS NULL) AS current`;
+    expect(counts).toEqual({ categories: 1, costs: 1, current: 1 });
+
+    signIn(OUTSIDER);
+    expect((await call(listCategories(request("GET"), ctx({})))).status).toBe(403);
+    expect((await call(getCategory(request("GET"), ctx({ categoryPublicId: category.publicId as string })))).status).toBe(403);
+    expect((await call(postCategory(request("POST", { nameEn: "Hijack" }), ctx({})))).status).toBe(403);
+    expect(
+      (await call(postReferenceCost(request("POST", { amount: "1", taxBasis: "net", source: "manual", expectedRevision: 1 }), ctx({ itemPublicId: item.publicId }))))
+        .status,
+    ).toBe(403);
+  });
+
+  it("answers 404 for unknown or another business's category, item and cost ids", async () => {
+    const { item } = await seedCatalogue();
+    const category = ((await call(postCategory(request("POST", { nameEn: "Bakery" }), ctx({})))).body.category as { category: Json }).category;
+    const costed = await call(
+      postReferenceCost(request("POST", { amount: "2", taxBasis: "net", source: "manual", expectedRevision: null }), ctx({ itemPublicId: item.publicId })),
+    );
+    const costPublicId = (costed.body.costHistory as Json[])[0]!.publicId as string;
+    expect(await call(getCategory(request("GET"), ctx({ categoryPublicId: "invcat_nope" })))).toEqual({
+      status: 404,
+      body: expect.objectContaining({ code: "category_not_found" }),
+    });
+    expect(
+      await call(patchReferenceCost(request("PATCH", { operation: "close", expectedRevision: 1 }), ctx({ itemPublicId: item.publicId, costPublicId: "cost_nope" }))),
+    ).toEqual({ status: 404, body: expect.objectContaining({ code: "reference_cost_not_found" }) });
+    expect(
+      await call(postReferenceCost(request("POST", { amount: "1", taxBasis: "net", source: "manual", expectedRevision: null }), ctx({ itemPublicId: "item_nope" }))),
+    ).toEqual({ status: 404, body: expect.objectContaining({ code: "item_not_found" }) });
+    signIn(OUTSIDER);
+    const foreign = <T extends Json>(params: T) => ({ params: Promise.resolve({ tenantId: otherTenantId, ...params }) });
+    expect((await call(getCategory(request("GET"), foreign({ categoryPublicId: category.publicId as string })))).status).toBe(404);
+    expect(
+      (await call(patchCategory(request("PATCH", { expectedVersion: 1, nameEn: "Hijack" }), foreign({ categoryPublicId: category.publicId as string })))).status,
+    ).toBe(404);
+    expect(
+      (await call(postReferenceCost(request("POST", { amount: "1", taxBasis: "net", source: "manual", expectedRevision: 1 }), foreign({ itemPublicId: item.publicId }))))
+        .status,
+    ).toBe(404);
+    expect(
+      (await call(patchReferenceCost(request("PATCH", { operation: "close", expectedRevision: 1 }), foreign({ itemPublicId: item.publicId, costPublicId })))).status,
+    ).toBe(404);
+    expect(
+      (await call(postItem(request("POST", { nameEn: "Hijack", kind: "purchased", categoryPublicId: category.publicId }), foreign({})))).body,
+    ).toMatchObject({ code: "category_not_found" });
+    signIn(ADMIN);
+    expect((await call(getCategory(request("GET"), ctx({ categoryPublicId: category.publicId as string })))).body.category).toMatchObject({
+      nameEn: "Bakery",
+      version: 1,
+    });
+    expect((await call(getItem(request("GET"), ctx({ itemPublicId: item.publicId })))).body.referenceCost).toMatchObject({ amount: "2", revision: 1 });
+  });
+
+  it("answers 409 with the dependencies for a category in use, and 400/409 for invalid or stale cost writes", async () => {
+    const { item } = await seedCatalogue();
+    const category = ((await call(postCategory(request("POST", { nameEn: "Bakery" }), ctx({})))).body.category as { category: Json }).category;
+    await call(patchItem(request("PATCH", { expectedVersion: 1, categoryPublicId: category.publicId }), ctx({ itemPublicId: item.publicId })));
+    expect(
+      await call(patchCategory(request("PATCH", { expectedVersion: 1, status: "archived" }), ctx({ categoryPublicId: category.publicId as string }))),
+    ).toEqual({
+      status: 409,
+      body: expect.objectContaining({ code: "category_in_use", field: "status", dependencies: [{ kind: "inventory_items", count: 1 }] }),
+    });
+    expect(await call(postCategory(request("POST", { nameEn: "bakery" }), ctx({})))).toEqual({
+      status: 409,
+      body: expect.objectContaining({ code: "category_name_taken", field: "nameEn" }),
+    });
+    const cost = (body: Json) => call(postReferenceCost(request("POST", body), ctx({ itemPublicId: item.publicId })));
+    expect(await cost({ amount: "", taxBasis: "net", source: "manual", expectedRevision: null })).toEqual({
+      status: 400,
+      body: expect.objectContaining({ code: "amount_required", field: "amount" }),
+    });
+    expect(await cost({ amount: "1.0000001", taxBasis: "net", source: "manual", expectedRevision: null })).toEqual({
+      status: 400,
+      body: expect.objectContaining({ code: "amount_too_precise" }),
+    });
+    expect(await cost({ amount: "1", taxBasis: "NET", source: "manual", expectedRevision: null })).toEqual({
+      status: 400,
+      body: expect.objectContaining({ code: "tax_basis_invalid" }),
+    });
+    expect((await cost({ amount: "1", taxBasis: "net", source: "manual", expectedRevision: null })).status).toBe(200);
+    expect(await cost({ amount: "2", taxBasis: "net", source: "manual", expectedRevision: null })).toEqual({
+      status: 409,
+      body: expect.objectContaining({ code: "expected_version_mismatch", field: "expectedRevision" }),
+    });
+    const [{ count }] = await sqlClient<{ count: number }[]>`SELECT count(*)::int AS count FROM qos.inventory_item_reference_costs`;
+    expect(count).toBe(1);
   });
 });

@@ -86,6 +86,12 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/inventory/suppliers/[supplierPublicId]/page.tsx",
   "app/tenants/[tenantId]/inventory/warehouses/new/page.tsx",
   "app/tenants/[tenantId]/inventory/warehouses/[warehousePublicId]/page.tsx",
+  // QOS-197 inventory categories, item filters and reference costs
+  "app/tenants/[tenantId]/inventory/category-editor.tsx",
+  "app/tenants/[tenantId]/inventory/item-cost-panel.tsx",
+  "app/tenants/[tenantId]/inventory/inventory-filters.ts",
+  "app/tenants/[tenantId]/inventory/categories/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/categories/[categoryPublicId]/page.tsx",
 ];
 
 const PORTAL_RESTYLED_SURFACES = [
@@ -163,6 +169,12 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/inventory/suppliers/[supplierPublicId]/page.tsx",
   "app/tenants/[tenantId]/inventory/warehouses/new/page.tsx",
   "app/tenants/[tenantId]/inventory/warehouses/[warehousePublicId]/page.tsx",
+  // QOS-197 inventory categories, item filters and reference costs
+  "app/tenants/[tenantId]/inventory/category-editor.tsx",
+  "app/tenants/[tenantId]/inventory/item-cost-panel.tsx",
+  "app/tenants/[tenantId]/inventory/inventory-filters.ts",
+  "app/tenants/[tenantId]/inventory/categories/new/page.tsx",
+  "app/tenants/[tenantId]/inventory/categories/[categoryPublicId]/page.tsx",
 ];
 
 // Light-theme palette utilities render dark-grey or white-on-white on the portal's navy glass.
@@ -319,6 +331,17 @@ const FORBIDDEN_LITERALS = [
   '"Contact name"',
   '"Warehouses"',
   '"Suppliers"',
+  // QOS-197 inventory categories, item filters and reference costs
+  ">Add category<",
+  ">Save category<",
+  ">Save cost<",
+  ">Clear cost<",
+  '"Reference cost"',
+  '"Cost unknown"',
+  '"No category"',
+  '"Categories"',
+  '"Search items"',
+  '"Tax basis"',
 ];
 
 /* Every QOS-214 key has English and Arabic copy, and the Arabic is Arabic. */
@@ -571,7 +594,7 @@ describe("QOS-195 inventory copy", () => {
   it("keeps the inventory notice free of ticket IDs and English in Arabic", () => {
     const en = STAFF_UI_COPY.en.inventoryEmptyBody;
     const ar = STAFF_UI_COPY.ar.inventoryEmptyBody;
-    expect(en).toBe("Stock levels, categories and costs are coming soon.");
+    expect(en).toBe("Stock levels are not available yet.");
     for (const text of [en, ar]) expect(text).not.toMatch(/QOS|\d/);
     expect(ar).toMatch(/[\u0600-\u06FF]/);
     expect(ar).not.toMatch(/[A-Za-z]/);
@@ -707,6 +730,152 @@ describe("QOS-196 supplier and warehouse copy", () => {
   });
 
   it("keeps the supplier and warehouse surfaces free of all-caps styling", () => {
+    expect(sources).not.toMatch(/uppercase/i);
+  });
+});
+
+/* QOS-197: category, filter and reference cost copy follows the QOS-196
+   rules: English and Arabic present, no English left in the Arabic (item and
+   category names, codes and amounts are data, not copy), nothing shouted, no
+   ticket ids, sentence case, and every key rendered by the new surfaces. The
+   inventory notice now names only what is still missing: stock levels. */
+const QOS_197_COPY_KEYS = [
+  "inventoryCategoriesTab",
+  "inventoryCategoriesEmpty",
+  "addCategory",
+  "openCategory",
+  "newCategoryTitle",
+  "categoryHelp",
+  "saveCategory",
+  "categorySaved",
+  "archiveCategory",
+  "restoreCategory",
+  "archiveCategoryConfirm",
+  "categoryArchivedNote",
+  "categoryItemsTitle",
+  "categoryItemsHelp",
+  "categoryItemsEmpty",
+  "itemCategory",
+  "itemCategoryNone",
+  "itemNotesHelp",
+  "itemKindHelp",
+  "inventoryFilterSearch",
+  "inventoryFilterSearchPlaceholder",
+  "inventoryFilterKind",
+  "inventoryFilterStatus",
+  "inventoryFilterAll",
+  "inventoryFilterCost",
+  "inventoryFilterNoMatch",
+  "inventoryItemsShown",
+  "costPanelTitle",
+  "costPanelHelp",
+  "costUnknown",
+  "costKnown",
+  "costNotConvertible",
+  "costUnknownNote",
+  "costAmount",
+  "costAmountHelp",
+  "costUnit",
+  "costTaxBasis",
+  "taxBasisNet",
+  "taxBasisGross",
+  "taxBasisUnconfirmed",
+  "costTaxBasisHelp",
+  "costSource",
+  "costSourceManual",
+  "costSourceSupplierQuote",
+  "costSourceInvoice",
+  "costSourceReference",
+  "costSourceReferenceLine",
+  "costEffectiveFrom",
+  "costEffectiveFromLine",
+  "costEffectiveFromHelp",
+  "saveCost",
+  "clearCost",
+  "clearCostConfirm",
+  "costSaved",
+  "costCurrentLine",
+  "costPerStorageUnit",
+  "costPerRecipeUnit",
+  "costRounded",
+  "costHistory",
+  "costHistoryHelp",
+  "costEvidenceTitle",
+  "costEvidenceNone",
+  "relatedTitle",
+  "relatedRecipesNone",
+  "relatedStockNone",
+  "inventoryEmptyBody",
+  "inventoryMasterDataNote",
+] as const satisfies readonly StaffUiCopyKey[];
+
+/** Language names are proper nouns and keep their capital inside a sentence. */
+const PROPER_NOUNS = new Set(["English", "Arabic"]);
+
+describe("QOS-197 category, filter and reference cost copy", () => {
+  const sources = [
+    "app/tenants/[tenantId]/inventory/inventory-screen.tsx",
+    "app/tenants/[tenantId]/inventory/inventory-client.ts",
+    "app/tenants/[tenantId]/inventory/item-editor.tsx",
+    "app/tenants/[tenantId]/inventory/category-editor.tsx",
+    "app/tenants/[tenantId]/inventory/item-cost-panel.tsx",
+    "app/tenants/[tenantId]/inventory/dependency-notice.tsx",
+  ]
+    .map((relative) => readFileSync(path.join(ROOT, relative), "utf8"))
+    .join("\n");
+
+  it.each(QOS_197_COPY_KEYS)("%s has English and Arabic text with no English, ticket ids or shouting", (key) => {
+    const en = STAFF_UI_COPY.en[key];
+    const ar = STAFF_UI_COPY.ar[key];
+    expect(en.trim().length).toBeGreaterThan(0);
+    expect(ar).toMatch(/[\u0600-\u06FF]/);
+    expect(ar.replace(/\{\w+\}/g, "")).not.toMatch(/[A-Za-z]/);
+    for (const text of [en, ar]) expect(text).not.toMatch(/QOS|[A-Z]{2,}-\d/);
+    const letters = en.replace(/\{\w+\}/g, "").replace(/[^A-Za-z]/g, "");
+    expect(letters !== letters.toUpperCase()).toBe(true);
+    const words = en.replace(/\{\w+\}/g, "").split(/\s+/).filter(Boolean);
+    words.forEach((word, index) => {
+      const sentenceStart = index === 0 || /[.?:]$/.test(words[index - 1]!);
+      if (!sentenceStart && !PROPER_NOUNS.has(word)) expect(word, `${key}: ${en}`).not.toMatch(/^[A-Z]/);
+    });
+  });
+
+  it("pins the inventory notice to stock levels only, in both languages", () => {
+    expect(STAFF_UI_COPY.en.inventoryEmptyBody).toBe("Stock levels are not available yet.");
+    expect(STAFF_UI_COPY.ar.inventoryEmptyBody).toBe("مستويات المخزون غير متاحة بعد.");
+    expect(STAFF_UI_COPY.en.inventoryMasterDataNote).toBe(
+      "Units, items, categories, costs, conversions and suppliers apply to every branch. A warehouse belongs to one branch.",
+    );
+  });
+
+  it("says that a blank cost is not zero", () => {
+    expect(STAFF_UI_COPY.en.costUnknownNote).toContain("Blank is not zero.");
+    expect(STAFF_UI_COPY.ar.costUnknownNote).toContain("الفراغ ليس صفرًا.");
+  });
+
+  it("references every key from the category, filter and cost surfaces", () => {
+    const unused = QOS_197_COPY_KEYS.filter((key) => !sources.includes(`"${key}"`));
+    expect(unused).toEqual([]);
+  });
+
+  it("has Arabic plural forms for the category and cost counts", () => {
+    for (const key of ["inventoryCategories", "categoryItems", "costVersions"] as const) {
+      const forms = STAFF_COUNT_COPY.ar[key];
+      expect(Object.keys(forms).sort(), key).toEqual(["few", "many", "one", "other", "two", "zero"]);
+      for (const text of Object.values(forms)) {
+        expect(text, key).toMatch(/[\u0600-\u06FF]/);
+        expect(text.replace("{count}", ""), key).not.toMatch(/[A-Za-z]/);
+      }
+    }
+    expect(staffCount("ar", "inventoryCategories", 2)).toBe("فئتان");
+    expect(staffCount("ar", "inventoryCategories", 3)).toBe("3 فئات");
+    expect(staffCount("ar", "categoryItems", 1)).toBe("صنف نشط واحد في هذه الفئة");
+    expect(staffCount("ar", "costVersions", 11)).toBe("11 إصدارًا");
+    expect(staffCount("en", "categoryItems", 2)).toBe("2 active items are in this category");
+    expect(staffCount("en", "costVersions", 1)).toBe("1 version");
+  });
+
+  it("keeps the category, filter and cost surfaces free of all-caps styling", () => {
     expect(sources).not.toMatch(/uppercase/i);
   });
 });

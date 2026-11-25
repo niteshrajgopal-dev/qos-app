@@ -93,6 +93,21 @@ function quantityValue(value: Rational, target: PreviewUnit): PreviewValue {
   return { text: toDecimalString(value, places), places, rounded: !isExactAt(value, places) };
 }
 
+/** Why two active units of one item have no derivation. Shared with the QOS-197 cost explanation. */
+export function unreachableReason(
+  from: Pick<GraphUnit, "quantityKind">,
+  to: Pick<GraphUnit, "quantityKind">,
+): Extract<PreviewMissingReason, "mass_volume_needs_item_rule" | "pack_needs_item_rule" | "no_rule"> {
+  const kinds = new Set([from.quantityKind, to.quantityKind]);
+  if (kinds.has("mass") && kinds.has("volume")) {
+    return "mass_volume_needs_item_rule";
+  }
+  if (kinds.has("pack")) {
+    return "pack_needs_item_rule";
+  }
+  return "no_rule";
+}
+
 function explainPair(
   key: PreviewPairKey,
   fromId: string | null,
@@ -118,14 +133,7 @@ function explainPair(
   }
   const path = findPath(graph, from.id, to.id);
   if (!path) {
-    const kinds = new Set([from.quantityKind, to.quantityKind]);
-    if (kinds.has("mass") && kinds.has("volume")) {
-      return missing("mass_volume_needs_item_rule");
-    }
-    if (kinds.has("pack")) {
-      return missing("pack_needs_item_rule");
-    }
-    return missing("no_rule");
+    return missing(unreachableReason(from, to));
   }
 
   let example: PreviewDerived["example"] = null;

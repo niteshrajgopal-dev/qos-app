@@ -10,7 +10,10 @@ import {
   truncateInventory,
   USER,
 } from "@/lib/inventory/integration-helpers";
+import { createCategory, getCategory, updateCategory } from "@/lib/inventory/categories";
+import { createConversion } from "@/lib/inventory/conversions";
 import { createItem, getItem, listItems, updateItem } from "@/lib/inventory/items";
+import { setReferenceCost } from "@/lib/inventory/reference-costs";
 import { createSupplier, getSupplier, updateSupplier } from "@/lib/inventory/suppliers";
 import { createUnit, updateUnit } from "@/lib/inventory/units";
 import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
@@ -281,5 +284,191 @@ integrationDescribe("inventory items service", () => {
     expect((await getItem(db, tenantId, item.item.publicId)).item).toMatchObject({ version: 1, defaultSupplierPublicId: null });
     expect((await getSupplier(db, other, theirs.supplier.publicId)).items).toEqual([]);
     expect((await listItems(db, tenantId)).items.map((entry) => entry.nameEn)).toEqual(["Sugar"]);
+  });
+
+  /* QOS-197: category, notes, cost status and prepared items. */
+
+  it("creates an item with a category and notes, reloads every field and carries the category and unknown cost in the list", async () => {
+    const dairy = await createCategory(db, tenantId, ADMIN, ACTOR, { nameEn: "Dairy", nameAr: "ألبان" });
+    const supplier = await createSupplier(db, tenantId, ADMIN, ACTOR, { nameEn: "Gulf Supply" });
+    const created = await createItem(db, tenantId, ADMIN, ACTOR, {
+      nameEn: "Full cream milk",
+      nameAr: "حليب كامل الدسم",
+      kind: "purchased",
+      storageUnitPublicId: units.kg,
+      recipeUnitPublicId: units.g,
+      purchaseUnitPublicId: units.packet,
+      defaultSupplierPublicId: supplier.supplier.publicId,
+      categoryPublicId: dairy.category.publicId,
+      notes: "  Keep below 4 °C. Order before Thursday.  ",
+    });
+    expect(created.item).toMatchObject({
+      nameEn: "Full cream milk",
+      nameAr: "حليب كامل الدسم",
+      kind: "purchased",
+      storageUnitPublicId: units.kg,
+      recipeUnitPublicId: units.g,
+      purchaseUnitPublicId: units.packet,
+      defaultSupplierPublicId: supplier.supplier.publicId,
+      categoryPublicId: dairy.category.publicId,
+      notes: "Keep below 4 °C. Order before Thursday.",
+      status: "active",
+      version: 1,
+    });
+    expect(created.categories.map((category) => category.publicId)).toEqual([dairy.category.publicId]);
+    expect(created.referenceCost).toEqual({ status: "unknown" });
+    expect(created.costHistory).toEqual([]);
+    expect(await getItem(db, tenantId, created.item.publicId)).toEqual(created);
+    const [summary] = (await listItems(db, tenantId)).items;
+    expect(summary).toMatchObject({
+      publicId: created.item.publicId,
+      categoryPublicId: dairy.category.publicId,
+      costStatus: "unknown",
+      costSummary: null,
+    });
+    const [row] = await sql<{ notes: string; category_id: string }[]>`
+      SELECT notes, category_id FROM qos.inventory_items WHERE public_id = ${created.item.publicId}`;
+    expect(row!.notes).toBe("Keep below 4 °C. Order before Thursday.");
+    expect(row!.category_id).not.toBeNull();
+
+    // Omitted fields are kept; null clears the category and the notes.
+    const renamed = await updateItem(db, tenantId, ADMIN, ACTOR, created.item.publicId, { expectedVersion: 1, nameEn: "Milk" });
+    expect(renamed.item).toMatchObject({ categoryPublicId: dairy.category.publicId, notes: "Keep below 4 °C. Order before Thursday." });
+    const cleared = await updateItem(db, tenantId, ADMIN, ACTOR, created.item.publicId, {
+      expectedVersion: 2,
+      categoryPublicId: null,
+      notes: "",
+    });
+    expect(cleared.item).toMatchObject({ categoryPublicId: null, notes: null, version: 3 });
+    expect(await getItem(db, tenantId, created.item.publicId)).toEqual(cleared);
+    expect(await rejection(updateItem(db, tenantId, ADMIN, ACTOR, created.item.publicId, { expectedVersion: 3, notes: "x".repeat(1001) }))).toEqual({
+      statusCode: 400,
+      code: "text_too_long",
+      field: "notes",
+    });
+    const audit = (await auditActions(sql, tenantId)).filter((entry) => entry.entity_public_id === created.item.publicId);
+    expect(audit[0]!.change_summary).toMatchObject({
+      after: { category: dairy.category.publicId, notes: "Keep below 4 °C. Order before Thursday." },
+    });
+    expect(audit[2]!.change_summary).toMatchObject({
+      before: { category: dairy.category.publicId },
+      after: { category: null, notes: null },
+    });
+  });
+
+  it("keeps identity, category, supplier, rules and cost history when an item is renamed", async () => {
+    const dairy = await createCategory(db, tenantId, ADMIN, ACTOR, { nameEn: "Dairy" });
+    const supplier = await createSupplier(db, tenantId, ADMIN, ACTOR, { nameEn: "Gulf Supply" });
+    const created = await createItem(db, tenantId, ADMIN, ACTOR, {
+      nameEn: "Butter",
+      kind: "purchased",
+      storageUnitPublicId: units.kg,
+      purchaseUnitPublicId: units.packet,
+      categoryPublicId: dairy.category.publicId,
+      defaultSupplierPublicId: supplier.supplier.publicId,
+    });
+    await createConversion(db, tenantId, ADMIN, ACTOR, created.item.publicId, {
+      fromUnitPublicId: units.packet,
+      toUnitPublicId: units.kg,
+      factor: "0.25",
+    });
+    const costed = await setReferenceCost(db, tenantId, ADMIN, ACTOR, created.item.publicId, {
+      amount: "9.5",
+      taxBasis: "net",
+      source: "manual",
+      expectedRevision: null,
+    });
+    const renamed = await updateItem(db, tenantId, ADMIN, ACTOR, created.item.publicId, {
+      expectedVersion: 1,
+      nameEn: "Unsalted butter",
+      nameAr: "زبدة غير مملحة",
+    });
+    expect(renamed.item.publicId).toBe(created.item.publicId);
+    expect(renamed.item).toMatchObject({ categoryPublicId: dairy.category.publicId, defaultSupplierPublicId: supplier.supplier.publicId });
+    expect(renamed.rules).toEqual(costed.rules);
+    expect(renamed.costHistory).toEqual(costed.costHistory);
+    expect(renamed.referenceCost).toEqual(costed.referenceCost);
+    expect((await getCategory(db, tenantId, dairy.category.publicId)).items.map((item) => [item.publicId, item.nameEn])).toEqual([
+      [created.item.publicId, "Unsalted butter"],
+    ]);
+    expect((await getSupplier(db, tenantId, supplier.supplier.publicId)).items.map((item) => item.publicId)).toEqual([created.item.publicId]);
+  });
+
+  it("refuses an archived category unless it is already the item's, and shows it on the item while referenced", async () => {
+    const dairy = await createCategory(db, tenantId, ADMIN, ACTOR, { nameEn: "Dairy" });
+    const item = await createItem(db, tenantId, ADMIN, ACTOR, { nameEn: "Cheese", kind: "purchased", categoryPublicId: dairy.category.publicId });
+    await updateItem(db, tenantId, ADMIN, ACTOR, item.item.publicId, { expectedVersion: 1, status: "archived" });
+    await updateCategory(db, tenantId, ADMIN, ACTOR, dairy.category.publicId, { expectedVersion: 1, status: "archived" });
+    expect(
+      await rejection(createItem(db, tenantId, ADMIN, ACTOR, { nameEn: "Yoghurt", kind: "purchased", categoryPublicId: dairy.category.publicId })),
+    ).toEqual({ statusCode: 400, code: "category_archived", field: "categoryPublicId" });
+    expect((await getItem(db, tenantId, item.item.publicId)).categories).toEqual([
+      expect.objectContaining({ publicId: dairy.category.publicId, status: "archived" }),
+    ]);
+    const kept = await updateItem(db, tenantId, ADMIN, ACTOR, item.item.publicId, {
+      expectedVersion: 2,
+      nameEn: "Aged cheese",
+      categoryPublicId: dairy.category.publicId,
+    });
+    expect(kept.item).toMatchObject({ nameEn: "Aged cheese", categoryPublicId: dairy.category.publicId });
+    const other = await createItem(db, tenantId, ADMIN, ACTOR, { nameEn: "Cream", kind: "purchased" });
+    expect(
+      await rejection(updateItem(db, tenantId, ADMIN, ACTOR, other.item.publicId, { expectedVersion: 1, categoryPublicId: dairy.category.publicId })),
+    ).toMatchObject({ statusCode: 400, code: "category_archived" });
+    expect((await getItem(db, tenantId, other.item.publicId)).item).toMatchObject({ version: 1, categoryPublicId: null });
+  });
+
+  it("refuses another tenant's category on update with 404 and writes nothing", async () => {
+    const other = (await createTenantHierarchy(db, flowerTenantFixture())).tenant.id;
+    const theirs = await createCategory(db, other, ADMIN, ACTOR, { nameEn: "Flowers" });
+    const item = await createItem(db, tenantId, ADMIN, ACTOR, { nameEn: "Sugar", kind: "purchased" });
+    expect(
+      await rejection(updateItem(db, tenantId, ADMIN, ACTOR, item.item.publicId, { expectedVersion: 1, categoryPublicId: theirs.category.publicId })),
+    ).toEqual({ statusCode: 404, code: "category_not_found", field: "categoryPublicId" });
+    expect((await getItem(db, tenantId, item.item.publicId)).item).toMatchObject({ version: 1, categoryPublicId: null });
+    expect((await getCategory(db, other, theirs.category.publicId)).items).toEqual([]);
+    expect((await auditActions(sql, tenantId)).filter((entry) => entry.entity_public_id === item.item.publicId)).toHaveLength(1);
+  });
+
+  it("saves a prepared item as a definition only: one item row and one audit row, nothing else posted", async () => {
+    const tables = [
+      "inventory_items",
+      "inventory_item_conversions",
+      "inventory_item_reference_costs",
+      "inventory_categories",
+      "inventory_suppliers",
+      "inventory_warehouses",
+      "inventory_units",
+      "tenant_audit_events",
+    ];
+    const counts = async () =>
+      Object.fromEntries(
+        await Promise.all(
+          tables.map(async (table) => {
+            const [row] = await sql<{ count: number }[]>`SELECT count(*)::int AS count FROM ${sql("qos." + table)}`;
+            return [table, row!.count] as const;
+          }),
+        ),
+      );
+    const before = await counts();
+    const prepared = await createItem(db, tenantId, ADMIN, ACTOR, {
+      nameEn: "Burger sauce",
+      nameAr: "صلصة البرجر",
+      kind: "prepared",
+      storageUnitPublicId: units.kg,
+      recipeUnitPublicId: units.g,
+      notes: "Mix in batches of 2 kg.",
+    });
+    expect(prepared.item).toMatchObject({ kind: "prepared", notes: "Mix in batches of 2 kg." });
+    expect(prepared.referenceCost).toEqual({ status: "unknown" });
+    const afterCreate = await counts();
+    expect(afterCreate).toEqual({ ...before, inventory_items: before.inventory_items! + 1, tenant_audit_events: before.tenant_audit_events! + 1 });
+    await updateItem(db, tenantId, ADMIN, ACTOR, prepared.item.publicId, { expectedVersion: 1, nameEn: "House burger sauce" });
+    expect(await counts()).toEqual({ ...afterCreate, tenant_audit_events: afterCreate.tenant_audit_events! + 1 });
+    const audit = await auditActions(sql, tenantId);
+    expect(audit.slice(-2).map((entry) => [entry.action, entry.entity_type])).toEqual([
+      ["inventory.item.create", "inventory_item"],
+      ["inventory.item.update", "inventory_item"],
+    ]);
   });
 });

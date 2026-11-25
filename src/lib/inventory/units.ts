@@ -1,7 +1,13 @@
 import { and, count, eq, isNull, or } from "drizzle-orm";
 
 import type { DbClient } from "@/db/client";
-import { type InventoryUnitRecord, inventoryItemConversions, inventoryItems, inventoryUnits } from "@/db/schema";
+import {
+  type InventoryUnitRecord,
+  inventoryItemConversions,
+  inventoryItemReferenceCosts,
+  inventoryItems,
+  inventoryUnits,
+} from "@/db/schema";
 import { auditActorClassFromStaffRole, recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import { InventoryConflictError, InventoryError } from "@/lib/inventory/errors";
 import {
@@ -33,7 +39,8 @@ import { withTenantContext } from "@/lib/tenant/context";
    immutable after create (audit, previews and future movement snapshots
    quote it), and renames only change the display names. Standard units are
    opt-in rows tied to the constants in standard-units.ts. Units are never
-   deleted; archiving is refused while an item or current rule uses one. */
+   deleted; archiving is refused while an item, a current rule or a current
+   reference cost (QOS-197) uses one. */
 
 export const UNIT_NAME_MAX_LENGTH = 80;
 const CODE_PATTERN = /^[a-z0-9][a-z0-9_-]{0,23}$/;
@@ -48,7 +55,8 @@ export type StandardUnitView = {
   alreadyAdded: string | null;
 };
 
-export type UnitUsage = { itemDesignations: number; currentRules: number };
+/** QOS-197 adds `currentCosts`: current item reference costs priced per this unit. */
+export type UnitUsage = { itemDesignations: number; currentRules: number; currentCosts: number };
 
 export type CreateUnitInput =
   | {
@@ -127,7 +135,17 @@ export async function loadUnitUsageInTx(tx: DbClient, tenantId: string, unitId: 
         or(eq(inventoryItemConversions.fromUnitId, unitId), eq(inventoryItemConversions.toUnitId, unitId)),
       ),
     );
-  return { itemDesignations: designations?.value ?? 0, currentRules: rules?.value ?? 0 };
+  const [costs] = await tx
+    .select({ value: count() })
+    .from(inventoryItemReferenceCosts)
+    .where(
+      and(
+        eq(inventoryItemReferenceCosts.tenantId, tenantId),
+        eq(inventoryItemReferenceCosts.unitId, unitId),
+        isNull(inventoryItemReferenceCosts.effectiveTo),
+      ),
+    );
+  return { itemDesignations: designations?.value ?? 0, currentRules: rules?.value ?? 0, currentCosts: costs?.value ?? 0 };
 }
 
 function standardUnitViews(units: InventoryUnitRecord[]): StandardUnitView[] {
@@ -330,9 +348,9 @@ export async function updateUnit(
     const nextStatus = validated.status ?? unit.status;
     if (nextStatus === "archived" && unit.status !== "archived") {
       const usage = await loadUnitUsageInTx(tx, tenantId, unit.id);
-      if (usage.itemDesignations > 0 || usage.currentRules > 0) {
+      if (usage.itemDesignations > 0 || usage.currentRules > 0 || usage.currentCosts > 0) {
         throw new InventoryConflictError(
-          "This unit is used by an item or a current conversion and cannot be archived.",
+          "This unit is used by an item, a current conversion or a current cost and cannot be archived.",
           "unit_in_use",
           "status",
         );

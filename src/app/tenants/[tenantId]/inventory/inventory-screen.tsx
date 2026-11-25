@@ -2,37 +2,52 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  categoryName,
+  COST_STATUS_LABEL,
   inventoryApi,
   inventoryPath,
   localName,
   QUANTITY_KIND_LABEL,
 } from "@/app/tenants/[tenantId]/inventory/inventory-client";
+import { DEFAULT_ITEM_FILTERS, filterItems, type ItemFilters } from "@/app/tenants/[tenantId]/inventory/inventory-filters";
 import { type InventoryTab, inventoryTabFrom } from "@/app/tenants/[tenantId]/inventory/inventory-tabs";
 import { usePortalShell } from "@/components/portal/portal-shell-context";
 import {
   PortalArea,
   PortalBadge,
+  PortalField,
   PortalFilterTabs,
   PortalNotice,
   PortalPageHeader,
   PortalPanel,
+  PortalSearchField,
 } from "@/components/portal/workspace/PortalWorkspace";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
+import type { CategorySummaryView } from "@/lib/inventory/categories";
+import type { ItemCostStatus } from "@/lib/inventory/cost-completeness";
 import type { ItemSummaryView } from "@/lib/inventory/items";
 import type { SupplierView, UnitView } from "@/lib/inventory/shared";
 import type { WarehouseView } from "@/lib/inventory/warehouses";
-import { staffCount, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
+import { isolateText } from "@/lib/staff/branch-copy";
+import { staffCopyWith, staffCount, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 
 /* Inventory > Ingredients and stock (QOS-195): tenant-wide units and items,
-   plus suppliers and branch warehouses (QOS-196). Lists come from the
-   inventory API; administrators get the add actions for the open tab, other
-   members a read-only notice. Stock levels, categories and costs are later
-   leaves and are named, not simulated. */
+   plus suppliers and branch warehouses (QOS-196) and categories and the item
+   cost status (QOS-197). Lists come from the inventory API; administrators
+   get the add actions for the open tab, other members a read-only notice.
+   Item search and filters run on the loaded list (pilot lists are small).
+   Stock levels are a later leaf and are named, not simulated. */
 
-type Loaded = { items: ItemSummaryView[]; units: UnitView[]; suppliers: SupplierView[]; warehouses: WarehouseView[] };
+type Loaded = {
+  items: ItemSummaryView[];
+  units: UnitView[];
+  categories: CategorySummaryView[];
+  suppliers: SupplierView[];
+  warehouses: WarehouseView[];
+};
 
 export function InventoryScreen({ tenantId, initialTab }: { tenantId: string; initialTab: InventoryTab }) {
   const { locale } = useStaffLocale();
@@ -45,13 +60,14 @@ export function InventoryScreen({ tenantId, initialTab }: { tenantId: string; in
   const isAdministrator = branch.role === "administrator";
 
   const load = useCallback(async () => {
-    const [items, units, suppliers, warehouses] = await Promise.all([
+    const [items, units, categories, suppliers, warehouses] = await Promise.all([
       inventoryApi<{ items: ItemSummaryView[] }>(`/api/tenants/${tenantId}/inventory/items`),
       inventoryApi<{ units: UnitView[] }>(`/api/tenants/${tenantId}/inventory/units`),
+      inventoryApi<{ categories: CategorySummaryView[] }>(`/api/tenants/${tenantId}/inventory/categories`),
       inventoryApi<{ suppliers: SupplierView[] }>(`/api/tenants/${tenantId}/inventory/suppliers`),
       inventoryApi<{ warehouses: WarehouseView[] }>(`/api/tenants/${tenantId}/inventory/warehouses`),
     ]);
-    if (!items.ok || !units.ok || !suppliers.ok || !warehouses.ok) {
+    if (!items.ok || !units.ok || !categories.ok || !suppliers.ok || !warehouses.ok) {
       setFailed(true);
       return;
     }
@@ -59,6 +75,7 @@ export function InventoryScreen({ tenantId, initialTab }: { tenantId: string; in
     setData({
       items: items.data.items,
       units: units.data.units,
+      categories: categories.data.categories,
       suppliers: suppliers.data.suppliers,
       warehouses: warehouses.data.warehouses,
     });
@@ -98,6 +115,7 @@ export function InventoryScreen({ tenantId, initialTab }: { tenantId: string; in
           tabs={[
             { id: "items", label: t("inventoryItemsTab"), count: data?.items.length },
             { id: "units", label: t("inventoryUnitsTab"), count: data?.units.length },
+            { id: "categories", label: t("inventoryCategoriesTab"), count: data?.categories.length },
             { id: "suppliers", label: t("inventorySuppliersTab"), count: data?.suppliers.length },
             { id: "warehouses", label: t("inventoryWarehousesTab"), count: data?.warehouses.length },
           ]}
@@ -113,9 +131,11 @@ export function InventoryScreen({ tenantId, initialTab }: { tenantId: string; in
               </p>
             </PortalPanel>
           ) : tab === "items" ? (
-            <ItemsList tenantId={tenantId} items={data.items} />
+            <ItemsList tenantId={tenantId} items={data.items} categories={data.categories} />
           ) : tab === "units" ? (
             <UnitsList tenantId={tenantId} units={data.units} canEdit={isAdministrator} />
+          ) : tab === "categories" ? (
+            <CategoriesList tenantId={tenantId} categories={data.categories} />
           ) : tab === "suppliers" ? (
             <SuppliersList tenantId={tenantId} suppliers={data.suppliers} />
           ) : (
@@ -145,16 +165,32 @@ function TabActions({ tenantId, tab }: { tenantId: string; tab: InventoryTab }) 
               link("/units/new?source=standard", "addStandardUnit"),
               link("/units/new?source=custom", "addCustomUnit", "secondary"),
             ]
-          : tab === "suppliers"
-            ? link("/suppliers/new", "addSupplier")
-            : link("/warehouses/new", "addWarehouse")}
+          : tab === "categories"
+            ? link("/categories/new", "addCategory")
+            : tab === "suppliers"
+              ? link("/suppliers/new", "addSupplier")
+              : link("/warehouses/new", "addWarehouse")}
     </div>
   );
 }
 
-function ItemsList({ tenantId, items }: { tenantId: string; items: ItemSummaryView[] }) {
+function ItemsList({
+  tenantId,
+  items,
+  categories,
+}: {
+  tenantId: string;
+  items: ItemSummaryView[];
+  categories: CategorySummaryView[];
+}) {
   const { locale } = useStaffLocale();
   const t = (key: StaffUiCopyKey) => staffUiCopy(locale, key);
+  const [filters, setFilters] = useState<ItemFilters>(DEFAULT_ITEM_FILTERS);
+  const shown = useMemo(() => filterItems(items, filters), [items, filters]);
+  const categoryLabel = (category: CategorySummaryView) => {
+    const name = locale === "ar" && category.nameAr ? category.nameAr : category.nameEn;
+    return category.status === "archived" ? `${name} · ${t("inventoryStatusArchived")}` : name;
+  };
 
   return (
     <PortalPanel>
@@ -165,47 +201,152 @@ function ItemsList({ tenantId, items }: { tenantId: string; items: ItemSummaryVi
           <PortalNotice tone="info">{t("inventoryItemsEmpty")}</PortalNotice>
         </div>
       ) : (
-        <ul className="qosp-branch-list qosp-panel-body" aria-label={t("inventoryItemsTab")}>
-          {items.map((item) => {
-            const name = localName(locale, item.nameEn, item.nameAr);
-            return (
-              <li key={item.publicId} className="qosp-branch-row qosp-subcard">
-                <div className="qosp-branch-row-main">
-                  <strong className="qosp-branch-row-name" dir={name.dir}>
-                    {name.text}
-                  </strong>
-                  <span>{t(item.kind === "prepared" ? "itemKindPrepared" : "itemKindPurchased")}</span>
-                </div>
-                <dl className="qosp-branch-row-main qosp-inventory-units">
-                  <UnitCode label={t("storageUnit")} code={item.storageUnitCode} />
-                  <UnitCode label={t("recipeUnit")} code={item.recipeUnitCode} />
-                  <UnitCode label={t("purchaseUnit")} code={item.purchaseUnitCode} />
-                </dl>
-                <div className="qosp-branch-row-status">
-                  <span className="qosp-branch-row-label">{staffCount(locale, "conversionRules", item.currentRuleCount)}</span>
-                  {item.previewStatus === "none" ? null : (
-                    <PortalBadge tone={item.previewStatus === "complete" ? "positive" : "warm"} wrap>
-                      {t(item.previewStatus === "complete" ? "previewComplete" : "previewIncomplete")}
-                    </PortalBadge>
-                  )}
-                  {item.status === "archived" ? <PortalBadge tone="neutral">{t("inventoryStatusArchived")}</PortalBadge> : null}
-                </div>
-                <div className="qosp-branch-row-status">
-                  <Link
-                    className="qos-btn"
-                    data-variant="secondary"
-                    data-size="sm"
-                    href={inventoryPath(tenantId, `/items/${item.publicId}`)}
-                  >
-                    {t("openItem")}
-                  </Link>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
+        <>
+          <div className="qosp-panel-body qosp-inventory-filters">
+            <div className="qosp-field">
+              <span className="qosp-field-label" aria-hidden="true">
+                {t("inventoryFilterSearch")}
+              </span>
+              <PortalSearchField
+                label={t("inventoryFilterSearch")}
+                placeholder={t("inventoryFilterSearchPlaceholder")}
+                value={filters.query}
+                onChange={(event) => setFilters({ ...filters, query: event.target.value })}
+              />
+            </div>
+            <PortalField label={t("inventoryFilterKind")}>
+              <select
+                className="qos-input"
+                value={filters.kind}
+                onChange={(event) => setFilters({ ...filters, kind: event.target.value as ItemFilters["kind"] })}
+              >
+                <option value="all">{t("inventoryFilterAll")}</option>
+                <option value="purchased">{t("itemKindPurchased")}</option>
+                <option value="prepared">{t("itemKindPrepared")}</option>
+              </select>
+            </PortalField>
+            <PortalField label={t("itemCategory")}>
+              <select
+                className="qos-input"
+                value={filters.category}
+                onChange={(event) => setFilters({ ...filters, category: event.target.value })}
+              >
+                <option value="all">{t("inventoryFilterAll")}</option>
+                <option value="none">{t("itemCategoryNone")}</option>
+                {categories.map((category) => (
+                  <option key={category.publicId} value={category.publicId}>
+                    {categoryLabel(category)}
+                  </option>
+                ))}
+              </select>
+            </PortalField>
+            <PortalField label={t("inventoryFilterStatus")}>
+              <select
+                className="qos-input"
+                value={filters.status}
+                onChange={(event) => setFilters({ ...filters, status: event.target.value as ItemFilters["status"] })}
+              >
+                <option value="active">{t("inventoryStatusActive")}</option>
+                <option value="archived">{t("inventoryStatusArchived")}</option>
+                <option value="all">{t("inventoryFilterAll")}</option>
+              </select>
+            </PortalField>
+            <PortalField label={t("inventoryFilterCost")}>
+              <select
+                className="qos-input"
+                value={filters.cost}
+                onChange={(event) => setFilters({ ...filters, cost: event.target.value as ItemFilters["cost"] })}
+              >
+                <option value="all">{t("inventoryFilterAll")}</option>
+                {(Object.keys(COST_STATUS_LABEL) as ItemCostStatus[]).map((status) => (
+                  <option key={status} value={status}>
+                    {t(COST_STATUS_LABEL[status])}
+                  </option>
+                ))}
+              </select>
+            </PortalField>
+          </div>
+          <p className="qosp-meta-line qosp-panel-body" role="status">
+            {staffCopyWith(locale, "inventoryItemsShown", {
+              shown: isolateText(String(shown.length)),
+              total: isolateText(String(items.length)),
+            })}
+          </p>
+          {shown.length === 0 ? (
+            <div className="qosp-panel-body">
+              <PortalNotice tone="info">{t("inventoryFilterNoMatch")}</PortalNotice>
+            </div>
+          ) : (
+            <ul className="qosp-branch-list qosp-panel-body" aria-label={t("inventoryItemsTab")}>
+              {shown.map((item) => (
+                <ItemRow key={item.publicId} tenantId={tenantId} item={item} categories={categories} />
+              ))}
+            </ul>
+          )}
+        </>
       )}
     </PortalPanel>
+  );
+}
+
+function ItemRow({
+  tenantId,
+  item,
+  categories,
+}: {
+  tenantId: string;
+  item: ItemSummaryView;
+  categories: CategorySummaryView[];
+}) {
+  const { locale } = useStaffLocale();
+  const t = (key: StaffUiCopyKey) => staffUiCopy(locale, key);
+  const name = localName(locale, item.nameEn, item.nameAr);
+  const category = categoryName(locale, categories, item.categoryPublicId);
+  return (
+    <li className="qosp-branch-row qosp-subcard">
+      <div className="qosp-branch-row-main">
+        <strong className="qosp-branch-row-name" dir={name.dir}>
+          {name.text}
+        </strong>
+        <span>{t(item.kind === "prepared" ? "itemKindPrepared" : "itemKindPurchased")}</span>
+        {category ? (
+          <span className="qosp-meta-line">
+            {t("itemCategory")}: <bdi dir={category.dir}>{category.text}</bdi>
+          </span>
+        ) : null}
+      </div>
+      <dl className="qosp-branch-row-main qosp-inventory-units">
+        <UnitCode label={t("storageUnit")} code={item.storageUnitCode} />
+        <UnitCode label={t("recipeUnit")} code={item.recipeUnitCode} />
+        <UnitCode label={t("purchaseUnit")} code={item.purchaseUnitCode} />
+      </dl>
+      <div className="qosp-branch-row-status">
+        <span className="qosp-branch-row-label">{staffCount(locale, "conversionRules", item.currentRuleCount)}</span>
+        {item.previewStatus === "none" ? null : (
+          <PortalBadge tone={item.previewStatus === "complete" ? "positive" : "warm"} wrap>
+            {t(item.previewStatus === "complete" ? "previewComplete" : "previewIncomplete")}
+          </PortalBadge>
+        )}
+        <PortalBadge tone={item.costStatus === "known" ? "positive" : "warm"} wrap>
+          {t(COST_STATUS_LABEL[item.costStatus])}
+        </PortalBadge>
+        {item.costSummary ? (
+          <span className="qosp-inventory-cost-amount">
+            {staffCopyWith(locale, "costCurrentLine", {
+              amount: isolateText(item.costSummary.amount),
+              currency: isolateText(item.costSummary.currency),
+              unit: isolateText(item.costSummary.unitCode),
+            })}
+          </span>
+        ) : null}
+        {item.status === "archived" ? <PortalBadge tone="neutral">{t("inventoryStatusArchived")}</PortalBadge> : null}
+      </div>
+      <div className="qosp-branch-row-status">
+        <Link className="qos-btn" data-variant="secondary" data-size="sm" href={inventoryPath(tenantId, `/items/${item.publicId}`)}>
+          {t("openItem")}
+        </Link>
+      </div>
+    </li>
   );
 }
 
@@ -269,6 +410,54 @@ function UnitsList({ tenantId, units, canEdit }: { tenantId: string; units: Unit
               </div>
             </li>
           ))}
+        </ul>
+      )}
+    </PortalPanel>
+  );
+}
+
+function CategoriesList({ tenantId, categories }: { tenantId: string; categories: CategorySummaryView[] }) {
+  const { locale } = useStaffLocale();
+  const t = (key: StaffUiCopyKey) => staffUiCopy(locale, key);
+
+  return (
+    <PortalPanel>
+      <h2 className="qosp-panel-title">{t("inventoryCategoriesTab")}</h2>
+      <p className="qosp-panel-help">{staffCount(locale, "inventoryCategories", categories.length)}</p>
+      {categories.length === 0 ? (
+        <div className="qosp-panel-body">
+          <PortalNotice tone="info">{t("inventoryCategoriesEmpty")}</PortalNotice>
+        </div>
+      ) : (
+        <ul className="qosp-branch-list qosp-panel-body" aria-label={t("inventoryCategoriesTab")}>
+          {categories.map((category) => {
+            const name = localName(locale, category.nameEn, category.nameAr);
+            return (
+              <li key={category.publicId} className="qosp-branch-row qosp-subcard">
+                <div className="qosp-branch-row-main">
+                  <strong className="qosp-branch-row-name" dir={name.dir}>
+                    {name.text}
+                  </strong>
+                  <span className="qosp-branch-row-label">{staffCount(locale, "inventoryItems", category.itemCount)}</span>
+                </div>
+                <div className="qosp-branch-row-status">
+                  <PortalBadge tone={category.status === "active" ? "positive" : "danger"}>
+                    {t(category.status === "active" ? "inventoryStatusActive" : "inventoryStatusArchived")}
+                  </PortalBadge>
+                </div>
+                <div className="qosp-branch-row-status">
+                  <Link
+                    className="qos-btn"
+                    data-variant="secondary"
+                    data-size="sm"
+                    href={inventoryPath(tenantId, `/categories/${category.publicId}`)}
+                  >
+                    {t("openCategory")}
+                  </Link>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </PortalPanel>

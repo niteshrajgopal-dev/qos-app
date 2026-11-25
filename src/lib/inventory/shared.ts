@@ -2,15 +2,24 @@ import { and, asc, eq } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type { DbClient } from "@/db/client";
-import { type InventorySupplierRecord, type InventoryUnitRecord, inventorySuppliers, inventoryUnits, tenants } from "@/db/schema";
+import {
+  type InventoryCategoryRecord,
+  type InventorySupplierRecord,
+  type InventoryUnitRecord,
+  inventoryCategories,
+  inventorySuppliers,
+  inventoryUnits,
+  tenants,
+} from "@/db/schema";
 import { calendarDateInTimeZone, isCalendarDate } from "@/lib/catalogue/selling-tax-cost";
 import { InventoryConflictError, InventoryError } from "@/lib/inventory/errors";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 
-/* Helpers shared by the QOS-195 unit, item and conversion services and the
-   QOS-196 supplier and warehouse services. */
+/* Helpers shared by the QOS-195 unit, item and conversion services, the
+   QOS-196 supplier and warehouse services and the QOS-197 category and
+   reference-cost services. */
 
-/** Units, items, conversions, suppliers and warehouses are master data that feed costing (D14 assumption). */
+/** Units, items, categories, costs, conversions, suppliers and warehouses are master data that feed costing (D14 assumption). */
 export function requireInventoryAdministrator(membership: ActiveStaffMembership) {
   if (membership.role !== "administrator") {
     throw new InventoryError(
@@ -315,6 +324,72 @@ export async function loadSupplierByPublicIdInTx(
     .for(lock);
   if (!row) {
     throw new InventoryError("Supplier not found.", 404, "supplier_not_found", field);
+  }
+  return row;
+}
+
+/* QOS-197 inventory categories. */
+
+export const ITEM_NOTES_MAX_LENGTH = 1000;
+
+/** Item notes: same rules and limit as supplier notes. */
+export function parseOptionalNotes(value: unknown, field = "notes"): string | null {
+  return parseOptionalText(value, field, ITEM_NOTES_MAX_LENGTH);
+}
+
+export type CategoryView = {
+  publicId: string;
+  nameEn: string;
+  nameAr: string | null;
+  status: InventoryCategoryRecord["status"];
+  version: number;
+  provenance: InventoryCategoryRecord["provenance"];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export function toCategoryView(row: InventoryCategoryRecord): CategoryView {
+  return {
+    publicId: row.publicId,
+    nameEn: row.nameEn,
+    nameAr: row.nameAr,
+    status: row.status,
+    version: row.version,
+    provenance: row.provenance,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  };
+}
+
+export async function loadTenantCategoriesInTx(tx: DbClient, tenantId: string): Promise<InventoryCategoryRecord[]> {
+  return tx
+    .select()
+    .from(inventoryCategories)
+    .where(eq(inventoryCategories.tenantId, tenantId))
+    .orderBy(asc(inventoryCategories.nameEn), asc(inventoryCategories.publicId));
+}
+
+export async function loadCategoryByPublicIdInTx(
+  tx: DbClient,
+  tenantId: string,
+  publicId: unknown,
+  field = "categoryPublicId",
+  lock: "share" | "update" = "share",
+): Promise<InventoryCategoryRecord> {
+  if (typeof publicId !== "string" || !publicId) {
+    throw new InventoryError("Category not found.", 404, "category_not_found", field);
+  }
+  // Same locking rule as units and suppliers: item writers share-lock,
+  // archive update-locks, so a category cannot be archived while a new item
+  // assignment commits.
+  const [row] = await tx
+    .select()
+    .from(inventoryCategories)
+    .where(and(eq(inventoryCategories.tenantId, tenantId), eq(inventoryCategories.publicId, publicId)))
+    .limit(1)
+    .for(lock);
+  if (!row) {
+    throw new InventoryError("Category not found.", 404, "category_not_found", field);
   }
   return row;
 }

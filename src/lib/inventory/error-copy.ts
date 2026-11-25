@@ -1,6 +1,6 @@
 import type { StaffLocale } from "@/lib/staff/locale";
 
-/* QOS-195 and QOS-196 staff copy for inventory API error codes. The API message stays
+/* QOS-195, QOS-196 and QOS-197 staff copy for inventory API error codes. The API message stays
    English for logs and API clients; the staff UI shows this copy instead. */
 
 type Bilingual = Record<StaffLocale, string>;
@@ -36,8 +36,8 @@ export const INVENTORY_ERROR_COPY = {
     ar: "لا يمكن تغيير الرمز بعد إنشاء الوحدة. أعد تسمية الوحدة بدلًا من ذلك.",
   },
   unit_in_use: {
-    en: "This unit is used by an item or a current conversion and cannot be archived.",
-    ar: "هذه الوحدة مستخدمة في صنف أو تحويل حالي ولا يمكن أرشفتها.",
+    en: "This unit is used by an item, a current conversion or a current cost and cannot be archived.",
+    ar: "هذه الوحدة مستخدمة في صنف أو تحويل حالي أو تكلفة حالية ولا يمكن أرشفتها.",
   },
   unit_not_found: { en: "This unit was not found.", ar: "لم يتم العثور على هذه الوحدة." },
   unit_archived: {
@@ -46,8 +46,12 @@ export const INVENTORY_ERROR_COPY = {
   },
   item_not_found: { en: "This item was not found.", ar: "لم يتم العثور على هذا الصنف." },
   item_archived: {
-    en: "This item is archived. Restore it to change its conversions.",
-    ar: "هذا الصنف مؤرشف. استعده لتغيير تحويلاته.",
+    en: "This item is archived. Restore it to change its conversions or cost.",
+    ar: "هذا الصنف مؤرشف. استعده لتغيير تحويلاته أو تكلفته.",
+  },
+  item_in_use: {
+    en: "This item is still in use and cannot be archived.",
+    ar: "هذا الصنف لا يزال مستخدمًا ولا يمكن أرشفته.",
   },
   kind_invalid: { en: "Choose purchased or prepared.", ar: "اختر مشترى أو محضّر." },
   status_invalid: { en: "Choose active or archived.", ar: "اختر نشط أو مؤرشف." },
@@ -152,6 +156,50 @@ export const INVENTORY_ERROR_COPY = {
   location_immutable: {
     en: "A warehouse stays with its branch so stock history remains traceable. Archive it and add a warehouse at the other branch.",
     ar: "يبقى المستودع مع فرعه ليظل سجل المخزون قابلًا للتتبع. أرشفه وأضف مستودعًا في الفرع الآخر.",
+  },
+  category_not_found: { en: "This category was not found.", ar: "لم يتم العثور على هذه الفئة." },
+  category_archived: {
+    en: "This category is archived. Restore it before choosing it.",
+    ar: "هذه الفئة مؤرشفة. استعدها قبل اختيارها.",
+  },
+  category_in_use: {
+    en: "Active items are still in this category. Move or archive them first.",
+    ar: "لا تزال أصناف نشطة في هذه الفئة. انقلها أو أرشفها أولًا.",
+  },
+  category_name_taken: {
+    en: "Another active category already has this English name.",
+    ar: "توجد فئة نشطة أخرى بهذا الاسم الإنجليزي بالفعل.",
+  },
+  amount_required: {
+    en: "Enter an amount. A blank cost stays unknown; enter 0 only for a free item.",
+    ar: "أدخل مبلغًا. تبقى التكلفة الفارغة غير معروفة؛ أدخل 0 فقط لصنف مجاني.",
+  },
+  amount_invalid: {
+    en: "Enter the amount as a plain decimal number, for example 12.5.",
+    ar: "أدخل المبلغ كرقم عشري بسيط، مثل 12.5.",
+  },
+  amount_negative: { en: "The amount cannot be negative.", ar: "لا يمكن أن يكون المبلغ سالبًا." },
+  amount_too_precise: {
+    en: "The amount can have at most 6 decimal places. It is not rounded.",
+    ar: "يمكن أن يحتوي المبلغ على 6 منازل عشرية على الأكثر. لا يتم تقريبه.",
+  },
+  currency_not_supported: {
+    en: "Only this business's currency is accepted.",
+    ar: "تُقبل عملة هذا النشاط فقط.",
+  },
+  cost_unit_not_designated: {
+    en: "A cost must be per the item's storage, recipe or purchase unit. Set those units first.",
+    ar: "يجب أن تكون التكلفة لكل وحدة تخزين أو وصفة أو شراء للصنف. حدّد هذه الوحدات أولًا.",
+  },
+  tax_basis_invalid: { en: "Choose net, gross or unconfirmed.", ar: "اختر صافيًا أو شاملًا أو غير مؤكد." },
+  cost_source_invalid: {
+    en: "Choose manual estimate, supplier quote or invoice.",
+    ar: "اختر تقديرًا يدويًا أو عرض سعر مورّد أو فاتورة.",
+  },
+  reference_cost_not_found: { en: "This cost was not found.", ar: "لم يتم العثور على هذه التكلفة." },
+  reference_cost_not_current: {
+    en: "This cost version is no longer current. Reload to see the current cost.",
+    ar: "لم يعد إصدار التكلفة هذا حاليًا. أعد التحميل لعرض التكلفة الحالية.",
   },
   branch_not_permitted: { en: "Your membership does not include this branch.", ar: "لا تتضمن عضويتك هذا الفرع." },
 } as const satisfies Record<string, Bilingual>;

@@ -4391,6 +4391,45 @@ export const inventorySuppliers = qos.table(
   ],
 );
 
+/* QOS-197 inventory categories (0062). Flat; identity is the public id. At
+   most one active category per tenant has a given English name (case and
+   outer spaces ignored). Archive only. */
+export const inventoryCategories = qos.table(
+  "inventory_categories",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    nameEn: text("name_en").notNull(),
+    nameAr: text("name_ar"),
+    status: text("status").notNull().default("active").$type<"active" | "archived">(),
+    version: integer("version").notNull().default(1),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("inventory_categories_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("inventory_categories_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    uniqueIndex("inventory_categories_active_name_unique")
+      .on(table.tenantId, sql`lower(btrim(${table.nameEn}))`)
+      .where(sql`status = 'active'`),
+    index("inventory_categories_tenant_id_idx").on(table.tenantId),
+    check("inventory_categories_public_id_check", sql`${table.publicId} ~ '^invcat_[a-z0-9_-]+$'`),
+    check("inventory_categories_name_en_check", sql`char_length(btrim(${table.nameEn})) BETWEEN 1 AND 120`),
+    check(
+      "inventory_categories_name_ar_check",
+      sql`${table.nameAr} IS NULL OR char_length(btrim(${table.nameAr})) BETWEEN 1 AND 120`,
+    ),
+    check("inventory_categories_status_check", sql`${table.status} IN ('active', 'archived')`),
+    check("inventory_categories_version_check", sql`${table.version} >= 1`),
+  ],
+);
+
 export const inventoryItems = qos.table(
   "inventory_items",
   {
@@ -4407,6 +4446,10 @@ export const inventoryItems = qos.table(
     purchaseUnitId: uuid("purchase_unit_id"),
     /** QOS-196: the supplier proposed on a direct receipt of this item. */
     defaultSupplierId: uuid("default_supplier_id"),
+    /** QOS-197: optional flat inventory category (composite FK, same tenant). */
+    categoryId: uuid("category_id"),
+    /** QOS-197: preparation or procurement notes. */
+    notes: text("notes"),
     status: text("status").notNull().default("active").$type<"active" | "archived">(),
     version: integer("version").notNull().default(1),
     provenance: dataProvenanceEnum("provenance").notNull(),
@@ -4438,8 +4481,15 @@ export const inventoryItems = qos.table(
       columns: [table.tenantId, table.defaultSupplierId],
       foreignColumns: [inventorySuppliers.tenantId, inventorySuppliers.id],
     }).onDelete("restrict"),
+    foreignKey({
+      name: "inventory_items_category_fk",
+      columns: [table.tenantId, table.categoryId],
+      foreignColumns: [inventoryCategories.tenantId, inventoryCategories.id],
+    }).onDelete("restrict"),
     index("inventory_items_tenant_id_idx").on(table.tenantId),
     index("inventory_items_tenant_default_supplier_idx").on(table.tenantId, table.defaultSupplierId),
+    index("inventory_items_tenant_category_idx").on(table.tenantId, table.categoryId),
+    check("inventory_items_notes_check", sql`${table.notes} IS NULL OR char_length(${table.notes}) <= 1000`),
     check("inventory_items_public_id_check", sql`${table.publicId} ~ '^item_[a-z0-9_-]+$'`),
     check("inventory_items_name_en_check", sql`char_length(btrim(${table.nameEn})) BETWEEN 1 AND 120`),
     check(
@@ -4514,6 +4564,72 @@ export const inventoryItemConversions = qos.table(
   ],
 );
 
+/* QOS-197 dated item reference costs (0062). Append-only version rows like
+   conversions: qos_app may only set effective_to. No current row means the
+   cost is unknown; a known zero is an explicit amount_micros = 0. Separate
+   from the catalogue reference-cost policies and from any stock valuation. */
+export const inventoryItemReferenceCosts = qos.table(
+  "inventory_item_reference_costs",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    publicId: text("public_id").notNull(),
+    itemId: uuid("item_id").notNull(),
+    /** One of the item's designated units; the amount is per 1 of this unit. */
+    unitId: uuid("unit_id").notNull(),
+    /** Exact amount in micros of the major currency unit (6 decimal places). */
+    amountMicros: bigint("amount_micros", { mode: "bigint" }).notNull(),
+    currency: char("currency", { length: 3 }).notNull(),
+    taxBasis: text("tax_basis").notNull().$type<"net" | "gross" | "unconfirmed">(),
+    source: text("source").notNull().$type<"manual" | "supplier_quote" | "invoice">(),
+    sourceReference: text("source_reference"),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveTo: date("effective_to"),
+    revision: integer("revision").notNull(),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+  },
+  (table) => [
+    unique("inventory_item_reference_costs_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    unique("inventory_item_reference_costs_revision_unique").on(table.tenantId, table.itemId, table.revision),
+    foreignKey({
+      name: "inventory_item_reference_costs_item_fk",
+      columns: [table.tenantId, table.itemId],
+      foreignColumns: [inventoryItems.tenantId, inventoryItems.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "inventory_item_reference_costs_unit_fk",
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    uniqueIndex("inventory_item_reference_costs_current_unique")
+      .on(table.tenantId, table.itemId)
+      .where(sql`effective_to IS NULL`),
+    index("inventory_item_reference_costs_tenant_item_idx").on(table.tenantId, table.itemId),
+    check("inventory_item_reference_costs_public_id_check", sql`${table.publicId} ~ '^cost_[a-z0-9_-]+$'`),
+    check("inventory_item_reference_costs_amount_check", sql`${table.amountMicros} >= 0`),
+    check("inventory_item_reference_costs_currency_check", sql`${table.currency} ~ '^[A-Z]{3}$'`),
+    check(
+      "inventory_item_reference_costs_tax_basis_check",
+      sql`${table.taxBasis} IN ('net', 'gross', 'unconfirmed')`,
+    ),
+    check(
+      "inventory_item_reference_costs_source_check",
+      sql`${table.source} IN ('manual', 'supplier_quote', 'invoice')`,
+    ),
+    check(
+      "inventory_item_reference_costs_source_reference_check",
+      sql`${table.sourceReference} IS NULL OR char_length(${table.sourceReference}) <= 200`,
+    ),
+    check(
+      "inventory_item_reference_costs_dates_check",
+      sql`${table.effectiveTo} IS NULL OR ${table.effectiveTo} >= ${table.effectiveFrom}`,
+    ),
+    check("inventory_item_reference_costs_revision_check", sql`${table.revision} >= 1`),
+  ],
+);
+
 /* QOS-196 branch warehouses (0061). A warehouse belongs to exactly one
    location of its tenant (composite FK); the location never changes after
    create and at most one active warehouse exists per location. */
@@ -4569,6 +4685,8 @@ export type InventoryItemRecord = typeof inventoryItems.$inferSelect;
 export type InventoryItemConversionRecord = typeof inventoryItemConversions.$inferSelect;
 export type InventorySupplierRecord = typeof inventorySuppliers.$inferSelect;
 export type InventoryWarehouseRecord = typeof inventoryWarehouses.$inferSelect;
+export type InventoryCategoryRecord = typeof inventoryCategories.$inferSelect;
+export type InventoryItemReferenceCostRecord = typeof inventoryItemReferenceCosts.$inferSelect;
 
 export const schema = {
   tenants,

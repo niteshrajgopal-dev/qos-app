@@ -1396,3 +1396,38 @@ article.qosp-subcard > .qosp-button-row {
 .qosp-inventory-notices {
   margin-top: 16px;
 }
+
+/* ---------- Inventory categories, filters and reference costs (QOS-197) ----------
+   The item filters sit in a grid that stacks to one column at the portal's
+   mobile breakpoint. Cost amounts are isolated LTR runs in normal body size
+   that wrap instead of widening the row at 360px. */
+.qosp-inventory-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px 16px;
+  min-width: 0;
+}
+.qosp-inventory-filters > :first-child {
+  grid-column: 1 / -1;
+}
+.qosp-inventory-filters .qosp-search-field {
+  width: min(100%, 420px);
+}
+.qosp-inventory-cost-amount {
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.qosp-inventory-cost-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+@media (max-width: 680px) {
+  .qosp-inventory-filters {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

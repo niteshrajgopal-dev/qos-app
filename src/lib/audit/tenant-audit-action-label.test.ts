@@ -34,7 +34,7 @@ describe("tenantAuditActionLabel", () => {
     );
   });
 
-  it("labels every QOS-195 and QOS-196 inventory action, entity and the inventory area in both languages", () => {
+  it("labels every QOS-195, QOS-196 and QOS-197 inventory action, entity and the inventory area in both languages", () => {
     const actions = [
       "inventory.unit.create",
       "inventory.unit.update",
@@ -55,6 +55,13 @@ describe("tenantAuditActionLabel", () => {
       "inventory.warehouse.update",
       "inventory.warehouse.archive",
       "inventory.warehouse.restore",
+      "inventory.category.create",
+      "inventory.category.update",
+      "inventory.category.archive",
+      "inventory.category.restore",
+      "inventory.reference_cost.create",
+      "inventory.reference_cost.revise",
+      "inventory.reference_cost.close",
     ];
     const english = actions.map((action) => tenantAuditActionLabel(action, "en"));
     const arabic = actions.map((action) => tenantAuditActionLabel(action, "ar"));
@@ -77,6 +84,14 @@ describe("tenantAuditActionLabel", () => {
     expect(tenantAuditEntityLabel("inventory_supplier", "ar")).toBe("مورّد");
     expect(tenantAuditEntityLabel("inventory_warehouse", "en")).toBe("Warehouse");
     expect(tenantAuditEntityLabel("inventory_warehouse", "ar")).toBe("مستودع");
+    expect(tenantAuditActionLabel("inventory.category.archive", "en")).toBe("Inventory category archived");
+    expect(tenantAuditActionLabel("inventory.category.restore", "ar")).toBe("تمت استعادة فئة مخزون");
+    expect(tenantAuditActionLabel("inventory.reference_cost.revise", "en")).toBe("Item reference cost changed (new dated version)");
+    expect(tenantAuditActionLabel("inventory.reference_cost.close", "ar")).toBe("تم مسح التكلفة المرجعية لصنف");
+    expect(tenantAuditEntityLabel("inventory_category", "en")).toBe("Inventory category");
+    expect(tenantAuditEntityLabel("inventory_category", "ar")).toBe("فئة مخزون");
+    expect(tenantAuditEntityLabel("inventory_item_reference_cost", "en")).toBe("Item reference cost");
+    expect(tenantAuditEntityLabel("inventory_item_reference_cost", "ar")).toBe("تكلفة مرجعية لصنف");
     expect(tenantAuditActionLabel("inventory.something_new", "en")).toBe("Inventory updated");
     expect(tenantAuditActionLabel("inventory.something_new", "ar")).toBe("تم تحديث المخزون");
   });

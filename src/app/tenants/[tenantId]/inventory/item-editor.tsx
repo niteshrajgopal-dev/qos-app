@@ -11,6 +11,7 @@ import {
   localName,
 } from "@/app/tenants/[tenantId]/inventory/inventory-client";
 import { ItemConversionsPanel } from "@/app/tenants/[tenantId]/inventory/item-conversions-panel";
+import { ItemCostPanel, ItemRelatedPanel } from "@/app/tenants/[tenantId]/inventory/item-cost-panel";
 import { ConfirmDialog } from "@/components/Modal";
 import { usePortalShell } from "@/components/portal/portal-shell-context";
 import {
@@ -23,13 +24,15 @@ import {
 } from "@/components/portal/workspace/PortalWorkspace";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import type { InventoryItemKind, ItemDetailView } from "@/lib/inventory/items";
-import type { SupplierView, UnitView } from "@/lib/inventory/shared";
+import type { CategoryView, SupplierView, UnitView } from "@/lib/inventory/shared";
 import { staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 
 /* QOS-195 item screen: names, kind and the storage / recipe / purchase unit
    designations, then the item's own conversion rules, the preview that
    explains its quantities and the dated history. A rename keeps the item's
-   public id and every rule. QOS-196 adds the default supplier. */
+   public id and every rule. QOS-196 adds the default supplier; QOS-197 the
+   category, notes, the reference cost panel and the related recipes and stock
+   empty states. */
 
 type Form = {
   nameEn: string;
@@ -39,6 +42,8 @@ type Form = {
   recipeUnitPublicId: string;
   purchaseUnitPublicId: string;
   defaultSupplierPublicId: string;
+  categoryPublicId: string;
+  notes: string;
 };
 
 const EMPTY_FORM: Form = {
@@ -49,6 +54,8 @@ const EMPTY_FORM: Form = {
   recipeUnitPublicId: "",
   purchaseUnitPublicId: "",
   defaultSupplierPublicId: "",
+  categoryPublicId: "",
+  notes: "",
 };
 
 function formFrom(detail: ItemDetailView): Form {
@@ -60,6 +67,8 @@ function formFrom(detail: ItemDetailView): Form {
     recipeUnitPublicId: detail.item.recipeUnitPublicId ?? "",
     purchaseUnitPublicId: detail.item.purchaseUnitPublicId ?? "",
     defaultSupplierPublicId: detail.item.defaultSupplierPublicId ?? "",
+    categoryPublicId: detail.item.categoryPublicId ?? "",
+    notes: detail.item.notes ?? "",
   };
 }
 
@@ -77,6 +86,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
   const [detail, setDetail] = useState<ItemDetailView | null>(null);
   const [units, setUnits] = useState<UnitView[]>([]);
   const [suppliers, setSuppliers] = useState<SupplierView[]>([]);
+  const [categories, setCategories] = useState<CategoryView[]>([]);
   const [form, setForm] = useState<Form>(EMPTY_FORM);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -89,6 +99,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
     setDetail(next);
     setUnits(next.units);
     setSuppliers(next.suppliers);
+    setCategories(next.categories);
     setForm(formFrom(next));
   }, []);
 
@@ -101,16 +112,18 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
       }
       applyDetail(result.data);
     } else {
-      const [result, supplierList] = await Promise.all([
+      const [result, supplierList, categoryList] = await Promise.all([
         inventoryApi<{ units: UnitView[] }>(`/api/tenants/${tenantId}/inventory/units`),
         inventoryApi<{ suppliers: SupplierView[] }>(`/api/tenants/${tenantId}/inventory/suppliers`),
+        inventoryApi<{ categories: CategoryView[] }>(`/api/tenants/${tenantId}/inventory/categories`),
       ]);
-      if (!result.ok || !supplierList.ok) {
+      if (!result.ok || !supplierList.ok || !categoryList.ok) {
         setLoadFailed(true);
         return;
       }
       setUnits(result.data.units.filter((unit) => unit.status === "active"));
       setSuppliers(supplierList.data.suppliers.filter((supplier) => supplier.status === "active"));
+      setCategories(categoryList.data.categories.filter((category) => category.status === "active"));
     }
     setLoaded(true);
   }, [applyDetail, itemPublicId, tenantId]);
@@ -131,6 +144,8 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
       recipeUnitPublicId: form.recipeUnitPublicId || null,
       purchaseUnitPublicId: form.purchaseUnitPublicId || null,
       defaultSupplierPublicId: form.defaultSupplierPublicId || null,
+      categoryPublicId: form.categoryPublicId || null,
+      notes: form.notes.trim() ? form.notes : null,
     };
     const result = detail
       ? await inventoryApi<ItemDetailView>(`/api/tenants/${tenantId}/inventory/items/${detail.item.publicId}`, {
@@ -174,6 +189,10 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
   const supplierLabel = (supplier: SupplierView) => {
     const name = locale === "ar" && supplier.nameAr ? supplier.nameAr : supplier.nameEn;
     return supplier.code ? `${name} · ${supplier.code}` : name;
+  };
+  const categoryLabel = (category: CategoryView) => {
+    const name = locale === "ar" && category.nameAr ? category.nameAr : category.nameEn;
+    return category.status === "archived" ? `${name} · ${t("inventoryStatusArchived")}` : name;
   };
   const readOnly = !canEdit;
 
@@ -231,7 +250,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
                     onChange={(event) => setForm({ ...form, nameAr: event.target.value })}
                   />
                 </PortalField>
-                <PortalField label={t("itemKind")}>
+                <PortalField label={t("itemKind")} help={t("itemKindHelp")}>
                   <select
                     className="qos-input"
                     value={form.kind}
@@ -259,6 +278,21 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
                     </select>
                   </PortalField>
                 ))}
+                <PortalField label={t("itemCategory")}>
+                  <select
+                    className="qos-input"
+                    value={form.categoryPublicId}
+                    disabled={readOnly}
+                    onChange={(event) => setForm({ ...form, categoryPublicId: event.target.value })}
+                  >
+                    <option value="">{t("itemCategoryNone")}</option>
+                    {categories.map((category) => (
+                      <option key={category.publicId} value={category.publicId}>
+                        {categoryLabel(category)}
+                      </option>
+                    ))}
+                  </select>
+                </PortalField>
                 <PortalField label={t("defaultSupplier")} help={t("defaultSupplierHelp")}>
                   <select
                     className="qos-input"
@@ -275,6 +309,17 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
                       </option>
                     ))}
                   </select>
+                </PortalField>
+                <PortalField label={t("inventoryNotes")} help={t("itemNotesHelp")}>
+                  <textarea
+                    className="qos-textarea"
+                    dir="auto"
+                    rows={3}
+                    value={form.notes}
+                    maxLength={1000}
+                    disabled={readOnly}
+                    onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                  />
                 </PortalField>
               </div>
               {detail?.item.status === "archived" ? <PortalNotice tone="warning">{t("itemArchivedNote")}</PortalNotice> : null}
@@ -321,6 +366,14 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
                   canEdit={canEdit && detail.item.status === "active"}
                   onChange={applyDetail}
                 />
+                <ItemCostPanel
+                  key={detail.item.version}
+                  tenantId={tenantId}
+                  detail={detail}
+                  canEdit={canEdit && detail.item.status === "active"}
+                  onChange={applyDetail}
+                />
+                <ItemRelatedPanel />
               </>
             ) : null}
           </>
