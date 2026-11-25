@@ -19,7 +19,7 @@ Saving lines or approving a prepared recipe runs a depth-first search from its o
 
 ## States, cost estimate, workbook profile
 
-States are derived on the server (`states.ts`) and shown as badges. The current cost estimate (`cost-estimate.ts`) uses QOS-197 current reference costs; any line without a cost or a convertible cost makes the total unavailable with a count, never zero. It is not a snapshot and computes no price or margin (QOS-199). Shared and direct-stock links are labelled "Not in the workbook template"; a product flagged as a stock product (QOS-214) with no direct-stock link shows "Needs a direct-stock link" and the flag never creates a link.
+States are derived on the server (`states.ts`) and shown as badges. The current cost estimate (`cost-estimate.ts`) uses QOS-197 current reference costs; any line without a cost or a convertible cost makes the total unavailable with a count, never zero. It is not a snapshot and computes no price or margin; modifier effects, configuration cost and ingredient margin are in `QOS-199-modifier-effects-and-costing.md`. Shared and direct-stock links are labelled "Not in the workbook template"; a product flagged as a stock product (QOS-214) with no direct-stock link shows "Needs a direct-stock link" and the flag never creates a link.
 
 ## Dependencies
 

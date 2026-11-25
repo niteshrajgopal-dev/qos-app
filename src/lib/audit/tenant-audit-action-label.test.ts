@@ -106,6 +106,7 @@ describe("tenantAuditActionLabel", () => {
       "recipe.version.update",
       "recipe.version.lines.update",
       "recipe.version.steps.update",
+      "recipe.version.effects.update",
       "recipe.version.approve",
       "recipe.version.discard",
       "recipe.link.create",
@@ -122,6 +123,8 @@ describe("tenantAuditActionLabel", () => {
       expect(arabic[index], action).toMatch(/^[\u0600-\u06FF\s()]+$/);
     }
     expect(tenantAuditActionLabel("recipe.version.approve", "en")).toBe("Recipe version approved");
+    expect(tenantAuditActionLabel("recipe.version.effects.update", "en")).toBe("Recipe modifier effects changed");
+    expect(tenantAuditActionLabel("recipe.version.effects.update", "ar")).toBe("تم تغيير تأثيرات المعدِّلات في وصفة");
     expect(tenantAuditActionLabel("recipe.link.end", "ar")).toBe("تم إنهاء ربط بيع");
     expect(tenantAuditEntityLabel("recipe", "en")).toBe("Recipe");
     expect(tenantAuditEntityLabel("recipe_version", "ar")).toBe("إصدار وصفة");

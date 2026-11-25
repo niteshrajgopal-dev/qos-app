@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { RecipeLinesPanel } from "@/app/tenants/[tenantId]/catalogue/recipes/recipe-lines-panel";
+import { RecipeEffectsPanel } from "@/app/tenants/[tenantId]/catalogue/recipes/recipe-effects-panel";
 import { RecipeStepsPanel } from "@/app/tenants/[tenantId]/catalogue/recipes/recipe-steps-panel";
 import { VersionSummary } from "@/app/tenants/[tenantId]/catalogue/recipes/recipe-versions-panel";
 import { recipesApiPath, recipesPath } from "@/app/tenants/[tenantId]/catalogue/recipes/recipes-client";
@@ -41,7 +42,7 @@ export function RecipeVersionScreen({ tenantId, recipePublicId, versionPublicId 
   const name = data ? localName(locale, data.recipe.nameEn, data.recipe.nameAr) : null;
   // The panels only read the version and the recipe id in read-only mode.
   const detail = data
-    ? ({ recipe: data.recipe, versions: [data.version], linkedVariants: [], states: [], today: data.today, pickers: { items: [], units: [] } } satisfies RecipeDetailView)
+    ? ({ recipe: data.recipe, versions: [data.version], linkedVariants: [], states: [], today: data.today, pickers: { items: [], units: [], modifierOptions: [] } } satisfies RecipeDetailView)
     : null;
 
   return (
@@ -84,6 +85,7 @@ export function RecipeVersionScreen({ tenantId, recipePublicId, versionPublicId 
               ) : null}
             </PortalPanel>
             <RecipeLinesPanel tenantId={tenantId} detail={detail} version={data.version} editable={false} onChange={() => undefined} />
+            <RecipeEffectsPanel tenantId={tenantId} detail={detail} version={data.version} editable={false} onChange={() => undefined} />
             <RecipeStepsPanel tenantId={tenantId} detail={detail} version={data.version} editable={false} onChange={() => undefined} />
           </>
         )}

@@ -1,6 +1,6 @@
 import type { StaffLocale } from "@/lib/staff/locale";
 
-/* QOS-195, QOS-196, QOS-197 and QOS-198 staff copy for inventory and recipe API error codes. The API message stays
+/* QOS-195 to QOS-199 staff copy for inventory and recipe API error codes. The API message stays
    English for logs and API clients; the staff UI shows this copy instead. */
 
 type Bilingual = Record<StaffLocale, string>;
@@ -308,6 +308,41 @@ export const INVENTORY_ERROR_COPY = {
     ar: "انتهى هذا الربط بالفعل. أعد التحميل لعرض الربط الحالي.",
   },
   branch_not_permitted: { en: "Your membership does not include this branch.", ar: "لا تتضمن عضويتك هذا الفرع." },
+  effects_sellable_only: { en: "Modifier effects apply to sellable recipes only.", ar: "تنطبق تأثيرات المعدِّلات على وصفات البيع فقط." },
+  effects_too_many: { en: "A recipe version can have at most 100 modifier effects.", ar: "يمكن أن يحتوي إصدار الوصفة على 100 تأثير معدِّل على الأكثر." },
+  effect_not_found: { en: "This effect was not found on the draft. Reload and try again.", ar: "لم يتم العثور على هذا التأثير في المسودة. أعد التحميل وحاول مجددًا." },
+  effect_type_invalid: { en: "Choose add, remove or replace.", ar: "اختر إضافة أو إزالة أو استبدال." },
+  effect_option_required: { en: "Choose a modifier option for every effect.", ar: "اختر خيار معدِّل لكل تأثير." },
+  option_not_found: { en: "This modifier option was not found.", ar: "لم يتم العثور على خيار المعدِّل هذا." },
+  option_archived: { en: "This modifier option or its group is archived.", ar: "خيار المعدِّل هذا أو مجموعته مؤرشف." },
+  option_not_assigned: {
+    en: "This option's group is not attached to a product linked to this recipe.",
+    ar: "مجموعة هذا الخيار غير مرفقة بمنتج مرتبط بهذه الوصفة.",
+  },
+  target_line_required: { en: "Choose the base line this effect removes or replaces.", ar: "اختر السطر الأساسي الذي يزيله هذا التأثير أو يستبدله." },
+  target_line_not_found: {
+    en: "This base line was not found on the draft. Reload and try again.",
+    ar: "لم يتم العثور على هذا السطر الأساسي في المسودة. أعد التحميل وحاول مجددًا.",
+  },
+  target_line_not_allowed: { en: "An add effect has no base line.", ar: "لا يوجد سطر أساسي لتأثير الإضافة." },
+  effect_item_required: { en: "Choose the item this effect adds.", ar: "اختر الصنف الذي يضيفه هذا التأثير." },
+  effect_item_not_allowed: { en: "A remove effect has no item, unit or quantity.", ar: "لا يوجد صنف أو وحدة أو كمية لتأثير الإزالة." },
+  effect_unit_not_convertible: {
+    en: "This unit cannot be converted to the item's storage unit. Add a conversion or choose another unit.",
+    ar: "لا يمكن تحويل هذه الوحدة إلى وحدة تخزين الصنف. أضف تحويلًا أو اختر وحدة أخرى.",
+  },
+  effect_duplicate: {
+    en: "An option can remove or replace a base line once and add an item once per version.",
+    ar: "يمكن للخيار إزالة سطر أساسي أو استبداله مرة واحدة وإضافة صنف مرة واحدة في كل إصدار.",
+  },
+  effect_notes_too_long: { en: "Notes can be at most 200 characters.", ar: "يمكن أن تتكون الملاحظات من 200 حرف على الأكثر." },
+  line_targeted_by_effect: {
+    en: "A modifier effect removes or replaces this line. Change or remove the effect first.",
+    ar: "يزيل تأثير معدِّل هذا السطر أو يستبدله. غيّر التأثير أو أزله أولًا.",
+  },
+  channel_not_found: { en: "This sales channel was not found.", ar: "لم يتم العثور على قناة البيع هذه." },
+  option_param_invalid: { en: "Choose each option at most 99 times.", ar: "اختر كل خيار 99 مرة على الأكثر." },
+  defaults_invalid: { en: "Choose whether to apply default selections.", ar: "اختر ما إذا كانت الاختيارات الافتراضية ستُطبَّق." },
 } as const satisfies Record<string, Bilingual>;
 
 export type InventoryErrorCode = keyof typeof INVENTORY_ERROR_COPY;

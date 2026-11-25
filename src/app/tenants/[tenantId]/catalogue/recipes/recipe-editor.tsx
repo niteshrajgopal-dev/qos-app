@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
+import { RecipeEffectsPanel } from "@/app/tenants/[tenantId]/catalogue/recipes/recipe-effects-panel";
 import { RecipeLinesPanel } from "@/app/tenants/[tenantId]/catalogue/recipes/recipe-lines-panel";
 import { RecipeLinksPanel } from "@/app/tenants/[tenantId]/catalogue/recipes/recipe-links-panel";
 import { RecipeStateBadges } from "@/app/tenants/[tenantId]/catalogue/recipes/recipe-states";
@@ -331,6 +332,9 @@ export function RecipeEditorScreen({ tenantId, recipePublicId }: { tenantId: str
               <>
                 <RecipeVersionsPanel tenantId={tenantId} detail={detail} canEdit={canEdit && detail.recipe.status === "active"} onChange={applyDetail} />
                 <RecipeLinesPanel key={`lines-${working.publicId}-${working.version}`} tenantId={tenantId} detail={detail} version={working} editable={editable} onChange={applyDetail} />
+                {detail.recipe.kind === "sellable" ? (
+                  <RecipeEffectsPanel key={`effects-${working.publicId}-${working.version}`} tenantId={tenantId} detail={detail} version={working} editable={editable} onChange={applyDetail} />
+                ) : null}
                 <RecipeStepsPanel key={`steps-${working.publicId}-${working.version}`} tenantId={tenantId} detail={detail} version={working} editable={editable} onChange={applyDetail} />
                 <RecipeLinksPanel tenantId={tenantId} detail={detail} />
               </>

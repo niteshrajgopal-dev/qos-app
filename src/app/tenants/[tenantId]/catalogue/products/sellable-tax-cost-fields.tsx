@@ -18,12 +18,16 @@ import {
   type ReferenceCostUnit,
   type SellingPriceTaxBasis,
 } from "@/lib/catalogue/selling-tax-cost";
+import { isolateText } from "@/lib/staff/branch-copy";
 import { type StaffLocale, type StaffUiCopyKey, staffCopyWith, staffUiCopy } from "@/lib/staff/locale";
 
 /* QOS-215 back-office fields for a sellable's selling-price tax and
    reference-cost policy. Values are shown as stored and converted only with
    the exact helpers; nothing is defaulted (no 5% pre-fill, no currency or
-   date guess) and a missing cost is never shown as zero. */
+   date guess) and a missing cost is never shown as zero. QOS-199: a
+   recipe-derived variant policy shows the amount the recipe engine computed
+   for the base configuration, or the specific reason it has none; an option's
+   recipe-derived cost is computed per configuration in the recipe preview. */
 
 export type SellableTaxValue = {
   priceTaxBasis: SellingPriceTaxBasis | null;
@@ -77,8 +81,21 @@ const MARGIN_REASON_LABEL: Record<string, StaffUiCopyKey> = {
   missing_tax_rate: "sellableMarginReasonMissingTaxRate",
   cost_unavailable: "sellableMarginReasonCostUnavailable",
   recipe_derived_cost_not_computed: "sellableMarginReasonRecipeNotComputed",
+  recipe_no_link: "sellableMarginReasonRecipeNoLink",
+  recipe_no_version: "sellableMarginReasonRecipeNoVersion",
+  recipe_incomplete: "sellableMarginReasonRecipeIncomplete",
+  recipe_unresolved: "sellableMarginReasonRecipeUnresolved",
+  unconfirmed_cost_tax_basis: "sellableMarginReasonUnconfirmedCost",
+  mixed_cost_tax_basis: "sellableMarginReasonMixedCost",
   currency_mismatch: "sellableMarginReasonCurrencyMismatch",
   cost_unit_not_each: "sellableMarginReasonCostUnitNotEach",
+};
+
+const COMPUTED_BASIS_LABEL: Record<string, StaffUiCopyKey> = {
+  net: "sellableCostTaxBasisNet",
+  gross: "sellableCostTaxBasisGross",
+  unconfirmed: "sellableTaxBasisUnconfirmed",
+  mixed: "sellableCostTaxBasisMixed",
 };
 
 function provenanceText(locale: StaffLocale, provenance: string | null) {
@@ -140,6 +157,47 @@ export function ReferenceMarginLine({
   );
 }
 
+/** What a recipe-derived policy resolves to: the computed amount with its recipe, or why there is none. */
+export function RecipeDerivedLine({ locale, referenceCost }: { locale: StaffLocale; referenceCost: SellableReferenceCostView }) {
+  const { resolution } = referenceCost;
+  if (resolution.status === "recipe_derived_computed") {
+    const amount = { amount: isolateText(resolution.amountMajor), currency: isolateText(resolution.currency) };
+    const recipeName = resolution.recipe
+      ? locale === "ar" && resolution.recipe.nameAr
+        ? resolution.recipe.nameAr
+        : resolution.recipe.nameEn
+      : null;
+    return (
+      <div className="qosp-stack" data-testid="recipe-derived-line">
+        <p className="qosp-meta-line">
+          {recipeName && resolution.versionNumber !== null
+            ? staffCopyWith(locale, "sellableCostRecipeComputedLine", {
+                ...amount,
+                recipe: isolateText(recipeName),
+                number: isolateText(String(resolution.versionNumber)),
+              })
+            : staffCopyWith(locale, "sellableCostDirectStockComputedLine", amount)}
+        </p>
+        <p className="qosp-meta-line">
+          {staffCopyWith(locale, "sellableCostComputedBasis", { basis: staffUiCopy(locale, COMPUTED_BASIS_LABEL[resolution.taxBasis]!) })}
+          {resolution.rounding === "half_up_micros" ? ` ${staffUiCopy(locale, "sellableCostComputedRounded")}` : null}
+        </p>
+      </div>
+    );
+  }
+  if (resolution.status === "recipe_derived_reference") {
+    if (resolution.reason === "computed_per_configuration") {
+      return <p className="qosp-meta-line">{staffUiCopy(locale, "sellableCostOptionRecipePreview")}</p>;
+    }
+    return (
+      <p className="qosp-meta-line" data-testid="recipe-derived-line">
+        {staffCopyWith(locale, "sellableMarginUnavailable", { reason: staffUiCopy(locale, MARGIN_REASON_LABEL[resolution.reason]!) })}
+      </p>
+    );
+  }
+  return null;
+}
+
 function CostResolutionLine({
   locale,
   referenceCost,
@@ -150,7 +208,7 @@ function CostResolutionLine({
   const { policy, resolution } = referenceCost;
   return (
     <div className="qosp-meta-row">
-      <PortalBadge tone={resolution.status === "manual_reference" ? "positive" : "neutral"}>
+      <PortalBadge tone={resolution.status === "manual_reference" || resolution.status === "recipe_derived_computed" ? "positive" : "neutral"}>
         {costPolicySummaryText(locale, referenceCost)}
       </PortalBadge>
       {resolution.status === "unavailable" && policy ? (
@@ -352,7 +410,10 @@ export function ReferenceCostEditor({
     <div className="qosp-stack">
       <CostResolutionLine locale={locale} referenceCost={referenceCost} />
       {referenceCost.policy?.method === "recipe_derived" ? (
-        <p className="qosp-meta-line">{copy("sellableCostRecipeDerivedNote")}</p>
+        <>
+          <p className="qosp-meta-line">{copy("sellableCostRecipeDerivedNote")}</p>
+          <RecipeDerivedLine locale={locale} referenceCost={referenceCost} />
+        </>
       ) : null}
       {note ? <p className="qosp-meta-line">{note}</p> : null}
       <div className="qosp-form-grid" data-columns="2">
@@ -487,7 +548,10 @@ export function SellableTaxCostSummary({
       </p>
       <CostResolutionLine locale={locale} referenceCost={referenceCost} />
       {referenceCost.policy?.method === "recipe_derived" ? (
-        <p className="qosp-meta-line">{copy("sellableCostRecipeDerivedNote")}</p>
+        <>
+          <p className="qosp-meta-line">{copy("sellableCostRecipeDerivedNote")}</p>
+          <RecipeDerivedLine locale={locale} referenceCost={referenceCost} />
+        </>
       ) : null}
       <ReferenceMarginLine locale={locale} margin={referenceMargin} />
     </div>

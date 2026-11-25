@@ -157,6 +157,7 @@ const AUDIT_ACTION_LABELS: Record<string, Bilingual> = {
   "recipe.version.update": { en: "Recipe draft yield or notes changed", ar: "تم تغيير ناتج أو ملاحظات مسودة وصفة" },
   "recipe.version.lines.update": { en: "Recipe ingredient lines changed", ar: "تم تغيير أسطر مكونات وصفة" },
   "recipe.version.steps.update": { en: "Recipe preparation steps changed", ar: "تم تغيير خطوات تحضير وصفة" },
+  "recipe.version.effects.update": { en: "Recipe modifier effects changed", ar: "تم تغيير تأثيرات المعدِّلات في وصفة" },
   "recipe.version.approve": { en: "Recipe version approved", ar: "تم اعتماد إصدار وصفة" },
   "recipe.version.discard": { en: "Recipe draft discarded", ar: "تم تجاهل مسودة وصفة" },
   "recipe.link.create": { en: "Sellable link added", ar: "تمت إضافة ربط بيع" },
