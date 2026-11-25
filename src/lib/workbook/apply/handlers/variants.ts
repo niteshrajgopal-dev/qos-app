@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 
 import { catalogueVariants } from "@/db/schema";
-import { createProductVariant, updateProductVariant } from "@/lib/catalogue/variants";
+import { createProductVariant, restoreArchivedVariant, updateProductVariant } from "@/lib/catalogue/variants";
 import type { UpdateProductVariantInput } from "@/lib/catalogue/variant-validation";
 import { ApplyUnitError } from "@/lib/workbook/apply/errors";
 import {
@@ -36,7 +36,7 @@ export function defaultVariantPatch(values: Values): Omit<UpdateProductVariantIn
 
 async function variantIdsOf(context: HandlerContext, productId: string) {
   const rows = await context.tx
-    .select({ publicId: catalogueVariants.publicId, isDefault: catalogueVariants.isDefault })
+    .select({ publicId: catalogueVariants.publicId, isDefault: catalogueVariants.isDefault, status: catalogueVariants.status })
     .from(catalogueVariants)
     .where(and(eq(catalogueVariants.tenantId, context.run.tenantId), eq(catalogueVariants.productId, productId)));
   return rows;
@@ -46,7 +46,8 @@ async function variantIdsOf(context: HandlerContext, productId: string) {
    an administrator; the service enforces it). One default per product: the
    row that makes a variant the default moves the flag, so a row that only
    clears its own flag sends nothing for it. The default variant is never
-   archived. */
+   archived. An archived variant set back to active goes through the restore
+   service (non-default, audited as a restore) before any other field. */
 export const applyVariants: SheetHandler = async (context, unit) => {
   const { run } = context;
   const row = unit.rows[0]!;
@@ -93,24 +94,41 @@ export const applyVariants: SheetHandler = async (context, unit) => {
   notClearable(values, "amount_minor");
   const isDefault = flag(values, "is_default");
   const translations = nameTranslations(values, "variant_label_en", "variant_label_ar");
-  await updateProductVariant(
-    context.db,
-    run.tenantId,
-    run.membership,
-    productPublicId,
-    variantPublicId,
-    {
-      expectedProductVersion: product.version,
-      ...(values.has("sort_order") ? { sortOrder: int(values, "sort_order") ?? undefined } : {}),
-      ...(isDefault === true ? { isDefault: true } : {}),
-      ...(status === "active" || status === "archived" ? { status } : {}),
-      ...(values.has("sku") ? { sku: text(values, "sku") ?? null } : {}),
-      ...(values.has("barcode") ? { barcode: text(values, "barcode") ?? null } : {}),
-      ...(values.has("amount_minor") ? { amountMinor: int(values, "amount_minor") ?? null } : {}),
-      ...(Object.keys(translations).length > 0 ? { translations } : {}),
-    },
-    run.actor.subject,
-  );
+  const restoring = status === "active" && current.status === "archived";
+  let expectedProductVersion = product.version;
+  if (restoring) {
+    const restored = await restoreArchivedVariant(
+      context.db,
+      run.tenantId,
+      run.membership,
+      productPublicId,
+      variantPublicId,
+      { expectedProductVersion },
+      run.actor.subject,
+    );
+    expectedProductVersion = restored.productVersion;
+  }
+  const nextStatus = status === "archived" ? "archived" : status === "active" && !restoring ? "active" : undefined;
+  const patch: Omit<UpdateProductVariantInput, "expectedProductVersion"> = {
+    ...(values.has("sort_order") ? { sortOrder: int(values, "sort_order") ?? undefined } : {}),
+    ...(isDefault === true ? { isDefault: true } : {}),
+    ...(nextStatus ? { status: nextStatus } : {}),
+    ...(values.has("sku") ? { sku: text(values, "sku") ?? null } : {}),
+    ...(values.has("barcode") ? { barcode: text(values, "barcode") ?? null } : {}),
+    ...(values.has("amount_minor") ? { amountMinor: int(values, "amount_minor") ?? null } : {}),
+    ...(Object.keys(translations).length > 0 ? { translations } : {}),
+  };
+  if (!restoring || Object.keys(patch).length > 0) {
+    await updateProductVariant(
+      context.db,
+      run.tenantId,
+      run.membership,
+      productPublicId,
+      variantPublicId,
+      { expectedProductVersion, ...patch },
+      run.actor.subject,
+    );
+  }
   const fields = present(values, ...VARIANT_FIELDS).filter((column) => column !== "is_default" || isDefault === true);
   return [{ row, publicId: variantPublicId, fieldsApplied: fields }];
 };

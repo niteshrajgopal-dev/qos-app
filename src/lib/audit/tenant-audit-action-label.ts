@@ -104,6 +104,9 @@ const AUDIT_ACTION_LABELS: Record<string, Bilingual> = {
   },
   "catalogue.variant.create": { en: "Variant added", ar: "تمت إضافة متغيّر" },
   "catalogue.variant.reorder": { en: "Variants reordered", ar: "تمت إعادة ترتيب المتغيرات" },
+  "catalogue.variant.update": { en: "Variant updated", ar: "تم تحديث متغيّر" },
+  "catalogue.variant.archive": { en: "Variant archived", ar: "تمت أرشفة متغيّر" },
+  "catalogue.variant.restore": { en: "Variant restored", ar: "تمت استعادة متغيّر" },
   "location.schedule.exception.delete": {
     en: "Opening-hours exception removed",
     ar: "تمت إزالة استثناء من مواعيد العمل",

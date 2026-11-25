@@ -20,6 +20,16 @@ export function recipesApiPath(tenantId: string, suffix = "") {
   return `/api/tenants/${tenantId}/recipes${suffix}`;
 }
 
+/** On a replace that switches the link type, the warning that the current link ends; otherwise null. */
+export function linkReplaceWarningKey(
+  state: { replace: boolean; variant: { link: { kind: "recipe" | "direct_stock" } | null } },
+  kind: "recipe" | "direct_stock",
+): StaffUiCopyKey | null {
+  const current = state.variant.link?.kind;
+  if (!state.replace || !current || current === kind) return null;
+  return current === "recipe" ? "linkReplaceEndsRecipe" : "linkReplaceEndsStock";
+}
+
 export const RECIPE_STATE_LABEL: Record<RecipeStateKey, StaffUiCopyKey> = {
   no_lines: "recipeStateNoLines",
   item_archived: "recipeStateItemArchived",

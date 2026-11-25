@@ -21,6 +21,7 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/products/product-edit-screen.tsx",
   "app/tenants/[tenantId]/catalogue/menus/menu-editor.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-variants-panel.tsx",
+  "app/tenants/[tenantId]/catalogue/products/product-variants-panel-state.ts",
   "app/tenants/[tenantId]/catalogue/products/product-modifier-groups-panel.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-modifier-assignment-policy-editor.tsx",
   "app/tenants/[tenantId]/catalogue/products/product-new-screen.tsx",
@@ -1055,5 +1056,49 @@ describe("QOS-198 recipe and sellable link copy", () => {
     const page = readFileSync(path.join(ROOT, "app/tenants/[tenantId]/catalogue/recipes/page.tsx"), "utf8");
     expect(page).toContain("RecipesScreen");
     expect(page).not.toContain("Phase2EntryScreen");
+  });
+});
+
+/* Archiving a variant asks first and names a recipe or direct-stock link;
+   an archived variant can be restored. Same rules as the recipe copy. */
+describe("variant archive confirmation and restore copy", () => {
+  const keys: StaffUiCopyKey[] = [
+    "variantArchiveConfirmTitle",
+    "variantArchiveConfirmBody",
+    "variantArchiveConfirmRecipeLink",
+    "variantArchiveConfirmStockLink",
+    "variantArchived",
+    "variantArchivedHelp",
+    "variantRestore",
+    "variantRestored",
+    "variantRestoreError",
+  ];
+  const sources = [
+    "app/tenants/[tenantId]/catalogue/products/product-variants-panel.tsx",
+    "app/tenants/[tenantId]/catalogue/products/product-variants-panel-state.ts",
+  ]
+    .map((relative) => readFileSync(path.join(ROOT, relative), "utf8"))
+    .join("\n");
+
+  it.each(keys)("%s has English and Arabic text with no English, ticket ids or shouting", (key) => {
+    const en = STAFF_UI_COPY.en[key];
+    const ar = STAFF_UI_COPY.ar[key];
+    expect(en.trim().length).toBeGreaterThan(0);
+    expect(ar).toMatch(/[\u0600-\u06FF]/);
+    expect(ar).not.toBe(en);
+    expect(ar.replace(/\{\w+\}/g, "")).not.toMatch(/[A-Za-z]/);
+    for (const text of [en, ar]) expect(text).not.toMatch(/QOS|[A-Z]{2,}-\d/);
+    const words = en.replace(/\{\w+\}/g, "").split(/\s+/).filter(Boolean);
+    words.forEach((word, index) => {
+      const sentenceStart = index === 0 || /[.?:]$/.test(words[index - 1]!);
+      if (!sentenceStart && !PROPER_NOUNS.has(word)) expect(word, `${key}: ${en}`).not.toMatch(/^[A-Z]/);
+    });
+    expect(sources, key).toContain(`"${key}"`);
+  });
+
+  it("keeps the variant panel free of all-caps styling and of the dialog's English defaults", () => {
+    expect(sources).not.toMatch(/uppercase/i);
+    expect(sources).toContain("confirmLabel={archiveCopy?.confirmLabel}");
+    expect(sources).toContain("cancelLabel={archiveCopy?.cancelLabel}");
   });
 });

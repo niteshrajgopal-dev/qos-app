@@ -3,10 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  productVariantArchiveConfirmCopy,
+  productVariantArchiveConfirmReducer,
   productVariantControlDisabled,
   productVariantPriceDisabled,
+  productVariantShowsArchive,
+  productVariantShowsRestore,
   productVariantsPanelShowsAddForm,
+  type ProductVariantArchiveAction,
+  type ProductVariantArchiveConfirm,
 } from "@/app/tenants/[tenantId]/catalogue/products/product-variants-panel-state";
+import { ConfirmDialog } from "@/components/Modal";
 import {
   PortalBadge,
   PortalField,
@@ -47,6 +54,7 @@ type VariantRow = {
   isDefault: boolean;
   sortOrder: number;
   status: "active" | "archived";
+  sellableLinkKind: DraftProductVariantView["sellableLinkKind"];
   sku: string;
   barcode: string;
   amountMinor: number | null;
@@ -137,6 +145,10 @@ export function ProductVariantsPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [archiveConfirm, setArchiveConfirm] = useState<ProductVariantArchiveConfirm>({
+    targetPublicId: null,
+    request: null,
+  });
 
   const channelPricesBase = `/api/tenants/${tenantId}/catalogue/products/${productPublicId}`;
   const channelPrices = useChannelPriceBundle<ProductChannelPrices>(
@@ -168,6 +180,12 @@ export function ProductVariantsPanel({
       copy("channelPriceResetDone"),
     );
   }
+
+  const archiveTarget =
+    view?.variants.find((variant) => variant.publicId === archiveConfirm.targetPublicId) ?? null;
+  const archiveCopy = archiveTarget
+    ? productVariantArchiveConfirmCopy(locale, archiveTarget)
+    : null;
 
   const activeVariants = useMemo(
     () => view?.variants.filter((variant) => variant.status === "active") ?? [],
@@ -212,6 +230,7 @@ export function ProductVariantsPanel({
   async function saveVariant(
     variantPublicId: string,
     patch: Record<string, unknown>,
+    successMessage = copy("variantSaved"),
   ) {
     if (!view) {
       return;
@@ -246,10 +265,54 @@ export function ProductVariantsPanel({
       }
 
       setView(payload);
-      setMessage(copy("variantSaved"));
+      setMessage(successMessage);
     } catch (saveError) {
       setError(
         saveError instanceof Error ? saveError.message : copy("variantSaveError"),
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function handleArchiveConfirm(action: ProductVariantArchiveAction) {
+    const next = productVariantArchiveConfirmReducer(archiveConfirm, action);
+    setArchiveConfirm(next);
+    if (next.request) {
+      void saveVariant(next.request.variantPublicId, next.request.body, copy("variantArchived"));
+    }
+  }
+
+  async function restoreVariant(variantPublicId: string) {
+    if (!view) {
+      return;
+    }
+
+    setBusy(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response = await staffApiFetch(
+        `/api/tenants/${tenantId}/catalogue/products/${productPublicId}/variants/${variantPublicId}/restore`,
+        {
+          method: "POST",
+          body: JSON.stringify({ expectedProductVersion: view.productVersion }),
+        },
+      );
+      const payload = (await response.json()) as VariantsResponse & {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? copy("variantRestoreError"));
+      }
+
+      setView(payload);
+      setMessage(copy("variantRestored"));
+    } catch (restoreError) {
+      setError(
+        restoreError instanceof Error ? restoreError.message : copy("variantRestoreError"),
       );
     } finally {
       setBusy(false);
@@ -590,15 +653,39 @@ export function ProductVariantsPanel({
                 >
                   {copy("variantMoveDown")}
                 </button>
-                {!variant.isDefault ? (
+                {productVariantShowsArchive(productReadOnly, variant) ? (
                   <button
                     type="button"
                     disabled={busy}
-                    onClick={() => void saveVariant(variant.publicId, { status: "archived" })}
+                    onClick={() =>
+                      handleArchiveConfirm({ type: "open", variantPublicId: variant.publicId })
+                    }
                     className="qos-btn" data-variant="danger" data-size="sm"
                   >
                     {copy("variantArchive")}
                   </button>
+                ) : null}
+              </div>
+            ) : null}
+
+            {archived ? (
+              <div className="qosp-stack">
+                <p className="qosp-meta-line">{copy("variantArchivedHelp")}</p>
+                {productVariantShowsRestore(
+                  productReadOnly,
+                  variant.status,
+                  view?.canEditPrice ?? false,
+                ) ? (
+                  <div className="qosp-button-row">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() => void restoreVariant(variant.publicId)}
+                      className="qos-btn" data-variant="secondary" data-size="sm"
+                    >
+                      {copy("variantRestore")}
+                    </button>
+                  </div>
                 ) : null}
               </div>
             ) : null}
@@ -617,6 +704,29 @@ export function ProductVariantsPanel({
           </article>
         );
       })}
+
+      {archiveTarget ? (
+        <ConfirmDialog
+          open
+          tone="danger"
+          title={archiveCopy?.title}
+          confirmLabel={archiveCopy?.confirmLabel}
+          cancelLabel={archiveCopy?.cancelLabel}
+          onClose={() => handleArchiveConfirm({ type: "cancel" })}
+          onConfirm={() =>
+            view
+              ? handleArchiveConfirm({ type: "confirm", productVersion: view.productVersion })
+              : handleArchiveConfirm({ type: "cancel" })
+          }
+        >
+          <div className="qosp-stack">
+            <p className="qosp-panel-help">{archiveCopy?.body}</p>
+            {archiveCopy?.linkNotice ? (
+              <PortalNotice tone="warning">{archiveCopy.linkNotice}</PortalNotice>
+            ) : null}
+          </div>
+        </ConfirmDialog>
+      ) : null}
 
       {channelPrices.error ? <PortalNotice tone="error">{channelPrices.error}</PortalNotice> : null}
       {channelPrices.message ? <PortalNotice tone="success">{channelPrices.message}</PortalNotice> : null}

@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, ne, or } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
 
 import type { DbClient } from "@/db/client";
@@ -7,6 +7,7 @@ import {
   catalogueVariantPrices,
   catalogueVariants,
   catalogueVariantTranslations,
+  recipeSellableLinks,
 } from "@/db/schema";
 import type { ProductLocale } from "@/lib/catalogue/validation";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
@@ -50,6 +51,7 @@ import {
   CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
   loadCatalogueProductForMutationInTx,
 } from "@/lib/catalogue/product-mutation-policy";
+import { tenantToday } from "@/lib/inventory/shared";
 import { resolveVariantRecipeCostsInTx } from "@/lib/recipes/costing-service";
 import { withTenantContext } from "@/lib/tenant/context";
 
@@ -79,11 +81,18 @@ export class CatalogueVariantConflictError extends CatalogueVariantError {
   }
 }
 
+export const CATALOGUE_VARIANT_RESTORE_CODES = {
+  NOT_ARCHIVED: "variant_not_archived",
+  RESTORE_REQUIRED: "variant_restore_required",
+} as const;
+
 export type DraftProductVariantView = VariantSellingBasisView & {
   publicId: string;
   isDefault: boolean;
   sortOrder: number;
   status: "active" | "archived";
+  /** Kind of the recipe or direct-stock link that applies today or later; null when unlinked. */
+  sellableLinkKind: "recipe" | "direct_stock" | null;
   sku: string | null;
   barcode: string | null;
   currency: string | null;
@@ -327,6 +336,43 @@ async function loadVariantTranslations(
   return byVariantId;
 }
 
+/** Links not ended by today; at most one is open per variant, so any match names the kind. */
+async function loadSellableLinkKinds(
+  tx: DbClient,
+  tenantId: string,
+  variantIds: string[],
+) {
+  const kinds = new Map<string, "recipe" | "direct_stock">();
+  if (variantIds.length === 0) {
+    return kinds;
+  }
+
+  const today = await tenantToday(tx, tenantId);
+  const rows = await tx
+    .select({
+      variantId: recipeSellableLinks.variantId,
+      kind: recipeSellableLinks.kind,
+      effectiveTo: recipeSellableLinks.effectiveTo,
+    })
+    .from(recipeSellableLinks)
+    .where(
+      and(
+        eq(recipeSellableLinks.tenantId, tenantId),
+        inArray(recipeSellableLinks.variantId, variantIds),
+        or(isNull(recipeSellableLinks.effectiveTo), gt(recipeSellableLinks.effectiveTo, today)),
+      ),
+    );
+
+  // A replace scheduled for a later date leaves two rows; the open one is the link going forward.
+  for (const row of rows) {
+    if (row.effectiveTo === null || !kinds.has(row.variantId)) {
+      kinds.set(row.variantId, row.kind);
+    }
+  }
+
+  return kinds;
+}
+
 export async function loadProductVariantsInTx(
   tx: DbClient,
   tenantId: string,
@@ -383,6 +429,11 @@ export async function loadProductVariantsInTx(
     "variant",
     variantRows.map((row) => row.id),
   );
+  const linkKinds = await loadSellableLinkKinds(
+    tx,
+    tenantId,
+    variantRows.map((row) => row.id),
+  );
 
   // QOS-199: a recipe-derived policy resolves through the recipe engine for the base configuration (lines only, today).
   const recipeCosts = await resolveVariantRecipeCostsInTx(
@@ -407,6 +458,7 @@ export async function loadProductVariantsInTx(
       isDefault: row.isDefault,
       sortOrder: row.sortOrder,
       status: row.status === "archived" ? ("archived" as const) : ("active" as const),
+      sellableLinkKind: linkKinds.get(row.id) ?? null,
       sku: row.sku,
       barcode: row.barcode,
       ...variantSellingBasisFromRow(row),
@@ -465,6 +517,7 @@ function validateActiveVariantLabelSet(
       isDefault: false,
       sortOrder: 0,
       status: "active",
+      sellableLinkKind: null,
       sku: null,
       barcode: null,
       sellingQuantityBasis: null,
@@ -992,6 +1045,15 @@ export async function updateProductVariant(
         throw new CatalogueVariantError("Variant not found.", 404);
       }
 
+      // Restoring has its own administrator-only service and audit action.
+      if (variant.status === "archived" && validated.status === "active") {
+        throw new CatalogueVariantConflictError(
+          "Use restore to bring back an archived variant.",
+          "status",
+          CATALOGUE_VARIANT_RESTORE_CODES.RESTORE_REQUIRED,
+        );
+      }
+
       const existingVariants = await loadProductVariantsInTx(tx, tenantId, product.id);
       const nextStatus: "active" | "archived" =
         validated.status ??
@@ -1219,6 +1281,140 @@ export async function updateProductVariant(
         productPublicId: updatedProduct.publicId,
         productVersion: updatedProduct.version,
         canEditPrice: membership.role === "administrator",
+        variants: await loadProductVariantsInTx(tx, tenantId, product.id),
+      };
+    });
+  } catch (error) {
+    return mapCatalogueError(error);
+  }
+}
+
+export type RestoreProductVariantInput = {
+  expectedProductVersion: number;
+};
+
+/**
+ * Brings an archived variant back as an active, non-default variant at the
+ * end of the active order. The current default is left alone, and links,
+ * prices, translations and cost policies are not touched, so a recipe or
+ * direct-stock link still applies after the restore.
+ */
+export async function restoreArchivedVariant(
+  db: DbClient,
+  tenantId: string,
+  membership: ActiveStaffMembership,
+  productPublicId: string,
+  variantPublicId: string,
+  input: RestoreProductVariantInput,
+  staffSubject: string,
+): Promise<ProductVariantsEditorView> {
+  try {
+    if (membership.role !== "administrator") {
+      throw new StaffAuthorizationError(
+        "Administrator membership is required to restore variants.",
+      );
+    }
+    const expectedProductVersion = input?.expectedProductVersion;
+    if (
+      typeof expectedProductVersion !== "number" ||
+      !Number.isInteger(expectedProductVersion) ||
+      expectedProductVersion < 1
+    ) {
+      throw new CatalogueVariantError(
+        "expectedProductVersion must be a positive integer.",
+        400,
+        "expectedProductVersion",
+      );
+    }
+
+    return await withTenantContext(db, tenantId, async (tx) => {
+      const product = await loadCatalogueProductForMutationInTx(
+        tx,
+        tenantId,
+        productPublicId,
+      );
+
+      const [variant] = await tx
+        .select()
+        .from(catalogueVariants)
+        .where(
+          and(
+            eq(catalogueVariants.tenantId, tenantId),
+            eq(catalogueVariants.productId, product.id),
+            eq(catalogueVariants.publicId, variantPublicId),
+          ),
+        )
+        .limit(1);
+
+      if (!variant) {
+        throw new CatalogueVariantError("Variant not found.", 404);
+      }
+
+      if (variant.status !== "archived") {
+        throw new CatalogueVariantConflictError(
+          "Only archived variants can be restored.",
+          "status",
+          CATALOGUE_VARIANT_RESTORE_CODES.NOT_ARCHIVED,
+        );
+      }
+
+      const existingVariants = await loadProductVariantsInTx(tx, tenantId, product.id);
+      validateActiveVariantLabelSet(
+        existingVariants.map((entry) =>
+          entry.publicId === variantPublicId
+            ? { ...entry, status: "active" as const, isDefault: false }
+            : entry,
+        ),
+      );
+
+      const updatedProduct = await bumpProductVersion(
+        tx,
+        tenantId,
+        product.id,
+        expectedProductVersion,
+      );
+
+      const activeSortOrders = existingVariants
+        .filter((entry) => entry.status === "active")
+        .map((entry) => entry.sortOrder);
+      const sortOrder =
+        activeSortOrders.length === 0 ? 0 : Math.max(...activeSortOrders) + 1;
+
+      await tx
+        .update(catalogueVariants)
+        .set({
+          status: "active",
+          isDefault: false,
+          sortOrder,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(catalogueVariants.tenantId, tenantId),
+            eq(catalogueVariants.id, variant.id),
+          ),
+        );
+
+      await recordTenantAuditEventInTx(tx, {
+        tenantId,
+        actorSubject: staffSubject,
+        actorClass: auditActorClassFromStaffRole(membership.role),
+        action: "catalogue.variant.restore",
+        entityType: "catalogue_variant",
+        entityPublicId: variantPublicId,
+        entityVersion: updatedProduct.version,
+        changeSummary: {
+          productPublicId,
+          before: { status: "archived", isDefault: variant.isDefault },
+          after: { status: "active", isDefault: false },
+          sortOrder,
+        },
+      });
+
+      return {
+        productPublicId: updatedProduct.publicId,
+        productVersion: updatedProduct.version,
+        canEditPrice: true,
         variants: await loadProductVariantsInTx(tx, tenantId, product.id),
       };
     });
