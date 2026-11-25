@@ -10,6 +10,7 @@ import {
   catalogueProductModifierGroups,
   catalogueProducts,
   tenants,
+  recipeVersionModifierEffects,
 } from "@/db/schema";
 import {
   assertModifierAssignmentPolicyIsValid,
@@ -67,6 +68,7 @@ import {
 import { withTenantContext } from "@/lib/tenant/context";
 
 export const MODIFIER_GROUP_ASSIGNED_CODE = "modifier_group_assigned";
+export const MODIFIER_OPTIONS_IN_RECIPE_EFFECTS_CODE = "modifier_options_in_recipe_effects";
 
 export class CatalogueModifierError extends Error {
   readonly statusCode: number;
@@ -975,6 +977,27 @@ export async function deleteModifierGroup(
       const optionIds = options.map((option) => option.id);
       const optionPublicIds = options.map((option) => option.publicId);
 
+      // QOS-199: recipe versions keep their modifier effects as history, so an option they name is never hard-deleted.
+      if (optionIds.length > 0) {
+        const [effect] = await tx
+          .select({ id: recipeVersionModifierEffects.id })
+          .from(recipeVersionModifierEffects)
+          .where(
+            and(
+              eq(recipeVersionModifierEffects.tenantId, tenantId),
+              inArray(recipeVersionModifierEffects.modifierOptionId, optionIds),
+            ),
+          )
+          .limit(1);
+        if (effect) {
+          throw new CatalogueModifierConflictError(
+            "A recipe's modifier effects use an option of this group. Archive the group instead of deleting it.",
+            "options",
+            MODIFIER_OPTIONS_IN_RECIPE_EFFECTS_CODE,
+          );
+        }
+      }
+
       if (optionIds.length > 0) {
         await tx
           .delete(catalogueModifierOptionTranslations)
@@ -1416,7 +1439,7 @@ export async function reorderModifierOptions(
   }
 }
 
-async function loadProductModifierGroupsInTx(
+export async function loadProductModifierGroupsInTx(
   tx: DbClient,
   tenantId: string,
   product: typeof catalogueProducts.$inferSelect,

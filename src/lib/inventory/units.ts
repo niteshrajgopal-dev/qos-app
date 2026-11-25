@@ -10,6 +10,7 @@ import {
   recipes,
   recipeSellableLinks,
   recipeVersionLines,
+  recipeVersionModifierEffects,
   recipeVersions,
 } from "@/db/schema";
 import { auditActorClassFromStaffRole, recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
@@ -63,8 +64,9 @@ export type StandardUnitView = {
 
 /**
  * QOS-197 adds `currentCosts`: current item reference costs priced per this
- * unit. QOS-198 adds `recipeUsages`: yields and active lines of open drafts
- * and current or scheduled approved versions of active recipes, and
+ * unit. QOS-198 adds `recipeUsages`: yields, active lines (and, QOS-199,
+ * active modifier effects) of open drafts and current or scheduled approved
+ * versions of active recipes, and
  * direct-stock links that have not ended.
  */
 export type UnitUsage = { itemDesignations: number; currentRules: number; currentCosts: number; recipeUsages: number };
@@ -190,9 +192,21 @@ async function countRecipeUsagesInTx(tx: DbClient, tenantId: string, unitId: str
     .select({ effectiveTo: recipeSellableLinks.effectiveTo })
     .from(recipeSellableLinks)
     .where(and(eq(recipeSellableLinks.tenantId, tenantId), eq(recipeSellableLinks.unitId, unitId)));
+  // QOS-199: active modifier effects that add or replace in this unit count like lines.
+  const effects = await tx
+    .select({ versionId: recipeVersionModifierEffects.recipeVersionId })
+    .from(recipeVersionModifierEffects)
+    .where(
+      and(
+        eq(recipeVersionModifierEffects.tenantId, tenantId),
+        eq(recipeVersionModifierEffects.unitId, unitId),
+        eq(recipeVersionModifierEffects.status, "active"),
+      ),
+    );
   return (
     versions.filter((version) => version.yieldUnitId === unitId).length +
     lines.filter((line) => liveVersionIds.has(line.versionId)).length +
+    effects.filter((effect) => liveVersionIds.has(effect.versionId)).length +
     links.filter((link) => isOpenOn(link.effectiveTo, today)).length
   );
 }

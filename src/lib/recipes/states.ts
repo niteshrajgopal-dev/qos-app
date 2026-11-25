@@ -22,7 +22,10 @@ export type RecipeStateKey =
   | "flag_conflicts_with_recipe"
   | "variant_archived"
   | "output_item_archived"
-  | "weight_basis_unsupported";
+  | "weight_basis_unsupported"
+  | "effect_option_archived"
+  | "effect_option_unassigned"
+  | "effect_unit_not_convertible";
 
 export function lineStates(line: {
   itemStatus: "active" | "archived";
@@ -34,6 +37,21 @@ export function lineStates(line: {
   if (line.conversion === "missing") states.push("missing_conversion");
   if (line.cost === "unknown") states.push("cost_unknown");
   if (line.cost === "not_convertible") states.push("cost_not_convertible");
+  return states;
+}
+
+/** QOS-199 modifier effect states shown on the effects panel. */
+export function effectStates(effect: {
+  optionArchived: boolean;
+  unassigned: boolean;
+  itemStatus: "active" | "archived" | null;
+  convertible: boolean;
+}): RecipeStateKey[] {
+  const states: RecipeStateKey[] = [];
+  if (effect.optionArchived) states.push("effect_option_archived");
+  if (effect.unassigned) states.push("effect_option_unassigned");
+  if (effect.itemStatus === "archived") states.push("item_archived");
+  if (!effect.convertible) states.push("effect_unit_not_convertible");
   return states;
 }
 

@@ -11,12 +11,13 @@ import { type StaffCountKey, staffCount, staffUiCopy } from "@/lib/staff/locale"
    above the list still explains the refusal. QOS-197: `itemsCountKey` words
    the item count for the screen (a supplier's or a category's items).
    QOS-198 adds the recipe lines, sellable links and prepared recipes that
-   keep an item (or a recipe) in use. */
+   keep an item (or a recipe) in use; QOS-199 the modifier effects. */
 
 const RECIPE_DEPENDENCY_COPY: Partial<Record<string, StaffCountKey>> = {
   recipe_lines: "recipeLinesDependency",
   sellable_links: "sellableLinksDependency",
   recipe_outputs: "recipeOutputsDependency",
+  recipe_effects: "recipeEffectsDependency",
 };
 
 export function DependencyNotice({

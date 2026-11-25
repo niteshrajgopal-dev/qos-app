@@ -1,9 +1,13 @@
 import type { DbClient } from "@/db/client";
+import { attachModifierGroupToProduct, createModifierGroup, createModifierOption, listProductModifierGroups } from "@/lib/catalogue/modifiers";
 import { createDraftProduct } from "@/lib/catalogue/products";
 import { createProductVariant, updateProductVariant } from "@/lib/catalogue/variants";
 import { ACTOR, ADMIN } from "@/lib/inventory/integration-helpers";
 import { createItem } from "@/lib/inventory/items";
 import { createUnit } from "@/lib/inventory/units";
+import { createSellableLink } from "@/lib/recipes/links";
+import { createRecipe } from "@/lib/recipes/recipes";
+import { replaceDraftLines } from "@/lib/recipes/versions";
 
 /* QOS-198 integration seeds, created through the real services: units with
    standard and custom codes, purchased and prepared items, a two-variant
@@ -85,3 +89,60 @@ export async function seedRecipeFixtures(db: DbClient, tenantId: string) {
 }
 
 export type RecipeFixtures = Awaited<ReturnType<typeof seedRecipeFixtures>>;
+
+/* QOS-199 integration seeds, through the real services: an approved-ready
+   latte draft (yield 1 portion: 200 ml milk, 18 g beans) linked to the
+   regular latte, an oat milk item, and a shared "Extras" modifier group
+   (Extra shot 3.00 repeatable to 3, Oat milk 2.00, No milk 0.00) attached to
+   the latte product. Effects are saved by each test. */
+export async function seedEffectFixtures(db: DbClient, tenantId: string, fx: RecipeFixtures, now: Date) {
+  const oat = (
+    await createItem(db, tenantId, ADMIN, ACTOR, { nameEn: "Oat milk", nameAr: "حليب الشوفان", kind: "purchased", storageUnitPublicId: fx.units.l, recipeUnitPublicId: fx.units.ml })
+  ).item.publicId;
+  const created = await createRecipe(db, tenantId, ADMIN, ACTOR, { nameEn: "Latte", kind: "sellable", yieldQuantity: "1", yieldUnitPublicId: fx.units.portion }, now);
+  const draft = await replaceDraftLines(db, tenantId, ADMIN, ACTOR, created.recipe.publicId, created.versions[0]!.publicId, {
+    expectedVersion: created.versions[0]!.version,
+    lines: [
+      { itemPublicId: fx.items.milk, quantity: "200", unitPublicId: fx.units.ml },
+      { itemPublicId: fx.items.beans, quantity: "18", unitPublicId: fx.units.g },
+    ],
+  }, now);
+  await createSellableLink(db, tenantId, ADMIN, ACTOR, { variantPublicId: fx.latte.regular, kind: "recipe", recipePublicId: created.recipe.publicId, effectiveFrom: "2026-11-01" }, now);
+  let group = await createModifierGroup(db, tenantId, {
+    internalName: "extras",
+    minSelections: 0,
+    maxSelections: 5,
+    translations: { en: { displayName: "Extras" }, ar: { displayName: "إضافات" } },
+  }, ACTOR, ADMIN);
+  const option = async (publicId: string, en: string, ar: string, extra: Record<string, unknown>) => {
+    group = await createModifierOption(db, tenantId, group.publicId, {
+      expectedGroupVersion: group.version,
+      publicId,
+      translations: { en: { displayName: en }, ar: { displayName: ar } },
+      ...extra,
+    }, ACTOR, ADMIN);
+    return publicId;
+  };
+  const options = {
+    shot: await option("modopt_extra_shot", "Extra shot", "جرعة إضافية", { allowsQuantity: true, maxQuantity: 3, priceMinor: 300, currency: "AED" }),
+    oat: await option("modopt_oat_milk", "Oat milk", "حليب الشوفان", { allowsQuantity: true, maxQuantity: 2, priceMinor: 200, currency: "AED" }),
+    noMilk: await option("modopt_no_milk", "No milk", "بدون حليب", { priceMinor: 0, currency: "AED" }),
+  };
+  const assigned = await listProductModifierGroups(db, tenantId, fx.latte.productPublicId);
+  await attachModifierGroupToProduct(db, tenantId, fx.latte.productPublicId, {
+    expectedProductVersion: assigned.productVersion,
+    modifierGroupPublicId: group.publicId,
+  }, ACTOR, ADMIN);
+  const version = draft.versions[0]!;
+  return {
+    oat,
+    recipePublicId: created.recipe.publicId,
+    versionPublicId: version.publicId,
+    milkLine: version.lines.find((line) => line.item.publicId === fx.items.milk)!.publicId,
+    beansLine: version.lines.find((line) => line.item.publicId === fx.items.beans)!.publicId,
+    groupPublicId: group.publicId,
+    options,
+  };
+}
+
+export type EffectFixtures = Awaited<ReturnType<typeof seedEffectFixtures>>;

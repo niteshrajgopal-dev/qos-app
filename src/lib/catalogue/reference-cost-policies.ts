@@ -65,8 +65,9 @@ export type RecipeDerivedOutcome =
       rounding: "none" | "half_up_micros";
       currency: string;
       taxBasis: ReferenceCostTaxBasis | "mixed";
-      recipe: { publicId: string; nameEn: string; nameAr: string | null };
-      versionNumber: number;
+      /** The recipe and version used; null for a direct-stock link. */
+      recipe: { publicId: string; nameEn: string; nameAr: string | null } | null;
+      versionNumber: number | null;
     }
   | { status: "unavailable"; reason: Exclude<RecipeDerivedReason, "computed_per_configuration"> };
 
@@ -99,8 +100,9 @@ export type ResolvedReferenceCost =
       currency: string;
       unit: "each";
       taxBasis: ReferenceCostTaxBasis | "mixed";
-      recipe: { publicId: string; nameEn: string; nameAr: string | null };
-      versionNumber: number;
+      /** The recipe and version used; null for a direct-stock link. */
+      recipe: { publicId: string; nameEn: string; nameAr: string | null } | null;
+      versionNumber: number | null;
       effectiveFrom: string | null;
       policyPublicId: string;
       revision: number;
