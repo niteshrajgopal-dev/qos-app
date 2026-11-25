@@ -9,8 +9,8 @@ import {
   catalogueModifierOptions,
   catalogueProductModifierGroups,
   catalogueProducts,
-  tenants,
   recipeVersionModifierEffects,
+  tenants,
 } from "@/db/schema";
 import {
   assertModifierAssignmentPolicyIsValid,

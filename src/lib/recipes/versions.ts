@@ -74,7 +74,7 @@ import { withTenantContext } from "@/lib/tenant/context";
    family row first, then the version row, and records one audit event in
    the same transaction. Nothing here produces, posts or moves stock. */
 
-export type Context = { tenantId: string; actorSubject: string; membership: ActiveStaffMembership };
+type Context = { tenantId: string; actorSubject: string; membership: ActiveStaffMembership };
 
 export type ApprovalEffect = {
   versionNumber: number;
