@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
 import {
@@ -14,7 +15,7 @@ import { PortalBadge, PortalField, PortalNotice, PortalPanel } from "@/component
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
 import { previewMissingText } from "@/lib/inventory/conversion-preview";
 import type { CostPerUnit, CostSource, CostTaxBasis, KnownItemCost } from "@/lib/inventory/cost-completeness";
-import type { ItemDetailView, ReferenceCostView } from "@/lib/inventory/items";
+import type { ItemDetailView, ItemRecipeUsage, ReferenceCostView } from "@/lib/inventory/items";
 import { isolateText } from "@/lib/staff/branch-copy";
 import { type StaffLocale, staffCopyWith, staffCount, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 
@@ -381,15 +382,50 @@ export function ItemCostPanel({
   );
 }
 
-/** Honest empty states: recipes and stock movements do not exist yet, so nothing is listed or simulated. */
-export function ItemRelatedPanel() {
+/**
+ * QOS-198: the recipes that use this item, the prepared recipe that makes it
+ * and its direct-stock links, from the item detail. Stock movements still do
+ * not exist, so that line stays an honest empty state.
+ */
+export function ItemRelatedPanel({ tenantId, usage }: { tenantId: string; usage: ItemRecipeUsage }) {
   const { locale } = useStaffLocale();
+  const t = (key: StaffUiCopyKey) => staffUiCopy(locale, key);
+  const recipeName = (entry: { nameEn: string; nameAr: string | null }) =>
+    locale === "ar" && entry.nameAr ? { text: entry.nameAr, dir: "rtl" as const } : { text: entry.nameEn, dir: locale === "ar" ? ("ltr" as const) : undefined };
+  const none = usage.recipeLines.length === 0 && usage.outputOf.length === 0 && usage.directStockLinks === 0;
   return (
     <PortalPanel>
-      <h2 className="qosp-panel-title">{staffUiCopy(locale, "relatedTitle")}</h2>
-      <ul className="qosp-meta-line qosp-panel-body">
-        <li>{staffUiCopy(locale, "relatedRecipesNone")}</li>
-        <li>{staffUiCopy(locale, "relatedStockNone")}</li>
+      <h2 className="qosp-panel-title">{t("relatedTitle")}</h2>
+      <ul className="qosp-meta-line qosp-panel-body qosp-stack">
+        {none ? <li>{t("relatedRecipesNone")}</li> : null}
+        {usage.outputOf.map((entry) => {
+          const name = recipeName(entry);
+          return (
+            <li key={`output-${entry.recipePublicId}`}>
+              {t("relatedOutputOf")}{" "}
+              <Link href={`/tenants/${tenantId}/catalogue/recipes/${entry.recipePublicId}`}>
+                <bdi dir={name.dir}>{name.text}</bdi>
+              </Link>
+            </li>
+          );
+        })}
+        {usage.recipeLines.map((entry) => {
+          const name = recipeName(entry);
+          return (
+            <li key={`line-${entry.recipePublicId}-${entry.versionNumber}`}>
+              {t("relatedUsedIn")}{" "}
+              <Link href={`/tenants/${tenantId}/catalogue/recipes/${entry.recipePublicId}`}>
+                <bdi dir={name.dir}>{name.text}</bdi>
+              </Link>{" "}
+              {staffCopyWith(locale, "relatedRecipeVersion", {
+                number: isolateText(String(entry.versionNumber)),
+                phase: t(entry.phase === "draft" ? "recipeStatusDraft" : entry.phase === "scheduled" ? "recipeScheduled" : "recipeCurrent"),
+              })}
+            </li>
+          );
+        })}
+        {usage.directStockLinks > 0 ? <li>{staffCount(locale, "relatedDirectStockLinks", usage.directStockLinks)}</li> : null}
+        <li>{t("relatedStockNone")}</li>
       </ul>
     </PortalPanel>
   );

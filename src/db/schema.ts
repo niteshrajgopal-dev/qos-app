@@ -4680,6 +4680,285 @@ export const inventoryWarehouses = qos.table(
   ],
 );
 
+/* QOS-198 versioned recipes, preparation steps and sellable links (0063).
+   A family has numbered versions; approved and discarded versions are
+   read-only (service), qos_app cannot change a version's identity columns or
+   a line's version, and the approval snapshot is insert-only. Sellable links
+   are append-only like reference costs: qos_app may only set effective_to. */
+export const recipes = qos.table(
+  "recipes",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    publicId: text("public_id").notNull(),
+    nameEn: text("name_en").notNull(),
+    nameAr: text("name_ar"),
+    kind: text("kind").notNull().$type<"sellable" | "prepared">(),
+    /** The prepared inventory item a prepared family produces; null for sellable families. */
+    outputItemId: uuid("output_item_id"),
+    notes: text("notes"),
+    status: text("status").notNull().default("active").$type<"active" | "archived">(),
+    version: integer("version").notNull().default(1),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("recipes_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("recipes_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    foreignKey({
+      name: "recipes_output_item_fk",
+      columns: [table.tenantId, table.outputItemId],
+      foreignColumns: [inventoryItems.tenantId, inventoryItems.id],
+    }).onDelete("restrict"),
+    uniqueIndex("recipes_active_output_item_unique")
+      .on(table.tenantId, table.outputItemId)
+      .where(sql`status = 'active' AND output_item_id IS NOT NULL`),
+    index("recipes_tenant_id_idx").on(table.tenantId),
+    check("recipes_public_id_check", sql`${table.publicId} ~ '^rec_[a-z0-9_-]+$'`),
+    check("recipes_name_en_check", sql`char_length(btrim(${table.nameEn})) BETWEEN 1 AND 120`),
+    check("recipes_name_ar_check", sql`${table.nameAr} IS NULL OR char_length(btrim(${table.nameAr})) BETWEEN 1 AND 120`),
+    check("recipes_kind_check", sql`${table.kind} IN ('sellable', 'prepared')`),
+    check("recipes_output_item_check", sql`(${table.kind} = 'prepared') = (${table.outputItemId} IS NOT NULL)`),
+    check("recipes_notes_check", sql`${table.notes} IS NULL OR char_length(${table.notes}) <= 1000`),
+    check("recipes_status_check", sql`${table.status} IN ('active', 'archived')`),
+    check("recipes_version_check", sql`${table.version} >= 1`),
+  ],
+);
+
+export const recipeVersions = qos.table(
+  "recipe_versions",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    publicId: text("public_id").notNull(),
+    recipeId: uuid("recipe_id").notNull(),
+    versionNumber: integer("version_number").notNull(),
+    status: text("status").notNull().default("draft").$type<"draft" | "approved" | "discarded">(),
+    /** Half-open business-date range [effective_from, effective_to); both null until approved. */
+    effectiveFrom: date("effective_from"),
+    effectiveTo: date("effective_to"),
+    /** The whole stated yield in micros of the yield unit; line quantities describe this yield. */
+    yieldQuantityMicros: bigint("yield_quantity_micros", { mode: "bigint" }),
+    yieldUnitId: uuid("yield_unit_id"),
+    notes: text("notes"),
+    approvedAt: timestamp("approved_at", { withTimezone: true }),
+    approvedBySubject: text("approved_by_subject"),
+    version: integer("version").notNull().default(1),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("recipe_versions_tenant_id_id_unique").on(table.tenantId, table.id),
+    unique("recipe_versions_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    unique("recipe_versions_number_unique").on(table.tenantId, table.recipeId, table.versionNumber),
+    foreignKey({
+      name: "recipe_versions_recipe_fk",
+      columns: [table.tenantId, table.recipeId],
+      foreignColumns: [recipes.tenantId, recipes.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_versions_yield_unit_fk",
+      columns: [table.tenantId, table.yieldUnitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    uniqueIndex("recipe_versions_open_draft_unique").on(table.tenantId, table.recipeId).where(sql`status = 'draft'`),
+    uniqueIndex("recipe_versions_current_approved_unique")
+      .on(table.tenantId, table.recipeId)
+      .where(sql`status = 'approved' AND effective_to IS NULL`),
+    index("recipe_versions_tenant_recipe_idx").on(table.tenantId, table.recipeId),
+    check("recipe_versions_public_id_check", sql`${table.publicId} ~ '^recv_[a-z0-9_-]+$'`),
+    check("recipe_versions_version_number_check", sql`${table.versionNumber} >= 1`),
+    check("recipe_versions_status_check", sql`${table.status} IN ('draft', 'approved', 'discarded')`),
+    check("recipe_versions_yield_check", sql`${table.yieldQuantityMicros} IS NULL OR ${table.yieldQuantityMicros} > 0`),
+    check("recipe_versions_notes_check", sql`${table.notes} IS NULL OR char_length(${table.notes}) <= 1000`),
+    check(
+      "recipe_versions_approved_check",
+      sql`${table.status} <> 'approved' OR (${table.effectiveFrom} IS NOT NULL AND ${table.yieldQuantityMicros} IS NOT NULL AND ${table.yieldUnitId} IS NOT NULL AND ${table.approvedAt} IS NOT NULL)`,
+    ),
+    check(
+      "recipe_versions_unapproved_dates_check",
+      sql`${table.status} = 'approved' OR (${table.effectiveFrom} IS NULL AND ${table.effectiveTo} IS NULL)`,
+    ),
+    check("recipe_versions_dates_check", sql`${table.effectiveTo} IS NULL OR ${table.effectiveTo} > ${table.effectiveFrom}`),
+    check("recipe_versions_version_check", sql`${table.version} >= 1`),
+  ],
+);
+
+export const recipeVersionLines = qos.table(
+  "recipe_version_lines",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    publicId: text("public_id").notNull(),
+    recipeVersionId: uuid("recipe_version_id").notNull(),
+    itemId: uuid("item_id").notNull(),
+    unitId: uuid("unit_id").notNull(),
+    /** Quantity for the whole stated yield, in micros of the line unit. */
+    quantityMicros: bigint("quantity_micros", { mode: "bigint" }).notNull(),
+    position: integer("position").notNull(),
+    labelEn: text("label_en"),
+    labelAr: text("label_ar"),
+    status: text("status").notNull().default("active").$type<"active" | "removed">(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("recipe_version_lines_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    foreignKey({
+      name: "recipe_version_lines_version_fk",
+      columns: [table.tenantId, table.recipeVersionId],
+      foreignColumns: [recipeVersions.tenantId, recipeVersions.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_version_lines_item_fk",
+      columns: [table.tenantId, table.itemId],
+      foreignColumns: [inventoryItems.tenantId, inventoryItems.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_version_lines_unit_fk",
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    uniqueIndex("recipe_version_lines_active_item_unique")
+      .on(table.tenantId, table.recipeVersionId, table.itemId)
+      .where(sql`status = 'active'`),
+    index("recipe_version_lines_tenant_version_idx").on(table.tenantId, table.recipeVersionId),
+    index("recipe_version_lines_tenant_item_idx").on(table.tenantId, table.itemId),
+    check("recipe_version_lines_public_id_check", sql`${table.publicId} ~ '^recl_[a-z0-9_-]+$'`),
+    check("recipe_version_lines_quantity_check", sql`${table.quantityMicros} > 0`),
+    check("recipe_version_lines_position_check", sql`${table.position} >= 0`),
+    check("recipe_version_lines_label_en_check", sql`${table.labelEn} IS NULL OR char_length(${table.labelEn}) <= 120`),
+    check("recipe_version_lines_label_ar_check", sql`${table.labelAr} IS NULL OR char_length(${table.labelAr}) <= 120`),
+    check("recipe_version_lines_status_check", sql`${table.status} IN ('active', 'removed')`),
+  ],
+);
+
+export const recipeVersionSteps = qos.table(
+  "recipe_version_steps",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    publicId: text("public_id").notNull(),
+    recipeVersionId: uuid("recipe_version_id").notNull(),
+    position: integer("position").notNull(),
+    textEn: text("text_en").notNull(),
+    textAr: text("text_ar"),
+    status: text("status").notNull().default("active").$type<"active" | "removed">(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+    updatedBySubject: text("updated_by_subject"),
+  },
+  (table) => [
+    unique("recipe_version_steps_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    foreignKey({
+      name: "recipe_version_steps_version_fk",
+      columns: [table.tenantId, table.recipeVersionId],
+      foreignColumns: [recipeVersions.tenantId, recipeVersions.id],
+    }).onDelete("restrict"),
+    index("recipe_version_steps_tenant_version_idx").on(table.tenantId, table.recipeVersionId),
+    check("recipe_version_steps_public_id_check", sql`${table.publicId} ~ '^recs_[a-z0-9_-]+$'`),
+    check("recipe_version_steps_position_check", sql`${table.position} >= 0`),
+    check("recipe_version_steps_text_en_check", sql`char_length(btrim(${table.textEn})) BETWEEN 1 AND 1000`),
+    check(
+      "recipe_version_steps_text_ar_check",
+      sql`${table.textAr} IS NULL OR char_length(btrim(${table.textAr})) BETWEEN 1 AND 1000`,
+    ),
+    check("recipe_version_steps_status_check", sql`${table.status} IN ('active', 'removed')`),
+  ],
+);
+
+export const recipeVersionSnapshots = qos.table(
+  "recipe_version_snapshots",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    recipeVersionId: uuid("recipe_version_id").notNull(),
+    snapshot: jsonb("snapshot").$type<Record<string, unknown>>().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+  },
+  (table) => [
+    unique("recipe_version_snapshots_version_unique").on(table.tenantId, table.recipeVersionId),
+    foreignKey({
+      name: "recipe_version_snapshots_version_fk",
+      columns: [table.tenantId, table.recipeVersionId],
+      foreignColumns: [recipeVersions.tenantId, recipeVersions.id],
+    }).onDelete("restrict"),
+  ],
+);
+
+export const recipeSellableLinks = qos.table(
+  "recipe_sellable_links",
+  {
+    id: uuid("id").defaultRandom().primaryKey(),
+    tenantId: uuid("tenant_id").notNull(),
+    publicId: text("public_id").notNull(),
+    variantId: uuid("variant_id").notNull(),
+    kind: text("kind").notNull().$type<"recipe" | "direct_stock">(),
+    recipeId: uuid("recipe_id"),
+    itemId: uuid("item_id"),
+    /** Direct stock only: what one sale of the variant uses, in micros of unit_id. */
+    quantityMicros: bigint("quantity_micros", { mode: "bigint" }),
+    unitId: uuid("unit_id"),
+    effectiveFrom: date("effective_from").notNull(),
+    effectiveTo: date("effective_to"),
+    revision: integer("revision").notNull(),
+    provenance: dataProvenanceEnum("provenance").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    createdBySubject: text("created_by_subject"),
+  },
+  (table) => [
+    unique("recipe_sellable_links_tenant_public_id_unique").on(table.tenantId, table.publicId),
+    unique("recipe_sellable_links_revision_unique").on(table.tenantId, table.variantId, table.revision),
+    foreignKey({
+      name: "recipe_sellable_links_variant_fk",
+      columns: [table.tenantId, table.variantId],
+      foreignColumns: [catalogueVariants.tenantId, catalogueVariants.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_sellable_links_recipe_fk",
+      columns: [table.tenantId, table.recipeId],
+      foreignColumns: [recipes.tenantId, recipes.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_sellable_links_item_fk",
+      columns: [table.tenantId, table.itemId],
+      foreignColumns: [inventoryItems.tenantId, inventoryItems.id],
+    }).onDelete("restrict"),
+    foreignKey({
+      name: "recipe_sellable_links_unit_fk",
+      columns: [table.tenantId, table.unitId],
+      foreignColumns: [inventoryUnits.tenantId, inventoryUnits.id],
+    }).onDelete("restrict"),
+    uniqueIndex("recipe_sellable_links_current_unique").on(table.tenantId, table.variantId).where(sql`effective_to IS NULL`),
+    index("recipe_sellable_links_tenant_recipe_idx").on(table.tenantId, table.recipeId),
+    index("recipe_sellable_links_tenant_item_idx").on(table.tenantId, table.itemId),
+    check("recipe_sellable_links_public_id_check", sql`${table.publicId} ~ '^link_[a-z0-9_-]+$'`),
+    check("recipe_sellable_links_kind_check", sql`${table.kind} IN ('recipe', 'direct_stock')`),
+    check(
+      "recipe_sellable_links_shape_check",
+      sql`(${table.kind} = 'recipe' AND ${table.recipeId} IS NOT NULL AND ${table.itemId} IS NULL AND ${table.quantityMicros} IS NULL AND ${table.unitId} IS NULL) OR (${table.kind} = 'direct_stock' AND ${table.recipeId} IS NULL AND ${table.itemId} IS NOT NULL AND ${table.quantityMicros} IS NOT NULL AND ${table.unitId} IS NOT NULL)`,
+    ),
+    check("recipe_sellable_links_quantity_check", sql`${table.quantityMicros} IS NULL OR ${table.quantityMicros} > 0`),
+    check(
+      "recipe_sellable_links_dates_check",
+      sql`${table.effectiveTo} IS NULL OR ${table.effectiveTo} >= ${table.effectiveFrom}`,
+    ),
+    check("recipe_sellable_links_revision_check", sql`${table.revision} >= 1`),
+  ],
+);
+
 export type InventoryUnitRecord = typeof inventoryUnits.$inferSelect;
 export type InventoryItemRecord = typeof inventoryItems.$inferSelect;
 export type InventoryItemConversionRecord = typeof inventoryItemConversions.$inferSelect;
@@ -4687,6 +4966,12 @@ export type InventorySupplierRecord = typeof inventorySuppliers.$inferSelect;
 export type InventoryWarehouseRecord = typeof inventoryWarehouses.$inferSelect;
 export type InventoryCategoryRecord = typeof inventoryCategories.$inferSelect;
 export type InventoryItemReferenceCostRecord = typeof inventoryItemReferenceCosts.$inferSelect;
+export type RecipeRecord = typeof recipes.$inferSelect;
+export type RecipeVersionRecord = typeof recipeVersions.$inferSelect;
+export type RecipeVersionLineRecord = typeof recipeVersionLines.$inferSelect;
+export type RecipeVersionStepRecord = typeof recipeVersionSteps.$inferSelect;
+export type RecipeVersionSnapshotRecord = typeof recipeVersionSnapshots.$inferSelect;
+export type RecipeSellableLinkRecord = typeof recipeSellableLinks.$inferSelect;
 
 export const schema = {
   tenants,

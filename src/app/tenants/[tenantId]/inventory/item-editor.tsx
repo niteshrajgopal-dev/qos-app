@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 
 import { ConversionPreviewPanel } from "@/app/tenants/[tenantId]/inventory/conversion-preview-panel";
+import { DependencyNotice } from "@/app/tenants/[tenantId]/inventory/dependency-notice";
 import {
   inventoryApi,
   inventoryFailureText,
@@ -23,6 +24,7 @@ import {
   PortalPanel,
 } from "@/components/portal/workspace/PortalWorkspace";
 import { useStaffLocale } from "@/components/staff/StaffLocaleProvider";
+import type { Dependency } from "@/lib/inventory/errors";
 import type { InventoryItemKind, ItemDetailView } from "@/lib/inventory/items";
 import type { CategoryView, SupplierView, UnitView } from "@/lib/inventory/shared";
 import { staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
@@ -32,7 +34,8 @@ import { staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
    explains its quantities and the dated history. A rename keeps the item's
    public id and every rule. QOS-196 adds the default supplier; QOS-197 the
    category, notes, the reference cost panel and the related recipes and stock
-   empty states. */
+   empty states. QOS-198 lists real recipe usage there and explains a refused
+   archive or kind change with the recipes and links that block it. */
 
 type Form = {
   nameEn: string;
@@ -90,7 +93,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
   const [form, setForm] = useState<Form>(EMPTY_FORM);
   const [loaded, setLoaded] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [notice, setNotice] = useState<{ tone: "success" | "error"; text: string; dependencies?: Dependency[] } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmArchive, setConfirmArchive] = useState(false);
   const canEdit = branch.role === "administrator";
@@ -155,7 +158,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
       : await inventoryApi<{ item: ItemDetailView }>(`/api/tenants/${tenantId}/inventory/items`, { method: "POST", body });
     setBusy(false);
     if (!result.ok) {
-      setNotice({ tone: "error", text: inventoryFailureText(locale, result) });
+      setNotice({ tone: "error", text: inventoryFailureText(locale, result), dependencies: result.dependencies });
       return;
     }
     if (detail) {
@@ -177,7 +180,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
     });
     setBusy(false);
     if (!result.ok) {
-      setNotice({ tone: "error", text: inventoryFailureText(locale, result) });
+      setNotice({ tone: "error", text: inventoryFailureText(locale, result), dependencies: result.dependencies });
       return;
     }
     applyDetail(result.data);
@@ -323,7 +326,11 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
                 </PortalField>
               </div>
               {detail?.item.status === "archived" ? <PortalNotice tone="warning">{t("itemArchivedNote")}</PortalNotice> : null}
-              {notice ? <PortalNotice tone={notice.tone}>{notice.text}</PortalNotice> : null}
+              {notice?.dependencies?.length ? (
+                <DependencyNotice message={notice.text} dependencies={notice.dependencies} />
+              ) : notice ? (
+                <PortalNotice tone={notice.tone}>{notice.text}</PortalNotice>
+              ) : null}
               {canEdit ? (
                 <div className="qosp-button-row qosp-inventory-actions">
                   <button type="button" className="qos-btn" data-variant="primary" data-size="sm" disabled={busy} onClick={() => void save()}>
@@ -373,7 +380,7 @@ export function ItemEditorScreen({ tenantId, itemPublicId }: { tenantId: string;
                   canEdit={canEdit && detail.item.status === "active"}
                   onChange={applyDetail}
                 />
-                <ItemRelatedPanel />
+                <ItemRelatedPanel tenantId={tenantId} usage={detail.usage} />
               </>
             ) : null}
           </>

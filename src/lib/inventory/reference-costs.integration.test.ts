@@ -463,7 +463,7 @@ integrationDescribe("inventory item reference costs service", () => {
     });
     // The item no longer designates the packet, but its current cost is still per packet.
     await updateItem(db, tenantId, ADMIN, ACTOR, item.item.publicId, { expectedVersion: 1, purchaseUnitPublicId: null });
-    expect((await getUnit(db, tenantId, units.packet)).usage).toEqual({ itemDesignations: 0, currentRules: 0, currentCosts: 1 });
+    expect((await getUnit(db, tenantId, units.packet)).usage).toEqual({ itemDesignations: 0, currentRules: 0, currentCosts: 1, recipeUsages: 0 });
     expect(await rejection(updateUnit(db, tenantId, ADMIN, ACTOR, units.packet, { expectedVersion: 1, status: "archived" }))).toEqual({
       statusCode: 409,
       code: "unit_in_use",

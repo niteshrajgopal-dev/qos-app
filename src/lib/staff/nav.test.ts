@@ -220,10 +220,21 @@ describe("Phase 2 destinations (QOS-192)", () => {
   });
 
   it("marks areas without services as soon and keeps Branches ready", () => {
-    for (const id of ["kitchen", "sales", "reports", "recipes"]) {
+    for (const id of ["kitchen", "sales", "reports"]) {
       expect(staffNavItemById(id)?.availability, id).toBe("soon");
     }
     expect(staffNavItemById("branches")?.availability).toBe("ready");
+  });
+
+  it("marks Recipes ready under Catalogue in the sidebar and under More now that QOS-198 serves it", () => {
+    expect(staffNavItemById("recipes")?.availability).toBe("ready");
+    const catalogueChildren = STAFF_NAV_GROUPS.flatMap((group) => group.items).find((item) => item.id === "catalogue")!.children!;
+    expect(catalogueChildren).toContainEqual(expect.objectContaining({ id: "recipes", availability: "ready" }));
+    const catalogueMore = STAFF_MORE_NAV_GROUPS.find((group) => group.items.some((item) => item.id === "recipes"))!;
+    expect(catalogueMore.items).toContainEqual(expect.objectContaining({ id: "recipes", availability: "ready" }));
+    for (const suffix of ["/catalogue/recipes", "/catalogue/recipes/new", "/catalogue/recipes/rec_x", "/catalogue/recipes/rec_x/versions/recv_x"]) {
+      expect(activeStaffNavIdFromPath(`/tenants/${tenantId}${suffix}`)).toBe("recipes");
+    }
   });
 
   it("marks Inventory ready in the sidebar and under More now that QOS-195 serves it", () => {

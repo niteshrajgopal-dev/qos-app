@@ -1431,3 +1431,57 @@ article.qosp-subcard > .qosp-button-row {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* ---------- Recipes and sellable links (QOS-198) ----------
+   Ordered lines and steps are cards in a plain list; their fields sit in an
+   auto-fit grid that drops to one column on narrow screens. Reorder and link
+   actions wrap and keep a 44px touch target. Quantities and codes are LTR
+   isolates inside the text, so nothing widens a row at 360px. */
+.qosp-recipe-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.qosp-recipe-line-grid {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.qosp-recipe-line-facts,
+.qosp-recipe-version-summary {
+  gap: 6px;
+}
+.qosp-recipe-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  justify-items: start;
+}
+.qosp-recipe-actions .qos-btn {
+  min-height: 44px;
+  gap: 6px;
+}
+.qosp-recipe-product-head {
+  margin-bottom: 0;
+}
+.qosp-recipe-preview {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.qosp-recipe-preview-form {
+  margin-top: 4px;
+}
+
+@media (max-width: 680px) {
+  .qosp-recipe-line-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.qosp-recipe-version-summary .qosp-inventory-cost-amount,
+.qosp-recipe-line-facts .qosp-inventory-cost-amount {
+  font-size: 13px;
+  color: var(--portal-text-soft);
+}

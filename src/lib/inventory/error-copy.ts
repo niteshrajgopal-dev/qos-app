@@ -1,6 +1,6 @@
 import type { StaffLocale } from "@/lib/staff/locale";
 
-/* QOS-195, QOS-196 and QOS-197 staff copy for inventory API error codes. The API message stays
+/* QOS-195, QOS-196, QOS-197 and QOS-198 staff copy for inventory and recipe API error codes. The API message stays
    English for logs and API clients; the staff UI shows this copy instead. */
 
 type Bilingual = Record<StaffLocale, string>;
@@ -36,8 +36,8 @@ export const INVENTORY_ERROR_COPY = {
     ar: "لا يمكن تغيير الرمز بعد إنشاء الوحدة. أعد تسمية الوحدة بدلًا من ذلك.",
   },
   unit_in_use: {
-    en: "This unit is used by an item, a current conversion or a current cost and cannot be archived.",
-    ar: "هذه الوحدة مستخدمة في صنف أو تحويل حالي أو تكلفة حالية ولا يمكن أرشفتها.",
+    en: "This unit is used by an item, a current conversion, a current cost or a recipe and cannot be archived.",
+    ar: "هذه الوحدة مستخدمة في صنف أو تحويل حالي أو تكلفة حالية أو وصفة ولا يمكن أرشفتها.",
   },
   unit_not_found: { en: "This unit was not found.", ar: "لم يتم العثور على هذه الوحدة." },
   unit_archived: {
@@ -46,12 +46,12 @@ export const INVENTORY_ERROR_COPY = {
   },
   item_not_found: { en: "This item was not found.", ar: "لم يتم العثور على هذا الصنف." },
   item_archived: {
-    en: "This item is archived. Restore it to change its conversions or cost.",
-    ar: "هذا الصنف مؤرشف. استعده لتغيير تحويلاته أو تكلفته.",
+    en: "This item is archived. Restore it before using it or changing its conversions or cost.",
+    ar: "هذا الصنف مؤرشف. استعده قبل استخدامه أو تغيير تحويلاته أو تكلفته.",
   },
   item_in_use: {
-    en: "This item is still in use and cannot be archived.",
-    ar: "هذا الصنف لا يزال مستخدمًا ولا يمكن أرشفته.",
+    en: "This item is still used by a recipe or a sellable link and cannot be archived or change kind.",
+    ar: "هذا الصنف لا يزال مستخدمًا في وصفة أو ربط بيع ولا يمكن أرشفته أو تغيير نوعه.",
   },
   kind_invalid: { en: "Choose purchased or prepared.", ar: "اختر مشترى أو محضّر." },
   status_invalid: { en: "Choose active or archived.", ar: "اختر نشط أو مؤرشف." },
@@ -200,6 +200,112 @@ export const INVENTORY_ERROR_COPY = {
   reference_cost_not_current: {
     en: "This cost version is no longer current. Reload to see the current cost.",
     ar: "لم يعد إصدار التكلفة هذا حاليًا. أعد التحميل لعرض التكلفة الحالية.",
+  },
+  recipe_not_found: { en: "This recipe was not found.", ar: "لم يتم العثور على هذه الوصفة." },
+  version_not_found: { en: "This recipe version was not found.", ar: "لم يتم العثور على إصدار الوصفة هذا." },
+  recipe_archived: {
+    en: "This recipe is archived. Restore it before changing or linking it.",
+    ar: "هذه الوصفة مؤرشفة. استعدها قبل تغييرها أو ربطها.",
+  },
+  recipe_kind_invalid: { en: "Choose sellable or prepared.", ar: "اختر للبيع أو محضّرة." },
+  recipe_kind_immutable: {
+    en: "The kind and output item are fixed once a version has been approved. Create a new recipe instead.",
+    ar: "يُثبَّت النوع والصنف الناتج بعد اعتماد أي إصدار. أنشئ وصفة جديدة بدلًا من ذلك.",
+  },
+  recipe_in_use: {
+    en: "This recipe is still linked to sold variants. End those links first.",
+    ar: "لا تزال هذه الوصفة مرتبطة بمتغيرات مباعة. أنهِ تلك الروابط أولًا.",
+  },
+  output_item_required: {
+    en: "Choose the prepared item this recipe makes.",
+    ar: "اختر الصنف المحضّر الذي تنتجه هذه الوصفة.",
+  },
+  output_item_not_prepared: {
+    en: "The output of a prepared recipe must be a prepared item.",
+    ar: "يجب أن يكون ناتج الوصفة المحضّرة صنفًا محضّرًا.",
+  },
+  output_item_taken: {
+    en: "Another active recipe already makes this prepared item.",
+    ar: "توجد وصفة نشطة أخرى تنتج هذا الصنف المحضّر بالفعل.",
+  },
+  output_item_not_allowed: {
+    en: "A sellable recipe has no output item. Link it to sold variants instead.",
+    ar: "لا صنف ناتجًا لوصفة البيع. اربطها بالمتغيرات المباعة بدلًا من ذلك.",
+  },
+  draft_exists: {
+    en: "This recipe already has an open draft. Approve or discard it first.",
+    ar: "لهذه الوصفة مسودة مفتوحة بالفعل. اعتمدها أو تجاهلها أولًا.",
+  },
+  version_not_draft: {
+    en: "Approved versions are read-only. Create a draft from this version to change the recipe.",
+    ar: "الإصدارات المعتمدة للقراءة فقط. أنشئ مسودة من هذا الإصدار لتغيير الوصفة.",
+  },
+  yield_required: {
+    en: "Enter the yield and its unit before approving.",
+    ar: "أدخل الناتج ووحدته قبل الاعتماد.",
+  },
+  yield_invalid: { en: "Enter the yield as a plain decimal number.", ar: "أدخل الناتج كرقم عشري بسيط." },
+  yield_not_positive: { en: "The yield must be greater than zero.", ar: "يجب أن يكون الناتج أكبر من صفر." },
+  yield_too_precise: {
+    en: "The yield has more decimal places than its unit allows.",
+    ar: "يحتوي الناتج على منازل عشرية أكثر مما تسمح به وحدته.",
+  },
+  quantity_not_positive: { en: "The quantity must be greater than zero.", ar: "يجب أن تكون الكمية أكبر من صفر." },
+  line_item_required: { en: "Choose an item for every line.", ar: "اختر صنفًا لكل سطر." },
+  duplicate_line_item: {
+    en: "Each item can appear once per version. Enter the total quantity on one line.",
+    ar: "يظهر كل صنف مرة واحدة في الإصدار. أدخل الكمية الإجمالية في سطر واحد.",
+  },
+  label_too_long: { en: "This label is too long.", ar: "هذا الوصف طويل جدًا." },
+  lines_too_many: { en: "A recipe version can have at most 200 lines.", ar: "يمكن أن يحتوي إصدار الوصفة على 200 سطر على الأكثر." },
+  line_not_found: {
+    en: "This line was not found on the draft. Reload and try again.",
+    ar: "لم يتم العثور على هذا السطر في المسودة. أعد التحميل وحاول مجددًا.",
+  },
+  step_not_found: {
+    en: "This step was not found on the draft. Reload and try again.",
+    ar: "لم يتم العثور على هذه الخطوة في المسودة. أعد التحميل وحاول مجددًا.",
+  },
+  step_text_required: { en: "Enter every step in English.", ar: "أدخل كل خطوة بالإنجليزية." },
+  step_text_too_long: { en: "A step can be at most 1000 characters.", ar: "يمكن أن تتكون الخطوة من 1000 حرف على الأكثر." },
+  steps_too_many: { en: "A recipe version can have at most 50 steps.", ar: "يمكن أن يحتوي إصدار الوصفة على 50 خطوة على الأكثر." },
+  no_lines_to_approve: {
+    en: "Add at least one ingredient line before approving.",
+    ar: "أضف سطر مكوّن واحدًا على الأقل قبل الاعتماد.",
+  },
+  recipe_cycle: {
+    en: "These lines would make a prepared item part of its own recipe.",
+    ar: "ستجعل هذه الأسطر الصنف المحضّر جزءًا من وصفته نفسها.",
+  },
+  variant_not_found: { en: "This variant was not found.", ar: "لم يتم العثور على هذا المتغيّر." },
+  variant_archived: {
+    en: "This variant is archived and cannot be linked.",
+    ar: "هذا المتغيّر مؤرشف ولا يمكن ربطه.",
+  },
+  product_archived: {
+    en: "This product is archived and its variants cannot be linked.",
+    ar: "هذا المنتج مؤرشف ولا يمكن ربط متغيراته.",
+  },
+  recipe_kind_not_sellable: {
+    en: "A prepared recipe describes a prepared item and cannot be linked to a sold variant.",
+    ar: "تصف الوصفة المحضّرة صنفًا محضّرًا ولا يمكن ربطها بمتغيّر مباع.",
+  },
+  link_kind_invalid: {
+    en: "Choose a recipe link or a direct stock link.",
+    ar: "اختر ربطًا بوصفة أو ربطًا مباشرًا بالمخزون.",
+  },
+  direct_stock_fields_required: {
+    en: "A direct stock link needs an item, a quantity and a unit.",
+    ar: "يحتاج الربط المباشر بالمخزون إلى صنف وكمية ووحدة.",
+  },
+  link_exists: {
+    en: "This variant already has a link. Replace it or end it first.",
+    ar: "لهذا المتغيّر ربط بالفعل. استبدله أو أنهِه أولًا.",
+  },
+  link_not_found: { en: "This link was not found.", ar: "لم يتم العثور على هذا الربط." },
+  link_not_current: {
+    en: "This link has already ended. Reload to see the current link.",
+    ar: "انتهى هذا الربط بالفعل. أعد التحميل لعرض الربط الحالي.",
   },
   branch_not_permitted: { en: "Your membership does not include this branch.", ar: "لا تتضمن عضويتك هذا الفرع." },
 } as const satisfies Record<string, Bilingual>;

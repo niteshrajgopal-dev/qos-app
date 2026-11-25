@@ -35,7 +35,7 @@ export const STAFF_NAV_GROUPS: StaffNavGroup[] = [
           { id: "import", label: "Import", availability: "ready" },
           { id: "menu-extraction", label: "Menu extraction", availability: "ready" },
           { id: "categories", label: "Categories", availability: "ready" },
-          { id: "recipes", label: "Recipes", availability: "soon" },
+          { id: "recipes", label: "Recipes", availability: "ready" },
         ],
       },
       { id: "customers", label: "Customers", icon: "users", availability: "ready" },
@@ -128,7 +128,7 @@ export const STAFF_MORE_NAV_GROUPS: StaffNavGroup[] = [
       { id: "modifiers", label: "Modifier groups", availability: "ready" },
       { id: "import", label: "Import", availability: "ready" },
       { id: "menu-extraction", label: "Menu extraction", availability: "ready" },
-      { id: "recipes", label: "Recipes", availability: "soon" },
+      { id: "recipes", label: "Recipes", availability: "ready" },
     ],
   },
   {

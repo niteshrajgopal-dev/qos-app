@@ -71,7 +71,7 @@ integrationDescribe("inventory units service", () => {
     const reloaded = await getUnit(db, tenantId, packet.publicId);
     expect(reloaded.unit).toEqual(packet);
     expect(reloaded.unit).toMatchObject({ code: "packet", nameEn: "Packet", nameAr: "علبة", quantityKind: "pack", standardCode: null, decimalPlaces: 2 });
-    expect(reloaded.usage).toEqual({ itemDesignations: 0, currentRules: 0, currentCosts: 0 });
+    expect(reloaded.usage).toEqual({ itemDesignations: 0, currentRules: 0, currentCosts: 0, recipeUsages: 0 });
     const audit = await auditActions(sql, tenantId);
     expect(audit.map((row) => [row.action, row.entity_type, row.entity_public_id])).toEqual([
       ["inventory.unit.create", "inventory_unit", packet.publicId],
@@ -155,7 +155,7 @@ integrationDescribe("inventory units service", () => {
       toUnitPublicId: piece.publicId,
       factor: "12",
     });
-    expect((await getUnit(db, tenantId, packet.publicId)).usage).toEqual({ itemDesignations: 0, currentRules: 1, currentCosts: 0 });
+    expect((await getUnit(db, tenantId, packet.publicId)).usage).toEqual({ itemDesignations: 0, currentRules: 1, currentCosts: 0, recipeUsages: 0 });
     expect(await rejection(updateUnit(db, tenantId, ADMIN, ACTOR, packet.publicId, { expectedVersion: 1, status: "archived" }))).toMatchObject({
       code: "unit_in_use",
     });
