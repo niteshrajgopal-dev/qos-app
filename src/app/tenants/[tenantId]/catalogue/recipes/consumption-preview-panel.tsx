@@ -48,7 +48,10 @@ export function ConsumptionPreviewPanel({ tenantId, variantPublicId, today }: { 
   return (
     <div className="qosp-subcard qosp-recipe-preview" data-muted="true">
       <h3 className="qosp-subcard-title">
-        {staffCopyWith(locale, "recipePreviewTitle", { date: isolateText(result?.businessDate ?? date) })}
+        {staffCopyWith(locale, "recipePreviewTitle", {
+          // Non-breaking hyphens keep the date on one line in a narrow RTL heading.
+          date: isolateText((result?.businessDate ?? date).replace(/-/g, "\u2011")),
+        })}
       </h3>
       <div className="qosp-form-grid qosp-recipe-preview-form" data-columns="2">
         <PortalField label={t("recipePreviewDate")}>

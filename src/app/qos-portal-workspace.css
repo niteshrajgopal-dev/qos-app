@@ -1480,3 +1480,8 @@ article.qosp-subcard > .qosp-button-row {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+.qosp-recipe-version-summary .qosp-inventory-cost-amount,
+.qosp-recipe-line-facts .qosp-inventory-cost-amount {
+  font-size: 13px;
+  color: var(--portal-text-soft);
+}
