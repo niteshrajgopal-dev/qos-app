@@ -12,10 +12,10 @@ import { branchSelectionName, isolateText } from "@/lib/staff/branch-copy";
 import { staffCopyWith, staffUiCopy, type StaffUiCopyKey } from "@/lib/staff/locale";
 
 /* Honest entry pages for Phase 2 areas whose services do not exist yet
-   (QOS-192). They show no data, offer no actions and name the leaf that
+   (QOS-192; recipes moved to their own screen with QOS-198). They show no data, offer no actions and name the leaf that
    delivers the area, plus the branch context the area will open in. */
 
-export type Phase2EntryArea = "kitchen" | "sales" | "reports" | "recipes";
+export type Phase2EntryArea = "kitchen" | "sales" | "reports";
 
 const AREA_COPY: Record<
   Phase2EntryArea,
@@ -38,12 +38,6 @@ const AREA_COPY: Record<
     description: "reportsDescription",
     body: "reportsEmptyBody",
     icon: "bar-chart-3",
-  },
-  recipes: {
-    title: "recipes",
-    description: "recipesDescription",
-    body: "recipesEmptyBody",
-    icon: "book-open",
   },
 };
 

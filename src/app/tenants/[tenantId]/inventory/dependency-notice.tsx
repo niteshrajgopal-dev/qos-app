@@ -9,7 +9,15 @@ import { type StaffCountKey, staffCount, staffUiCopy } from "@/lib/staff/locale"
    block it, as returned in the API's `dependencies` list. Kinds without copy
    yet (stock records arrive with later leaves) are not listed; the error text
    above the list still explains the refusal. QOS-197: `itemsCountKey` words
-   the item count for the screen (a supplier's or a category's items). */
+   the item count for the screen (a supplier's or a category's items).
+   QOS-198 adds the recipe lines, sellable links and prepared recipes that
+   keep an item (or a recipe) in use. */
+
+const RECIPE_DEPENDENCY_COPY: Partial<Record<string, StaffCountKey>> = {
+  recipe_lines: "recipeLinesDependency",
+  sellable_links: "sellableLinksDependency",
+  recipe_outputs: "recipeOutputsDependency",
+};
 
 export function DependencyNotice({
   message,
@@ -21,9 +29,11 @@ export function DependencyNotice({
   itemsCountKey?: Extract<StaffCountKey, "supplierItems" | "categoryItems">;
 }) {
   const { locale } = useStaffLocale();
-  const lines = dependencies.flatMap((dependency) =>
-    dependency.kind === "inventory_items" ? [staffCount(locale, itemsCountKey, dependency.count)] : [],
-  );
+  const lines = dependencies.flatMap((dependency) => {
+    if (dependency.kind === "inventory_items") return [staffCount(locale, itemsCountKey, dependency.count)];
+    const key = RECIPE_DEPENDENCY_COPY[dependency.kind];
+    return key ? [staffCount(locale, key, dependency.count)] : [];
+  });
   return (
     <div className="qosp-stack">
       <PortalNotice tone="error">
