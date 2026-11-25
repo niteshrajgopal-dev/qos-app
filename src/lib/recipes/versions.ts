@@ -750,7 +750,13 @@ export async function approveVersion(
         approvedBySubject: actorSubject,
       });
       const outputItem = recipe.outputItemId
-        ? (await tx.select().from(inventoryItems).where(eq(inventoryItems.id, recipe.outputItemId)).limit(1))[0] ?? null
+        ? (
+            await tx
+              .select()
+              .from(inventoryItems)
+              .where(and(eq(inventoryItems.tenantId, tenantId), eq(inventoryItems.id, recipe.outputItemId)))
+              .limit(1)
+          )[0] ?? null
         : null;
       const lineSummary = await lineSummaries(tx, tenantId, lines, units);
       const steps = stepSummaries(await activeStepsInTx(tx, tenantId, version.id));

@@ -24,7 +24,7 @@ An ingredient is an `inventory_items` row (QOS-195). There is no separate ingred
 
 ## Extension points
 
-- `itemDependencies` in `src/lib/inventory/items.ts` returns `[]` today. QOS-198 adds active recipe lines and QOS-201 stock balances and movements; item archive already reports its result (`item_in_use`).
+- `itemDependencies` in `src/lib/inventory/items.ts` now returns the QOS-198 recipe dependencies (lines of open drafts and current or scheduled approved versions, live direct-stock links, the active prepared recipe that makes the item; see `QOS-198-recipes-and-sellable-links.md`). QOS-201 adds stock balances and movements; item archive reports the result (`item_in_use`).
 - When QOS-201/202 value a movement they must snapshot the cost row id, amount, currency, unit and the conversion row used, so a later cost or conversion revision never reinterprets a posted value. Derived per-unit costs are computed live and never stored.
 - A receipt-derived or average cost needs a separately approved policy and real receipts (QOS-202). Until then a blank cost stays unknown.
 
