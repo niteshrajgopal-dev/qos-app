@@ -96,6 +96,40 @@ describe("tenantAuditActionLabel", () => {
     expect(tenantAuditActionLabel("inventory.something_new", "ar")).toBe("تم تحديث المخزون");
   });
 
+  it("labels every QOS-198 recipe and sellable link action, entity and the recipes area in both languages", () => {
+    const actions = [
+      "recipe.create",
+      "recipe.update",
+      "recipe.archive",
+      "recipe.restore",
+      "recipe.version.create",
+      "recipe.version.update",
+      "recipe.version.lines.update",
+      "recipe.version.steps.update",
+      "recipe.version.approve",
+      "recipe.version.discard",
+      "recipe.link.create",
+      "recipe.link.end",
+    ];
+    const english = actions.map((action) => tenantAuditActionLabel(action, "en"));
+    const arabic = actions.map((action) => tenantAuditActionLabel(action, "ar"));
+    expect(new Set(english).size).toBe(actions.length);
+    expect(new Set(arabic).size).toBe(actions.length);
+    for (const [index, action] of actions.entries()) {
+      expect(english[index], action).not.toBe("Recipes updated");
+      expect(english[index], action).not.toContain(".");
+      expect(english[index], action).not.toMatch(/QOS/);
+      expect(arabic[index], action).toMatch(/^[\u0600-\u06FF\s()]+$/);
+    }
+    expect(tenantAuditActionLabel("recipe.version.approve", "en")).toBe("Recipe version approved");
+    expect(tenantAuditActionLabel("recipe.link.end", "ar")).toBe("تم إنهاء ربط بيع");
+    expect(tenantAuditEntityLabel("recipe", "en")).toBe("Recipe");
+    expect(tenantAuditEntityLabel("recipe_version", "ar")).toBe("إصدار وصفة");
+    expect(tenantAuditEntityLabel("recipe_sellable_link", "en")).toBe("Sellable link");
+    expect(tenantAuditActionLabel("recipe.something_new", "en")).toBe("Recipes updated");
+    expect(tenantAuditActionLabel("recipe.something_new", "ar")).toBe("تم تحديث الوصفات");
+  });
+
   it("falls back by area, then generically, instead of echoing the action string", () => {
     expect(tenantAuditActionLabel("catalogue.something_new", "en")).toBe("Catalogue updated");
     expect(tenantAuditActionLabel("catalogue.something_new", "ar")).toBe("تم تحديث الكتالوج");
