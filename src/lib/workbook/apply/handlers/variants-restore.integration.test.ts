@@ -98,8 +98,9 @@ integrationDescribe("workbook variant restore", () => {
     const restored = await large();
     expect(restored).toMatchObject({ status: "active", isDefault: false });
     expect(restored.translations.en.displayName).toBe("Big");
-    const actions = (await auditActions(sql, tenantId)).map((event) => event.action);
-    expect(actions.filter((action) => action === "catalogue.variant.restore")).toHaveLength(1);
-    expect(actions.at(-1)).toBe("catalogue.variant.update");
+    // Both events share the unit's transaction timestamp, so compare them unordered.
+    const events = (await auditActions(sql, tenantId)).filter((event) => event.entity_public_id === fx.latte.large);
+    const added = events.slice(events.findIndex((event) => event.action === "catalogue.variant.archive") + 1);
+    expect(added.map((event) => event.action).sort()).toEqual(["catalogue.variant.restore", "catalogue.variant.update"]);
   });
 });

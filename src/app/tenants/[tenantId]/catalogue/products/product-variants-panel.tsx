@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   productVariantArchiveConfirmCopy,
@@ -480,6 +481,26 @@ export function ProductVariantsPanel({
               ) : null}
             </div>
 
+            {archived ? (
+              <div className="qosp-meta-row">
+                <p className="qosp-meta-line">{copy("variantArchivedHelp")}</p>
+                {productVariantShowsRestore(
+                  productReadOnly,
+                  variant.status,
+                  view?.canEditPrice ?? false,
+                ) ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void restoreVariant(variant.publicId)}
+                    className="qos-btn" data-variant="secondary" data-size="sm"
+                  >
+                    {copy("variantRestore")}
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
+
             <div className="qosp-form-grid" data-columns="2">
               <PortalField label={copy("variantEnglishLabel")}>
                 <input
@@ -668,28 +689,6 @@ export function ProductVariantsPanel({
               </div>
             ) : null}
 
-            {archived ? (
-              <div className="qosp-stack">
-                <p className="qosp-meta-line">{copy("variantArchivedHelp")}</p>
-                {productVariantShowsRestore(
-                  productReadOnly,
-                  variant.status,
-                  view?.canEditPrice ?? false,
-                ) ? (
-                  <div className="qosp-button-row">
-                    <button
-                      type="button"
-                      disabled={busy}
-                      onClick={() => void restoreVariant(variant.publicId)}
-                      className="qos-btn" data-variant="secondary" data-size="sm"
-                    >
-                      {copy("variantRestore")}
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
             {variant.status === "active" ? (
               <ChannelPricesBlock
                 locale={locale}
@@ -705,7 +704,8 @@ export function ProductVariantsPanel({
         );
       })}
 
-      {archiveTarget ? (
+      {/* Portalled: the glass section around this panel is the containing block for fixed overlays. */}
+      {archiveTarget ? createPortal(
         <ConfirmDialog
           open
           tone="danger"
@@ -725,7 +725,8 @@ export function ProductVariantsPanel({
               <PortalNotice tone="warning">{archiveCopy.linkNotice}</PortalNotice>
             ) : null}
           </div>
-        </ConfirmDialog>
+        </ConfirmDialog>,
+        document.body,
       ) : null}
 
       {channelPrices.error ? <PortalNotice tone="error">{channelPrices.error}</PortalNotice> : null}
