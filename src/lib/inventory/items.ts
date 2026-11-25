@@ -12,6 +12,10 @@ import {
   inventoryItemReferenceCosts,
   inventoryItems,
   inventorySuppliers,
+  recipes,
+  recipeSellableLinks,
+  recipeVersionLines,
+  recipeVersions,
 } from "@/db/schema";
 import { auditActorClassFromStaffRole, recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import type { GraphRule } from "@/lib/inventory/conversion-graph";
@@ -42,12 +46,14 @@ import {
   shortRandomHex,
   slugify,
   type SupplierView,
+  tenantToday,
   toCategoryView,
   toSupplierView,
   toUnitView,
   type UnitView,
   versionConflict,
 } from "@/lib/inventory/shared";
+import { isOpenOn, versionPhase } from "@/lib/recipes/dates";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
 
@@ -151,6 +157,23 @@ export type ItemDetailView = {
   referenceCost: ItemCostExplanation;
   /** Every reference cost version, newest first. */
   costHistory: ReferenceCostView[];
+  /** QOS-198: recipes and sellable links that use this item. */
+  usage: ItemRecipeUsage;
+};
+
+export type ItemRecipeUsage = {
+  /** Lines in open drafts and in current or scheduled approved versions of active recipes. */
+  recipeLines: Array<{
+    recipePublicId: string;
+    nameEn: string;
+    nameAr: string | null;
+    versionNumber: number;
+    phase: "draft" | "current" | "scheduled";
+  }>;
+  /** Active prepared recipes that make this item. */
+  outputOf: Array<{ recipePublicId: string; nameEn: string; nameAr: string | null }>;
+  /** Direct-stock links on sold variants that have not ended. */
+  directStockLinks: number;
 };
 
 function previewUnit(unit: InventoryUnitRecord): PreviewUnit {
@@ -374,6 +397,7 @@ export async function loadItemDetailInTx(tx: DbClient, tenantId: string, itemId:
     preview: previewForItem(item, units, current),
     referenceCost: costForItem(item, units, current, currentCost),
     costHistory: costHistory.map((row) => toReferenceCostView(row, unitsById)),
+    usage: await loadItemRecipeUsageInTx(tx, tenantId, item.id, await tenantToday(tx, tenantId)),
   };
 }
 
@@ -529,16 +553,73 @@ async function resolveCategory(
 }
 
 /**
- * Records that would block archiving the item. Nothing does yet: conversions
- * and reference costs are the item's own history, and the default supplier
- * and category are references from the item. QOS-198 adds active recipe
- * lines here and QOS-201 stock balances and movements.
+ * QOS-198: the recipes and sellable links that use the item today. Ended,
+ * discarded and archived-recipe rows are history and do not count.
+ */
+export async function loadItemRecipeUsageInTx(
+  tx: DbClient,
+  tenantId: string,
+  itemId: string,
+  today: string,
+): Promise<ItemRecipeUsage> {
+  const lineRows = await tx
+    .select({
+      recipePublicId: recipes.publicId,
+      nameEn: recipes.nameEn,
+      nameAr: recipes.nameAr,
+      versionNumber: recipeVersions.versionNumber,
+      status: recipeVersions.status,
+      effectiveFrom: recipeVersions.effectiveFrom,
+      effectiveTo: recipeVersions.effectiveTo,
+    })
+    .from(recipeVersionLines)
+    .innerJoin(
+      recipeVersions,
+      and(eq(recipeVersions.tenantId, recipeVersionLines.tenantId), eq(recipeVersions.id, recipeVersionLines.recipeVersionId)),
+    )
+    .innerJoin(recipes, and(eq(recipes.tenantId, recipeVersions.tenantId), eq(recipes.id, recipeVersions.recipeId)))
+    .where(
+      and(
+        eq(recipeVersionLines.tenantId, tenantId),
+        eq(recipeVersionLines.itemId, itemId),
+        eq(recipeVersionLines.status, "active"),
+        eq(recipes.status, "active"),
+      ),
+    )
+    .orderBy(asc(recipes.nameEn), desc(recipeVersions.versionNumber));
+  const recipeLines = lineRows.flatMap((row) => {
+    const phase = versionPhase(row, today);
+    return phase === "draft" || phase === "current" || phase === "scheduled"
+      ? [{ recipePublicId: row.recipePublicId, nameEn: row.nameEn, nameAr: row.nameAr, versionNumber: row.versionNumber, phase }]
+      : [];
+  });
+  const outputOf = await tx
+    .select({ recipePublicId: recipes.publicId, nameEn: recipes.nameEn, nameAr: recipes.nameAr })
+    .from(recipes)
+    .where(and(eq(recipes.tenantId, tenantId), eq(recipes.outputItemId, itemId), eq(recipes.status, "active")))
+    .orderBy(asc(recipes.nameEn));
+  const links = await tx
+    .select({ effectiveTo: recipeSellableLinks.effectiveTo })
+    .from(recipeSellableLinks)
+    .where(and(eq(recipeSellableLinks.tenantId, tenantId), eq(recipeSellableLinks.itemId, itemId)));
+  return { recipeLines, outputOf, directStockLinks: links.filter((link) => isOpenOn(link.effectiveTo, today)).length };
+}
+
+/**
+ * Records that would block archiving the item. Conversions and reference
+ * costs are the item's own history, and the default supplier and category
+ * are references from the item. QOS-198 adds recipe lines (open drafts and
+ * current or scheduled approved versions), live direct-stock links and the
+ * active prepared recipe that makes the item; QOS-201 adds stock balances and
+ * movements.
  */
 export async function itemDependencies(tx: DbClient, tenantId: string, itemId: string): Promise<Dependency[]> {
-  void tx;
-  void tenantId;
-  void itemId;
-  return [];
+  const usage = await loadItemRecipeUsageInTx(tx, tenantId, itemId, await tenantToday(tx, tenantId));
+  return [
+    { kind: "recipe_lines", count: usage.recipeLines.length },
+    { kind: "sellable_links", count: usage.directStockLinks },
+    { kind: "recipe_outputs", count: usage.outputOf.length },
+  ].filter((dependency) => dependency.count > 0);
 }
 
 function generateItemPublicId(nameEn: string) {
@@ -649,6 +730,18 @@ export async function updateItem(
       const dependencies = await itemDependencies(tx, tenantId, item.id);
       if (dependencies.length > 0) {
         throw new InventoryDependencyError("This item is still in use and cannot be archived.", "item_in_use", "status", dependencies);
+      }
+    }
+    if (kind !== undefined && kind !== item.kind) {
+      // QOS-198: a prepared item made by an active recipe keeps its kind.
+      const outputs = (await itemDependencies(tx, tenantId, item.id)).filter((dependency) => dependency.kind === "recipe_outputs");
+      if (outputs.length > 0) {
+        throw new InventoryDependencyError(
+          "An active prepared recipe makes this item, so it must stay a prepared item.",
+          "item_in_use",
+          "kind",
+          outputs,
+        );
       }
     }
     const designations = await resolveDesignations(tx, tenantId, body, item);

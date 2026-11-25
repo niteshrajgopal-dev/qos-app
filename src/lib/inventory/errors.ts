@@ -37,3 +37,15 @@ export class InventoryDependencyError extends InventoryConflictError {
     this.dependencies = dependencies;
   }
 }
+
+/* QOS-198: a 409 that carries a structured explanation, such as the item path
+   of a refused prepared-recipe cycle. */
+export class InventoryDetailError extends InventoryConflictError {
+  readonly detail: Record<string, unknown>;
+
+  constructor(message: string, code: string, field: string | undefined, detail: Record<string, unknown>) {
+    super(message, code, field);
+    this.name = "InventoryDetailError";
+    this.detail = detail;
+  }
+}

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 
-import { InventoryDependencyError, InventoryError } from "@/lib/inventory/errors";
+import { InventoryDependencyError, InventoryDetailError, InventoryError } from "@/lib/inventory/errors";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { StaffAuthError } from "@/lib/staff/session";
 import { mapTenantInactiveRouteError } from "@/lib/tenant/tenant-status";
 
 /* QOS-195 route error mapping, mirroring catalogueErrorResponse: typed
    payloads `{ error, field, code }` with the service's status code. QOS-196
-   adds `dependencies` when a 409 is explained by dependent records. */
+   adds `dependencies` when a 409 is explained by dependent records; QOS-198
+   adds `detail` (for example a refused recipe cycle's item path). */
 export function inventoryErrorResponse(error: unknown) {
   const tenantInactive = mapTenantInactiveRouteError(error);
   if (tenantInactive) {
@@ -17,6 +18,13 @@ export function inventoryErrorResponse(error: unknown) {
   if (error instanceof InventoryDependencyError) {
     return NextResponse.json(
       { error: error.message, field: error.field, code: error.code, dependencies: error.dependencies },
+      { status: error.statusCode },
+    );
+  }
+
+  if (error instanceof InventoryDetailError) {
+    return NextResponse.json(
+      { error: error.message, field: error.field, code: error.code, detail: error.detail },
       { status: error.statusCode },
     );
   }

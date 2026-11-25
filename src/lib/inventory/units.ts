@@ -7,6 +7,10 @@ import {
   inventoryItemReferenceCosts,
   inventoryItems,
   inventoryUnits,
+  recipes,
+  recipeSellableLinks,
+  recipeVersionLines,
+  recipeVersions,
 } from "@/db/schema";
 import { auditActorClassFromStaffRole, recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
 import { InventoryConflictError, InventoryError } from "@/lib/inventory/errors";
@@ -20,6 +24,7 @@ import {
   requireInventoryAdministrator,
   shortRandomHex,
   slugify,
+  tenantToday,
   toUnitView,
   uniqueViolationConstraint,
   type UnitView,
@@ -32,6 +37,7 @@ import {
   standardUnit,
   type StandardUnitCode,
 } from "@/lib/inventory/standard-units";
+import { isOpenOn, versionPhase } from "@/lib/recipes/dates";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { withTenantContext } from "@/lib/tenant/context";
 
@@ -39,8 +45,8 @@ import { withTenantContext } from "@/lib/tenant/context";
    immutable after create (audit, previews and future movement snapshots
    quote it), and renames only change the display names. Standard units are
    opt-in rows tied to the constants in standard-units.ts. Units are never
-   deleted; archiving is refused while an item, a current rule or a current
-   reference cost (QOS-197) uses one. */
+   deleted; archiving is refused while an item, a current rule, a current
+   reference cost (QOS-197) or a recipe or sellable link (QOS-198) uses one. */
 
 export const UNIT_NAME_MAX_LENGTH = 80;
 const CODE_PATTERN = /^[a-z0-9][a-z0-9_-]{0,23}$/;
@@ -55,8 +61,13 @@ export type StandardUnitView = {
   alreadyAdded: string | null;
 };
 
-/** QOS-197 adds `currentCosts`: current item reference costs priced per this unit. */
-export type UnitUsage = { itemDesignations: number; currentRules: number; currentCosts: number };
+/**
+ * QOS-197 adds `currentCosts`: current item reference costs priced per this
+ * unit. QOS-198 adds `recipeUsages`: yields and active lines of open drafts
+ * and current or scheduled approved versions of active recipes, and
+ * direct-stock links that have not ended.
+ */
+export type UnitUsage = { itemDesignations: number; currentRules: number; currentCosts: number; recipeUsages: number };
 
 export type CreateUnitInput =
   | {
@@ -145,7 +156,45 @@ export async function loadUnitUsageInTx(tx: DbClient, tenantId: string, unitId: 
         isNull(inventoryItemReferenceCosts.effectiveTo),
       ),
     );
-  return { itemDesignations: designations?.value ?? 0, currentRules: rules?.value ?? 0, currentCosts: costs?.value ?? 0 };
+  return {
+    itemDesignations: designations?.value ?? 0,
+    currentRules: rules?.value ?? 0,
+    currentCosts: costs?.value ?? 0,
+    recipeUsages: await countRecipeUsagesInTx(tx, tenantId, unitId),
+  };
+}
+
+async function countRecipeUsagesInTx(tx: DbClient, tenantId: string, unitId: string): Promise<number> {
+  const today = await tenantToday(tx, tenantId);
+  const versions = (
+    await tx
+      .select({
+        id: recipeVersions.id,
+        status: recipeVersions.status,
+        effectiveFrom: recipeVersions.effectiveFrom,
+        effectiveTo: recipeVersions.effectiveTo,
+        yieldUnitId: recipeVersions.yieldUnitId,
+      })
+      .from(recipeVersions)
+      .innerJoin(recipes, and(eq(recipes.tenantId, recipeVersions.tenantId), eq(recipes.id, recipeVersions.recipeId)))
+      .where(and(eq(recipeVersions.tenantId, tenantId), eq(recipes.status, "active")))
+  ).filter((version) => ["draft", "current", "scheduled"].includes(versionPhase(version, today)));
+  const liveVersionIds = new Set(versions.map((version) => version.id));
+  const lines = await tx
+    .select({ versionId: recipeVersionLines.recipeVersionId })
+    .from(recipeVersionLines)
+    .where(
+      and(eq(recipeVersionLines.tenantId, tenantId), eq(recipeVersionLines.unitId, unitId), eq(recipeVersionLines.status, "active")),
+    );
+  const links = await tx
+    .select({ effectiveTo: recipeSellableLinks.effectiveTo })
+    .from(recipeSellableLinks)
+    .where(and(eq(recipeSellableLinks.tenantId, tenantId), eq(recipeSellableLinks.unitId, unitId)));
+  return (
+    versions.filter((version) => version.yieldUnitId === unitId).length +
+    lines.filter((line) => liveVersionIds.has(line.versionId)).length +
+    links.filter((link) => isOpenOn(link.effectiveTo, today)).length
+  );
 }
 
 function standardUnitViews(units: InventoryUnitRecord[]): StandardUnitView[] {
@@ -348,9 +397,9 @@ export async function updateUnit(
     const nextStatus = validated.status ?? unit.status;
     if (nextStatus === "archived" && unit.status !== "archived") {
       const usage = await loadUnitUsageInTx(tx, tenantId, unit.id);
-      if (usage.itemDesignations > 0 || usage.currentRules > 0 || usage.currentCosts > 0) {
+      if (usage.itemDesignations > 0 || usage.currentRules > 0 || usage.currentCosts > 0 || usage.recipeUsages > 0) {
         throw new InventoryConflictError(
-          "This unit is used by an item, a current conversion or a current cost and cannot be archived.",
+          "This unit is used by an item, a current conversion, a current cost or a recipe and cannot be archived.",
           "unit_in_use",
           "status",
         );
