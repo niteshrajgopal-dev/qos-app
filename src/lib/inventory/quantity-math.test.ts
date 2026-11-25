@@ -2,16 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import { InventoryError } from "@/lib/inventory/errors";
 import {
+  add,
   assertQuantityPrecision,
   equals,
   fromMicros,
   inverse,
   isExactAt,
+  isNegative,
   mul,
+  negate,
   parseFactorMicros,
   rational,
   toDecimalString,
   toExactDecimalString,
+  toMicrosHalfUp,
 } from "@/lib/inventory/quantity-math";
 
 const big = (value: number | string) => BigInt(value);
@@ -93,5 +97,21 @@ describe("assertQuantityPrecision", () => {
     );
     expect(() => assertQuantityPrecision({ decimalPlaces: 0 }, "1.5")).toThrow(InventoryError);
     expect(() => assertQuantityPrecision(kg, "1e3")).toThrow(expect.objectContaining({ code: "quantity_invalid" }));
+  });
+});
+
+describe("QOS-199 signed sums and micros rounding", () => {
+  it("adds and negates exactly", () => {
+    expect(add(rational(BigInt(1), BigInt(3)), rational(BigInt(1), BigInt(6)))).toEqual(rational(BigInt(1), BigInt(2)));
+    expect(add(rational(BigInt(1), BigInt(5)), negate(rational(BigInt(1), BigInt(5))))).toEqual(rational(BigInt(0)));
+    expect(isNegative(negate(rational(BigInt(1), BigInt(5))))).toBe(true);
+    expect(isNegative(rational(BigInt(0)))).toBe(false);
+  });
+
+  it("rounds to whole micros half away from zero and says when it rounded", () => {
+    expect(toMicrosHalfUp(rational(BigInt(1), BigInt(3)))).toEqual({ micros: BigInt(333_333), exact: false });
+    expect(toMicrosHalfUp(rational(BigInt(2), BigInt(3)))).toEqual({ micros: BigInt(666_667), exact: false });
+    expect(toMicrosHalfUp(rational(BigInt(-2), BigInt(3)))).toEqual({ micros: BigInt(-666_667), exact: false });
+    expect(toMicrosHalfUp(rational(BigInt(396), BigInt(100)))).toEqual({ micros: BigInt(3_960_000), exact: true });
   });
 });
