@@ -200,7 +200,7 @@ export function RecipeEffectsPanel({
                           <option value="">{t("recipeEffectChooseLine")}</option>
                           {version.lines.map((line) => (
                             <option key={line.publicId} value={line.publicId}>
-                              {`${name(locale, line.item).text} · ${line.quantity} ${line.unit.code}`}
+                              {`${name(locale, line.item).text} · ${isolateText(`${line.quantity} ${line.unit.code}`)}`}
                             </option>
                           ))}
                         </select>

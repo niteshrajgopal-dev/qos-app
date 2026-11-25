@@ -149,7 +149,10 @@ export function ConsumptionPreviewPanel({ tenantId, variantPublicId, today }: { 
                           <input
                             type="checkbox"
                             checked={count > 0}
-                            onChange={(event) => setChosen({ ...chosen, [option.publicId]: event.target.checked ? 1 : 0 })}
+                            onChange={(event) => {
+                              const checked = event.target.checked;
+                              setChosen((current) => ({ ...current, [option.publicId]: checked ? 1 : 0 }));
+                            }}
                           />{" "}
                           <bdi dir={label.dir}>{label.text}</bdi>
                         </label>
@@ -163,7 +166,10 @@ export function ConsumptionPreviewPanel({ tenantId, variantPublicId, today }: { 
                             max={option.maxQuantity}
                             aria-label={t("recipePreviewOptionQuantity")}
                             value={count}
-                            onChange={(event) => setChosen({ ...chosen, [option.publicId]: Math.max(1, Number(event.target.value) || 1) })}
+                            onChange={(event) => {
+                              const next = Math.min(option.maxQuantity, Math.max(1, Number(event.target.value) || 1));
+                              setChosen((current) => ({ ...current, [option.publicId]: next }));
+                            }}
                           />
                         ) : null}
                       </li>
@@ -333,7 +339,7 @@ function CostBlock({ locale, result }: { locale: StaffLocale; result: Configurat
   const cost = result.cost;
   const manual = cost.components.filter((component) => component.method === "manual");
   return (
-    <div className="qosp-subcard qosp-stack" data-testid="recipe-preview-cost">
+    <div className="qosp-subcard qosp-stack qosp-recipe-preview-block" data-testid="recipe-preview-cost">
       <strong className="qosp-subcard-title">{t("recipeCostTitle")}</strong>
       {cost.status === "known" ? (
         <>
@@ -382,7 +388,7 @@ function MarginBlock({ locale, result }: { locale: StaffLocale; result: Configur
   const t = (key: StaffUiCopyKey) => staffUiCopy(locale, key);
   const { price, margin } = result;
   return (
-    <div className="qosp-subcard qosp-stack" data-testid="recipe-preview-margin">
+    <div className="qosp-subcard qosp-stack qosp-recipe-preview-block" data-testid="recipe-preview-margin">
       <strong className="qosp-subcard-title">{t("recipeMarginTitle")}</strong>
       <p className="qosp-meta-line">{t("recipeMarginHelp")}</p>
       {price.status === "available" ? (

@@ -1474,6 +1474,28 @@ article.qosp-subcard > .qosp-button-row {
 .qosp-recipe-preview-form {
   margin-top: 4px;
 }
+/* QOS-199: option pickers, cost and margin blocks of the preview. The
+   quantity box stays narrow; amounts keep the body size, never larger. */
+.qosp-recipe-preview fieldset {
+  margin: 0;
+  min-width: 0;
+}
+.qosp-recipe-preview fieldset ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.qosp-recipe-preview-count {
+  width: 5.5rem;
+  max-width: 100%;
+  min-height: 36px;
+}
+.qosp-recipe-preview-block {
+  gap: 6px;
+}
+.qosp-recipe-preview-block .qosp-inventory-cost-amount {
+  font-size: 14px;
+}
 
 @media (max-width: 680px) {
   .qosp-recipe-line-grid {
