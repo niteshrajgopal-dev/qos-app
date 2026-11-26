@@ -105,6 +105,8 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/recipes/sellable-links-tab.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/link-dialog.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/consumption-preview-panel.tsx",
+  // QOS-199 modifier effects panel
+  "app/tenants/[tenantId]/catalogue/recipes/recipe-effects-panel.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/new/page.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/[recipePublicId]/page.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/[recipePublicId]/versions/[versionPublicId]/page.tsx",
@@ -204,6 +206,8 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/recipes/sellable-links-tab.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/link-dialog.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/consumption-preview-panel.tsx",
+  // QOS-199 modifier effects panel
+  "app/tenants/[tenantId]/catalogue/recipes/recipe-effects-panel.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/new/page.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/[recipePublicId]/page.tsx",
   "app/tenants/[tenantId]/catalogue/recipes/[recipePublicId]/versions/[versionPublicId]/page.tsx",
@@ -394,6 +398,13 @@ const FORBIDDEN_LITERALS = [
   '"Sellable links"',
   '"Version history"',
   '"Not in the workbook template"',
+  // QOS-199 modifier effects, cost and margin preview
+  ">Add effect<",
+  ">Save effects<",
+  ">Remove effect<",
+  '"Modifier effects"',
+  '"Ingredient margin"',
+  '"Ingredient cost"',
 ];
 
 /* Every QOS-214 key has English and Arabic copy, and the Arabic is Arabic. */
@@ -957,6 +968,7 @@ describe("QOS-198 recipe and sellable link copy", () => {
     "sellable-links-tab.tsx",
     "link-dialog.tsx",
     "consumption-preview-panel.tsx",
+    "recipe-effects-panel.tsx",
   ].map((file) => `app/tenants/[tenantId]/catalogue/recipes/${file}`);
   const sources = [
     ...surfaces,
@@ -1016,6 +1028,9 @@ describe("QOS-198 recipe and sellable link copy", () => {
       "recipeLinesDependency",
       "sellableLinksDependency",
       "recipeOutputsDependency",
+      "recipeEffects",
+      "recipeComponentsWithoutCost",
+      "recipeEffectsDependency",
       "relatedDirectStockLinks",
       "productVariants",
     ] as const;

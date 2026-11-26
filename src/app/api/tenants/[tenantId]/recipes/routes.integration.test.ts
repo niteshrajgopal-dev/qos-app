@@ -3,13 +3,16 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vites
 import { staffIdentities, staffMemberships } from "@/db/schema";
 import { grantRoleMembership, hasIntegrationDatabase, resetAndMigrate } from "@/db/test-utils";
 import { truncateInventory } from "@/lib/inventory/integration-helpers";
-import { seedRecipeFixtures, type RecipeFixtures } from "@/lib/recipes/integration-helpers";
+import { createSalesChannel } from "@/lib/catalogue/sales-channels";
+import { setVariantChannelPrice } from "@/lib/catalogue/channel-prices";
+import { seedEffectFixtures, seedRecipeFixtures, type RecipeFixtures } from "@/lib/recipes/integration-helpers";
 import { StaffAuthError } from "@/lib/staff/session";
 import { flowerTenantFixture, quotesTenantFixture } from "@/lib/tenant/fixtures";
 import { createTenantHierarchy } from "@/lib/tenant/repository";
 
 import { GET as getRecipe, PATCH as patchRecipe } from "./[recipePublicId]/route";
 import { POST as approve } from "./[recipePublicId]/versions/[versionPublicId]/approve/route";
+import { PUT as putEffects } from "./[recipePublicId]/versions/[versionPublicId]/effects/route";
 import { PUT as putLines } from "./[recipePublicId]/versions/[versionPublicId]/lines/route";
 import { GET as getVersion, PATCH as patchVersion } from "./[recipePublicId]/versions/[versionPublicId]/route";
 import { PUT as putSteps } from "./[recipePublicId]/versions/[versionPublicId]/steps/route";
@@ -27,6 +30,7 @@ vi.mock("@/lib/staff/auth", async (importOriginal) => {
 });
 
 const integrationDescribe = hasIntegrationDatabase() ? describe : describe.skip;
+const ADMIN_MEMBERSHIP = { membershipId: "seed-admin", role: "administrator" as const, staffIdentityId: "seed-admin" };
 
 const ADMIN = "admin.qos198.quotes@test";
 const USER = "user.qos198.quotes@test";
@@ -123,13 +127,14 @@ integrationDescribe("recipe routes", () => {
       patchVersion(request("PATCH", {}), ctx(ids)),
       putLines(request("PUT", {}), ctx(ids)),
       putSteps(request("PUT", {}), ctx(ids)),
+      putEffects(request("PUT", {}), ctx(ids)),
       approve(request("POST", {}), ctx(ids)),
       listLinks(request("GET"), ctx({})),
       postLink(request("POST", {}), ctx({})),
       patchLink(request("PATCH", {}), ctx({ linkPublicId: "link_x" })),
       preview(request("GET", undefined, "http://localhost/api/recipes/consumption-preview?variantPublicId=var_x"), ctx({})),
     ]);
-    expect(responses.map((response) => response.status)).toEqual(Array(14).fill(401));
+    expect(responses.map((response) => response.status)).toEqual(Array(15).fill(401));
   });
 
   it("answers 403 to a staff member of another business, for reads and writes", async () => {
@@ -162,11 +167,12 @@ integrationDescribe("recipe routes", () => {
       call(patchVersion(request("PATCH", { expectedVersion: 1, notes: "x" }), ctx(ids))),
       call(putLines(request("PUT", { expectedVersion: 1, lines: [] }), ctx(ids))),
       call(putSteps(request("PUT", { expectedVersion: 1, steps: [] }), ctx(ids))),
+      call(putEffects(request("PUT", { expectedVersion: 1, effects: [] }), ctx(ids))),
       call(approve(request("POST", { expectedVersion: 1, effectiveFrom: "2026-12-01" }), ctx(ids))),
       call(postLink(request("POST", { variantPublicId: fx.latte.regular, kind: "recipe", recipePublicId: recipe }), ctx({}))),
       call(patchLink(request("PATCH", { operation: "end" }), ctx({ linkPublicId: "link_x" }))),
     ]);
-    expect(writes.map((write) => [write.status, write.body.code])).toEqual(Array(9).fill([403, "administrator_required"]));
+    expect(writes.map((write) => [write.status, write.body.code])).toEqual(Array(10).fill([403, "administrator_required"]));
   });
 
   it("round-trips a recipe, its draft, lines, steps, approval, history, links and preview through the routes", async () => {
@@ -281,5 +287,76 @@ integrationDescribe("recipe routes", () => {
     expect([badQuantity.status, badQuantity.body.code]).toEqual([400, "quantity_invalid"]);
     const prepared = await call(postLink(request("POST", { variantPublicId: fx.latte.large, kind: "recipe", recipePublicId: syrupDetail.recipe.publicId }), ctx({})));
     expect([prepared.status, prepared.body.code]).toEqual([400, "recipe_kind_not_sellable"]);
+  });
+
+  it("saves modifier effects and previews configurations with options, defaults and a sales channel through the routes", async () => {
+    const NOW = new Date();
+    const ef = await seedEffectFixtures(db, tenantId, fx, NOW);
+    signIn(ADMIN);
+    const ids = { recipePublicId: ef.recipePublicId, versionPublicId: ef.versionPublicId };
+    const current = (await call(getRecipe(request("GET"), ctx({ recipePublicId: ef.recipePublicId })))).body as unknown as Detail;
+    const version = current.versions[0]!.version;
+    const effects = [
+      { optionPublicId: ef.options.shot, effectType: "add", itemPublicId: fx.items.beans, unitPublicId: fx.units.g, quantity: "9" },
+      { optionPublicId: ef.options.noMilk, effectType: "remove", targetLinePublicId: ef.milkLine },
+    ];
+    const stale = await call(putEffects(request("PUT", { expectedVersion: version + 1, effects }), ctx(ids)));
+    expect([stale.status, stale.body.code]).toEqual([409, "expected_version_mismatch"]);
+    const saved = await call(putEffects(request("PUT", { expectedVersion: version, effects }), ctx(ids)));
+    expect(saved.status).toBe(200);
+    const savedEffects = (saved.body as unknown as { versions: Array<{ effects: Array<{ effectType: string; option: { publicId: string } }> }> }).versions[0]!.effects;
+    expect(savedEffects.map((effect) => [effect.option.publicId, effect.effectType])).toEqual([
+      [ef.options.shot, "add"],
+      [ef.options.noMilk, "remove"],
+    ]);
+    const invalid = await call(putEffects(request("PUT", { expectedVersion: version + 1, effects: [{ optionPublicId: ef.options.shot, effectType: "add" }] }), ctx(ids)));
+    expect([invalid.status, invalid.body.code, invalid.body.field]).toEqual([400, "effect_item_required", "effects.0.itemPublicId"]);
+
+    // Another business's administrator cannot reach this recipe; this business's ids are not found from theirs.
+    signIn(OUTSIDER);
+    expect((await call(putEffects(request("PUT", { expectedVersion: version + 1, effects: [] }), ctx(ids)))).status).toBe(403);
+    expect((await call(putEffects(request("PUT", { expectedVersion: version + 1, effects: [] }), ctx(ids, otherTenantId)))).body.code).toBe("recipe_not_found");
+
+    signIn(ADMIN);
+    const detail = (await call(getRecipe(request("GET"), ctx({ recipePublicId: ef.recipePublicId })))).body as unknown as Detail;
+    const approved = await call(approve(request("POST", { expectedVersion: detail.versions[0]!.version, effectiveFrom: "2026-11-01" }), ctx(ids)));
+    expect(approved.status).toBe(200);
+    const readOnly = await call(putEffects(request("PUT", { expectedVersion: (approved.body as unknown as Detail).versions[0]!.version, effects: [] }), ctx(ids)));
+    expect([readOnly.status, readOnly.body.code]).toEqual([409, "version_not_draft"]);
+
+    const url = (query: string) => `http://localhost/api/recipes/consumption-preview?variantPublicId=${fx.latte.regular}&date=2026-11-20&${query}`;
+    signIn(USER);
+    const withOptions = await call(preview(request("GET", undefined, url(`quantity=2&option=${ef.options.shot}:2&option=${ef.options.noMilk}`)), ctx({})));
+    expect(withOptions.status).toBe(200);
+    expect(withOptions.body).toMatchObject({ configurationStatus: "resolved", soldQuantity: 2, defaults: "auto" });
+    const perItem = (withOptions.body.perItem as Array<{ item: { publicId: string }; perSale: { text: string }; total: { text: string } }>).map((entry) => [
+      entry.item.publicId,
+      entry.perSale.text,
+      entry.total.text,
+    ]);
+    expect(perItem).toEqual([
+      [fx.items.milk, "0.000", "0.000"],
+      [fx.items.beans, "0.036", "0.072"],
+    ]);
+    // Without options the base usage is the QOS-198 answer.
+    const plain = await call(preview(request("GET", undefined, url("defaults=none")), ctx({})));
+    expect((plain.body.lines as Array<{ perSale: { text: string } }>).map((line) => line.perSale.text)).toEqual(["0.200", "0.018"]);
+    expect(plain.body).toMatchObject({ status: "resolved", complete: true, defaults: "none", selections: [], rejections: [] });
+    const repeated = await call(preview(request("GET", undefined, url(`option=${ef.options.shot}:4`)), ctx({})));
+    expect((repeated.body.rejections as Array<{ code: string }>).map((entry) => entry.code)).toEqual(["option_quantity_exceeds_cap"]);
+    const badOption = await call(preview(request("GET", undefined, url("option=a:b")), ctx({})));
+    expect([badOption.status, badOption.body.code]).toEqual([400, "option_param_invalid"]);
+    const badChannel = await call(preview(request("GET", undefined, url("channelPublicId=schan_missing")), ctx({})));
+    expect([badChannel.status, badChannel.body.code]).toEqual([404, "channel_not_found"]);
+
+    // A channel with no row inherits the central price; a channel row is used as the explicit price.
+    const channel = await createSalesChannel(db, tenantId, ADMIN_MEMBERSHIP, ADMIN, { displayName: "Aggregator 1" });
+    const inherited = await call(preview(request("GET", undefined, url(`channelPublicId=${channel.publicId}`)), ctx({})));
+    expect(inherited.body.price).toMatchObject({ status: "available", base: "18.00", baseInheritance: "inherited", channel: { publicId: channel.publicId } });
+    await setVariantChannelPrice(db, tenantId, ADMIN_MEMBERSHIP, ADMIN, fx.latte.productPublicId, fx.latte.regular, channel.publicId, { amountMinor: 2000, expectedVersion: null });
+    const override = await call(preview(request("GET", undefined, url(`channelPublicId=${channel.publicId}`)), ctx({})));
+    expect(override.body.price).toMatchObject({ status: "available", base: "20.00", baseInheritance: "override", total: "20.00" });
+    // No tax basis is recorded on the variant: the margin says so and never borrows the checkout tax.
+    expect(override.body.margin).toEqual({ status: "unavailable", reason: "missing_selling_tax_basis" });
   });
 });

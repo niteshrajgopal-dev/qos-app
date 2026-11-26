@@ -11,6 +11,12 @@ import {
   type RecipeVersionLineRecord,
   type RecipeVersionRecord,
   type RecipeVersionStepRecord,
+  type RecipeVersionModifierEffectRecord,
+  catalogueModifierGroups,
+  catalogueModifierGroupTranslations,
+  catalogueModifierOptions,
+  catalogueModifierOptionTranslations,
+  catalogueProductModifierGroups,
   catalogueProducts,
   catalogueProductTranslations,
   catalogueVariants,
@@ -21,6 +27,7 @@ import {
   recipes,
   recipeSellableLinks,
   recipeVersionLines,
+  recipeVersionModifierEffects,
   recipeVersions,
   recipeVersionSnapshots,
   recipeVersionSteps,
@@ -39,7 +46,7 @@ import {
 import { loadTenantUnitsInTx, toUnitView, type UnitView } from "@/lib/inventory/shared";
 import { estimateRecipeCost, type RecipeCostEstimate, type RecipeTaxBasis } from "@/lib/recipes/cost-estimate";
 import { isOpenOn, versionPhase, type VersionPhase } from "@/lib/recipes/dates";
-import { familyStates, lineStates, type RecipeStateKey, versionStates } from "@/lib/recipes/states";
+import { effectStates, familyStates, lineStates, type RecipeStateKey, versionStates } from "@/lib/recipes/states";
 
 /* QOS-198 recipe views. Everything a list, detail or history screen shows is
    built here from one tenant-scoped load, so list badges and detail notices
@@ -96,6 +103,35 @@ export type LineView = {
   states: RecipeStateKey[];
 };
 
+/** A modifier option with its group, as named in the catalogue. */
+export type OptionRef = {
+  publicId: string;
+  nameEn: string;
+  nameAr: string | null;
+  status: "active" | "archived";
+  group: { publicId: string; nameEn: string; nameAr: string | null; status: "active" | "archived" };
+};
+
+/** QOS-199: what one selected option adds to, removes from or replaces in this version. */
+export type EffectView = {
+  publicId: string;
+  position: number;
+  effectType: "add" | "remove" | "replace";
+  option: OptionRef;
+  /** The base line removed or replaced; null for add. */
+  targetLine: { publicId: string; item: ItemRef; quantity: string; unitCode: string } | null;
+  /** The ingredient added; null for remove. */
+  item: ItemRef | null;
+  /** Per selected option per sale, in `unit`; null for remove. */
+  quantity: string | null;
+  unit: UnitRef | null;
+  notes: string | null;
+  states: RecipeStateKey[];
+};
+
+/** An option the effects editor may use: active, in a group attached to a product whose variant links to this recipe. */
+export type PickerOption = OptionRef & { products: Array<{ publicId: string; nameEn: string; nameAr: string | null }> };
+
 export type StepView = { publicId: string; position: number; textEn: string; textAr: string | null };
 
 export type CostView =
@@ -126,6 +162,8 @@ export type VersionView = {
   snapshotAt: string | null;
   lines: LineView[];
   steps: StepView[];
+  /** Active modifier effects, in position order. */
+  effects: EffectView[];
   states: RecipeStateKey[];
   cost: CostView;
   createdAt: string;
@@ -181,7 +219,7 @@ export type RecipeDetailView = {
   /** The tenant's business date used for current, scheduled and ended. */
   today: string;
   /** Active items and units for the editor pickers. */
-  pickers: { items: PickerItem[]; units: UnitView[] };
+  pickers: { items: PickerItem[]; units: UnitView[]; modifierOptions: PickerOption[] };
 };
 
 export type RecipeSummaryView = RecipeView & {
@@ -229,7 +267,98 @@ export type RecipeWorld = {
   /** Sellable links that have not ended by today. */
   links: RecipeSellableLinkRecord[];
   variants: VariantRow[];
+  /** Active modifier effects of the loaded versions, in position order. */
+  effects: RecipeVersionModifierEffectRecord[];
+  modifiers: ModifierWorld;
 };
+
+export type ModifierWorld = {
+  groups: Array<{ id: string; publicId: string; status: "active" | "archived"; nameEn: string; nameAr: string | null }>;
+  options: Array<{ id: string; publicId: string; groupId: string; status: "active" | "archived"; nameEn: string; nameAr: string | null }>;
+  /** Product to group attachments (QOS-212 assignments). */
+  assignments: Array<{ productId: string; groupId: string }>;
+};
+
+/** The tenant's modifier groups, options and product attachments with EN/AR display names. */
+export async function loadModifierWorldInTx(tx: DbClient, tenantId: string): Promise<ModifierWorld> {
+  const groups = await tx
+    .select({ id: catalogueModifierGroups.id, publicId: catalogueModifierGroups.publicId, status: catalogueModifierGroups.status, internalName: catalogueModifierGroups.internalName })
+    .from(catalogueModifierGroups)
+    .where(eq(catalogueModifierGroups.tenantId, tenantId));
+  const options = await tx
+    .select({
+      id: catalogueModifierOptions.id,
+      publicId: catalogueModifierOptions.publicId,
+      groupId: catalogueModifierOptions.modifierGroupId,
+      status: catalogueModifierOptions.status,
+      sortOrder: catalogueModifierOptions.sortOrder,
+    })
+    .from(catalogueModifierOptions)
+    .where(eq(catalogueModifierOptions.tenantId, tenantId))
+    .orderBy(asc(catalogueModifierOptions.sortOrder), asc(catalogueModifierOptions.publicId));
+  const groupNames = await tx
+    .select({ id: catalogueModifierGroupTranslations.modifierGroupId, locale: catalogueModifierGroupTranslations.locale, displayName: catalogueModifierGroupTranslations.displayName })
+    .from(catalogueModifierGroupTranslations)
+    .where(eq(catalogueModifierGroupTranslations.tenantId, tenantId));
+  const optionNames = await tx
+    .select({ id: catalogueModifierOptionTranslations.modifierOptionId, locale: catalogueModifierOptionTranslations.locale, displayName: catalogueModifierOptionTranslations.displayName })
+    .from(catalogueModifierOptionTranslations)
+    .where(eq(catalogueModifierOptionTranslations.tenantId, tenantId));
+  const assignments = await tx
+    .select({ productId: catalogueProductModifierGroups.productId, groupId: catalogueProductModifierGroups.modifierGroupId })
+    .from(catalogueProductModifierGroups)
+    .where(eq(catalogueProductModifierGroups.tenantId, tenantId));
+  const name = (list: Array<{ id: string; locale: string; displayName: string }>, id: string, locale: "en" | "ar") =>
+    list.find((entry) => entry.id === id && entry.locale === locale)?.displayName.trim() || null;
+  return {
+    groups: groups.map((group) => ({
+      id: group.id,
+      publicId: group.publicId,
+      status: group.status === "archived" ? "archived" : "active",
+      nameEn: name(groupNames, group.id, "en") ?? group.internalName,
+      nameAr: name(groupNames, group.id, "ar"),
+    })),
+    options: options.map((option) => ({
+      id: option.id,
+      publicId: option.publicId,
+      groupId: option.groupId,
+      status: option.status === "archived" ? "archived" : "active",
+      nameEn: name(optionNames, option.id, "en") ?? option.publicId,
+      nameAr: name(optionNames, option.id, "ar"),
+    })),
+    assignments,
+  };
+}
+
+export function optionRef(modifiers: ModifierWorld, optionId: string): OptionRef {
+  const option = modifiers.options.find((entry) => entry.id === optionId)!;
+  const group = modifiers.groups.find((entry) => entry.id === option.groupId)!;
+  return {
+    publicId: option.publicId,
+    nameEn: option.nameEn,
+    nameAr: option.nameAr,
+    status: option.status,
+    group: { publicId: group.publicId, nameEn: group.nameEn, nameAr: group.nameAr, status: group.status },
+  };
+}
+
+/**
+ * Reviewed applicability: the options whose group is attached to a product
+ * with a variant whose open (current or scheduled) link points at the recipe.
+ * An option is never matched to a recipe by name.
+ */
+export function applicableOptionIds(
+  world: Pick<RecipeWorld, "links" | "variants" | "modifiers">,
+  recipeId: string,
+): Set<string> {
+  const productIds = new Set(
+    world.links
+      .filter((link) => link.kind === "recipe" && link.recipeId === recipeId)
+      .flatMap((link) => world.variants.filter((variant) => variant.id === link.variantId).map((variant) => variant.product.id)),
+  );
+  const groupIds = new Set(world.modifiers.assignments.filter((entry) => productIds.has(entry.productId)).map((entry) => entry.groupId));
+  return new Set(world.modifiers.options.filter((option) => groupIds.has(option.groupId)).map((option) => option.id));
+}
 
 export function toGraphUnit(unit: InventoryUnitRecord): GraphUnit {
   return { id: unit.id, code: unit.code, quantityKind: unit.quantityKind, standardCode: unit.standardCode, status: unit.status };
@@ -406,6 +535,19 @@ export async function loadRecipeWorldInTx(
   const links = (
     await tx.select().from(recipeSellableLinks).where(eq(recipeSellableLinks.tenantId, tenantId))
   ).filter((link) => isOpenOn(link.effectiveTo, today));
+  const effects = versionIds.length
+    ? await tx
+        .select()
+        .from(recipeVersionModifierEffects)
+        .where(
+          and(
+            eq(recipeVersionModifierEffects.tenantId, tenantId),
+            inArray(recipeVersionModifierEffects.recipeVersionId, versionIds),
+            eq(recipeVersionModifierEffects.status, "active"),
+          ),
+        )
+        .orderBy(asc(recipeVersionModifierEffects.position))
+    : [];
   return {
     today,
     recipes: recipeRows,
@@ -419,6 +561,8 @@ export async function loadRecipeWorldInTx(
     costs,
     links,
     variants: await loadVariantRowsInTx(tx, tenantId),
+    effects,
+    modifiers: await loadModifierWorldInTx(tx, tenantId),
   };
 }
 
@@ -494,6 +638,48 @@ export function buildVersionView(world: RecipeWorld, version: RecipeVersionRecor
     };
   });
   const snapshotAt = world.snapshotAt.get(version.id);
+  const applicable = applicableOptionIds(world, version.recipeId);
+  const phase = versionPhase(version, world.today);
+  const effectViews: EffectView[] = world.effects
+    .filter((effect) => effect.recipeVersionId === version.id)
+    .map((effect) => {
+      const option = optionRef(world.modifiers, effect.modifierOptionId);
+      const target = effect.targetLineId ? lines.find((line) => line.id === effect.targetLineId) ?? null : null;
+      const item = effect.itemId ? itemsById.get(effect.itemId)! : null;
+      const unit = effect.unitId ? unitsById.get(effect.unitId)! : null;
+      const convertible =
+        !item || !unit
+          ? true
+          : Boolean(
+              item.storageUnitId &&
+                findPath(buildItemGraph(graphUnits, world.rules.filter((rule) => rule.itemId === item.id).map(toGraphRule)), unit.id, item.storageUnitId),
+            );
+      return {
+        publicId: effect.publicId,
+        position: effect.position,
+        effectType: effect.effectType,
+        option,
+        targetLine: target
+          ? {
+              publicId: target.publicId,
+              item: itemRef(itemsById.get(target.itemId)!, unitsById),
+              quantity: microsToDecimalString(target.quantityMicros),
+              unitCode: unitsById.get(target.unitId)?.code ?? "",
+            }
+          : null,
+        item: item ? itemRef(item, unitsById) : null,
+        quantity: effect.quantityMicros === null ? null : microsToDecimalString(effect.quantityMicros),
+        unit: unit ? unitRef(unit) : null,
+        notes: effect.notes,
+        states: effectStates({
+          optionArchived: option.status === "archived" || option.group.status === "archived",
+          // Applicability matters for what can still be sold: drafts and current or scheduled versions.
+          unassigned: (phase === "draft" || phase === "current" || phase === "scheduled") && !applicable.has(effect.modifierOptionId),
+          itemStatus: item?.status ?? null,
+          convertible,
+        }),
+      };
+    });
   return {
     publicId: version.publicId,
     versionNumber: version.versionNumber,
@@ -512,6 +698,7 @@ export function buildVersionView(world: RecipeWorld, version: RecipeVersionRecor
     steps: world.steps
       .filter((step) => step.recipeVersionId === version.id)
       .map((step) => ({ publicId: step.publicId, position: step.position, textEn: step.textEn, textAr: step.textAr })),
+    effects: effectViews,
     states: versionStates(
       {
         status: version.status,
@@ -604,6 +791,26 @@ export function pickerItems(world: RecipeWorld): PickerItem[] {
     });
 }
 
+/** Options the effects editor offers for this recipe: reviewed applicability, active option and group only. */
+export function pickerOptions(world: RecipeWorld, recipeId: string): PickerOption[] {
+  const applicable = applicableOptionIds(world, recipeId);
+  const linkedProducts = new Map(
+    world.links
+      .filter((link) => link.kind === "recipe" && link.recipeId === recipeId)
+      .flatMap((link) => world.variants.filter((variant) => variant.id === link.variantId).map((variant) => [variant.product.id, variant.product] as const)),
+  );
+  return world.modifiers.options
+    .filter((option) => applicable.has(option.id))
+    .map((option) => ({
+      ...optionRef(world.modifiers, option.id),
+      products: world.modifiers.assignments
+        .filter((entry) => entry.groupId === option.groupId && linkedProducts.has(entry.productId))
+        .map((entry) => linkedProducts.get(entry.productId)!)
+        .map((product) => ({ publicId: product.publicId, nameEn: product.nameEn, nameAr: product.nameAr })),
+    }))
+    .filter((option) => option.status === "active" && option.group.status === "active");
+}
+
 export function buildRecipeDetail(world: RecipeWorld, recipe: RecipeRecord): RecipeDetailView {
   return {
     recipe: recipeView(world, recipe),
@@ -614,6 +821,7 @@ export function buildRecipeDetail(world: RecipeWorld, recipe: RecipeRecord): Rec
     pickers: {
       items: pickerItems(world),
       units: world.units.filter((unit) => unit.status === "active").map(toUnitView),
+      modifierOptions: pickerOptions(world, recipe.id),
     },
   };
 }

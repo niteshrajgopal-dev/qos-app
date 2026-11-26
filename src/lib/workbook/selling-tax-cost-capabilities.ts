@@ -123,9 +123,10 @@ export const SELLING_TAX_COST_CAPABILITIES = [
   {
     id: "unresolved_modifier_cost_attribution",
     status: "review_only",
-    description: "REMOVE or REPLACE modifier effects against a manual base cost cannot be netted; reported, not invented.",
+    description:
+      "REMOVE or REPLACE modifier effects against a manual base cost cannot be netted; QOS computes configuration attribution against recipe lines and reports this case as unavailable, never invented.",
     columns: ["Modifier Effects.effect_type"],
-    target: "explainModifierCostAdjustment → unresolved_attribution; QOS-199 resolves with recipes.",
+    target: "explainModifierCostAdjustment → unresolved_attribution; costConfiguration → attribution_unavailable.",
   },
   {
     id: "foodics_blank_cost_recipe_derived",
@@ -137,9 +138,10 @@ export const SELLING_TAX_COST_CAPABILITIES = [
   {
     id: "recipe_derived_cost_amount",
     status: "deferred",
-    description: "Computing the recipe-derived reference amount from ingredients.",
+    description:
+      "QOS computes the recipe-derived reference amount from the linked recipe's base lines and current ingredient costs; a workbook amount is never imported for it.",
     columns: [],
-    target: "QOS-199",
+    target: "Computed in QOS; never imported",
   },
   {
     id: "inventory_valuation",

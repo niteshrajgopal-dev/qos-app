@@ -43,7 +43,7 @@ describe("selling tax and reference cost capability contract", () => {
       (capability) => [capability.id, capability.target],
     );
     expect(deferred).toEqual([
-      ["recipe_derived_cost_amount", "QOS-199"],
+      ["recipe_derived_cost_amount", "Computed in QOS; never imported"],
       ["inventory_valuation", "QOS-201 to QOS-204"],
       ["tax_filing", "Out of Phase 2 scope"],
       ["checkout_tax", "Separate checkout decision"],

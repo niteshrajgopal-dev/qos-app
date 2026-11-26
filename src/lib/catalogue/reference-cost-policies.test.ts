@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 
 import { PHASE1_SYNTHETIC_CHECKOUT_PRICING_POLICY } from "@/lib/checkout/pricing-policy";
 import {
+  compareOnBasis,
   explainModifierCostAdjustment,
   referenceMargin,
   resolveReferenceCost,
@@ -61,11 +62,11 @@ describe("resolveReferenceCost", () => {
     });
   });
 
-  it("returns recipe-derived with no amount until the recipe engine exists", () => {
+  it("returns recipe-derived with no amount when no engine result is passed (an option's amount depends on the configuration)", () => {
     expect(recipeBase).toMatchObject({
       status: "recipe_derived_reference",
       amount: "unavailable",
-      reason: "recipe_engine_not_available",
+      reason: "computed_per_configuration",
       policyPublicId: "vrc_test",
       revision: 1,
     });
@@ -114,9 +115,10 @@ describe("explainModifierCostAdjustment", () => {
     }
   });
 
-  it("defers REMOVE against a recipe-derived base to the recipe engine and reports a missing base", () => {
+  it("nets REMOVE against a recipe-derived base per configuration and reports a missing base", () => {
     expect(explainModifierCostAdjustment({ base: recipeBase, option: optionCost, effectType: "REMOVE" })).toMatchObject({
-      status: "pending_recipe_engine",
+      status: "recipe_configuration",
+      reason: "computed_per_configuration",
     });
     expect(explainModifierCostAdjustment({ base: noPolicy, option: optionCost, effectType: "REPLACE" })).toMatchObject({
       status: "unavailable",
@@ -269,5 +271,66 @@ describe("validateCostPolicyOperation", () => {
       sourceReference: null,
     });
     expect(validateCostPolicyOperation({ operation: "clear" })).toEqual({ operation: "clear" });
+  });
+});
+
+describe("compareOnBasis (shared with the configuration margin)", () => {
+  it("matches referenceMargin's normalisation on every basis pair", () => {
+    const cases: Array<[boolean, boolean, number | null, number, bigint, string]> = [
+      [false, false, 500, 1800, BigInt(18_000_000), "none"],
+      [true, true, 500, 1800, BigInt(18_000_000), "none"],
+      [true, false, 500, 1000, BigInt(9_523_810), "half_up_micros"],
+      [true, false, 500, 1050, BigInt(10_000_000), "none"],
+      [false, true, 500, 1800, BigInt(18_900_000), "none"],
+      [true, false, 0, 1000, BigInt(10_000_000), "none"],
+    ];
+    for (const [isGross, costIsGross, rate, amountMinor, priceMicros, rounding] of cases) {
+      expect(compareOnBasis({ amountMinor, isGross, taxRateBasisPoints: rate }, costIsGross)).toEqual({ status: "ok", priceMicros, rounding });
+      const margin = referenceMargin(
+        { amountMinor, currency: "AED", priceTaxBasis: isGross ? "inclusive" : "exclusive", taxRateBasisPoints: rate },
+        resolveReferenceCost(policy({ taxBasis: costIsGross ? "gross" : "net" })),
+      );
+      expect(margin).toMatchObject({ status: "available", priceMicros, rounding });
+    }
+    expect(compareOnBasis({ amountMinor: 1000, isGross: true, taxRateBasisPoints: null }, false)).toEqual({ status: "missing_tax_rate" });
+    expect(compareOnBasis({ amountMinor: 1000, isGross: true, taxRateBasisPoints: null }, true)).toMatchObject({ status: "ok" });
+  });
+});
+
+describe("recipe-derived reference cost computed by the recipe engine", () => {
+  const recipePolicy = policy({ method: "recipe_derived", amountMicros: null, currency: null, unit: null, taxBasis: null });
+  const computed = (taxBasis: "net" | "gross" | "unconfirmed" | "mixed") =>
+    resolveReferenceCost(recipePolicy, {
+      status: "computed",
+      amountMicros: BigInt(1_880_000),
+      rounding: "none",
+      currency: "AED",
+      taxBasis,
+      recipe: { publicId: "rec_latte", nameEn: "Latte", nameAr: null },
+      versionNumber: 1,
+    });
+  const exclusivePrice = { amountMinor: 1800, currency: "AED", priceTaxBasis: "exclusive" as const, taxRateBasisPoints: 500 };
+
+  it("resolves to the computed amount per sale, each, and gives a margin on a confirmed basis", () => {
+    expect(computed("net")).toMatchObject({ status: "recipe_derived_computed", amountMicros: BigInt(1_880_000), unit: "each", versionNumber: 1 });
+    expect(referenceMargin(exclusivePrice, computed("net"))).toMatchObject({ status: "available", basis: "net", marginMicros: BigInt(16_120_000) });
+    expect(referenceMargin(exclusivePrice, computed("gross"))).toMatchObject({ status: "available", basis: "gross", priceMicros: BigInt(18_900_000) });
+  });
+
+  it("never compares an unconfirmed or mixed ingredient basis with the price", () => {
+    expect(referenceMargin(exclusivePrice, computed("unconfirmed"))).toEqual({ status: "unavailable", reason: "unconfirmed_cost_tax_basis" });
+    expect(referenceMargin(exclusivePrice, computed("mixed"))).toEqual({ status: "unavailable", reason: "mixed_cost_tax_basis" });
+  });
+
+  it("carries the engine's specific reason when there is no amount", () => {
+    for (const reason of ["recipe_no_link", "recipe_no_version", "recipe_incomplete", "recipe_unresolved"] as const) {
+      const resolved = resolveReferenceCost(recipePolicy, { status: "unavailable", reason });
+      expect(resolved).toMatchObject({ status: "recipe_derived_reference", amount: "unavailable", reason });
+      expect(referenceMargin(exclusivePrice, resolved)).toEqual({ status: "unavailable", reason });
+    }
+  });
+
+  it("is ignored for a manual policy: a manual amount is never replaced by the recipe", () => {
+    expect(resolveReferenceCost(policy(), { status: "unavailable", reason: "recipe_no_link" })).toMatchObject({ status: "manual_reference", amountMicros: BigInt(4_000_000) });
   });
 });

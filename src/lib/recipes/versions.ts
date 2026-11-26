@@ -31,6 +31,12 @@ import {
 } from "@/lib/inventory/shared";
 import { buildPreparedEdges, findPreparedCycle, type PreparedFamilyGraphInput } from "@/lib/recipes/cycles";
 import { previousDay } from "@/lib/recipes/dates";
+import {
+  assertEffectsApprovableInTx,
+  assertTargetedLinesKeptInTx,
+  copyEffectsToDraftInTx,
+  effectSummariesInTx,
+} from "@/lib/recipes/effects-service";
 import { loadRecipeDetailInTx } from "@/lib/recipes/recipes";
 import {
   assertDraft,
@@ -85,7 +91,7 @@ export type ApprovalEffect = {
   postedUsageAffected: 0;
 };
 
-async function lockDraftInTx(
+export async function lockDraftInTx(
   tx: DbClient,
   tenantId: string,
   recipePublicId: string,
@@ -102,7 +108,7 @@ async function lockDraftInTx(
   return { recipe, version };
 }
 
-async function bumpVersionInTx(tx: DbClient, version: RecipeVersionRecord, actorSubject: string, values: Partial<RecipeVersionRecord> = {}) {
+export async function bumpVersionInTx(tx: DbClient, version: RecipeVersionRecord, actorSubject: string, values: Partial<RecipeVersionRecord> = {}) {
   const [updated] = await tx
     .update(recipeVersions)
     .set({ ...values, version: version.version + 1, updatedAt: new Date(), updatedBySubject: actorSubject })
@@ -114,10 +120,11 @@ async function bumpVersionInTx(tx: DbClient, version: RecipeVersionRecord, actor
   return updated;
 }
 
-async function audit(
+export async function auditVersionInTx(
   tx: DbClient,
   context: Context,
   action:
+    | "recipe.version.effects.update"
     | "recipe.version.create"
     | "recipe.version.update"
     | "recipe.version.discard"
@@ -323,8 +330,9 @@ export async function createDraftFromVersion(
         })
         .returning();
       const lines = await activeLinesInTx(tx, tenantId, source.id);
+      let draftLines: RecipeVersionLineRecord[] = [];
       if (lines.length > 0) {
-        await tx.insert(recipeVersionLines).values(
+        draftLines = await tx.insert(recipeVersionLines).values(
           lines.map((line, index) => ({
             tenantId,
             publicId: generateLinePublicId(),
@@ -338,8 +346,10 @@ export async function createDraftFromVersion(
             createdBySubject: actorSubject,
             updatedBySubject: actorSubject,
           })),
-        );
+        ).returning();
       }
+      // QOS-199: effects are version-scoped; the draft gets explicit copies pointing at its own lines, to review before approval.
+      const copiedEffects = await copyEffectsToDraftInTx(tx, tenantId, actorSubject, lines, draftLines, source.id, draft!.id);
       const steps = await activeStepsInTx(tx, tenantId, source.id);
       if (steps.length > 0) {
         await tx.insert(recipeVersionSteps).values(
@@ -355,11 +365,12 @@ export async function createDraftFromVersion(
           })),
         );
       }
-      await audit(tx, context, "recipe.version.create", recipe, draft!, {
+      await auditVersionInTx(tx, context, "recipe.version.create", recipe, draft!, {
         fromVersionPublicId: source.publicId,
         fromVersionNumber: source.versionNumber,
         copiedLines: lines.length,
         copiedSteps: steps.length,
+        copiedEffects,
       });
       return loadRecipeDetailInTx(tx, tenantId, recipe, now);
     });
@@ -403,7 +414,7 @@ export async function updateDraftVersion(
     const units = await unitCodes(tx, tenantId);
     if (body.status === "discarded") {
       const discarded = await bumpVersionInTx(tx, version, actorSubject, { status: "discarded" });
-      await audit(tx, context, "recipe.version.discard", recipe, discarded, { before: { status: "draft" }, after: { status: "discarded" } });
+      await auditVersionInTx(tx, context, "recipe.version.discard", recipe, discarded, { before: { status: "draft" }, after: { status: "discarded" } });
       return loadRecipeDetailInTx(tx, tenantId, recipe, now);
     }
     let yieldUnitId = version.yieldUnitId;
@@ -429,7 +440,7 @@ export async function updateDraftVersion(
       yieldUnitId,
       notes: notes === undefined ? version.notes : notes,
     });
-    await audit(tx, context, "recipe.version.update", recipe, updated, {
+    await auditVersionInTx(tx, context, "recipe.version.update", recipe, updated, {
       before: yieldSummary(version, units),
       after: yieldSummary(updated, units),
     });
@@ -515,6 +526,7 @@ export async function replaceDraftLines(
       });
     }
     await assertNoCycleInTx(tx, tenantId, recipe, parsed.map((line) => line.itemId), await tenantToday(tx, tenantId, now));
+    await assertTargetedLinesKeptInTx(tx, tenantId, version.id, existing, parsed);
 
     const stamp = { updatedAt: new Date(), updatedBySubject: actorSubject };
     // Mark every current line removed first so a reorder that swaps items never trips the one-active-line-per-item index.
@@ -558,7 +570,7 @@ export async function replaceDraftLines(
     }
     const updated = await bumpVersionInTx(tx, version, actorSubject);
     const units = await unitCodes(tx, tenantId);
-    await audit(tx, context, "recipe.version.lines.update", recipe, updated, {
+    await auditVersionInTx(tx, context, "recipe.version.lines.update", recipe, updated, {
       before: { lines: await lineSummaries(tx, tenantId, existing, units) },
       after: { lines: await lineSummaries(tx, tenantId, await activeLinesInTx(tx, tenantId, version.id), units) },
     });
@@ -648,7 +660,7 @@ export async function replaceDraftSteps(
       }
     }
     const updated = await bumpVersionInTx(tx, version, actorSubject);
-    await audit(tx, context, "recipe.version.steps.update", recipe, updated, {
+    await auditVersionInTx(tx, context, "recipe.version.steps.update", recipe, updated, {
       before: { steps: stepSummaries(existing) },
       after: { steps: stepSummaries(await activeStepsInTx(tx, tenantId, version.id)) },
     });
@@ -714,6 +726,7 @@ export async function approveVersion(
         throw new InventoryError("A line uses an archived unit. Replace or restore it before approving.", 400, "unit_archived", "lines");
       }
       await assertNoCycleInTx(tx, tenantId, recipe, lines.map((line) => line.itemId), today);
+      const effects = await assertEffectsApprovableInTx(tx, tenantId, version.id);
 
       const approved = await tx
         .select()
@@ -764,7 +777,8 @@ export async function approveVersion(
         tenantId,
         recipeVersionId: result.id,
         snapshot: {
-          schema: 1,
+          // schema 2 (QOS-199) adds the version's modifier effects; schema 1 rows are never rewritten.
+          schema: 2,
           recipe: {
             publicId: recipe.publicId,
             kind: recipe.kind,
@@ -788,6 +802,20 @@ export async function approveVersion(
           },
           lines: lineSummary,
           steps,
+          effects: (await effectSummariesInTx(tx, tenantId, effects)).map((effect) => ({
+            effectPublicId: effect.effectPublicId,
+            effectType: effect.effectType,
+            optionPublicId: effect.optionPublicId,
+            optionNameEn: effect.optionNameEn,
+            optionNameAr: effect.optionNameAr,
+            groupPublicId: effect.groupPublicId,
+            targetLinePublicId: effect.targetLinePublicId,
+            itemPublicId: effect.itemPublicId,
+            quantity: effect.quantity,
+            quantityMicros: effect.quantityMicros,
+            unitCode: effect.unit,
+            notes: effect.notes,
+          })),
         },
         createdBySubject: actorSubject,
       });
@@ -801,9 +829,9 @@ export async function approveVersion(
         backdated: effectiveFrom < today,
         postedUsageAffected: 0,
       };
-      await audit(tx, context, "recipe.version.approve", recipe, result, {
+      await auditVersionInTx(tx, context, "recipe.version.approve", recipe, result, {
         before: { status: "draft" },
-        after: { status: "approved", effectiveFrom, ...yieldSummary(result, units), lineCount: lines.length, stepCount: steps.length },
+        after: { status: "approved", effectiveFrom, ...yieldSummary(result, units), lineCount: lines.length, stepCount: steps.length, effectCount: effects.length },
         superseded: current ? { versionPublicId: current.publicId, versionNumber: current.versionNumber, effectiveTo: effectiveFrom } : null,
         effect,
       });

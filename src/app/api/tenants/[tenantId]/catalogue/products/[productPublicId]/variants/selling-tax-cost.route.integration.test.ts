@@ -313,12 +313,13 @@ integrationDescribe("QOS-215 selling tax and reference-cost policies (DB routes)
     expect(recipe.status).toBe(200);
     reloaded = (await variantsOf(tenantId, product.publicId)).variants[0]!;
     expect(reloaded.referenceCost.policy).toMatchObject({ method: "recipe_derived", amountMicros: null, revision: 3 });
+    // QOS-199: the recipe engine resolves the policy; with no recipe or stock link the specific reason is shown, never an amount.
     expect(reloaded.referenceCost.resolution).toMatchObject({
       status: "recipe_derived_reference",
       amount: "unavailable",
-      reason: "recipe_engine_not_available",
+      reason: "recipe_no_link",
     });
-    expect(reloaded.referenceMargin).toEqual({ status: "unavailable", reason: "recipe_derived_cost_not_computed" });
+    expect(reloaded.referenceMargin).toEqual({ status: "unavailable", reason: "recipe_no_link" });
 
     let history = await variantPolicyHistory(variant.id);
     expect(history.map((row) => [row.revision, row.method, row.amountMicros, row.effectiveFrom, row.effectiveTo])).toEqual([

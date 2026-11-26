@@ -15,6 +15,7 @@ import {
   recipes,
   recipeSellableLinks,
   recipeVersionLines,
+  recipeVersionModifierEffects,
   recipeVersions,
 } from "@/db/schema";
 import { auditActorClassFromStaffRole, recordTenantAuditEventInTx } from "@/lib/audit/tenant-audit";
@@ -606,6 +607,30 @@ export async function loadItemRecipeUsageInTx(
 }
 
 /**
+ * QOS-199: active modifier effects that add or replace with the item, in open
+ * drafts and current or scheduled approved versions of active recipes.
+ */
+async function countItemEffectUsagesInTx(tx: DbClient, tenantId: string, itemId: string, today: string): Promise<number> {
+  const rows = await tx
+    .select({ status: recipeVersions.status, effectiveFrom: recipeVersions.effectiveFrom, effectiveTo: recipeVersions.effectiveTo })
+    .from(recipeVersionModifierEffects)
+    .innerJoin(
+      recipeVersions,
+      and(eq(recipeVersions.tenantId, recipeVersionModifierEffects.tenantId), eq(recipeVersions.id, recipeVersionModifierEffects.recipeVersionId)),
+    )
+    .innerJoin(recipes, and(eq(recipes.tenantId, recipeVersions.tenantId), eq(recipes.id, recipeVersions.recipeId)))
+    .where(
+      and(
+        eq(recipeVersionModifierEffects.tenantId, tenantId),
+        eq(recipeVersionModifierEffects.itemId, itemId),
+        eq(recipeVersionModifierEffects.status, "active"),
+        eq(recipes.status, "active"),
+      ),
+    );
+  return rows.filter((row) => ["draft", "current", "scheduled"].includes(versionPhase(row, today))).length;
+}
+
+/**
  * Records that would block archiving the item. Conversions and reference
  * costs are the item's own history, and the default supplier and category
  * are references from the item. QOS-198 adds recipe lines (open drafts and
@@ -614,9 +639,11 @@ export async function loadItemRecipeUsageInTx(
  * movements.
  */
 export async function itemDependencies(tx: DbClient, tenantId: string, itemId: string): Promise<Dependency[]> {
-  const usage = await loadItemRecipeUsageInTx(tx, tenantId, itemId, await tenantToday(tx, tenantId));
+  const today = await tenantToday(tx, tenantId);
+  const usage = await loadItemRecipeUsageInTx(tx, tenantId, itemId, today);
   return [
     { kind: "recipe_lines", count: usage.recipeLines.length },
+    { kind: "recipe_effects", count: await countItemEffectUsagesInTx(tx, tenantId, itemId, today) },
     { kind: "sellable_links", count: usage.directStockLinks },
     { kind: "recipe_outputs", count: usage.outputOf.length },
   ].filter((dependency) => dependency.count > 0);

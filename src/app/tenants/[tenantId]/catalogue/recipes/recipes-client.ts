@@ -3,6 +3,8 @@
 import type { CostView, DecimalView } from "@/lib/recipes/views";
 import type { RecipeStateKey } from "@/lib/recipes/states";
 import type { UnresolvedReason } from "@/lib/recipes/resolution";
+import type { RejectionCode } from "@/lib/recipes/effects";
+import type { ConfigurationMarginReason } from "@/lib/recipes/costing";
 import { isolateText } from "@/lib/staff/branch-copy";
 import { type StaffLocale, type StaffUiCopyKey, staffCopyWith } from "@/lib/staff/locale";
 
@@ -37,6 +39,9 @@ export const RECIPE_STATE_LABEL: Record<RecipeStateKey, StaffUiCopyKey> = {
   variant_archived: "recipeStateVariantArchived",
   output_item_archived: "recipeStateOutputItemArchived",
   weight_basis_unsupported: "recipeStateWeightBasisUnsupported",
+  effect_option_archived: "recipeStateEffectOptionArchived",
+  effect_option_unassigned: "recipeStateEffectOptionUnassigned",
+  effect_unit_not_convertible: "recipeStateEffectUnitNotConvertible",
 };
 
 /** Informational states are neutral; everything else needs attention. */
@@ -59,6 +64,9 @@ export const RECIPE_STATE_TONE: Record<RecipeStateKey, "warm" | "neutral" | "dan
   variant_archived: "danger",
   output_item_archived: "danger",
   weight_basis_unsupported: "warm",
+  effect_option_archived: "danger",
+  effect_option_unassigned: "warm",
+  effect_unit_not_convertible: "warm",
 };
 
 export const UNRESOLVED_REASON_LABEL: Record<UnresolvedReason, StaffUiCopyKey> = {
@@ -112,3 +120,32 @@ export function lastCoveredDay(effectiveTo: string) {
   date.setUTCDate(date.getUTCDate() - 1);
   return date.toISOString().slice(0, 10);
 }
+
+/** QOS-199: why a configuration could not be calculated. {option}, {options}, {group} and {item} are filled in. */
+export const REJECTION_LABEL: Record<RejectionCode, StaffUiCopyKey> = {
+  option_not_available: "recipeRejectOptionNotAvailable",
+  duplicate_selection: "recipeRejectDuplicateSelection",
+  option_quantity_exceeds_cap: "recipeRejectQuantityCap",
+  selection_required: "recipeRejectSelectionRequired",
+  selection_exceeds_max: "recipeRejectSelectionMax",
+  group_rules_infeasible: "recipeRejectGroupInfeasible",
+  repeat_not_allowed_for_effect: "recipeRejectRepeatEffect",
+  conflicting_effects: "recipeRejectConflictingEffects",
+  negative_consumption: "recipeRejectNegative",
+};
+
+/** QOS-199: why there is no ingredient margin for a configuration. */
+export const MARGIN_REASON_LABEL: Record<ConfigurationMarginReason, StaffUiCopyKey> = {
+  missing_price: "sellableMarginReasonMissingPrice",
+  option_currency_mismatch: "recipeMarginReasonOptionCurrency",
+  zero_price: "recipeMarginReasonZeroPrice",
+  missing_selling_tax_basis: "sellableMarginReasonMissingSellingTaxBasis",
+  unconfirmed_selling_tax_basis: "sellableMarginReasonUnconfirmedSellingTaxBasis",
+  missing_tax_rate: "sellableMarginReasonMissingTaxRate",
+  cost_unavailable: "recipeMarginReasonCostUnavailable",
+  attribution_unavailable: "recipeMarginReasonAttribution",
+  unconfirmed_cost_tax_basis: "recipeMarginReasonUnconfirmedCost",
+  mixed_cost_tax_basis: "recipeMarginReasonMixedCost",
+  currency_mismatch: "sellableMarginReasonCurrencyMismatch",
+  cost_unit_not_each: "sellableMarginReasonCostUnitNotEach",
+};

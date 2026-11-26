@@ -239,7 +239,9 @@ integrationDescribe("recipe families and versions", () => {
       SELECT s.snapshot FROM qos.recipe_version_snapshots s JOIN qos.recipe_versions v ON v.id = s.recipe_version_id
       WHERE v.public_id = ${v1.publicId}`;
     expect(snapshot!.snapshot).toMatchObject({
-      schema: 1,
+      // QOS-199: schema 2 adds the version's modifier effects (none here).
+      schema: 2,
+      effects: [],
       recipe: { publicId: recipe.publicId, kind: "sellable" },
       version: { versionNumber: 1, effectiveFrom: "2026-11-01", yield: { quantity: "4", unitCode: "portion" } },
       lines: [

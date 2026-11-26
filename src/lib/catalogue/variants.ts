@@ -50,6 +50,7 @@ import {
   CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE,
   loadCatalogueProductForMutationInTx,
 } from "@/lib/catalogue/product-mutation-policy";
+import { resolveVariantRecipeCostsInTx } from "@/lib/recipes/costing-service";
 import { withTenantContext } from "@/lib/tenant/context";
 
 export class CatalogueVariantError extends Error {
@@ -341,6 +342,7 @@ export async function loadProductVariantsInTx(
       sku: catalogueVariants.sku,
       barcode: catalogueVariants.barcode,
       sellingQuantityBasis: catalogueVariants.sellingQuantityBasis,
+      productStatus: catalogueProducts.status,
       priceUnit: catalogueVariants.priceUnit,
       priceUnitQuantity: catalogueVariants.priceUnitQuantity,
       priceTaxBasis: catalogueVariants.priceTaxBasis,
@@ -351,6 +353,10 @@ export async function loadProductVariantsInTx(
       priceVersion: catalogueVariantPrices.version,
     })
     .from(catalogueVariants)
+    .innerJoin(
+      catalogueProducts,
+      and(eq(catalogueProducts.tenantId, catalogueVariants.tenantId), eq(catalogueProducts.id, catalogueVariants.productId)),
+    )
     .leftJoin(
       catalogueVariantPrices,
       and(
@@ -378,8 +384,18 @@ export async function loadProductVariantsInTx(
     variantRows.map((row) => row.id),
   );
 
+  // QOS-199: a recipe-derived policy resolves through the recipe engine for the base configuration (lines only, today).
+  const recipeCosts = await resolveVariantRecipeCostsInTx(
+    tx,
+    tenantId,
+    variantRows
+      .filter((row) => costPolicies.get(row.id)?.method === "recipe_derived")
+      .map((row) => ({ id: row.id, status: row.status, productStatus: row.productStatus, sellingQuantityBasis: row.sellingQuantityBasis })),
+  );
+
   return variantRows.map((row) => {
     const policy = costPolicies.get(row.id) ?? null;
+    const recipeCost = recipeCosts.get(row.id);
     const price = {
       amountMinor: row.amountMinor ?? null,
       currency: row.currency?.trim() ?? null,
@@ -400,9 +416,9 @@ export async function loadProductVariantsInTx(
       priceTaxBasis: price.priceTaxBasis,
       taxRateBasisPoints: price.taxRateBasisPoints,
       taxProvenance: row.taxProvenance ?? null,
-      referenceCost: toSellableReferenceCostView(policy),
+      referenceCost: toSellableReferenceCostView(policy, recipeCost),
       referenceMargin: toReferenceMarginView(
-        referenceMargin(price, resolveReferenceCost(policy)),
+        referenceMargin(price, resolveReferenceCost(policy, recipeCost)),
       ),
       translations: translationsByVariantId.get(row.id) ?? {
         en: { displayName: "" },

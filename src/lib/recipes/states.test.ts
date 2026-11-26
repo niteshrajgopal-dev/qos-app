@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { familyStates, lineStates, variantStates, versionStates } from "@/lib/recipes/states";
+import { effectStates, familyStates, lineStates, variantStates, versionStates } from "@/lib/recipes/states";
 
 const TODAY = "2026-11-10";
 const draftVersion = {
@@ -71,5 +71,18 @@ describe("recipe states", () => {
     expect(
       variantStates({ variantStatus: "active", productStatus: "archived", sellingQuantityBasis: null, directStockIntent: null, liveLinkKind: "recipe" }),
     ).toEqual(["variant_archived"]);
+  });
+});
+
+describe("effectStates", () => {
+  it("is empty for a usable effect and names each problem otherwise", () => {
+    expect(effectStates({ optionArchived: false, unassigned: false, itemStatus: "active", convertible: true })).toEqual([]);
+    expect(effectStates({ optionArchived: false, unassigned: false, itemStatus: null, convertible: true })).toEqual([]);
+    expect(effectStates({ optionArchived: true, unassigned: true, itemStatus: "archived", convertible: false })).toEqual([
+      "effect_option_archived",
+      "effect_option_unassigned",
+      "item_archived",
+      "effect_unit_not_convertible",
+    ]);
   });
 });

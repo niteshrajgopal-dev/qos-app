@@ -33,8 +33,9 @@ import type { ActiveStaffMembership } from "@/lib/staff/auth";
    options. Policies are append-only and dated (QOS-160 plan §4.1): a new
    policy closes the current one by setting effective_to and is inserted as
    the next revision; historical amounts are never rewritten. This module
-   records the policy and explains it. It does not compute recipe costs
-   (QOS-199), value inventory, file tax or touch checkout pricing. */
+   records the policy and explains it. Recipe-derived amounts are computed by
+   the recipe engine (QOS-199, src/lib/recipes/costing.ts) and passed in; this
+   module never values inventory, files tax or touches checkout pricing. */
 
 export type SellableKind = "variant" | "modifier_option";
 
@@ -44,6 +45,31 @@ export type ReferenceCostPolicyRow = Omit<VariantPolicyRow, "variantId"> | Omit<
 
 // ---------------------------------------------------------------------------
 // Pure results
+
+/** Why a recipe-derived amount has no number. computed_per_configuration: an option's amount depends on the configuration. */
+export type RecipeDerivedReason =
+  | "computed_per_configuration"
+  | "recipe_no_link"
+  | "recipe_no_version"
+  | "recipe_incomplete"
+  | "recipe_unresolved";
+
+/**
+ * QOS-199: the recipe engine's base-configuration result for one variant
+ * (lines only, today's reference costs, one sale), passed in by the caller.
+ */
+export type RecipeDerivedOutcome =
+  | {
+      status: "computed";
+      amountMicros: bigint;
+      rounding: "none" | "half_up_micros";
+      currency: string;
+      taxBasis: ReferenceCostTaxBasis | "mixed";
+      /** The recipe and version used; null for a direct-stock link. */
+      recipe: { publicId: string; nameEn: string; nameAr: string | null } | null;
+      versionNumber: number | null;
+    }
+  | { status: "unavailable"; reason: Exclude<RecipeDerivedReason, "computed_per_configuration"> };
 
 export type ResolvedReferenceCost =
   | {
@@ -59,9 +85,24 @@ export type ResolvedReferenceCost =
   | {
       status: "recipe_derived_reference";
       amount: "unavailable";
-      reason: "recipe_engine_not_available";
+      reason: RecipeDerivedReason;
       unit: ReferenceCostUnit | null;
       taxBasis: ReferenceCostTaxBasis | null;
+      effectiveFrom: string | null;
+      policyPublicId: string;
+      revision: number;
+    }
+  | {
+      /** QOS-199: computed from the linked recipe's base lines for one sale. */
+      status: "recipe_derived_computed";
+      amountMicros: bigint;
+      rounding: "none" | "half_up_micros";
+      currency: string;
+      unit: "each";
+      taxBasis: ReferenceCostTaxBasis | "mixed";
+      /** The recipe and version used; null for a direct-stock link. */
+      recipe: { publicId: string; nameEn: string; nameAr: string | null } | null;
+      versionNumber: number | null;
       effectiveFrom: string | null;
       policyPublicId: string;
       revision: number;
@@ -79,18 +120,40 @@ export type ResolvedReferenceCost =
       revision?: number;
     };
 
-/** Resolves the current policy row (effective_to IS NULL) into a stable result. */
-export function resolveReferenceCost(policy: ReferenceCostPolicyRow | null | undefined): ResolvedReferenceCost {
+/**
+ * Resolves the current policy row (effective_to IS NULL) into a stable result.
+ * A recipe-derived policy takes its amount from `recipe` when the caller
+ * computed one (variants); without it (modifier options) the amount depends
+ * on the configuration and is computed in the recipe preview.
+ */
+export function resolveReferenceCost(
+  policy: ReferenceCostPolicyRow | null | undefined,
+  recipe?: RecipeDerivedOutcome,
+): ResolvedReferenceCost {
   if (!policy) {
     return { status: "unavailable", reason: "no_policy" };
   }
   const ids = { policyPublicId: policy.publicId, revision: policy.revision };
 
   if (policy.method === "recipe_derived") {
+    if (recipe?.status === "computed") {
+      return {
+        status: "recipe_derived_computed",
+        amountMicros: recipe.amountMicros,
+        rounding: recipe.rounding,
+        currency: recipe.currency,
+        unit: "each",
+        taxBasis: recipe.taxBasis,
+        recipe: recipe.recipe,
+        versionNumber: recipe.versionNumber,
+        effectiveFrom: policy.effectiveFrom ?? null,
+        ...ids,
+      };
+    }
     return {
       status: "recipe_derived_reference",
       amount: "unavailable",
-      reason: "recipe_engine_not_available",
+      reason: recipe?.status === "unavailable" ? recipe.reason : "computed_per_configuration",
       unit: policy.unit ?? null,
       taxBasis: policy.taxBasis ?? null,
       effectiveFrom: policy.effectiveFrom ?? null,
@@ -144,10 +207,10 @@ export type ModifierCostAdjustmentExplanation =
       option: ResolvedReferenceCost;
     }
   | {
-      /** The base is recipe-derived: QOS-199 attributes REMOVE/REPLACE against recipe lines. */
-      status: "pending_recipe_engine";
+      /** The base is recipe-derived: the recipe engine nets REMOVE/REPLACE against recipe lines per configuration. */
+      status: "recipe_configuration";
       effectType: "REMOVE" | "REPLACE";
-      reason: "recipe_engine_not_available";
+      reason: "computed_per_configuration";
       base: ResolvedReferenceCost;
       option: ResolvedReferenceCost;
     }
@@ -177,8 +240,8 @@ export function explainModifierCostAdjustment(input: {
   if (base.status === "manual_reference") {
     return { status: "unresolved_attribution", effectType, reason: "cannot_net_manual_base", base, option };
   }
-  if (base.status === "recipe_derived_reference") {
-    return { status: "pending_recipe_engine", effectType, reason: "recipe_engine_not_available", base, option };
+  if (base.status === "recipe_derived_reference" || base.status === "recipe_derived_computed") {
+    return { status: "recipe_configuration", effectType, reason: "computed_per_configuration", base, option };
   }
   return { status: "unavailable", effectType, reason: "base_cost_unavailable", base, option };
 }
@@ -190,6 +253,12 @@ export type ReferenceMarginUnavailableReason =
   | "missing_tax_rate"
   | "cost_unavailable"
   | "recipe_derived_cost_not_computed"
+  | "recipe_no_link"
+  | "recipe_no_version"
+  | "recipe_incomplete"
+  | "recipe_unresolved"
+  | "unconfirmed_cost_tax_basis"
+  | "mixed_cost_tax_basis"
   | "currency_mismatch"
   | "cost_unit_not_each";
 
@@ -221,6 +290,39 @@ function divideHalfUp(numerator: bigint, denominator: bigint) {
 }
 
 /**
+ * Brings a 2-decimal selling price onto the cost's tax basis with at most one
+ * step (QOS-199 shares this with the configuration margin):
+ * exclusive/net and inclusive/gross compare as recorded; inclusive/net
+ * divides by (10_000 + bps) / 10_000 once, rounded half-up to whole micros;
+ * exclusive/gross multiplies exactly. A missing rate when the bases differ is
+ * refused, never assumed.
+ */
+export function compareOnBasis(
+  price: { amountMinor: number; isGross: boolean; taxRateBasisPoints: number | null },
+  costIsGross: boolean,
+): { status: "ok"; priceMicros: bigint; rounding: "none" | "half_up_micros" } | { status: "missing_tax_rate" } {
+  const recordedPriceMicros = BigInt(price.amountMinor) * MICROS_PER_MINOR_2DP;
+  if (price.isGross === costIsGross) {
+    return { status: "ok", priceMicros: recordedPriceMicros, rounding: "none" };
+  }
+  if (price.taxRateBasisPoints == null) {
+    return { status: "missing_tax_rate" };
+  }
+  const rate = BigInt(price.taxRateBasisPoints);
+  if (price.isGross) {
+    const denominator = BASIS_POINTS_PER_WHOLE + rate;
+    const numerator = recordedPriceMicros * BASIS_POINTS_PER_WHOLE;
+    return {
+      status: "ok",
+      priceMicros: divideHalfUp(numerator, denominator),
+      rounding: numerator % denominator === BigInt(0) ? "none" : "half_up_micros",
+    };
+  }
+  // price_minor × 10_000 micros × (10_000 + bps) / 10_000 = price_minor × (10_000 + bps): exact.
+  return { status: "ok", priceMicros: BigInt(price.amountMinor) * (BASIS_POINTS_PER_WHOLE + rate), rounding: "none" };
+}
+
+/**
  * Reference margin for one sellable: selling price minus manual reference
  * cost, in micros, after at most one tax-normalization step.
  *
@@ -249,9 +351,20 @@ export function referenceMargin(price: SellingPriceForMargin, cost: ResolvedRefe
     return { status: "unavailable", reason: "unconfirmed_selling_tax_basis" };
   }
   if (cost.status === "recipe_derived_reference") {
-    return { status: "unavailable", reason: "recipe_derived_cost_not_computed" };
+    return {
+      status: "unavailable",
+      reason: cost.reason === "computed_per_configuration" ? "recipe_derived_cost_not_computed" : cost.reason,
+    };
   }
-  if (cost.status !== "manual_reference") {
+  if (cost.status === "recipe_derived_computed") {
+    // An ingredient basis that is unconfirmed or mixes net and gross is never compared with a price.
+    if (cost.taxBasis === "unconfirmed") {
+      return { status: "unavailable", reason: "unconfirmed_cost_tax_basis" };
+    }
+    if (cost.taxBasis === "mixed") {
+      return { status: "unavailable", reason: "mixed_cost_tax_basis" };
+    }
+  } else if (cost.status !== "manual_reference") {
     return { status: "unavailable", reason: "cost_unavailable" };
   }
   if (cost.currency !== price.currency.trim()) {
@@ -264,30 +377,15 @@ export function referenceMargin(price: SellingPriceForMargin, cost: ResolvedRefe
     return { status: "unavailable", reason: "cost_unit_not_each" };
   }
 
-  const recordedPriceMicros = BigInt(price.amountMinor) * MICROS_PER_MINOR_2DP;
-  const priceIsGross = price.priceTaxBasis === "inclusive";
-  const costIsGross = cost.taxBasis === "gross";
-
-  let priceMicros = recordedPriceMicros;
-  let rounding: "none" | "half_up_micros" = "none";
-
-  if (priceIsGross !== costIsGross) {
-    if (price.taxRateBasisPoints == null) {
-      return { status: "unavailable", reason: "missing_tax_rate" };
-    }
-    const rate = BigInt(price.taxRateBasisPoints);
-    if (priceIsGross) {
-      const denominator = BASIS_POINTS_PER_WHOLE + rate;
-      const numerator = recordedPriceMicros * BASIS_POINTS_PER_WHOLE;
-      priceMicros = divideHalfUp(numerator, denominator);
-      if (numerator % denominator !== BigInt(0)) {
-        rounding = "half_up_micros";
-      }
-    } else {
-      // price_minor × 10_000 micros × (10_000 + bps) / 10_000 = price_minor × (10_000 + bps): exact.
-      priceMicros = BigInt(price.amountMinor) * (BASIS_POINTS_PER_WHOLE + rate);
-    }
+  const compared = compareOnBasis(
+    { amountMinor: price.amountMinor, isGross: price.priceTaxBasis === "inclusive", taxRateBasisPoints: price.taxRateBasisPoints },
+    cost.taxBasis === "gross",
+  );
+  if (compared.status !== "ok") {
+    return { status: "unavailable", reason: "missing_tax_rate" };
   }
+  const { priceMicros, rounding } = compared;
+  const costIsGross = cost.taxBasis === "gross";
 
   return {
     status: "available",
@@ -324,7 +422,12 @@ export type ResolvedReferenceCostView =
   | (Omit<Extract<ResolvedReferenceCost, { status: "manual_reference" }>, "amountMicros"> & {
       amountMicros: string;
     })
-  | Exclude<ResolvedReferenceCost, { status: "manual_reference" }>;
+  | (Omit<Extract<ResolvedReferenceCost, { status: "recipe_derived_computed" }>, "amountMicros"> & {
+      amountMicros: string;
+      /** Exact major-unit text for amountMicros. */
+      amountMajor: string;
+    })
+  | Exclude<ResolvedReferenceCost, { status: "manual_reference" | "recipe_derived_computed" }>;
 
 export type ReferenceMarginView =
   | (Omit<Extract<ReferenceMarginResult, { status: "available" }>, "priceMicros" | "costMicros" | "marginMicros"> & {
@@ -364,6 +467,9 @@ export function toResolvedReferenceCostView(resolved: ResolvedReferenceCost): Re
   if (resolved.status === "manual_reference") {
     return { ...resolved, amountMicros: resolved.amountMicros.toString() };
   }
+  if (resolved.status === "recipe_derived_computed") {
+    return { ...resolved, amountMicros: resolved.amountMicros.toString(), amountMajor: microsToMajorString(resolved.amountMicros) };
+  }
   return resolved;
 }
 
@@ -380,10 +486,13 @@ export function toReferenceMarginView(result: ReferenceMarginResult): ReferenceM
   };
 }
 
-export function toSellableReferenceCostView(row: ReferenceCostPolicyRow | null | undefined): SellableReferenceCostView {
+export function toSellableReferenceCostView(
+  row: ReferenceCostPolicyRow | null | undefined,
+  recipe?: RecipeDerivedOutcome,
+): SellableReferenceCostView {
   return {
     policy: toReferenceCostPolicyView(row),
-    resolution: toResolvedReferenceCostView(resolveReferenceCost(row)),
+    resolution: toResolvedReferenceCostView(resolveReferenceCost(row, recipe)),
   };
 }
 
@@ -487,7 +596,7 @@ export function validateCostPolicyOperation(input: unknown): ValidatedCostPolicy
   if (body.operation === "change_to_recipe_derived") {
     if (body.amount !== undefined || body.amountMicros !== undefined) {
       throw new CatalogueValidationError(
-        "A recipe-derived policy has no amount; QOS-199 computes it from the recipe.",
+        "A recipe-derived policy has no amount; QOS computes it from the linked recipe.",
         `${FIELD}.amount`,
       );
     }
