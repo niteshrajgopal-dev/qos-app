@@ -102,6 +102,7 @@ function appliedPlan(): WorkbookReviewResult {
           publicId: "wba_0123456789abcdef",
           status: "completed",
           actorSubject: "admin-alice",
+          actorDisplayName: "Alice Admin",
           actorRole: "administrator",
           planRevision: 1,
           planHash: "h".repeat(64),
@@ -203,10 +204,21 @@ describe("workbook review panel", () => {
       expect(html, locale).toContain("foodics-menu-v1:ten_quotes_dev:espresso → prd_espresso_1a2b3c4d");
       expect(html, locale).toContain(`/tenants/${TENANT_ID}/catalogue/products/prd_espresso_1a2b3c4d/edit`);
       expect(html, locale).toContain(copy.applyHistoryTitle);
-      expect(html, locale).toContain("admin-alice");
+      // The actor by name, never by raw id (QOS-200 follow-up).
+      expect(html, locale).toContain("Alice Admin");
+      expect(html, locale).not.toContain("admin-alice");
       expect(html, locale).toContain(copy.applyAttemptCompleted);
       expect(html, locale).not.toContain(copy.reviewNotApplied);
       expect(html, locale).not.toContain(copy.applyButton);
+    }
+  });
+
+  it("names a former member neutrally, never by raw id", () => {
+    const applied = appliedPlan();
+    for (const locale of ["en", "ar"] as const) {
+      const html = render(locale, { ...applied, apply: { ...applied.apply!, attempts: applied.apply!.attempts.map((attempt) => ({ ...attempt, actorDisplayName: null })) } });
+      expect(html, locale).toContain(STAFF_UI_COPY[locale].applyActorUnknown);
+      expect(html, locale).not.toContain("admin-alice");
     }
   });
 

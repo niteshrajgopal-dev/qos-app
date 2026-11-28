@@ -289,7 +289,7 @@ export function WorkbookApplyPanel({
                     <p className="qosp-meta-line">
                       {staffCopyWith(locale, "applyHistoryStarted", {
                         time: isolateText(formatApplyTime(locale, attempt.startedAt)),
-                        actor: isolateText(attempt.actorSubject),
+                        actor: isolateText(attempt.actorDisplayName ?? t("applyActorUnknown")),
                       })}
                       {" · "}
                       {attempt.finishedAt

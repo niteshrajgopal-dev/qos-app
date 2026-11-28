@@ -61,6 +61,8 @@ const AUDITED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/import/workbook-apply-panel.tsx",
   // QOS-200 sheets kept for later (prep targets, opening stock, provider mappings, combos)
   "app/tenants/[tenantId]/catalogue/import/workbook-pending-sheets.tsx",
+  // QOS-200 follow-up: past imports on the import page
+  "app/tenants/[tenantId]/catalogue/import/workbook-import-history.tsx",
   // QOS-213 sales-channel price grid in the variant and modifier-option editors
   "components/staff/catalogue/channel-price-grid.tsx",
   "components/staff/catalogue/channel-price-state.ts",
@@ -168,6 +170,8 @@ const PORTAL_RESTYLED_SURFACES = [
   "app/tenants/[tenantId]/catalogue/import/workbook-apply-panel.tsx",
   // QOS-200 sheets kept for later (prep targets, opening stock, provider mappings, combos)
   "app/tenants/[tenantId]/catalogue/import/workbook-pending-sheets.tsx",
+  // QOS-200 follow-up: past imports on the import page
+  "app/tenants/[tenantId]/catalogue/import/workbook-import-history.tsx",
   // QOS-213 sales-channel price grid in the variant and modifier-option editors
   "components/staff/catalogue/channel-price-grid.tsx",
   "components/staff/catalogue/channel-price-state.ts",

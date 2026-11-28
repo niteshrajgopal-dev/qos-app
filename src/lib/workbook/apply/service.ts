@@ -1,5 +1,6 @@
 import type { DbClient } from "@/db/client";
 import { type ActiveStaffMembership, StaffAuthorizationError } from "@/lib/staff/auth";
+import { resolveStaffDisplayNames } from "@/lib/staff/staff-display-names";
 import { withTenantContext } from "@/lib/tenant/context";
 import type { ApplyActor } from "@/lib/workbook/apply/audit";
 import { baselineTokens, executeUnits, rowsByKey } from "@/lib/workbook/apply/engine";
@@ -67,6 +68,7 @@ function applyPart(
   rows: PlanRowRecord[],
   applies: ApplyRecord[],
   base: WorkbookReviewResult,
+  displayNames: ReadonlyMap<string, string>,
 ): PlanApplyResultPart {
   const reason = applyBlockReason(membership, plan, base);
   const permissions: ApplyPermissions = reason ? { canApply: false, reason } : { canApply: true };
@@ -78,7 +80,7 @@ function applyPart(
       notApplied: base.counts.rows - base.counts.create - base.counts.update,
       deferredValues: base.counts.deferredValues,
     },
-    attempts: applies.map(attemptView),
+    attempts: applies.map((record) => attemptView(record, displayNames)),
   };
   return { view, outcomes: rowOutcomes(rows, applies) };
 }
@@ -86,7 +88,9 @@ function applyPart(
 async function loadWithApplies(db: DbClient, tenantId: string, planPublicId: string) {
   return withTenantContext(db, tenantId, async (tx) => {
     const { plan, rows } = await loadPlan(tx, tenantId, planPublicId);
-    return { plan, rows, applies: await listApplies(tx, tenantId, plan.id) };
+    const applies = await listApplies(tx, tenantId, plan.id);
+    const displayNames = await resolveStaffDisplayNames(tx, tenantId, applies.map((record) => record.actorSubject));
+    return { plan, rows, applies, displayNames };
   });
 }
 
@@ -101,9 +105,9 @@ export async function withApplyView(
   membership: ActiveStaffMembership,
   result: WorkbookReviewResult,
 ): Promise<WorkbookReviewResult> {
-  const { plan, rows, applies } = await loadWithApplies(db, tenantId, result.plan.publicId);
+  const { plan, rows, applies, displayNames } = await loadWithApplies(db, tenantId, result.plan.publicId);
   const base = resultFromPlan(plan, rows, { stale: result.stale, replayed: result.replayed });
-  return resultFromPlan(plan, rows, { stale: result.stale, replayed: result.replayed, apply: applyPart(membership, plan, rows, applies, base) });
+  return resultFromPlan(plan, rows, { stale: result.stale, replayed: result.replayed, apply: applyPart(membership, plan, rows, applies, base, displayNames) });
 }
 
 /** Read-repair of an apply interrupted by a restart (heartbeat older than the timeout). */

@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { FoodicsMenuResult } from "@/app/tenants/[tenantId]/catalogue/import/foodics-menu-result";
+import { WorkbookImportHistory } from "@/app/tenants/[tenantId]/catalogue/import/workbook-import-history";
 import { WorkbookReviewPanel } from "@/app/tenants/[tenantId]/catalogue/import/workbook-review-panel";
 import { usePortalShell } from "@/components/portal/portal-shell-context";
 import {
@@ -42,7 +43,8 @@ import type { PlanDecision, WorkbookReviewResult } from "@/lib/workbook/validati
    by its layout and can be downloaded converted into a QOS workbook.
    QOS-194 adds the review: either profile can be reviewed against the
    business's current records into a persisted review plan (nothing is
-   applied). */
+   applied). The QOS-200 follow-up lists past applies ("Past imports"),
+   loaded from the server, and opens any of them in the review panel. */
 
 const SUPPORT_TONE: Record<WorkbookSheetSupport, PortalBadgeTone> = {
   supported: "positive",
@@ -87,6 +89,8 @@ export function WorkbookImportPanel({
   const [review, setReview] = useState<WorkbookReviewResult | null>(null);
   // Decisions from the last review, carried by key into an edited upload; held in memory only.
   const [carriedDecisions, setCarriedDecisions] = useState<PlanDecision[]>([]);
+  const [historyKey, setHistoryKey] = useState(0);
+  const [openingPlan, setOpeningPlan] = useState<string | null>(null);
 
   const branchName =
     branch.status === "ready"
@@ -221,6 +225,25 @@ export function WorkbookImportPanel({
     }
   };
 
+  // Opens a past apply's plan, with its per-row results, in the review panel.
+  const openPastPlan = async (planPublicId: string) => {
+    setOpeningPlan(planPublicId);
+    setError(null);
+    try {
+      const response = await staffApiFetch(`${basePath}/plans/${encodeURIComponent(planPublicId)}`);
+      const body = (await response.json().catch(() => null)) as WorkbookReviewResult | ReviewApiError | null;
+      if (!response.ok || !body || !("plan" in body)) {
+        setError(describeReviewApiError(locale, response.status, body as ReviewApiError | null));
+        return;
+      }
+      setReview(body);
+    } catch {
+      setError(t("workbookErrorGeneric"));
+    } finally {
+      setOpeningPlan(null);
+    }
+  };
+
   const reviewable = result?.profile === "qos_extended_v1" || result?.profile === "foodics_menu_v1";
   const foodicsBrandMissing =
     result?.profile === "foodics_menu_v1" &&
@@ -342,6 +365,8 @@ export function WorkbookImportPanel({
           </button>
         </div>
       </PortalPanel>
+
+      <WorkbookImportHistory tenantId={tenantId} refreshKey={historyKey} opening={openingPlan} onOpen={(planPublicId) => void openPastPlan(planPublicId)} />
 
       {error ? <PortalNotice tone="error">{error}</PortalNotice> : null}
 
@@ -467,7 +492,13 @@ export function WorkbookImportPanel({
       ) : null}
 
       {review ? (
-        <WorkbookReviewPanel key={review.plan.publicId} tenantId={tenantId} initialResult={review} onDecisionsChange={setCarriedDecisions} />
+        <WorkbookReviewPanel
+          key={review.plan.publicId}
+          tenantId={tenantId}
+          initialResult={review}
+          onDecisionsChange={setCarriedDecisions}
+          onApplied={() => setHistoryKey((value) => value + 1)}
+        />
       ) : null}
     </div>
   );
