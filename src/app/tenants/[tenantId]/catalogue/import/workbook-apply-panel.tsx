@@ -110,7 +110,9 @@ export function WorkbookApplyPanel({
 
   const latest = apply?.attempts[0] ?? null;
   const showResults = (apply?.attempts.length ?? 0) > 0 || applyStatus !== null;
-  const sheets = summariseApplyBySheet(result.rows);
+  // Workbook order (the plan's sheets), so masters come before the records that use them.
+  const sheetOrder = new Map(result.sheets.map((entry, index) => [entry.sheet, index]));
+  const sheets = summariseApplyBySheet(result.rows).sort((a, b) => (sheetOrder.get(a.sheet) ?? 999) - (sheetOrder.get(b.sheet) ?? 999));
   const deferredBySheet = new Map<string, FieldDecision[]>();
   for (const entry of result.fieldDecisions.filter((field) => field.decision === "deferred")) {
     deferredBySheet.set(entry.sheet, [...(deferredBySheet.get(entry.sheet) ?? []), entry]);
