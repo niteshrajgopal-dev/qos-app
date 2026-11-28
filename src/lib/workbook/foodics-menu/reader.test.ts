@@ -222,7 +222,13 @@ describe("filled sanitized fixture", () => {
   });
 
   it("converts the same file to the same result every time", async () => {
-    const [first, second] = [await parse({ filled: true }), await parse({ filled: true })];
+    // Build the fixture once. ExcelJS/ZIP timestamps make two writes a second
+    // apart produce different bytes, which is not "the same file".
+    const bytes = await buildFoodicsMenuFixture({ prefillLastRow: 60, filled: true });
+    const file = { fileName: FOODICS_FIXTURE_FILE_NAME, bytes };
+    const first = (await parseWorkbookUpload(file, OPTIONS)) as FoodicsMenuParseResult;
+    const second = (await parseWorkbookUpload(file, OPTIONS)) as FoodicsMenuParseResult;
+    expect(first.profile).toBe("foodics_menu_v1");
     expect(second.sheets).toEqual(first.sheets);
     expect(second.fileFingerprint).toBe(first.fileFingerprint);
   });
