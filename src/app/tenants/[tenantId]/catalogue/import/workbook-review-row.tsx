@@ -246,7 +246,7 @@ export function WorkbookReviewRow({
             </>
           ) : null}
           {isSavedApplyState(outcome.state) && RECIPE_SHEETS.has(row.sheet) ? <p className="qosp-meta-line">{t("applyRowDraftNotApproved")}</p> : null}
-          {outcome.error?.details?.dependencies && outcome.error.details.dependencies.length > 0 ? (
+          {outcome.error?.code !== "in_use" && outcome.error?.details?.dependencies && outcome.error.details.dependencies.length > 0 ? (
             <p className="qosp-meta-line">
               {staffCopyWith(locale, "applyRowDependencies", { list: describeDependencies(locale, outcome.error.details.dependencies) })}
             </p>

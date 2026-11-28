@@ -26,6 +26,8 @@ export const APPLY_FAILURE_CODES = [
   "brand_mismatch",
   "archived_target",
   "unsupported_field",
+  /** A dependency refusal: other records still use this one (QOS-200 follow-up). */
+  "in_use",
   "unexpected",
 ] as const;
 export type ApplyFailureCode = (typeof APPLY_FAILURE_CODES)[number];

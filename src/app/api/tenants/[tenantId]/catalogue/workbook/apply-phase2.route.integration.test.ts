@@ -1022,4 +1022,33 @@ integrationDescribe("Phase 2 workbook apply (DB)", () => {
     expect(row(again, "Units", "u-kg-2")).toMatchObject({ classification: "unchanged", identity: expect.objectContaining({ targetPublicId: kg.publicId, via: "source_link" }) });
     expect(again.readiness.blockers).not.toContain("conflicting");
   });
+  it("a dependency refusal fails only its row, with the real reason and counts instead of a concurrency message", async () => {
+    const { fx, applied } = await applyFirst();
+    const { tenantId } = fx;
+    const bytes = await templateBytes(tenantId, {
+      Units: [{ unit_key: "u-ml", action: "update", active: "FALSE" }],
+      Suppliers: [{ supplier_key: "s-farm", action: "update", active: "FALSE" }],
+      "Inventory Categories": [{ inventory_category_key: "c-dairy", action: "update", name_en: "Dairy and eggs" }],
+      Ingredients: [{ ingredient_key: "i-milk", action: "update", active: "FALSE" }],
+    });
+    const previewed = await ok(await previewAs(ADMIN, tenantId, bytes));
+    expect(row(previewed, "Suppliers", "s-farm")).toMatchObject({ classification: "update", operation: "archive" });
+    const result = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, previewed)));
+    expect(result.plan.status).toBe("apply_failed");
+
+    expect(row(result, "Suppliers", "s-farm").apply).toMatchObject({
+      state: "failed",
+      error: { code: "in_use", reason: "supplier_in_use", details: { dependencies: [{ kind: "inventory_items", count: 1 }] } },
+    });
+    expect(row(result, "Ingredients", "i-milk").apply).toMatchObject({ state: "failed", error: { code: "in_use", reason: "item_in_use" } });
+    expect(row(result, "Ingredients", "i-milk").apply!.error!.details!.dependencies).toContainEqual(expect.objectContaining({ kind: "recipe_lines" }));
+    expect(row(result, "Units", "u-ml").apply).toMatchObject({ state: "failed", error: { code: "in_use", reason: "unit_in_use" } });
+    // The other row still saved; the refused records are unchanged and still active.
+    expect(row(result, "Inventory Categories", "c-dairy").apply!.state).toBe("applied");
+    expect((await getCategory(db, tenantId, savedId(applied, "Inventory Categories", "c-dairy"))).category.nameEn).toBe("Dairy and eggs");
+    expect((await getSupplier(db, tenantId, savedId(applied, "Suppliers", "s-farm"))).supplier.status).toBe("active");
+    expect((await getItem(db, tenantId, savedId(applied, "Ingredients", "i-milk"))).item.status).toBe("active");
+    expect((await getUnit(db, tenantId, savedId(applied, "Units", "u-ml"))).unit.status).toBe("active");
+    expect(result.apply!.attempts[0]!.summary.failures).toContainEqual(expect.objectContaining({ sheet: "Suppliers", key: "s-farm", code: "in_use" }));
+  });
 });
