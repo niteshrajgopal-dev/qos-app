@@ -12,7 +12,6 @@ import { getSupplier } from "@/lib/inventory/suppliers";
 import { getUnit, listUnits } from "@/lib/inventory/units";
 import { getWarehouse } from "@/lib/inventory/warehouses";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
-import { listSellableLinks } from "@/lib/recipes/links";
 import { getRecipe } from "@/lib/recipes/recipes";
 import { approveVersion, createDraftFromVersion } from "@/lib/recipes/versions";
 import { flowerTenantFixture } from "@/lib/tenant/fixtures";
