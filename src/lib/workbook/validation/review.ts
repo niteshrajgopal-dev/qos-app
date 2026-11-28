@@ -171,7 +171,7 @@ type Engine = {
 };
 
 /** Whether this plan wrote the typed link of `key` (a retry of the same plan); a new upload never has. */
-export function linkWrittenByPlan(snapshot: ReviewSnapshot, planId: string | null, sheet: string, key: string) {
+function linkWrittenByPlan(snapshot: ReviewSnapshot, planId: string | null, sheet: string, key: string) {
   return planId !== null && snapshot.typedLinkOrigins.get(sheet)?.get(key) === planId;
 }
 
