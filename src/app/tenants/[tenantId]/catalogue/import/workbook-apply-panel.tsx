@@ -18,12 +18,15 @@ import {
   APPLY_ATTEMPT_STATUS_COPY,
   APPLY_BLOCK_REASON_COPY,
   describeApplyApiError,
+  describeReviewOwner,
   formatApplyTime,
   PLAN_STATUS_COPY,
+  sheetLabel,
   summariseApplyBySheet,
   type ReviewApiError,
 } from "@/lib/workbook/review-view";
 import type { FieldDecision, WorkbookReviewResult } from "@/lib/workbook/validation/model";
+import { WorkbookPendingSheets } from "@/app/tenants/[tenantId]/catalogue/import/workbook-pending-sheets";
 
 /* QOS-217 apply section of the review panel. The apply button appears only
    when the server says this operator may apply this plan; otherwise the
@@ -218,7 +221,7 @@ export function WorkbookApplyPanel({
                 {sheets.map((entry) => (
                   <li key={entry.sheet} className="qosp-subcard">
                     <p className="qosp-field-label">
-                      <bdi dir="ltr">{entry.sheet}</bdi>
+                      <bdi>{sheetLabel(locale, entry.sheet)}</bdi>
                     </p>
                     <dl className="qosp-plain-list qosp-meta-row">
                       {(
@@ -249,7 +252,7 @@ export function WorkbookApplyPanel({
                 {[...deferredBySheet].map(([sheetName, entries]) => (
                   <li key={sheetName} className="qosp-subcard">
                     <p className="qosp-field-label">
-                      <bdi dir="ltr">{sheetName}</bdi>
+                      <bdi>{sheetLabel(locale, sheetName)}</bdi>
                     </p>
                     <p className="qosp-panel-help">
                       <code className="qosp-code" dir="ltr">
@@ -257,13 +260,17 @@ export function WorkbookApplyPanel({
                       </code>
                     </p>
                     <p className="qosp-meta-line">
-                      {staffCopyWith(locale, "reviewFieldOwner", { owner: isolateText([...new Set(entries.map((entry) => entry.owner))].join("; ")) })}
+                      {staffCopyWith(locale, "reviewFieldOwner", {
+                        owner: isolateText([...new Set(entries.map((entry) => describeReviewOwner(locale, entry.owner)))].join(locale === "ar" ? "؛ " : "; ")),
+                      })}
                     </p>
                   </li>
                 ))}
               </ul>
             </>
           ) : null}
+
+          <WorkbookPendingSheets sheets={result.sheets} />
 
           {apply && apply.attempts.length > 0 ? (
             <>

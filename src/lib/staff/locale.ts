@@ -3253,6 +3253,9 @@ export type StaffCountForms = Partial<Record<Intl.LDMLPluralRule, string>> & {
 
 export const STAFF_COUNT_COPY = {
   en: {
+    reviewPendingRows: { one: "1 row read", other: "{count} rows read" },
+    applyDependencyItems: { one: "Used by 1 active item", other: "Used by {count} active items" },
+    applyDependencyRecords: { one: "Used by 1 record", other: "Used by {count} records" },
     products: { one: "1 product", other: "{count} products" },
     productsActive: { one: "1 active", other: "{count} active" },
     productsDraft: { one: "1 draft", other: "{count} drafts" },
@@ -3304,6 +3307,30 @@ export const STAFF_COUNT_COPY = {
     productVariants: { one: "1 variant", other: "{count} variants" },
   },
   ar: {
+    reviewPendingRows: {
+      zero: "لم يُقرأ أي صف",
+      one: "قُرئ صف واحد",
+      two: "قُرئ صفان",
+      few: "قُرئت {count} صفوف",
+      many: "قُرئ {count} صفًا",
+      other: "قُرئ {count} صف",
+    },
+    applyDependencyItems: {
+      zero: "لا يستخدمه أي صنف نشط",
+      one: "يستخدمه صنف نشط واحد",
+      two: "يستخدمه صنفان نشطان",
+      few: "تستخدمه {count} أصناف نشطة",
+      many: "يستخدمه {count} صنفًا نشطًا",
+      other: "يستخدمه {count} صنف نشط",
+    },
+    applyDependencyRecords: {
+      zero: "لا يستخدمه أي سجل",
+      one: "يستخدمه سجل واحد",
+      two: "يستخدمه سجلان",
+      few: "تستخدمه {count} سجلات",
+      many: "يستخدمه {count} سجلًا",
+      other: "يستخدمه {count} سجل",
+    },
     products: {
       zero: "لا توجد منتجات",
       one: "منتج واحد",

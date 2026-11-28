@@ -1,5 +1,7 @@
+import { isolateText } from "@/lib/staff/branch-copy";
 import { staffCopyWith, staffCount, staffUiCopy, type StaffCountKey, type StaffLocale, type StaffUiCopyKey } from "@/lib/staff/locale";
 import type {
+  AppliedRecord,
   ApplyBlockReason,
   ApplyFailure,
   ApplyFailureCode,
@@ -640,4 +642,65 @@ export function formatApplyTime(locale: StaffLocale, value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(DATE_LOCALES[locale], { dateStyle: "medium", timeStyle: "short", numberingSystem: "latn" }).format(date);
+}
+
+/* QOS-200 Phase 2 import: sub-records a row saved, pending sheets and
+   dependency kinds, all as staff copy. */
+
+/** One sub-record a row saved, as a short sentence (draft number, revision and date). */
+export function describeAppliedRecord(locale: StaffLocale, record: AppliedRecord) {
+  const date = isolateText(record.effectiveFrom ?? "");
+  switch (record.kind) {
+    case "recipe":
+      return staffCopyWith(locale, "applyRecordRecipe", { id: isolateText(record.publicId) });
+    case "recipe_version":
+      return staffCopyWith(locale, "applyRecordRecipeDraft", { n: record.revision ?? "" });
+    case "sellable_link":
+      return staffCopyWith(locale, "applyRecordSellableLink", { date });
+    case "conversion":
+      if (record.note === "standard") return staffUiCopy(locale, "applyRecordConversionStandard");
+      if (record.note === "closed") return staffUiCopy(locale, "applyRecordConversionClosed");
+      return staffCopyWith(locale, "applyRecordConversion", { n: record.revision ?? "", date });
+    case "reference_cost":
+      if (record.note === "closed") return staffUiCopy(locale, "applyRecordCostClosed");
+      return staffCopyWith(locale, "applyRecordReferenceCost", { n: record.revision ?? "", date });
+  }
+}
+
+
+/* Sheets this import reads and keeps but never applies (QOS-200, D6), with the
+   plain disposition the server's owner literal stands for. */
+export const PENDING_SHEET_OWNER_COPY: Record<string, StaffUiCopyKey> = {
+  "Prep Targets": "reviewOwnerPrepTargetsPending",
+  "Opening Stock": "reviewOwnerOpeningStockSeparate",
+  "External Mappings": "reviewOwnerExternalMappingsPending",
+  "Future Combos": "reviewOwnerPhase3Combos",
+  "Combo Components": "reviewOwnerPhase3Combos",
+};
+
+export type PendingSheet = { sheet: string; rejected: boolean; rowCount: number; owner: StaffUiCopyKey };
+
+/** Deferred and rejected sheets that carried rows, in plan order. */
+export function pendingSheets(sheets: Array<{ sheet: string; support: string; rowCount: number }>): PendingSheet[] {
+  return sheets
+    .filter((entry) => (entry.support === "deferred" || entry.support === "rejected") && entry.rowCount > 0 && PENDING_SHEET_OWNER_COPY[entry.sheet])
+    .map((entry) => ({ sheet: entry.sheet, rejected: entry.support === "rejected", rowCount: entry.rowCount, owner: PENDING_SHEET_OWNER_COPY[entry.sheet]! }));
+}
+
+const DEPENDENCY_COPY: Record<string, StaffCountKey> = {
+  inventory_items: "applyDependencyItems",
+  recipe_lines: "recipeLinesDependency",
+  recipe_effects: "recipeEffectsDependency",
+  sellable_links: "sellableLinksDependency",
+  recipe_outputs: "recipeOutputsDependency",
+};
+
+/** What still uses a record a row could not archive ("3 items, 1 recipe line"). */
+export function describeDependencies(locale: StaffLocale, dependencies: Array<{ kind: string; count: number }>) {
+  return dependencies
+    .map((dependency) => {
+      const key = DEPENDENCY_COPY[dependency.kind];
+      return key ? staffCount(locale, key, dependency.count) : staffCount(locale, "applyDependencyRecords", dependency.count);
+    })
+    .join(locale === "ar" ? "، " : ", ");
 }

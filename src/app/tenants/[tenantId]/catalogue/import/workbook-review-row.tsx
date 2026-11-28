@@ -13,18 +13,24 @@ import {
   APPLY_IMAGE_COPY,
   APPLY_FAILURE_REASON_COPY,
   APPLY_ROW_STATE_COPY,
+  describeAppliedRecord,
   describeApplyFailure,
+  describeDependencies,
   describeReviewDiagnostic,
   describeReviewOwner,
   diagnosticLocation,
   formatApplyTime,
   formatReviewValue,
+  isSavedApplyState,
   REVIEW_CLASSIFICATION_COPY,
   REVIEW_OPERATION_COPY,
   reviewRowAnchor,
   rowLocation,
 } from "@/lib/workbook/review-view";
 import type { ReviewClassification, ReviewRow, RowDecision, RowRef } from "@/lib/workbook/validation/model";
+
+/** Rows saved as recipe drafts (QOS-200): approval stays in the recipe editor. */
+const RECIPE_SHEETS = new Set(["Recipes", "Recipe Lines", "Prep Steps", "Modifier Effects"]);
 
 /* QOS-194: one reviewed row. Shows where it is in the workbook, its readable
    name and stable key, the real before → after values, values kept for
@@ -220,6 +226,29 @@ export function WorkbookReviewRow({
           {outcome.result && outcome.result.deferred.length > 0 ? (
             <p className="qosp-meta-line">
               {staffCopyWith(locale, "applyRowDeferredNotSaved", { columns: isolateText(outcome.result.deferred.map((entry) => entry.column).join(", ")) })}
+            </p>
+          ) : null}
+          {outcome.result?.records && outcome.result.records.length > 0 ? (
+            <>
+              <h5 className="qosp-field-label">{t("applyRowRecords")}</h5>
+              <ul className="qosp-plain-list qosp-panel-help">
+                {outcome.result.records.map((record) => (
+                  <li key={`${record.kind}:${record.publicId}:${record.revision ?? ""}`}>
+                    {describeAppliedRecord(locale, record)}{" "}
+                    {record.publicId !== "standard" ? (
+                      <code className="qosp-code" dir="ltr">
+                        {record.publicId}
+                      </code>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+          {isSavedApplyState(outcome.state) && RECIPE_SHEETS.has(row.sheet) ? <p className="qosp-meta-line">{t("applyRowDraftNotApproved")}</p> : null}
+          {outcome.error?.details?.dependencies && outcome.error.details.dependencies.length > 0 ? (
+            <p className="qosp-meta-line">
+              {staffCopyWith(locale, "applyRowDependencies", { list: describeDependencies(locale, outcome.error.details.dependencies) })}
             </p>
           ) : null}
           {outcome.result?.image ? <p className="qosp-meta-line">{t(APPLY_IMAGE_COPY[outcome.result.image.status])}</p> : null}
