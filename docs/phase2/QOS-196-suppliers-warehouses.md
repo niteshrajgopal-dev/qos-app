@@ -25,6 +25,8 @@ Migration `0061_inventory_suppliers_warehouses` (manual, apply after 0060) adds 
 
 ## Workbook contract (for QOS-200)
 
+> Implemented by QOS-200 with contract 1.5: see [QOS-200-workbook-apply-phase2.md](QOS-200-workbook-apply-phase2.md) for the applied columns and dispositions.
+
 This PR does not change the workbook contract (still 1.4). `Suppliers` and `Warehouses` stay deferred sheets with their `Proposed …` mapping text, so `isDeferredField` keeps reporting them as deferred. The single 1.5 bump in QOS-200 should map:
 
 - `Suppliers.supplier_key` / `qos_supplier_id` → `inventory_suppliers.public_id`; `name` → `name_en`; `contact_name`, `email`, `phone` → the same columns; `reference` → `code`; `active` → `status`; `notes` → `notes`.

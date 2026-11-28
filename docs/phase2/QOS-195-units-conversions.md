@@ -32,6 +32,8 @@ A version row can change only in `effective_to`, so a posted quantity always tra
 
 ## Workbook contract (for QOS-200)
 
+> Implemented by QOS-200 with contract 1.5: see [QOS-200-workbook-apply-phase2.md](QOS-200-workbook-apply-phase2.md) for the applied columns and dispositions.
+
 This PR does not change the workbook contract (still 1.4). `Units` stays a deferred sheet. The `Units` and `Ingredients` mapping text still reads "Proposed Phase 2/3 entity; no current schema table". `isDeferredField` keys off that `Proposed` prefix, so the text is left as it is until an apply path exists. QOS-200 should make one 1.5 bump that:
 
 1. points the `Units` and `Ingredients` mappings at `inventory_units` and `inventory_items`;

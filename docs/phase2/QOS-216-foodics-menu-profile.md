@@ -8,7 +8,7 @@ This page makes the source adapter reviewable outside the code. The code is the 
 - Header dictionary (source labels): `src/lib/workbook/foodics-menu/dictionary.v1.json`
 - Reader and canonical mapping: `src/lib/workbook/foodics-menu/reader.ts`
 - Converter: `src/lib/workbook/foodics-menu/convert.ts`
-- Field dictionary 1.1 (capability classes): `src/lib/workbook/qos-workbook-dictionary.v1.1.json`
+- Field dictionary 1.1 (capability classes): `src/lib/workbook/qos-workbook-dictionary.v1.2.json (1.1 before QOS-200)`
 
 The client's original workbook (SHA-256 `2a73c4f19c98e35803b026038b08439a5f0f77070f88e59e4356623ded3e4cd3`) was inspected locally on 21 Nov 2026 (Asia/Dubai). It is never committed. `src/lib/workbook/foodics-menu/original.test.ts` re-checks it when the file is at `/workspace/qos-phase2/private/AZURCAFE CAFETERIA Menu Template .xlsx` or `$QOS_216_SOURCE_XLSX`. Business-entry sections of that file are empty; only documented example rows are populated, and those stay non-candidates. Header cells are Localization-sheet formulas: detection reads cached display text only and never evaluates formulas. Typed non-formula text is still required for business-row identity.
 
