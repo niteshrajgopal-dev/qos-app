@@ -9,7 +9,7 @@ import { createDraftProduct } from "@/lib/catalogue/products";
 import { getCategory } from "@/lib/inventory/categories";
 import { getItem } from "@/lib/inventory/items";
 import { getSupplier } from "@/lib/inventory/suppliers";
-import { getUnit, listUnits } from "@/lib/inventory/units";
+import { createUnit, getUnit, listUnits } from "@/lib/inventory/units";
 import { getWarehouse } from "@/lib/inventory/warehouses";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { getRecipe } from "@/lib/recipes/recipes";
@@ -962,5 +962,64 @@ integrationDescribe("Phase 2 workbook apply (DB)", () => {
     expect(await linkTarget("recipe_line", "l-milk")).toEqual([copy.publicId]);
     expect(await versionState(v1)).toEqual(before);
     expect((await getRecipe(db, tenantId, familyId)).versions.filter((version) => version.status === "draft")).toHaveLength(1);
+  });
+  it("an identical re-upload of a template with draft status is a no-op and never downgrades an active variant, group or option", async () => {
+    const fx = await seed();
+    const { tenantId } = fx;
+    const bytes = await templateBytes(tenantId, {
+      Products: [{ product_key: "p-mocha", action: "create", internal_name: "mocha", display_name_en: "Mocha", display_name_ar: "موكا", status: "draft" }],
+      Variants: [{ variant_key: "v-mocha", action: "create", product_key: "p-mocha", is_default: "TRUE", sort_order: "1", amount_minor: "2000", currency: "AED", status: "draft" }],
+      "Modifier Groups": [{ modifier_group_key: "g-size", action: "create", internal_name: "size", display_name_en: "Size", display_name_ar: "الحجم", min_selections: "0", max_selections: "1", status: "draft" }],
+      "Modifier Options": [{ modifier_option_key: "o-large", action: "create", modifier_group_key: "g-size", display_name_en: "Large", display_name_ar: "كبير", price_minor: "300", currency: "AED", is_default: "FALSE", allows_quantity: "FALSE", max_quantity: "1", sort_order: "1", status: "draft" }],
+    });
+    const first = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, await ok(await previewAs(ADMIN, tenantId, bytes)))));
+    expect(first.plan.status, JSON.stringify(first.rows.filter((entry) => entry.apply?.state === "failed").map((entry) => [entry.sheet, entry.key, entry.apply?.error]))).toBe("applied");
+    const statuses = async () => {
+      const [state] = await sql`
+        SELECT
+          (SELECT status::text FROM qos.catalogue_variants WHERE public_id = ${savedId(first, "Variants", "v-mocha")}) AS variant,
+          (SELECT status::text FROM qos.catalogue_modifier_groups WHERE public_id = ${savedId(first, "Modifier Groups", "g-size")}) AS group,
+          (SELECT status::text FROM qos.catalogue_modifier_options WHERE public_id = ${savedId(first, "Modifier Options", "o-large")}) AS option,
+          (SELECT status::text FROM qos.catalogue_products WHERE public_id = ${savedId(first, "Products", "p-mocha")}) AS product
+      `;
+      return state!;
+    };
+    expect(await statuses()).toEqual({ variant: "active", group: "active", option: "active", product: "draft" });
+
+    for (let round = 0; round < 2; round += 1) {
+      const again = await ok(await previewAs(ADMIN, tenantId, bytes));
+      expect(again.rows.filter((entry) => entry.classification !== "unchanged").map((entry) => [entry.sheet, entry.key, entry.classification, entry.changes])).toEqual([]);
+      expect(again.counts).toMatchObject({ create: 0, update: 0 });
+      const reapplied = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, again)));
+      expect(reapplied.plan.status).toBe("applied");
+      expect(reapplied.apply!.attempts[0]!.counts.applied).toBe(0);
+      expect(await statuses()).toEqual({ variant: "active", group: "active", option: "active", product: "draft" });
+    }
+  });
+
+  it("remembers a Match existing decision on a standard unit through a typed link, so a re-upload does not conflict again", async () => {
+    const fx = await seed();
+    const { tenantId, admin } = fx;
+    const kg = await createUnit(db, tenantId, admin, ADMIN, { source: "standard", standardCode: "kg" });
+    const bytes = await templateBytes(tenantId, { Units: [{ unit_key: "u-kg-2", action: "create", name: "kg", quantity_kind: "MASS", decimal_places: "3", active: "TRUE" }] });
+
+    const previewed = await ok(await previewAs(ADMIN, tenantId, bytes));
+    const unitRow = row(previewed, "Units", "u-kg-2");
+    expect(unitRow).toMatchObject({ classification: "conflicting", candidates: [expect.objectContaining({ publicId: kg.publicId })] });
+    const decided = await completeReview(tenantId, previewed, [{ kind: "match_existing", sheet: "Units", row: unitRow.row, key: "u-kg-2", targetPublicId: kg.publicId }]);
+    expect(row(decided, "Units", "u-kg-2")).toMatchObject({ classification: "unchanged", identity: expect.objectContaining({ targetPublicId: kg.publicId }) });
+    const applied = await ok(await applyAs(ADMIN, tenantId, decided));
+    expect(applied.plan.status).toBe("applied");
+    expect(row(applied, "Units", "u-kg-2").apply).toMatchObject({
+      state: "not_applied",
+      result: { reason: "unchanged", links: [expect.objectContaining({ entityType: "unit", sourceKey: "u-kg-2", targetPublicId: kg.publicId })] },
+    });
+    expect(await linkTarget("unit", "u-kg-2")).toEqual([kg.publicId]);
+    expect((await listUnits(db, tenantId)).units).toHaveLength(1);
+
+    // The next upload of the same file resolves the key through the link: unchanged, no conflict, nothing to decide.
+    const again = await ok(await previewAs(ADMIN, tenantId, bytes));
+    expect(row(again, "Units", "u-kg-2")).toMatchObject({ classification: "unchanged", identity: expect.objectContaining({ targetPublicId: kg.publicId, via: "source_link" }) });
+    expect(again.readiness.blockers).not.toContain("conflicting");
   });
 });

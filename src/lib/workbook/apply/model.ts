@@ -86,6 +86,7 @@ export type RowApplyResult = {
   fieldsApplied: string[];
   /** Values read and kept with the plan but not saved (QOS-212–215 and later handlers). */
   deferred: Array<{ column: string; owner: string }>;
+  /** Typed links written for the row: on save, or (QOS-200 follow-up) for a Match existing decision on an unchanged row. */
   links?: AppliedLink[];
   image?: ApplyImageOutcome;
   /** The recipe family of a recipe version, line, step or effect row (QOS-200). */

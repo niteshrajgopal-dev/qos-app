@@ -11,7 +11,7 @@ import { ApplyUnitError, describeApplyFailure } from "@/lib/workbook/apply/error
 import { HANDLERS } from "@/lib/workbook/apply/handlers";
 import { rowRef } from "@/lib/workbook/apply/handlers/shared";
 import type { ApplyRuntime, ImageIngester, SavedRow, Unit, UnitGuard } from "@/lib/workbook/apply/handlers/types";
-import { writeTypedLinkInTx } from "@/lib/workbook/apply/links";
+import { LINK_ENTITY_OF_SHEET, writeTypedLinkInTx } from "@/lib/workbook/apply/links";
 import type { AppliedLink, ApplyCounts, ApplyFailure, ApplyImageOutcome, ApplySummary, RowApplyResult } from "@/lib/workbook/apply/model";
 import { heartbeat, lockPlanRows, writeRowImage, writeRowOutcome } from "@/lib/workbook/apply/repository";
 import { loadScopeTokens, recordIdentity, type TokenScope, tokenKey } from "@/lib/workbook/apply/revisions";
@@ -305,6 +305,53 @@ async function recordFailure(run: ApplyRuntime, unit: Unit, failure: ApplyFailur
   });
 }
 
+/**
+ * An unchanged row the operator matched to an existing record (Match
+ * existing) changes no record, but its workbook key is linked to that record
+ * so the next upload resolves it without asking again (QOS-200 follow-up).
+ * The membership is rechecked first; each link is written in its own
+ * savepoint, and a key or record already linked elsewhere is simply left
+ * unlinked: this never fails the attempt.
+ */
+async function rememberMatches(tx: DbTransaction, run: ApplyRuntime, idle: PlanRowRecord[]) {
+  const remembered = new Map<string, AppliedLink>();
+  const matched = idle.filter(
+    (row) =>
+      row.classification === "unchanged" &&
+      row.decision?.kind === "match_existing" &&
+      row.targetPublicId &&
+      row.entityKey &&
+      row.entityKey !== row.targetPublicId &&
+      LINK_ENTITY_OF_SHEET[row.sheet],
+  );
+  if (matched.length === 0) return remembered;
+  try {
+    await recheckActor(tx, run);
+  } catch {
+    return remembered;
+  }
+  for (const row of matched) {
+    try {
+      const link = await tx.transaction((savepoint) =>
+        writeTypedLinkInTx(savepoint as unknown as DbTransaction, {
+          tenantId: run.tenantId,
+          namespace: run.namespace,
+          sheet: row.sheet,
+          sourceKey: row.entityKey,
+          targetPublicId: row.targetPublicId!,
+          planId: run.plan.id,
+          applyId: run.apply.id,
+          subject: run.actor.subject,
+        }),
+      );
+      if (link) remembered.set(row.id, link);
+    } catch {
+      // Linked elsewhere: the row stays unlinked and the next upload asks again.
+    }
+  }
+  return remembered;
+}
+
 /* ------------------------------------------------------------------ */
 /* Images                                                              */
 /* ------------------------------------------------------------------ */
@@ -373,11 +420,13 @@ export async function executeUnits(run: ApplyRuntime, rows: PlanRowRecord[]): Pr
   const idle = rows.filter((row) => !isApplicable(row) && !isSaved(row));
   if (idle.length > 0) {
     await withTenantContext(run.db, run.tenantId, async (tx) => {
+      const remembered = await rememberMatches(tx, run, idle);
       for (const row of idle) {
+        const link = remembered.get(row.id);
         await writeRowOutcome(tx, run.tenantId, row.id, {
           state: row.classification === "unchanged" && row.deferredFields.length > 0 ? "deferred_only" : "not_applied",
           applyId: run.apply.id,
-          result: { operation: null, fieldsApplied: [], deferred: deferredOf(row), reason: row.classification },
+          result: { operation: null, fieldsApplied: [], deferred: deferredOf(row), reason: row.classification, ...(link ? { links: [link] } : {}) },
         });
       }
     });
