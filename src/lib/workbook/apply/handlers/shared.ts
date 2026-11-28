@@ -61,9 +61,12 @@ export function rowRef(row: PlanRowRecord) {
 }
 
 /**
- * The public id a reference column names, in this order: an existing record
- * of the snapshot; the record saved for the referenced workbook row (this
- * attempt or an earlier one); a typed source link. Names are never
+ * The public id a reference column names, in this order: the record saved for
+ * the referenced workbook row (this attempt or an earlier one); an existing
+ * record of the snapshot; the referenced row's reviewed target; a typed
+ * source link. For every sheet but Recipes a saved row's id is its snapshot
+ * id; a Recipes row that changed an approved version saved a new draft, and
+ * its lines, steps and effects go to that draft (QOS-200, D4). Names are never
  * consulted. Anything else fails `dependency_unresolved` naming the row
  * responsible.
  */
@@ -77,13 +80,12 @@ export function resolveReference(run: ApplyRuntime, row: PlanRowRecord, column: 
     if (run.snapshot.permittedBranches.has(value)) return value;
     throw new ApplyUnitError("branch_not_permitted", "This branch is outside the plan's branch scope.", { field: column });
   }
+  const referenced = run.rowsByKey.get(refSheet)?.get(value);
+  const saved = referenced ? (run.saved.get(referenced.id) ?? referenced.appliedPublicId) : null;
+  if (saved) return saved;
   const records = run.snapshot.records[refSheet as keyof typeof run.snapshot.records];
   if (records?.has(value)) return value;
-  const referenced = run.rowsByKey.get(refSheet)?.get(value);
-  if (referenced) {
-    const saved = run.saved.get(referenced.id) ?? referenced.appliedPublicId ?? referenced.targetPublicId;
-    if (saved) return saved;
-  }
+  if (referenced?.targetPublicId) return referenced.targetPublicId;
   const linked = run.snapshot.typedLinks.get(refSheet)?.get(value);
   if (linked) return linked;
   throw new ApplyUnitError("dependency_unresolved", `${refSheet} ${value} was not saved.`, {

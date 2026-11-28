@@ -82,7 +82,7 @@ export type FoodicsLayoutRegion = {
 export type FoodicsMenuParseResult = {
   profile: "foodics_menu_v1";
   profileVersion: 1;
-  dictionaryVersion: "1.1";
+  dictionaryVersion: "1.2";
   fileName: string;
   fileFingerprint: string;
   templateVersion: string;

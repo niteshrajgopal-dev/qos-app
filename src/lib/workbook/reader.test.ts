@@ -96,8 +96,8 @@ describe("parseWorkbookUpload: expanded profile", () => {
 
     expect(result.manifest).toEqual({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.4",
-      prepared_on: "2026-11-21",
+      template_version: "1.5",
+      prepared_on: "2026-11-28",
       tenant_public_id: "",
       brand_public_id: "",
       source_namespace: "",
@@ -111,8 +111,8 @@ describe("parseWorkbookUpload: expanded profile", () => {
     expect(result.sheets.every((entry) => entry.present && entry.rowCount === 0)).toBe(true);
     expect(result.guidanceSheets).toEqual(["Start Here", "Field Guide", "Import Rules"]);
     expect(result.summary).toMatchObject({
-      supported: { sheets: 16, rows: 0 },
-      deferred: { sheets: 12, rows: 0 },
+      supported: { sheets: 25, rows: 0 },
+      deferred: { sheets: 3, rows: 0 },
       rejected: { sheets: 2, rows: 0 },
       separate_profile: { sheets: 1, rows: 0 },
       errors: 0,
@@ -211,6 +211,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
   it("classifies deferred, rejected and separate-profile sheets and never reports them as importable", async () => {
     const bytes = await filledWorkbook((workbook) => {
       fillSheet(workbook, "Units", 6, [{ unit_key: "g", action: "create", name: "gram", quantity_kind: "mass", decimal_places: "0", active: "TRUE" }]);
+      fillSheet(workbook, "Prep Targets", 6, [{ prep_target_key: "t1", action: "create", target_quantity: "4" }]);
       fillSheet(workbook, "Opening Stock", 6, [{ opening_row_key: "o1", action: "create", quantity_storage_units: "4" }]);
       fillSheet(workbook, "Future Combos", 6, [{ combo_key: "c1", action: "create", name: "Breakfast combo" }]);
       fillSheet(workbook, "Current Import", 1, [{ source_id: "s1", internal_name: "x", display_name_en: "X", display_name_ar: "س", amount_minor: "100", currency: "AED" }]);
@@ -219,8 +220,11 @@ describe("parseWorkbookUpload: expanded profile", () => {
     });
     const result = extended(await parseWorkbookUpload({ fileName: "f.xlsx", bytes }));
 
-    expect(sheet(result, "Units")).toMatchObject({ support: "deferred", rowCount: 1 });
-    expect(sheet(result, "Units").issues).toEqual([{ sheet: "Units", severity: "warning", code: "deferred_sheet", params: { count: 1 } }]);
+    // QOS-200: Units is a supported sheet now; prep targets still wait for their service.
+    expect(sheet(result, "Units")).toMatchObject({ support: "supported", rowCount: 1 });
+    expect(sheet(result, "Units").issues).toEqual([]);
+    expect(sheet(result, "Prep Targets")).toMatchObject({ support: "deferred", rowCount: 1 });
+    expect(sheet(result, "Prep Targets").issues).toEqual([{ sheet: "Prep Targets", severity: "warning", code: "deferred_sheet", params: { count: 1 } }]);
     expect(sheet(result, "Opening Stock").issues).toEqual([
       { sheet: "Opening Stock", severity: "warning", code: "opening_stock_draft", params: { count: 1 } },
     ]);
@@ -236,7 +240,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
       expect.objectContaining({ code: "deferred_field", column: "free_options_count" }),
     );
     expect(result.summary).toMatchObject({
-      supported: { rows: 5 },
+      supported: { rows: 6 },
       deferred: { rows: 2 },
       rejected: { rows: 1 },
       separate_profile: { rows: 1 },
@@ -356,7 +360,7 @@ describe("parseWorkbookUpload: expanded profile", () => {
     const wrongVersion = await filledWorkbook((workbook) => setManifestValue(workbook, "template_version", "2.0"));
     const error = await parseError("f.xlsx", wrongVersion);
     expect(error.code).toBe("unsupported_version");
-    expect(error.params).toEqual({ version: "2.0", expected: "1.0, 1.1, 1.2, 1.3, 1.4" });
+    expect(error.params).toEqual({ version: "2.0", expected: "1.0, 1.1, 1.2, 1.3, 1.4, 1.5" });
 
     const calculated = await filledWorkbook((workbook) =>
       setManifestValue(workbook, "template_version", { formula: '"1.0"', result: "1.0" }),

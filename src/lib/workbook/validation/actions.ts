@@ -55,6 +55,18 @@ export const ACTION_MATRIX: Record<SupportedEntitySheet, Partial<Record<Workbook
   "Menu Branches": { create: CREATE, update: UPDATE, remove_link: REMOVE_LINK, skip: SKIP },
   "Menu Sections": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
   "Menu Items": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  // QOS-200 Phase 2 domain services. Archive sets the record inactive (masters),
+  // discards a draft (Recipes; an approved version is never changed) or leaves
+  // the line, step or effect out of the draft's list (marked removed, never deleted).
+  Units: { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  Suppliers: { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  Warehouses: { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  "Inventory Categories": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  Ingredients: { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  Recipes: { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  "Recipe Lines": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  "Prep Steps": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
+  "Modifier Effects": { create: CREATE, update: UPDATE, archive: ARCHIVE, skip: SKIP },
 };
 
 export type ActionResolution =
@@ -98,7 +110,23 @@ export function isUnsupportedSheet(sheet: string) {
   return support === "deferred" || support === "rejected";
 }
 
+export const COMBOS_OWNER = "Phase 3 (combos are rejected in Phase 2)";
+export const PREP_TARGETS_OWNER = "Preparation targets: the prep-target service is not built yet";
+export const EXTERNAL_MAPPINGS_OWNER = "Provider mappings: the POS connections service is not built yet";
+export const OPENING_STOCK_OWNER = "Opening stock: posted through its own intake with confirmation, never by this import";
+/** Owner of a deferred sheet with no owner of its own (none today). */
+export const DEFERRED_SHEET_OWNER = "Kept for a later import increment";
+
+/* Plain, ticket-free dispositions of the sheets this import keeps but never
+   applies (QOS-200, D6). The review and apply panels show them. */
+const SHEET_OWNERS: Record<string, string> = {
+  "Prep Targets": PREP_TARGETS_OWNER,
+  "External Mappings": EXTERNAL_MAPPINGS_OWNER,
+  "Opening Stock": OPENING_STOCK_OWNER,
+};
+
 /** Owner of a whole deferred or rejected sheet, when the dictionary has no entry for it. */
 export function sheetOwner(sheet: string) {
-  return sheetSupport(sheet) === "rejected" ? "Phase 3 (combos are rejected in Phase 2)" : "QOS-195–199 domain services; apply in QOS-200";
+  if (sheetSupport(sheet) === "rejected") return COMBOS_OWNER;
+  return SHEET_OWNERS[sheet] ?? DEFERRED_SHEET_OWNER;
 }

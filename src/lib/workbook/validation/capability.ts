@@ -27,8 +27,8 @@ import type { FieldDecision, ReviewInput } from "@/lib/workbook/validation/model
    (rejected), or used it to steer the review (mechanics). The dictionary
    JSON is read, never edited, and nothing is ever called persistable. */
 
-export const VALIDATED_OWNER = "QOS-194 review; apply in QOS-217";
-export const MECHANICS_OWNER = "QOS-194 review";
+export const VALIDATED_OWNER = "Checked by this review and applied by the import";
+export const MECHANICS_OWNER = "Used by the review only";
 
 const MECHANICS_COLUMNS = new Set(["action", "expected_revision", "clear_fields", "row_check"]);
 
@@ -36,7 +36,7 @@ const MECHANICS_COLUMNS = new Set(["action", "expected_revision", "clear_fields"
 export const PROVENANCE_COPIES = new Set(["price", "tax", "option_price", "ingredient_cost"]);
 
 /** Assignment-policy columns QOS-212 can store, but workbook apply is QOS-200's. */
-export const PRODUCT_MODIFIER_POLICY_APPLY_OWNER = "QOS-200 apply";
+export const PRODUCT_MODIFIER_POLICY_APPLY_OWNER = "Menu column extensions: next import increment";
 
 export { CHANNEL_PRICE_APPLY_OWNER, SELLING_ATTRIBUTE_APPLY_OWNER, SELLING_TAX_COST_APPLY_OWNER };
 

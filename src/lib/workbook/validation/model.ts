@@ -71,6 +71,12 @@ export const REVIEW_DIAGNOSTIC_CODES = [
   "deferred_value",
   "export_outdated",
   "decision_rejected",
+  // QOS-200: strict dates and decimals on the Phase 2 sheets, and an existing record (open draft, live link) a row conflicts with.
+  "malformed_date",
+  "decimal_too_precise",
+  "value_not_positive",
+  "existing_record_conflict",
+  "recipe_draft_created",
 ] as const;
 
 export type ReviewDiagnosticCode = (typeof REVIEW_DIAGNOSTIC_CODES)[number];

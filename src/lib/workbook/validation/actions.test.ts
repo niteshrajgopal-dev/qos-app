@@ -46,6 +46,7 @@ describe("action matrix", () => {
       qosInput({
         Branches: [seedRow("Branches", 0, { action: "update", name: "Renamed" })],
         Units: [{ unit_key: "u1", action: "create", name: "kg", quantity_kind: "MASS", decimal_places: "3", active: "TRUE" }],
+        "Prep Targets": [{ prep_target_key: "t1", action: "create", target_quantity: "4" }],
         "Future Combos": [{ combo_key: "c1", action: "create", name: "Combo" }],
       }),
       snapshotFrom(),
@@ -53,7 +54,12 @@ describe("action matrix", () => {
     const [branch] = rowsOf("Branches", review.rows);
     expect(branch).toMatchObject({ classification: "unsupported", operation: null });
     expect(branch!.diagnostics).toContainEqual(expect.objectContaining({ code: "action_unsupported", params: expect.objectContaining({ reason: "unsupported_action" }) }));
-    expect(rowsOf("Units", review.rows)[0]).toMatchObject({ classification: "unsupported" });
+    // QOS-200: Units is applied (a standard unit by its name); prep targets wait for their service.
+    expect(rowsOf("Units", review.rows)[0]).toMatchObject({ classification: "create", operation: "create" });
+    expect(rowsOf("Prep Targets", review.rows)[0]).toMatchObject({ classification: "unsupported" });
+    expect(rowsOf("Prep Targets", review.rows)[0]!.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "action_unsupported", params: expect.objectContaining({ owner: "Preparation targets: the prep-target service is not built yet" }) }),
+    );
     expect(rowsOf("Future Combos", review.rows)[0]!.diagnostics).toContainEqual(
       expect.objectContaining({ code: "action_unsupported", params: expect.objectContaining({ owner: expect.stringContaining("Phase 3") }) }),
     );

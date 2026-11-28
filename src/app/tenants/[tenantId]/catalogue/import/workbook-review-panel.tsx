@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 import { WorkbookApplyPanel } from "@/app/tenants/[tenantId]/catalogue/import/workbook-apply-panel";
+import { WorkbookPendingSheets } from "@/app/tenants/[tenantId]/catalogue/import/workbook-pending-sheets";
 import { WorkbookReviewRow } from "@/app/tenants/[tenantId]/catalogue/import/workbook-review-row";
 import {
   PortalBadge,
@@ -405,6 +406,8 @@ export function WorkbookReviewPanel({
           </ul>
         </>
       ) : null}
+
+      <WorkbookPendingSheets sheets={result.sheets} />
 
       {result.acknowledgements.required.length > 0 ? (
         <>

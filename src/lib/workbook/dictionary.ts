@@ -1,10 +1,12 @@
-import dictionaryJson from "@/lib/workbook/qos-workbook-dictionary.v1.1.json";
+import dictionaryJson from "@/lib/workbook/qos-workbook-dictionary.v1.2.json";
 
-/* QOS workbook field dictionary 1.1 (QOS-216, decision D-DICT): a compatible
-   sidecar to the unchanged v1.0 contract. It declares the extra manifest
-   fields and the Source Map sheet a source conversion writes, and classifies
-   every column a source adapter fills. Parsing never promotes a field: no
-   entry is `validated` or `persistable` in 1.1. */
+/* QOS workbook field dictionary (QOS-216, decision D-DICT): a compatible
+   sidecar to the workbook contract. It declares the extra manifest fields and
+   the Source Map sheet a source conversion writes, and classifies every column
+   a source adapter fills. 1.2 (QOS-200, contract 1.5) marks the Phase 2 domain
+   columns the workbook apply writes `persistable` and keeps the rest of those
+   sheets `deferred` with a plain owner; menu sheets keep their 1.1 classes.
+   Parsing itself never promotes a field. */
 
 export type CapabilityClass = "recognized" | "validated" | "persistable" | "deferred";
 

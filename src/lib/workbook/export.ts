@@ -45,11 +45,12 @@ import { ALL_BRANCHES, assertReadableBranch, loadBranchContext } from "@/lib/sta
 import { withTenantContext } from "@/lib/tenant/context";
 import { WORKBOOK_CONTRACT, WORKBOOK_PROFILE_ID, type SupportedEntitySheet } from "@/lib/workbook/contract";
 import { WORKBOOK_LIMITS } from "@/lib/workbook/limits";
+import { loadPhase2Records, phase2Revision } from "@/lib/workbook/phase2-records";
 import type { WorkbookManifest } from "@/lib/workbook/manifest";
 import { buildQosWorkbook } from "@/lib/workbook/template";
 
 /* Current-record export (QOS-193). Reads the caller's actual catalogue
-   records for the supported sheets and writes them into the contract
+   (and, from QOS-200, inventory and recipe) records for the supported sheets and writes them into the contract
    workbook with QOS ids, workbook keys, revision tokens and immutable
    context. It is read-only: nothing is created, changed or audited.
 
@@ -226,6 +227,8 @@ export const REVISION = {
     ]),
   menuItem: (row: { id: string; updatedAt: Date; sortOrder: number; archived: boolean }) =>
     revisionToken("menu_item", row.id, [row.updatedAt, row.sortOrder, row.archived]),
+  // QOS-200: units, suppliers, warehouses, inventory categories, items, recipe versions, lines, steps and effects.
+  ...phase2Revision(revisionToken),
 };
 
 /** Groups translation rows by owner and locale (en/ar only). */
@@ -589,6 +592,9 @@ export async function loadCurrentRecordExport(
               ),
             );
 
+    // Phase 2 inventory and recipe records (QOS-200): tenant-wide, warehouses at the permitted branches only.
+    const phase2 = await loadPhase2Records(tx, tenantId, revisionToken, { locationIds, locationKey });
+
     const keyOf = (map: Map<string, string>, id: string) => map.get(id) ?? "";
     const sortByKey = (rows: Row[], key: string) => rows.sort((a, b) => a[key]!.localeCompare(b[key]!));
 
@@ -911,6 +917,7 @@ export async function loadCurrentRecordExport(
             Number(a.sort_order) - Number(b.sort_order) ||
             a.menu_item_key.localeCompare(b.menu_item_key),
         ),
+      ...phase2,
     };
 
     for (const [sheet, rows] of Object.entries(records)) {

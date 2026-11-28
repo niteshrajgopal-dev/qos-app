@@ -7,6 +7,7 @@ import { CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE, CatalogueProductMutationGuard
 import { CatalogueProductError } from "@/lib/catalogue/products";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
 import { CatalogueVariantError } from "@/lib/catalogue/variants";
+import { InventoryDependencyError, InventoryDetailError, InventoryError } from "@/lib/inventory/errors";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import type { ApplyFailure, ApplyFailureCode } from "@/lib/workbook/apply/model";
 import type { RowRef } from "@/lib/workbook/validation/model";
@@ -47,7 +48,7 @@ export class WorkbookApplyError extends Error {
 export class ApplyUnitError extends Error {
   readonly failure: ApplyFailure;
 
-  constructor(code: ApplyFailureCode, message: string, extra: { field?: string; reason?: string; responsible?: RowRef } = {}) {
+  constructor(code: ApplyFailureCode, message: string, extra: { field?: string; reason?: string; responsible?: RowRef; details?: ApplyFailure["details"] } = {}) {
     super(message);
     this.name = "ApplyUnitError";
     this.failure = { code, message, ...extra };
@@ -75,6 +76,27 @@ function withField(failure: ApplyFailure, field: string | undefined): ApplyFailu
   return field ? { ...failure, field } : failure;
 }
 
+/**
+ * Inventory and recipe service refusals (QOS-200): mapped by status, with the
+ * service code as the reason. A stale expected version is a stale revision;
+ * a dependency refusal carries what blocks it; a cycle carries its path.
+ */
+function describeInventoryFailure(error: InventoryError): ApplyFailure {
+  const reason = error.code;
+  const base = { message: error.message, reason, ...(error.field ? { field: error.field } : {}) };
+  if (reason === "expected_version_mismatch") return { code: "stale_revision", ...base };
+  if (error.statusCode === 403) return { code: "forbidden", ...base };
+  if (error.statusCode === 404) return { code: "target_not_found", ...base };
+  if (error.statusCode === 409) {
+    const details: ApplyFailure["details"] = {};
+    if (error instanceof InventoryDependencyError) details.dependencies = error.dependencies;
+    if (error instanceof InventoryDetailError && "path" in error.detail) details.path = error.detail.path;
+    return { code: reason === "recipe_archived" || reason === "item_archived" ? "archived_target" : "conflict", ...base, ...(Object.keys(details).length > 0 ? { details } : {}) };
+  }
+  if (error.statusCode === 400) return { code: "service_validation", ...base };
+  return { code: "unexpected", message: "The change could not be saved." };
+}
+
 /** A stable per-row failure for anything a unit threw. */
 export function describeApplyFailure(error: unknown): ApplyFailure {
   if (error instanceof ApplyUnitError) return error.failure;
@@ -94,6 +116,7 @@ export function describeApplyFailure(error: unknown): ApplyFailure {
       status === 409 ? "conflict" : status === 404 ? "target_not_found" : status === 403 ? "forbidden" : status === 400 ? "service_validation" : "unexpected";
     return withField({ code, message: code === "unexpected" ? "The change could not be saved." : service.message }, service.field);
   }
+  if (error instanceof InventoryError) return describeInventoryFailure(error);
   if (isUniqueViolation(error)) {
     return { code: "unique_violation", message: "A record with the same identifier already exists." };
   }

@@ -155,8 +155,11 @@ describe("workbook review panel", () => {
   it("offers decisions that fit the row: match or create for a name collision, accept for a stale revision, exclude always", () => {
     const conflicting = result.rows.find((row) => row.classification === "conflicting" && row.sheet === "Products")!;
     expect(decisionChoices(conflicting)).toEqual(["match_existing", "create_new", "exclude"]);
-    const unsupported = result.rows.find((row) => row.classification === "unsupported")!;
-    expect(decisionChoices(unsupported)).toEqual([]);
+    expect(decisionChoices({ ...conflicting, classification: "unsupported" })).toEqual([]);
+    // QOS-200: an existing record (open draft, live link, branch warehouse) can be chosen or the row excluded, never created alongside.
+    expect(
+      decisionChoices({ ...conflicting, diagnostics: [{ severity: "error", code: "existing_record_conflict", params: { reason: "draft_exists" } }] }),
+    ).toEqual(["match_existing", "exclude"]);
     expect(decisionChoices({ ...conflicting, candidates: undefined, diagnostics: [{ severity: "error", code: "stale_revision" }] })).toEqual([
       "accept_current_revision",
       "exclude",
@@ -238,15 +241,15 @@ describe("workbook review panel", () => {
   it("names sheets and owners in Arabic on the field decisions, keeping the contract name as code", () => {
     const html = render("ar");
     const ar = STAFF_UI_COPY.ar;
-    expect(result.fieldDecisions.some((field) => field.sheet === "Products" && field.owner === "QOS-194 review; apply in QOS-217")).toBe(true);
+    expect(result.fieldDecisions.some((field) => field.sheet === "Products" && field.owner === "Checked by this review and applied by the import")).toBe(true);
     expect(html).toContain(`<bdi>${ar.reviewSheetProducts}</bdi>`);
     expect(html).toContain(`<code class="qosp-code" dir="ltr">Products</code>`);
     expect(html).toContain(ar.reviewOwnerValidated);
-    expect(html).not.toContain("QOS-194 review; apply in QOS-217");
+    expect(html).not.toContain("Checked by this review and applied by the import");
     expect(html).not.toContain(`<bdi dir="ltr">Products</bdi>`);
     const en = render("en");
     expect(en).toContain(`<bdi dir="ltr">Products</bdi>`);
-    expect(en).toContain("QOS-194 review; apply in QOS-217");
+    expect(en).toContain("Checked by this review and applied by the import");
   });
 
   it("the apply section never uses browser storage, a browser confirm or simulated rows", () => {

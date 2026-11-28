@@ -58,6 +58,28 @@ export const FIELD_CAPABILITIES: Record<SupportedEntitySheet, readonly string[]>
   "Menu Branches": [],
   "Menu Sections": ["internal_name", "display_name_en", "display_name_ar", "sort_order", "archived"],
   "Menu Items": ["sort_order", "archived"],
+  // QOS-200 Phase 2 domains (plan section 2). References are identity columns and are resolved, not listed.
+  Units: ["code", "name", "name_ar", "standard_code", "quantity_kind", "decimal_places", "active"],
+  Suppliers: ["name", "contact_name", "email", "phone", "reference", "active", "notes"],
+  Warehouses: ["code", "name", "active", "notes"],
+  "Inventory Categories": ["name_en", "name_ar", "active"],
+  Ingredients: [
+    "name_en",
+    "name_ar",
+    "ingredient_type",
+    "recipe_units_per_storage_unit",
+    "reference_cost_per_storage_unit",
+    "cost_currency",
+    "cost_tax_basis",
+    "cost_effective_date",
+    "cost_source_reference",
+    "active",
+    "notes",
+  ],
+  Recipes: ["recipe_key", "name", "target_type", "yield_quantity", "notes"],
+  "Recipe Lines": ["quantity_recipe_units", "sort_order"],
+  "Prep Steps": ["step_number", "instruction"],
+  "Modifier Effects": ["effect_type", "quantity_per_sold_unit", "notes"],
 };
 
 /** Columns that identify a row rather than carry a value: its key, QOS id, references and read-only context. */

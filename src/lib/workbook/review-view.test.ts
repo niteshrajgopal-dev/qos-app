@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { STAFF_UI_COPY } from "@/lib/staff/locale";
 import { SUPPORTED_ENTITY_SHEETS } from "@/lib/workbook/contract";
-import dictionary from "@/lib/workbook/qos-workbook-dictionary.v1.1.json";
+import dictionary from "@/lib/workbook/qos-workbook-dictionary.v1.2.json";
 import { APPLY_FAILURE_CODES, ROW_APPLY_STATES, type RowApplyOutcome } from "@/lib/workbook/apply/model";
 import {
   APPLY_API_ERROR_CODES,
@@ -133,7 +133,7 @@ describe("workbook review wording", () => {
           severity: "error",
           code,
           column: "c",
-          params: { value: "v", allowed: "a", normalized: "n", field: "f", id: "i", candidates: 2, row: 1, key: "k", rows: "1", expected: "e", current: "c", revision: "r", refSheet: "S", reason: "invalid", branch: "b", count: 2, max: 1, product: "p", owner: "o", kind: "exclude", exported: "x", found: "f" },
+          params: { value: "v", allowed: "a", normalized: "n", field: "f", id: "i", candidates: 2, row: 1, key: "k", rows: "1", expected: "e", current: "c", revision: "r", refSheet: "S", reason: "invalid", branch: "b", count: 2, max: 1, product: "p", owner: "o", kind: "exclude", exported: "x", found: "f", places: 6 },
         });
         expect(text, `${locale}:${code}`).not.toMatch(/\{\w+\}/);
       }
@@ -185,7 +185,12 @@ describe("workbook review wording", () => {
       expect(sheetLabel("en", sheet)).toBe(sheet);
     }
     expect(sheetLabel("ar", "Menu Items")).not.toBe("Menu Items");
-    expect(sheetLabel("ar", "Future Combos")).toBe("Future Combos");
+    // QOS-200: the kept and rejected sheets are named in Arabic too, so the pending block has no English in Arabic.
+    for (const sheet of ["Prep Targets", "Opening Stock", "External Mappings", "Future Combos", "Combo Components"]) {
+      expect(sheetLabel("en", sheet)).toBe(sheet);
+      expect(sheetLabel("ar", sheet), sheet).toMatch(/^[؀-ۿ\s]+$/);
+    }
+    expect(sheetLabel("ar", "Unknown Sheet")).toBe("Unknown Sheet");
   });
 
   it("has wording for every owner the server sends, and shows an unknown one as sent", () => {

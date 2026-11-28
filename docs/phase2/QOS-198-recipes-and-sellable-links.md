@@ -27,6 +27,8 @@ Item archive (and a prepared item's kind change) is refused while recipe lines, 
 
 ## Workbook mapping for QOS-200 (contract unchanged, 1.4)
 
+> Implemented by QOS-200 with contract 1.5: see [QOS-200-workbook-apply-phase2.md](QOS-200-workbook-apply-phase2.md) for the applied columns and dispositions.
+
 - `Recipes` row → one family plus one approved version (yield and unit required; `effective_from` from the sheet or the import date). A later row for the same family is a new version through the same approve path.
 - `Recipe Lines` → lines on that version (whole-batch quantities; the unit must convert for the item or the row is reported deferred with `missing_conversion`). `Prep Steps` → steps (English required, Arabic when supplied).
 - Product recipe rows (client workbook `L15:N…`) must name the variant, or the product must have exactly one active variant. A multi-variant product without a variant key stays pending with "Choose which variant this recipe belongs to"; one source recipe is never assigned to every variant by guesswork.

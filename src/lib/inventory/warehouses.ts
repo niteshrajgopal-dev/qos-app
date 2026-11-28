@@ -37,7 +37,7 @@ import { withTenantContext } from "@/lib/tenant/context";
    location row is only read (share-locked on create), never written. */
 
 export const WAREHOUSE_NAME_MAX_LENGTH = 120;
-const WAREHOUSE_NOTES_MAX_LENGTH = 400;
+export const WAREHOUSE_NOTES_MAX_LENGTH = 400;
 
 export type WarehouseBranchView = {
   publicId: string;

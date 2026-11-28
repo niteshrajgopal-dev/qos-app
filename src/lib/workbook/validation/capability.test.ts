@@ -10,6 +10,7 @@ import {
   SELLING_TAX_COST_APPLY_OWNER,
   VALIDATED_OWNER,
 } from "@/lib/workbook/validation/capability";
+import { EXTERNAL_MAPPINGS_OWNER, OPENING_STOCK_OWNER, PREP_TARGETS_OWNER } from "@/lib/workbook/validation/actions";
 import { qosInput } from "@/lib/workbook/validation/test-support";
 
 describe("field decisions", () => {
@@ -25,7 +26,8 @@ describe("field decisions", () => {
     ] as const) {
       const decision = decideField(sheet, column);
       expect(decision.decision, `${sheet}.${column}`).toBe("deferred");
-      expect(decision.owner, `${sheet}.${column}`).toMatch(/QOS-21[2-5]/);
+      expect(decision.owner, `${sheet}.${column}`).toBe("Source values kept for a later import increment");
+      expect(decision.owner).not.toMatch(/QOS-\d/);
     }
   });
 
@@ -121,8 +123,17 @@ describe("field decisions", () => {
       expect(decideField("Products", column).decision, column).toBe("mechanics");
     }
     expect(decideField("Future Combos", "name").decision).toBe("rejected");
-    expect(decideField("Units", "name")).toMatchObject({ decision: "deferred", dictionaryClass: "deferred" });
-    expect(decideField("Suppliers", "name")).toMatchObject({ decision: "deferred", owner: expect.stringContaining("QOS-195") });
+    // QOS-200: the Phase 2 domain columns are applied; prep targets, opening stock and provider mappings stay pending.
+    expect(decideField("Units", "name")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER, dictionaryClass: "persistable" });
+    expect(decideField("Suppliers", "name")).toMatchObject({ decision: "validated", owner: VALIDATED_OWNER });
+    expect(decideField("Recipes", "effective_from")).toMatchObject({
+      decision: "deferred",
+      dictionaryClass: "deferred",
+      owner: "Recipe approval: dates are set when a draft is approved in the recipe editor",
+    });
+    expect(decideField("Prep Targets", "target_quantity")).toMatchObject({ decision: "deferred", owner: PREP_TARGETS_OWNER });
+    expect(decideField("External Mappings", "external_id")).toMatchObject({ decision: "deferred", owner: EXTERNAL_MAPPINGS_OWNER });
+    expect(decideField("Opening Stock", "quantity_storage_units")).toMatchObject({ decision: "deferred", owner: OPENING_STOCK_OWNER });
   });
 
   it("lists only columns with values, counts rows and never says persistable", () => {

@@ -363,7 +363,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("content-type")).toBe(XLSX);
     expect(response.headers.get("content-disposition")).toBe(
-      'attachment; filename="qos-menu-and-operations-template-v1.4.xlsx"',
+      'attachment; filename="qos-menu-and-operations-template-v1.5.xlsx"',
     );
     expect(response.headers.get("cache-control")).toBe("private, no-store");
 
@@ -390,7 +390,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
     expect(body.summary.errors).toBe(0);
     expect(body.manifest).toMatchObject({
       profile: "qos-extended-v1-proposed",
-      template_version: "1.4",
+      template_version: "1.5",
       tenant_public_id: "ten_quotes_dev",
       brand_public_id: "brd_quotes",
       source_namespace: "qos:ten_quotes_dev",
@@ -705,7 +705,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
       currency: "AED",
       sourceNamespace: "foodics-menu-v1:ten_quotes_dev",
     });
-    expect(body.summary).toMatchObject({ errors: 0, recognizedRows: 16, deferredRows: 18 });
+    expect(body.summary).toMatchObject({ errors: 0, recognizedRows: 34, deferredRows: 0 });
     expect(body.sheets.find((sheet) => sheet.sheet === "Variants")!.rows[0]!.values).toMatchObject({ amount_minor: "1250", currency: "AED" });
   });
 
@@ -731,7 +731,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
       pilot_currency: "AED",
       business_timezone: "Asia/Dubai",
     });
-    expect(body.manifestExtensions).toMatchObject({ source_profile: "foodics_menu_v1", dictionary_version: "1.1" });
+    expect(body.manifestExtensions).toMatchObject({ source_profile: "foodics_menu_v1", dictionary_version: "1.2" });
     expect(sheetRows(body, "Products").map((row) => [row.sku, row.barcode, row.display_name_ar])).toEqual([
       ["000123", "0062911234567", "فلات وايت"],
       ["000124", "0062911234574", "فانيلا لاتيه"],

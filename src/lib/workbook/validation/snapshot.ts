@@ -14,7 +14,9 @@ import { loadCurrentRecordExport } from "@/lib/workbook/export";
    only, inside the tenant context (RLS): the export's own rows, in the
    export's column vocabulary with its revision tokens, so a review compares
    like with like. Categories and modifier groups are tenant-wide; products
-   and menus belong to the brand; branch rows are the permitted ones. */
+   and menus belong to the brand; branch rows are the permitted ones. The
+   Phase 2 inventory and recipe records (QOS-200) are tenant-wide, warehouses
+   at the permitted branches only. */
 
 type Row = Record<string, string>;
 
@@ -57,7 +59,7 @@ export type SnapshotSource = {
 
 export type TypedSourceLink = { entityType: string; sourceKey: string; targetPublicId: string };
 
-/** Entity sheet of each typed link entity type (QOS-217, decision D-LINKS). */
+/** Entity sheet of each typed link entity type (QOS-217, decision D-LINKS; QOS-200 adds the Phase 2 entities). */
 export const TYPED_LINK_SHEETS: Record<string, SupportedEntitySheet> = {
   category: "Categories",
   product: "Products",
@@ -66,7 +68,33 @@ export const TYPED_LINK_SHEETS: Record<string, SupportedEntitySheet> = {
   modifier_option: "Modifier Options",
   menu: "Menus",
   menu_section: "Menu Sections",
+  unit: "Units",
+  supplier: "Suppliers",
+  warehouse: "Warehouses",
+  inventory_category: "Inventory Categories",
+  inventory_item: "Ingredients",
+  recipe_version: "Recipes",
+  recipe_line: "Recipe Lines",
+  prep_step: "Prep Steps",
+  modifier_effect: "Modifier Effects",
 };
+
+/**
+ * Recipe families have no sheet of their own: a `recipe` typed link maps a
+ * Recipes row's `recipe_key` to the family public id, and is live while some
+ * exported version belongs to that family. Indexed under this pseudo-sheet.
+ */
+export const RECIPE_FAMILY_LINKS = "Recipes:recipe_key";
+
+function linkTargetExists(source: Pick<SnapshotSource, "records">, link: TypedSourceLink) {
+  if (link.entityType === "recipe") {
+    return (source.records.Recipes ?? []).some((row) => row.recipe_key === link.targetPublicId);
+  }
+  const sheet = TYPED_LINK_SHEETS[link.entityType];
+  if (!sheet) return false;
+  const idColumn = idColumnOf(sheet);
+  return (source.records[sheet] ?? []).some((row) => row[idColumn] === link.targetPublicId);
+}
 
 /** QOS id column of a supported sheet (`qos_product_id`, `qos_location_id`, …). */
 export function idColumnOf(sheet: string) {
@@ -82,12 +110,7 @@ export function keyColumnOf(sheet: string) {
  * record that no longer exists (or belongs to another brand) is no link.
  */
 export function liveTypedLinks(source: Pick<SnapshotSource, "records" | "typedLinks">) {
-  return (source.typedLinks ?? []).filter((link) => {
-    const sheet = TYPED_LINK_SHEETS[link.entityType];
-    if (!sheet) return false;
-    const idColumn = idColumnOf(sheet);
-    return (source.records[sheet] ?? []).some((row) => row[idColumn] === link.targetPublicId);
-  });
+  return (source.typedLinks ?? []).filter((link) => linkTargetExists(source, link));
 }
 
 export function snapshotHashOf(source: Pick<SnapshotSource, "records" | "permittedBranches" | "brandPublicId" | "sourceLinks" | "typedLinks">) {
@@ -129,7 +152,7 @@ export function buildReviewSnapshot(source: SnapshotSource): ReviewSnapshot {
 function typedLinkIndex(links: TypedSourceLink[]) {
   const index = new Map<string, Map<string, string>>();
   for (const link of links) {
-    const sheet = TYPED_LINK_SHEETS[link.entityType]!;
+    const sheet = link.entityType === "recipe" ? RECIPE_FAMILY_LINKS : TYPED_LINK_SHEETS[link.entityType]!;
     const bySheet = index.get(sheet) ?? new Map<string, string>();
     bySheet.set(link.sourceKey, link.targetPublicId);
     index.set(sheet, bySheet);
@@ -157,6 +180,7 @@ const BRANCH_COLUMN: Partial<Record<SupportedEntitySheet, string>> = {
   Branches: "qos_location_id",
   "Branch Prices": "branch_key",
   "Menu Branches": "branch_key",
+  Warehouses: "branch_key",
 };
 
 /**

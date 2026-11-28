@@ -30,6 +30,8 @@ An ingredient is an `inventory_items` row (QOS-195). There is no separate ingred
 
 ## Workbook contract (for QOS-200)
 
+> Implemented by QOS-200 with contract 1.5: see [QOS-200-workbook-apply-phase2.md](QOS-200-workbook-apply-phase2.md) for the applied columns and dispositions.
+
 This PR does not change the workbook contract (still 1.4). `Ingredients` and `Inventory Categories` stay deferred sheets. The single 1.5 bump in QOS-200 should map:
 
 - `Inventory Categories.qos_inventory_category_id` → `inventory_categories.public_id`; `name_en` / `name_ar` → the same columns; `active` TRUE/FALSE → `status`.

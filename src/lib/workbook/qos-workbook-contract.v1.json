@@ -1,6 +1,6 @@
 {
-  "version": "1.4",
-  "asOf": "2026-11-21",
+  "version": "1.5",
+  "asOf": "2026-11-28",
   "repositorySnapshot": "99d8106f386bcd349f8f51b263481bb90227d0fc",
   "layout": {
     "extendedHeaderRow": 6,
@@ -21,12 +21,12 @@
     },
     {
       "field": "template_version",
-      "value": "1.4",
+      "value": "1.5",
       "rule": "Retain the workbook format version."
     },
     {
       "field": "prepared_on",
-      "value": "2026-11-21",
+      "value": "2026-11-28",
       "rule": "Template preparation date; not a business-data cutoff."
     },
     {
@@ -2679,7 +2679,7 @@
       "description": "One approved unit of measure. Proposed Phase 2 onboarding.",
       "short": "One approved unit of measure. Proposed Phase 2 onboarding.",
       "phase": "Phase 2",
-      "support": "Proposed schema and import extension",
+      "support": "Phase 2 import: applied through the QOS inventory and recipe services as drafts",
       "capacity": 100,
       "columns": [
         {
@@ -2691,8 +2691,8 @@
           "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
           "isKey": true,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "workbook_source_links (unit)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "qos_unit_id",
@@ -2700,9 +2700,9 @@
           "type": "text",
           "required": false,
           "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
-          "mapping": "Proposed future canonical identifier",
+          "mapping": "inventory_units.public_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "readonly": true,
           "width": 38
         },
@@ -2724,6 +2724,17 @@
           "width": 16
         },
         {
+          "key": "code",
+          "label": "Unit code",
+          "type": "text",
+          "required": false,
+          "description": "Short code of a custom unit, for example box or tray12: 1 to 24 lowercase letters, digits, hyphens or underscores. Required for a custom unit, fixed after create. Leave blank for a standard unit.",
+          "mapping": "inventory_units.code (custom units; fixed after create)",
+          "phase": "Phase 2",
+          "importSupport": "Applied by the QOS workbook import",
+          "sinceVersion": "1.5"
+        },
+        {
           "phase": "Phase 2",
           "key": "name",
           "label": "Unit name",
@@ -2732,8 +2743,39 @@
           "description": "Readable unit label, for example kilogram, gram, litre or piece.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_units.name_en",
+          "importSupport": "Applied by the QOS workbook import"
+        },
+        {
+          "key": "name_ar",
+          "label": "Unit name (Arabic)",
+          "type": "text",
+          "required": false,
+          "description": "Arabic name of the unit. Required for a custom unit; a standard unit uses the QOS Arabic name when blank.",
+          "mapping": "inventory_units.name_ar",
+          "phase": "Phase 2",
+          "importSupport": "Applied by the QOS workbook import",
+          "sinceVersion": "1.5"
+        },
+        {
+          "key": "standard_code",
+          "label": "Standard unit",
+          "type": "text",
+          "required": false,
+          "description": "Standard unit this row adds (mg, g, kg, ml, cl, l or piece), with exact conversions. Leave blank for a custom unit. Fixed after create.",
+          "mapping": "inventory_units.standard_code (fixed after create)",
+          "phase": "Phase 2",
+          "importSupport": "Applied by the QOS workbook import",
+          "values": [
+            "mg",
+            "g",
+            "kg",
+            "ml",
+            "cl",
+            "l",
+            "piece"
+          ],
+          "sinceVersion": "1.5"
         },
         {
           "phase": "Phase 2",
@@ -2751,8 +2793,8 @@
             "BATCH"
           ],
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_units.quantity_kind (BATCH is read as pack; fixed after create)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -2765,8 +2807,8 @@
           "min": 0,
           "max": 6,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_units.decimal_places",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -2781,8 +2823,8 @@
             "FALSE"
           ],
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_units.status (TRUE active, FALSE archived)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "expected_revision",
@@ -2817,7 +2859,7 @@
       "description": "One supplier. Proposed Phase 2 onboarding.",
       "short": "One supplier. Proposed Phase 2 onboarding.",
       "phase": "Phase 2",
-      "support": "Proposed schema and import extension",
+      "support": "Phase 2 import: applied through the QOS inventory and recipe services as drafts",
       "capacity": 100,
       "columns": [
         {
@@ -2829,8 +2871,8 @@
           "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
           "isKey": true,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "workbook_source_links (supplier)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "qos_supplier_id",
@@ -2838,9 +2880,9 @@
           "type": "text",
           "required": false,
           "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
-          "mapping": "Proposed future canonical identifier",
+          "mapping": "inventory_suppliers.public_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "readonly": true,
           "width": 38
         },
@@ -2870,8 +2912,8 @@
           "description": "Confirmed supplier trading name.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_suppliers.name_en",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -2882,8 +2924,8 @@
           "description": "Business contact for purchasing.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_suppliers.contact_name",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -2894,8 +2936,8 @@
           "description": "Business contact email; no passwords or credentials.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_suppliers.email",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -2906,8 +2948,8 @@
           "description": "Preserve country code and leading zeros.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_suppliers.phone",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -2918,8 +2960,8 @@
           "description": "Existing business or vendor-account reference, where available.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_suppliers.code",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -2934,8 +2976,8 @@
             "FALSE"
           ],
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_suppliers.status (TRUE active, FALSE archived)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -2946,8 +2988,8 @@
           "description": "Useful onboarding context; no payment-card or authentication details.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_suppliers.notes",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "expected_revision",
@@ -2978,7 +3020,7 @@
       "description": "One warehouse assigned to one branch. Proposed Phase 2 onboarding.",
       "short": "One warehouse assigned to one branch. Proposed Phase 2 onboarding.",
       "phase": "Phase 2",
-      "support": "Proposed schema and import extension",
+      "support": "Phase 2 import: applied through the QOS inventory and recipe services as drafts",
       "capacity": 100,
       "columns": [
         {
@@ -2990,8 +3032,8 @@
           "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
           "isKey": true,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "workbook_source_links (warehouse)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "qos_warehouse_id",
@@ -2999,9 +3041,9 @@
           "type": "text",
           "required": false,
           "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
-          "mapping": "Proposed future canonical identifier",
+          "mapping": "inventory_warehouses.public_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "readonly": true,
           "width": 38
         },
@@ -3031,12 +3073,23 @@
           "description": "Reference the confirmed existing QOS branch mapping; do not rename historical branch IDs.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "inventory_warehouses.location_id (fixed after create)",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Branches",
             "key": "branch_key"
           }
+        },
+        {
+          "key": "code",
+          "label": "Warehouse code",
+          "type": "text",
+          "required": true,
+          "description": "Short reference code of the warehouse: 1 to 24 letters, digits, hyphens or underscores. Required on create, fixed after create.",
+          "mapping": "inventory_warehouses.code (fixed after create)",
+          "phase": "Phase 2",
+          "importSupport": "Applied by the QOS workbook import",
+          "sinceVersion": "1.5"
         },
         {
           "phase": "Phase 2",
@@ -3047,8 +3100,8 @@
           "description": "Operational name for the branch warehouse.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_warehouses.name_en",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3063,8 +3116,8 @@
             "FALSE"
           ],
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_warehouses.status (TRUE active, FALSE archived)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3075,8 +3128,8 @@
           "description": "Location or setup notes.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_warehouses.notes",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "expected_revision",
@@ -3111,7 +3164,7 @@
       "description": "Reusable ingredient categories for Phase 2 stock filters and reports.",
       "short": "Reusable ingredient categories for Phase 2 stock filters and reports.",
       "phase": "Phase 2",
-      "support": "Proposed schema and import extension",
+      "support": "Phase 2 import: applied through the QOS inventory and recipe services as drafts",
       "capacity": 100,
       "columns": [
         {
@@ -3120,9 +3173,9 @@
           "type": "text",
           "required": true,
           "description": "Stable workbook key for linking rows and repeat uploads. This is not a QOS database or provider ID.",
-          "mapping": "Proposed import source-link key",
+          "mapping": "workbook_source_links (inventory_category)",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "isKey": true
         },
         {
@@ -3131,9 +3184,9 @@
           "type": "text",
           "required": false,
           "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
-          "mapping": "Proposed inventory category identifier",
+          "mapping": "inventory_categories.public_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "readonly": true,
           "width": 38
         },
@@ -3160,9 +3213,9 @@
           "type": "text",
           "required": true,
           "description": "English inventory category name.",
-          "mapping": "Proposed inventory category name",
+          "mapping": "inventory_categories.name_en",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required"
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "name_ar",
@@ -3170,9 +3223,9 @@
           "type": "text",
           "required": false,
           "description": "Optional Arabic inventory category name.",
-          "mapping": "Proposed inventory category translation",
+          "mapping": "inventory_categories.name_ar",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required"
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "active",
@@ -3180,9 +3233,9 @@
           "type": "text",
           "required": true,
           "description": "Whether this category can be assigned to new ingredients.",
-          "mapping": "Proposed inventory category state",
+          "mapping": "inventory_categories.status (TRUE active, FALSE archived)",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "values": [
             "TRUE",
             "FALSE"
@@ -3216,7 +3269,7 @@
       "description": "One ingredient or prepared-item master. Proposed Phase 2 onboarding.",
       "short": "One ingredient or prepared-item master. Proposed Phase 2 onboarding.",
       "phase": "Phase 2",
-      "support": "Proposed schema and import extension",
+      "support": "Phase 2 import: applied through the QOS inventory and recipe services as drafts",
       "capacity": 100,
       "columns": [
         {
@@ -3228,8 +3281,8 @@
           "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
           "isKey": true,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "workbook_source_links (inventory_item)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "qos_ingredient_id",
@@ -3237,9 +3290,9 @@
           "type": "text",
           "required": false,
           "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
-          "mapping": "Proposed future canonical identifier",
+          "mapping": "inventory_items.public_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "readonly": true,
           "width": 38
         },
@@ -3269,8 +3322,8 @@
           "description": "Confirmed ingredient name.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_items.name_en",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3281,8 +3334,8 @@
           "description": "Approved Arabic name where available; do not invent a translation.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_items.name_ar",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "inventory_category_key",
@@ -3290,9 +3343,9 @@
           "type": "reference",
           "required": false,
           "description": "Optional confirmed inventory category. Use a stable category key, not a menu category name.",
-          "mapping": "Proposed inventory category relationship",
+          "mapping": "inventory_items.category_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Inventory Categories",
             "key": "inventory_category_key"
@@ -3311,8 +3364,8 @@
             "PREPARED"
           ],
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_items.kind",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3323,8 +3376,8 @@
           "description": "Unit used for stock receipts, opening quantities and stock balances.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "inventory_items.storage_unit_id",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Units",
             "key": "unit_key"
@@ -3339,8 +3392,8 @@
           "description": "Unit used for ingredient quantities in recipes and modifier effects.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "inventory_items.recipe_unit_id",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Units",
             "key": "unit_key"
@@ -3355,8 +3408,8 @@
           "description": "Positive factor: 1 storage unit equals this many recipe units. Example semantics only: kg to g = 1000; a 12-piece packet to piece = 12.",
           "isKey": false,
           "positive": true,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "inventory_item_conversions (current storage to recipe rule; none stored for two standard units)",
+          "importSupport": "Applied by the QOS workbook import",
           "width": 32
         },
         {
@@ -3368,8 +3421,8 @@
           "description": "Default supplier for direct receipts; may remain blank for prepared items.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "inventory_items.default_supplier_id",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Suppliers",
             "key": "supplier_key"
@@ -3385,8 +3438,8 @@
           "isKey": false,
           "min": 0,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "inventory_item_reference_costs.amount_micros (current cost per storage unit)",
+          "importSupport": "Applied by the QOS workbook import",
           "width": 32
         },
         {
@@ -3399,8 +3452,8 @@
           "required_when": "reference_cost_per_storage_unit is provided",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_item_reference_costs.currency",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "cost_tax_basis",
@@ -3408,9 +3461,9 @@
           "type": "text",
           "required": false,
           "description": "Declare whether the reference cost is net or gross of tax. Confirm it before margin comparisons; unknown remains unconfirmed.",
-          "mapping": "Proposed ingredient cost interpretation",
+          "mapping": "inventory_item_reference_costs.tax_basis (blank is unconfirmed)",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "values": [
             "NET",
             "GROSS",
@@ -3427,8 +3480,8 @@
           "required_when": "reference_cost_per_storage_unit is provided",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_item_reference_costs.effective_from",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3440,8 +3493,8 @@
           "required_when": "reference_cost_per_storage_unit is provided",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_item_reference_costs.source_reference",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3456,8 +3509,8 @@
             "FALSE"
           ],
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_items.status (TRUE active, FALSE archived)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3468,8 +3521,8 @@
           "description": "Preparation or procurement notes.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "inventory_items.notes",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "expected_revision",
@@ -3506,7 +3559,7 @@
       "description": "One immutable version of a recipe. Proposed Phase 2 onboarding.",
       "short": "One immutable version of a recipe. Proposed Phase 2 onboarding.",
       "phase": "Phase 2",
-      "support": "Proposed schema and import extension",
+      "support": "Phase 2 import: applied through the QOS inventory and recipe services as drafts",
       "capacity": 100,
       "columns": [
         {
@@ -3518,8 +3571,8 @@
           "description": "Unique immutable workbook key for this exact recipe version. RecipeLines, PrepSteps and ModifierEffects refer to this key.",
           "isKey": true,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "workbook_source_links (recipe_version)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "qos_recipe_version_id",
@@ -3527,9 +3580,9 @@
           "type": "text",
           "required": false,
           "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
-          "mapping": "Proposed future canonical identifier",
+          "mapping": "recipe_versions.public_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "readonly": true,
           "width": 38
         },
@@ -3559,8 +3612,8 @@
           "description": "Stable key shared by versions of the same recipe; distinct from the version key and QOS ID.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "workbook_source_links (recipe): the recipe family",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3572,8 +3625,8 @@
           "isKey": false,
           "min": 1,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "Proposed: QOS assigns recipe version numbers",
+          "importSupport": "Deferred: kept with the review, not saved"
         },
         {
           "phase": "Phase 2",
@@ -3584,8 +3637,8 @@
           "description": "Readable approved recipe name.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipes.name_en",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3600,8 +3653,8 @@
             "PREPARED_ITEM"
           ],
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipes.kind (SOLD_VARIANT sellable, PREPARED_ITEM prepared)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3613,8 +3666,8 @@
           "required_when": "target_type = SOLD_VARIANT",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipe_sellable_links (recipe link of the variant)",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Variants",
             "key": "variant_key"
@@ -3630,8 +3683,8 @@
           "required_when": "target_type = PREPARED_ITEM",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipes.output_item_id",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Ingredients",
             "key": "ingredient_key"
@@ -3646,8 +3699,8 @@
           "description": "Positive expected output from all ingredient quantities listed for this version. SOLD_VARIANT uses number of sold units; PREPARED_ITEM uses the prepared item's recipe unit.",
           "isKey": false,
           "positive": true,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipe_versions.yield_quantity_micros (draft only)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3658,8 +3711,8 @@
           "description": "For SOLD_VARIANT, use the agreed sold-unit basis; for PREPARED_ITEM, match the prepared ingredient's recipe unit.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipe_versions.yield_unit_id (draft only)",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Units",
             "key": "unit_key"
@@ -3674,8 +3727,8 @@
           "description": "Start timestamp with time-zone offset. QOS must resolve sales using the accepted effective recipe version. Enter ISO 8601 with offset, such as YYYY-MM-DDThh:mm:ss+04:00; the example is a format, not a default date.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "Proposed: set when a draft is approved in the recipe editor",
+          "importSupport": "Deferred: kept with the review, not saved"
         },
         {
           "phase": "Phase 2",
@@ -3686,8 +3739,8 @@
           "description": "Exclusive end timestamp, if known. Blank means open-ended; versions must not overlap for the same target and scope. Enter ISO 8601 with offset, such as YYYY-MM-DDThh:mm:ss+04:00; the example is a format, not a default date.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "Proposed: set when a later version is approved",
+          "importSupport": "Deferred: kept with the review, not saved"
         },
         {
           "phase": "Phase 2",
@@ -3698,8 +3751,8 @@
           "description": "Guidance or source of recipe quantities. Step instructions belong in PrepSteps.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipe_versions.notes (draft only)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "expected_revision",
@@ -3738,7 +3791,7 @@
       "description": "One ingredient line in a recipe version. Proposed Phase 2 onboarding.",
       "short": "One ingredient line in a recipe version. Proposed Phase 2 onboarding.",
       "phase": "Phase 2",
-      "support": "Proposed schema and import extension",
+      "support": "Phase 2 import: applied through the QOS inventory and recipe services as drafts",
       "capacity": 200,
       "columns": [
         {
@@ -3750,8 +3803,8 @@
           "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
           "isKey": true,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "workbook_source_links (recipe_line)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "qos_recipe_line_id",
@@ -3759,9 +3812,9 @@
           "type": "text",
           "required": false,
           "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
-          "mapping": "Proposed future canonical identifier",
+          "mapping": "recipe_version_lines.public_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "readonly": true,
           "width": 38
         },
@@ -3791,8 +3844,8 @@
           "description": "Exact parent version; all quantities are for that version's complete yield.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipe_version_lines.recipe_version_id (draft only)",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Recipes",
             "key": "recipe_version_key"
@@ -3807,8 +3860,8 @@
           "description": "Ingredient consumed by this recipe line.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipe_version_lines.item_id",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Ingredients",
             "key": "ingredient_key"
@@ -3823,8 +3876,8 @@
           "description": "Positive quantity in this ingredient's recipe unit for the whole recipe yield.",
           "isKey": false,
           "positive": true,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipe_version_lines.quantity_micros (in the ingredient's recipe unit)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3836,8 +3889,8 @@
           "isKey": false,
           "min": 1,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipe_version_lines.position",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3848,8 +3901,8 @@
           "description": "Preparation or handling note for this ingredient.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "Proposed: recipe line notes have no QOS field",
+          "importSupport": "Deferred: kept with the review, not saved"
         },
         {
           "key": "expected_revision",
@@ -3885,7 +3938,7 @@
       "description": "One preparation step in a recipe version. Proposed Phase 2 onboarding.",
       "short": "One preparation step in a recipe version. Proposed Phase 2 onboarding.",
       "phase": "Phase 2",
-      "support": "Proposed schema and import extension",
+      "support": "Phase 2 import: applied through the QOS inventory and recipe services as drafts",
       "capacity": 100,
       "columns": [
         {
@@ -3897,8 +3950,8 @@
           "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
           "isKey": true,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "workbook_source_links (prep_step)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "qos_prep_step_id",
@@ -3906,9 +3959,9 @@
           "type": "text",
           "required": false,
           "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
-          "mapping": "Proposed future canonical identifier",
+          "mapping": "recipe_version_steps.public_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "readonly": true,
           "width": 38
         },
@@ -3938,8 +3991,8 @@
           "description": "Exact version whose preparation guide contains this step.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipe_version_steps.recipe_version_id (draft only)",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Recipes",
             "key": "recipe_version_key"
@@ -3955,8 +4008,8 @@
           "isKey": false,
           "min": 1,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipe_version_steps.position",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3967,8 +4020,8 @@
           "description": "Short action-oriented title.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "Proposed: step titles are not stored",
+          "importSupport": "Deferred: kept with the review, not saved"
         },
         {
           "phase": "Phase 2",
@@ -3979,8 +4032,8 @@
           "description": "Approved preparation instruction.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipe_version_steps.text_en",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -3992,8 +4045,8 @@
           "isKey": false,
           "min": 0,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "Proposed: step timings are not stored",
+          "importSupport": "Deferred: kept with the review, not saved"
         },
         {
           "phase": "Phase 2",
@@ -4008,8 +4061,8 @@
             "FALSE"
           ],
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "Proposed: step checkpoints are not stored",
+          "importSupport": "Deferred: kept with the review, not saved"
         },
         {
           "phase": "Phase 2",
@@ -4020,8 +4073,8 @@
           "description": "Additional guidance.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "Proposed: step notes are not stored",
+          "importSupport": "Deferred: kept with the review, not saved"
         },
         {
           "key": "expected_revision",
@@ -4056,7 +4109,7 @@
       "description": "One ingredient effect for an option in a sold-variant recipe version. Proposed Phase 2 onboarding.",
       "short": "One ingredient effect for an option in a sold-variant recipe version. Proposed Phase 2 onboarding.",
       "phase": "Phase 2",
-      "support": "Proposed schema and import extension",
+      "support": "Phase 2 import: applied through the QOS inventory and recipe services as drafts",
       "capacity": 100,
       "columns": [
         {
@@ -4068,8 +4121,8 @@
           "description": "Stable, unique workbook business key. Retain it on later uploads; it is not a QOS database ID and must not be matched by display name alone.",
           "isKey": true,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "workbook_source_links (modifier_effect)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "qos_effect_id",
@@ -4077,9 +4130,9 @@
           "type": "text",
           "required": false,
           "description": "Retain the exact identifier from a QOS export. Leave blank for new records. Do not invent or replace it.",
-          "mapping": "Proposed future canonical identifier",
+          "mapping": "recipe_version_modifier_effects.public_id",
           "phase": "Phase 2",
-          "importSupport": "Multi-sheet extension required",
+          "importSupport": "Applied by the QOS workbook import",
           "readonly": true,
           "width": 38
         },
@@ -4109,8 +4162,8 @@
           "description": "Existing reusable option. The option must be allowed for the target sold variant through its QOS assignment.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipe_version_modifier_effects.modifier_option_id",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Modifier Options",
             "key": "modifier_option_key"
@@ -4125,8 +4178,8 @@
           "description": "Exact SOLD_VARIANT recipe version to which this ingredient effect applies.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipe_version_modifier_effects.recipe_version_id (draft only)",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Recipes",
             "key": "recipe_version_key"
@@ -4146,8 +4199,8 @@
             "REPLACE"
           ],
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipe_version_modifier_effects.effect_type",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -4159,8 +4212,8 @@
           "required_when": "effect_type = REMOVE or REPLACE",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipe_version_modifier_effects.target_line_id",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Recipe Lines",
             "key": "recipe_line_key"
@@ -4176,8 +4229,8 @@
           "required_when": "effect_type = ADD or REPLACE",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension",
+          "mapping": "recipe_version_modifier_effects.item_id",
+          "importSupport": "Applied by the QOS workbook import",
           "ref": {
             "sheet": "Ingredients",
             "key": "ingredient_key"
@@ -4193,8 +4246,8 @@
           "required_when": "effect_type = ADD or REPLACE",
           "isKey": false,
           "positive": true,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipe_version_modifier_effects.quantity_micros (in the ingredient's recipe unit)",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "phase": "Phase 2",
@@ -4205,8 +4258,8 @@
           "description": "Business explanation supporting the mapping.",
           "isKey": false,
           "positive": false,
-          "mapping": "Proposed Phase 2/3 entity; no current schema table",
-          "importSupport": "Proposed import extension"
+          "mapping": "recipe_version_modifier_effects.notes",
+          "importSupport": "Applied by the QOS workbook import"
         },
         {
           "key": "expected_revision",
@@ -5113,7 +5166,7 @@
   "rules": [
     [
       "Scope and version",
-      "Workbook contract v1.4, 21 November 2026. v1.1 (QOS-212) added the Product Modifiers assignment policy columns (min_selections, max_selections, repeat_allowed, selection_count_mode); v1.2 (QOS-213) added Sales Channels, Variant Channel Prices and Modifier Option Channel Prices; v1.3 (QOS-214) adds the selling-attribute and nutrition columns (preparation_time_minutes, walking_time_minutes, high_salt, is_stock_product on Products; selling_quantity_basis, price_unit, price_unit_quantity on Variants; nutrition_calories on Modifier Options); v1.4 (QOS-215) persists the Variants tax columns and adds reference-cost columns to Variants and Modifier Options (cost_method, reference_cost_amount, cost_currency, cost_unit, cost_tax_basis, cost_effective_date, cost_source, cost_source_reference). QOS still reads v1.0, v1.1, v1.2 and v1.3 workbooks, which simply lack the later columns and sheets. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
+      "Workbook contract v1.5, 28 November 2026. v1.1 (QOS-212) added the Product Modifiers assignment policy columns (min_selections, max_selections, repeat_allowed, selection_count_mode); v1.2 (QOS-213) added Sales Channels, Variant Channel Prices and Modifier Option Channel Prices; v1.3 (QOS-214) adds the selling-attribute and nutrition columns (preparation_time_minutes, walking_time_minutes, high_salt, is_stock_product on Products; selling_quantity_basis, price_unit, price_unit_quantity on Variants; nutrition_calories on Modifier Options); v1.4 (QOS-215) persists the Variants tax columns and adds reference-cost columns to Variants and Modifier Options (cost_method, reference_cost_amount, cost_currency, cost_unit, cost_tax_basis, cost_effective_date, cost_source, cost_source_reference). v1.5 adds code, name_ar and standard_code to Units and code to Warehouses, and maps the Units, Suppliers, Warehouses, Inventory Categories, Ingredients, Recipes, Recipe Lines, Prep Steps and Modifier Effects columns to the QOS inventory and recipe records they are applied to; recipes are always applied as drafts. QOS still reads v1.0, v1.1, v1.2, v1.3 and v1.4 workbooks, which simply lack the later columns and sheets. It combines verified existing QOS entities and proposed Phase 2/3 inputs. It contains no live export of your existing catalogue."
     ],
     [
       "Current upload profile",
@@ -5313,7 +5366,10 @@
       "existing availability and schedules",
       "daily sales/tenders",
       "receipts/waste/counts",
-      "prep observations"
+      "prep observations",
+      "reference costs priced in a unit other than the ingredient storage unit",
+      "recipe line and modifier effect quantities in a unit other than the ingredient recipe unit",
+      "recipe approval and effective dates"
     ],
     "excluded": "Live POS credentials; users/passwords; purchase-order, transfer and production transaction imports.",
     "calculationImplementation": "XLSX formulas provide readiness checks/counts only. Cost/consumption/valuation expressions specify proposed QOS functionality, not implemented spreadsheet calculations."

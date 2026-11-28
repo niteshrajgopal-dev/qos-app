@@ -39,11 +39,44 @@ export type ApplyFailure = {
   reason?: string;
   /** The row whose failure this row depends on. */
   responsible?: RowRef;
+  /** Records that block the change (inventory dependency refusals) or a structured explanation such as a recipe cycle path. */
+  details?: { dependencies?: Array<{ kind: string; count: number }>; path?: unknown };
 };
 
 export type ApplyImageOutcome = { status: "uploaded" | "already_present" | "failed" | "skipped"; reason?: string };
 
-export type TypedLinkEntity = "category" | "product" | "variant" | "modifier_group" | "modifier_option" | "menu" | "menu_section";
+export type TypedLinkEntity =
+  | "category"
+  | "product"
+  | "variant"
+  | "modifier_group"
+  | "modifier_option"
+  | "menu"
+  | "menu_section"
+  // QOS-200 Phase 2 entities (migration 0065).
+  | "unit"
+  | "supplier"
+  | "warehouse"
+  | "inventory_category"
+  | "inventory_item"
+  | "recipe"
+  | "recipe_version"
+  | "recipe_line"
+  | "prep_step"
+  | "modifier_effect";
+
+/** A sub-record a Phase 2 row saved besides its own record (QOS-200), shown in the row's history. */
+export type AppliedRecord = {
+  kind: "recipe" | "recipe_version" | "sellable_link" | "conversion" | "reference_cost";
+  publicId: string;
+  /** Version number of a recipe version, revision of a conversion or cost. */
+  revision?: number;
+  /** For a conversion: "standard" when nothing is stored because the units are standard. For a cost: "closed" when it was ended. */
+  note?: "standard" | "closed";
+  created: boolean;
+  /** Business date a conversion or cost starts (or, closed, ends). */
+  effectiveFrom?: string;
+};
 
 export type AppliedLink = { namespace: string; entityType: TypedLinkEntity; sourceKey: string; targetPublicId: string };
 
@@ -55,6 +88,12 @@ export type RowApplyResult = {
   deferred: Array<{ column: string; owner: string }>;
   links?: AppliedLink[];
   image?: ApplyImageOutcome;
+  /** The recipe family of a recipe version, line, step or effect row (QOS-200). */
+  parentPublicId?: string;
+  /** The recipe version a line, step or effect was saved to (QOS-200). */
+  versionPublicId?: string;
+  /** Sub-records the row saved besides its own (QOS-200). */
+  records?: AppliedRecord[];
   /** Why a row was not applied: its review classification. */
   reason?: string;
 };

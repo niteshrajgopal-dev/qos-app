@@ -1,5 +1,7 @@
+import { isolateText } from "@/lib/staff/branch-copy";
 import { staffCopyWith, staffCount, staffUiCopy, type StaffCountKey, type StaffLocale, type StaffUiCopyKey } from "@/lib/staff/locale";
 import type {
+  AppliedRecord,
   ApplyBlockReason,
   ApplyFailure,
   ApplyFailureCode,
@@ -100,6 +102,11 @@ export const REVIEW_DIAGNOSTIC_COPY: Record<ReviewDiagnosticCode, StaffUiCopyKey
   deferred_value: "reviewDiagDeferredValue",
   export_outdated: "reviewDiagExportOutdated",
   decision_rejected: "reviewDiagDecisionRejected",
+  malformed_date: "reviewDiagMalformedDate",
+  decimal_too_precise: "reviewDiagDecimalTooPrecise",
+  value_not_positive: "reviewDiagValueNotPositive",
+  existing_record_conflict: "reviewDiagExistingRecordConflict",
+  recipe_draft_created: "reviewDiagRecipeDraftCreated",
 };
 
 export const REVIEW_DECISION_COPY: Record<PlanDecision["kind"], StaffUiCopyKey> = {
@@ -160,6 +167,20 @@ export const REVIEW_SHEET_COPY: Partial<Record<string, StaffUiCopyKey>> = {
   "Menu Sections": "reviewSheetMenuSections",
   "Menu Items": "reviewSheetMenuItems",
   "Source Map": "reviewSheetSourceMap",
+  Units: "reviewSheetUnits",
+  Suppliers: "reviewSheetSuppliers",
+  Warehouses: "reviewSheetWarehouses",
+  "Inventory Categories": "reviewSheetInventoryCategories",
+  Ingredients: "reviewSheetIngredients",
+  Recipes: "reviewSheetRecipes",
+  "Recipe Lines": "reviewSheetRecipeLines",
+  "Prep Steps": "reviewSheetPrepSteps",
+  "Modifier Effects": "reviewSheetModifierEffects",
+  "Prep Targets": "reviewSheetPrepTargets",
+  "Opening Stock": "reviewSheetOpeningStock",
+  "External Mappings": "reviewSheetExternalMappings",
+  "Future Combos": "reviewSheetFutureCombos",
+  "Combo Components": "reviewSheetComboComponents",
 };
 
 export function sheetLabel(locale: StaffLocale, sheet: string) {
@@ -172,14 +193,21 @@ export function sheetLabel(locale: StaffLocale, sheet: string) {
    validation/actions.ts and the workbook dictionary; those server modules stay
    out of the client bundle). An unknown owner is shown as sent. */
 export const REVIEW_OWNER_COPY: Partial<Record<string, StaffUiCopyKey>> = {
-  "QOS-194 review; apply in QOS-217": "reviewOwnerValidated",
-  "QOS-194 review": "reviewOwnerMechanics",
-  "QOS-200 apply": "reviewOwnerQos200Apply",
-  "QOS-194 validate, QOS-200 apply": "reviewOwnerValidateQos200Apply",
-  "QOS-195/197/198/199 per QOS-216; apply QOS-200": "reviewOwnerDomainServicesQos216",
-  "QOS-212–215 per QOS-216": "reviewOwnerQos212to215",
-  "QOS-195–199 domain services; apply in QOS-200": "reviewOwnerDomainServices",
+  "Checked by this review and applied by the import": "reviewOwnerValidated",
+  "Used by the review only": "reviewOwnerMechanics",
+  "Menu column extensions: next import increment": "reviewOwnerQos200Apply",
+  "Reviewed and applied by the import": "reviewOwnerValidateQos200Apply",
+  "Source values kept for a later import increment": "reviewOwnerQos212to215",
+  "Kept for a later import increment": "reviewOwnerDomainServices",
   "Phase 3 (combos are rejected in Phase 2)": "reviewOwnerPhase3Combos",
+  "Phase 2 workbook apply": "reviewOwnerPhase2Apply",
+  "Recipe version numbers are assigned by QOS; the export shows the real number": "reviewOwnerVersionNumbering",
+  "Recipe approval: dates are set when a draft is approved in the recipe editor": "reviewOwnerRecipeApproval",
+  "Recipe editor: line notes have no field yet; line labels are edited in the recipe editor": "reviewOwnerLineNotes",
+  "Recipe editor: the step guide keeps one instruction per language; titles, timings and checkpoints are not stored yet": "reviewOwnerStepGuide",
+  "Preparation targets: the prep-target service is not built yet": "reviewOwnerPrepTargetsPending",
+  "Provider mappings: the POS connections service is not built yet": "reviewOwnerExternalMappingsPending",
+  "Opening stock: posted through its own intake with confirmation, never by this import": "reviewOwnerOpeningStockSeparate",
 };
 
 export function describeReviewOwner(locale: StaffLocale, owner: string) {
@@ -242,6 +270,10 @@ function isReviewCode(code: string): code is ReviewDiagnosticCode {
   return code in REVIEW_DIAGNOSTIC_COPY;
 }
 
+function capitalised(text: string) {
+  return text ? text[0]!.toUpperCase() + text.slice(1) : text;
+}
+
 export function describeReviewDiagnostic(locale: StaffLocale, diagnostic: ReviewDiagnostic) {
   const values: Record<string, string | number> = { column: diagnostic.column ?? "", cell: diagnostic.cell ?? "", ...(diagnostic.params ?? {}) };
   if (diagnostic.code === "action_unsupported" && typeof values.reason === "string") {
@@ -258,6 +290,14 @@ export function describeReviewDiagnostic(locale: StaffLocale, diagnostic: Review
   }
   if (diagnostic.code === "decision_rejected" && typeof values.kind === "string" && values.kind in REVIEW_DECISION_COPY) {
     values.kind = staffUiCopy(locale, REVIEW_DECISION_COPY[values.kind as PlanDecision["kind"]]);
+  }
+  const reasonKey = typeof values.reason === "string" ? PHASE2_REASON_COPY[values.reason] : undefined;
+  if (diagnostic.code === "existing_record_conflict") {
+    values.reason = reasonKey ? staffUiCopy(locale, reasonKey) : String(values.reason ?? "");
+  }
+  if (diagnostic.code === "service_validation" && reasonKey) {
+    // The rule's own sentence says why; the column is named by the diagnostic location.
+    return `${staffCopyWith(locale, "reviewDiagServiceValidation", values)} ${capitalised(staffUiCopy(locale, reasonKey))}.`;
   }
   if (isReviewCode(diagnostic.code)) {
     return staffCopyWith(locale, REVIEW_DIAGNOSTIC_COPY[diagnostic.code], values);
@@ -358,11 +398,54 @@ export const APPLY_FAILURE_COPY: Record<ApplyFailureCode, StaffUiCopyKey> = {
   unexpected: "applyFailUnexpected",
 };
 
+/* Phase 2 rule and service reasons (QOS-200), shown on review diagnostics and
+   apply failures alike. Service codes that are one family share a sentence. */
+export const PHASE2_REASON_COPY: Record<string, StaffUiCopyKey> = {
+  code_required: "reviewReasonCodeRequired",
+  arabic_name_required: "reviewReasonArabicNameRequired",
+  standard_unit_kind_mismatch: "reviewReasonStandardUnitKindMismatch",
+  create_inactive: "reviewReasonCreateInactive",
+  factor_conflicts_with_standard: "reviewReasonFactorConflictsWithStandard",
+  standard_pair_not_overridable: "reviewReasonFactorConflictsWithStandard",
+  recipe_unit_required: "reviewReasonRecipeUnitRequired",
+  recipe_draft_required: "reviewReasonRecipeDraftRequired",
+  draft_exists: "reviewReasonDraftExists",
+  version_not_draft: "reviewReasonVersionNotDraft",
+  variant_linked_elsewhere: "reviewReasonVariantLinkedElsewhere",
+  link_exists: "reviewReasonVariantLinkedElsewhere",
+  warehouse_branch_taken: "reviewReasonWarehouseBranchTaken",
+  output_item_taken: "reviewReasonOutputItemTaken",
+  immutable_field: "reviewReasonImmutableField",
+  location_immutable: "reviewReasonLocationImmutable",
+  warehouse_code_immutable: "reviewReasonWarehouseCodeImmutable",
+  duplicate_line_item: "reviewReasonDuplicateLineItem",
+  duplicate_step_number: "reviewReasonDuplicateStepNumber",
+  recipe_kind_immutable: "reviewReasonRecipeKindImmutable",
+  target_type_mismatch: "reviewReasonTargetTypeMismatch",
+  output_item_not_prepared: "reviewReasonOutputItemNotPrepared",
+  output_item_not_allowed: "reviewReasonOutputItemNotAllowed",
+  effects_sellable_only: "reviewReasonEffectsSellableOnly",
+  target_line_not_allowed: "reviewReasonEffectShape",
+  target_line_required: "reviewReasonEffectShape",
+  effect_item_not_allowed: "reviewReasonEffectShape",
+  effect_item_required: "reviewReasonEffectShape",
+  quantity_too_precise: "reviewReasonQuantityTooPrecise",
+  yield_too_precise: "reviewReasonQuantityTooPrecise",
+  unit_in_use: "reviewReasonInUse",
+  supplier_in_use: "reviewReasonInUse",
+  category_in_use: "reviewReasonInUse",
+  item_in_use: "reviewReasonInUse",
+  warehouse_in_use: "reviewReasonInUse",
+  justification_required: "reviewReasonJustificationRequired",
+};
+
 /** Rule reasons that make a failure code more specific. */
 export const APPLY_FAILURE_REASON_COPY: Record<string, StaffUiCopyKey> = {
   branch_price_default_variant_only: "applyReasonBranchPriceDefaultVariantOnly",
   status_requires_publication: "applyReasonStatusRequiresPublication",
   menu_requires_branch: "applyReasonMenuRequiresBranch",
+  // QOS-200 Phase 2 services; the same sentences as the review reasons.
+  ...PHASE2_REASON_COPY,
 };
 
 export const APPLY_ATTEMPT_STATUS_COPY: Record<ApplyStatus, StaffUiCopyKey> = {
@@ -421,7 +504,9 @@ export function describeApplyApiError(locale: StaffLocale, status: number, body:
 export function describeApplyFailure(locale: StaffLocale, failure: Pick<ApplyFailure, "code" | "reason">) {
   const base = staffUiCopy(locale, APPLY_FAILURE_COPY[failure.code] ?? "applyFailUnexpected");
   const reasonKey = failure.reason ? APPLY_FAILURE_REASON_COPY[failure.reason] : undefined;
-  return reasonKey ? `${base} ${staffUiCopy(locale, reasonKey)}` : base;
+  if (!reasonKey) return base;
+  const reason = staffUiCopy(locale, reasonKey);
+  return PHASE2_REASON_COPY[failure.reason!] ? `${base} ${capitalised(reason)}.` : `${base} ${reason}`;
 }
 
 /** Saved states: the row's record exists in the catalogue after the apply. */
@@ -450,6 +535,14 @@ export function summariseApplyBySheet(rows: ReviewRow[]): ApplySheetSummary[] {
 export function indexReviewRows(rows: ReviewRow[]) {
   return new Map(rows.map((row) => [`${row.sheet}\u0000${row.key}`, row]));
 }
+
+const INVENTORY_PATHS: Record<string, string> = {
+  Units: "units",
+  Suppliers: "suppliers",
+  Warehouses: "warehouses",
+  "Inventory Categories": "categories",
+  Ingredients: "items",
+};
 
 const PUBLIC_ID_PREFIX = {
   product: /^prd_/,
@@ -520,6 +613,23 @@ export function applyEditorHref(tenantId: string, row: ReviewRow, index: Map<str
       const id = ownPublicId(row, PUBLIC_ID_PREFIX.category);
       return id ? `${base}/categories/${id}/edit` : `${base}/categories`;
     }
+    // QOS-200: inventory records open their inventory editor; recipe rows the saved draft (or version).
+    case "Units":
+    case "Suppliers":
+    case "Warehouses":
+    case "Inventory Categories":
+    case "Ingredients": {
+      const id = row.apply.appliedPublicId;
+      return id ? `/tenants/${tenantId}/inventory/${INVENTORY_PATHS[row.sheet]}/${id}${row.sheet === "Units" ? "/edit" : ""}` : null;
+    }
+    case "Recipes":
+    case "Recipe Lines":
+    case "Prep Steps":
+    case "Modifier Effects": {
+      const family = row.apply.result?.parentPublicId;
+      const version = row.sheet === "Recipes" ? row.apply.appliedPublicId : row.apply.result?.versionPublicId;
+      return family && version ? `${base}/recipes/${family}/versions/${version}` : family ? `${base}/recipes/${family}` : null;
+    }
     default:
       return null;
   }
@@ -532,4 +642,65 @@ export function formatApplyTime(locale: StaffLocale, value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(DATE_LOCALES[locale], { dateStyle: "medium", timeStyle: "short", numberingSystem: "latn" }).format(date);
+}
+
+/* QOS-200 Phase 2 import: sub-records a row saved, pending sheets and
+   dependency kinds, all as staff copy. */
+
+/** One sub-record a row saved, as a short sentence (draft number, revision and date). */
+export function describeAppliedRecord(locale: StaffLocale, record: AppliedRecord) {
+  const date = isolateText(record.effectiveFrom ?? "");
+  switch (record.kind) {
+    case "recipe":
+      return staffUiCopy(locale, "applyRecordRecipe");
+    case "recipe_version":
+      return staffCopyWith(locale, "applyRecordRecipeDraft", { n: record.revision ?? "" });
+    case "sellable_link":
+      return staffCopyWith(locale, "applyRecordSellableLink", { date });
+    case "conversion":
+      if (record.note === "standard") return staffUiCopy(locale, "applyRecordConversionStandard");
+      if (record.note === "closed") return staffUiCopy(locale, "applyRecordConversionClosed");
+      return staffCopyWith(locale, "applyRecordConversion", { n: record.revision ?? "", date });
+    case "reference_cost":
+      if (record.note === "closed") return staffUiCopy(locale, "applyRecordCostClosed");
+      return staffCopyWith(locale, "applyRecordReferenceCost", { n: record.revision ?? "", date });
+  }
+}
+
+
+/* Sheets this import reads and keeps but never applies (QOS-200, D6), with the
+   plain disposition the server's owner literal stands for. */
+export const PENDING_SHEET_OWNER_COPY: Record<string, StaffUiCopyKey> = {
+  "Prep Targets": "reviewOwnerPrepTargetsPending",
+  "Opening Stock": "reviewOwnerOpeningStockSeparate",
+  "External Mappings": "reviewOwnerExternalMappingsPending",
+  "Future Combos": "reviewOwnerPhase3Combos",
+  "Combo Components": "reviewOwnerPhase3Combos",
+};
+
+export type PendingSheet = { sheet: string; rejected: boolean; rowCount: number; owner: StaffUiCopyKey };
+
+/** Deferred and rejected sheets that carried rows, in plan order. */
+export function pendingSheets(sheets: Array<{ sheet: string; support: string; rowCount: number }>): PendingSheet[] {
+  return sheets
+    .filter((entry) => (entry.support === "deferred" || entry.support === "rejected") && entry.rowCount > 0 && PENDING_SHEET_OWNER_COPY[entry.sheet])
+    .map((entry) => ({ sheet: entry.sheet, rejected: entry.support === "rejected", rowCount: entry.rowCount, owner: PENDING_SHEET_OWNER_COPY[entry.sheet]! }));
+}
+
+const DEPENDENCY_COPY: Record<string, StaffCountKey> = {
+  inventory_items: "applyDependencyItems",
+  recipe_lines: "recipeLinesDependency",
+  recipe_effects: "recipeEffectsDependency",
+  sellable_links: "sellableLinksDependency",
+  recipe_outputs: "recipeOutputsDependency",
+};
+
+/** What still uses a record a row could not archive ("3 items, 1 recipe line"). */
+export function describeDependencies(locale: StaffLocale, dependencies: Array<{ kind: string; count: number }>) {
+  return dependencies
+    .map((dependency) => {
+      const key = DEPENDENCY_COPY[dependency.kind];
+      return key ? staffCount(locale, key, dependency.count) : staffCount(locale, "applyDependencyRecords", dependency.count);
+    })
+    .join(locale === "ar" ? "، " : ", ");
 }

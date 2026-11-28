@@ -56,6 +56,8 @@ Already satisfied, no change: populated cells are a deferred field in workbook r
 
 ## Workbook mapping for QOS-200 (contract unchanged, 1.4)
 
+> Implemented by QOS-200 with contract 1.5: see [QOS-200-workbook-apply-phase2.md](QOS-200-workbook-apply-phase2.md) for the applied columns and dispositions.
+
 No apply handlers are added here. When QOS-200 imports the `Modifier Effects` sheet: `effect_key` → `public_id`; `modifier_option_key` → option; `recipe_version_key` → an open draft only (approved versions cannot take effects; such rows stay deferred with "create a draft first"); `effect_type` lower-cased; `target_recipe_line_key` → `target_line_id`; `ingredient_key` → `item_id`; `quantity_per_sold_unit` is in the item's recipe unit → `unit_id = recipe_unit_id` (rejected when the item has none); `notes`. Every rule above (applicability, single-selection, duplicates) applies to imported rows.
 
 ## Deferred
