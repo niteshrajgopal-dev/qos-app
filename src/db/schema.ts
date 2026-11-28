@@ -3535,7 +3535,8 @@ export const workbookSourceLinks = qos.table(
     index("workbook_source_links_tenant_id_idx").on(table.tenantId),
     check(
       "workbook_source_links_entity_check",
-      sql`${table.entityType} IN ('category','product','variant','modifier_group','modifier_option','menu','menu_section')`,
+      // 0065 (QOS-200) adds the Phase 2 inventory and recipe entities.
+      sql`${table.entityType} IN ('category','product','variant','modifier_group','modifier_option','menu','menu_section','unit','supplier','warehouse','inventory_category','inventory_item','recipe','recipe_version','recipe_line','prep_step','modifier_effect')`,
     ),
   ],
 );

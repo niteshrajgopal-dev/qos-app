@@ -8,7 +8,10 @@ import contractJson from "@/lib/workbook/qos-workbook-contract.v1.json";
    and nutrition columns on Products, Variants and Modifier Options, marked
    `sinceVersion: "1.3"`; v1.4 (QOS-215) persists the Variants tax columns and
    adds reference-cost columns to Variants and Modifier Options, marked
-   `sinceVersion: "1.4"`. It is the source of truth for sheet
+   `sinceVersion: "1.4"`; v1.5 (QOS-200) adds Units code, name_ar and
+   standard_code and Warehouses code, marked `sinceVersion: "1.5"`, and maps
+   the Phase 2 domain columns to the records the workbook apply writes. It is
+   the source of truth for sheet
    names, table names, header and data rows, columns and the manifest.
    Nothing here is inferred from a file name. */
 
@@ -32,7 +35,7 @@ export type WorkbookColumnDefinition = {
   width?: number;
   /** Contract version that introduced the column; absent means 1.0. */
   since?: string;
-  /** Contract version that introduced the column (v1.3 selling-attribute and v1.4 cost columns). */
+  /** Contract version that introduced the column (v1.3 selling-attribute, v1.4 cost and v1.5 Phase 2 columns). */
   sinceVersion?: string;
 };
 
@@ -81,7 +84,7 @@ export const WORKBOOK_PROFILE_ID = "qos-extended-v1-proposed";
 export const WORKBOOK_TEMPLATE_VERSION = WORKBOOK_CONTRACT.version;
 
 /** Template versions QOS reads. Older files lack the columns and sheets added since. */
-export const SUPPORTED_TEMPLATE_VERSIONS = ["1.0", "1.1", "1.2", "1.3", "1.4"] as const;
+export const SUPPORTED_TEMPLATE_VERSIONS = ["1.0", "1.1", "1.2", "1.3", "1.4", "1.5"] as const;
 
 function versionParts(version: string) {
   return version.split(".").map((part) => Number.parseInt(part, 10) || 0);
@@ -124,29 +127,18 @@ export const WORKBOOK_SHEET_ORDER = [
 
 /**
  * How QOS treats a contract sheet today. `supported` sheets map to existing
- * catalogue records and are parsed for review (validation is QOS-194, apply
- * is QOS-200). `deferred` sheets need Phase 2 services that do not exist yet.
- * `rejected` sheets are Phase 3 proposals. `separate_profile` is the flat
- * Current Import tab, which is uploaded on its own as the current profile.
+ * catalogue, inventory and recipe records and are reviewed and applied
+ * (QOS-194, QOS-217, QOS-200). `deferred` sheets wait for a service that does
+ * not exist yet (prep targets, provider mappings) or are posted elsewhere
+ * (opening stock). `rejected` sheets are Phase 3 proposals.
+ * `separate_profile` is the flat Current Import tab, which is uploaded on its
+ * own as the current profile.
  */
 export type WorkbookSheetSupport = "supported" | "deferred" | "rejected" | "separate_profile";
 
-const DEFERRED_SHEETS = new Set([
-  "Units",
-  "Suppliers",
-  "Warehouses",
-  "Inventory Categories",
-  "Ingredients",
-  "Recipes",
-  "Recipe Lines",
-  "Prep Steps",
-  "Modifier Effects",
-  "Prep Targets",
-  "Opening Stock",
-  "External Mappings",
-]);
+export const DEFERRED_SHEETS: ReadonlySet<string> = new Set(["Prep Targets", "Opening Stock", "External Mappings"]);
 
-const REJECTED_SHEETS = new Set(["Future Combos", "Combo Components"]);
+export const REJECTED_SHEETS: ReadonlySet<string> = new Set(["Future Combos", "Combo Components"]);
 
 export const SUPPORTED_ENTITY_SHEETS = [
   "Branches",
@@ -165,6 +157,16 @@ export const SUPPORTED_ENTITY_SHEETS = [
   "Menu Branches",
   "Menu Sections",
   "Menu Items",
+  // QOS-200: Phase 2 domain sheets, masters before relationships (contract order).
+  "Units",
+  "Suppliers",
+  "Warehouses",
+  "Inventory Categories",
+  "Ingredients",
+  "Recipes",
+  "Recipe Lines",
+  "Prep Steps",
+  "Modifier Effects",
 ] as const;
 
 export type SupportedEntitySheet = (typeof SUPPORTED_ENTITY_SHEETS)[number];

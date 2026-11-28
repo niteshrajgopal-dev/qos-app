@@ -1,0 +1,414 @@
+{
+  "dictionaryVersion": "1.2",
+  "contractVersion": "1.5",
+  "note": "Compatible sidecar to qos-workbook-contract.v1.json (contract 1.5). Classes describe end-to-end workbook capability today: recognized = emitted as canonical rows and reviewed; persistable = applied through a QOS service by the workbook import; deferred = recognized but QOS has no storage or owning behaviour yet. Menu sheets keep their 1.1 classes; the Phase 2 domain columns (units, suppliers, warehouses, inventory categories, ingredients, recipes, recipe lines, prep steps and modifier effects) are persistable unless listed as deferred.",
+  "classes": [
+    "recognized",
+    "validated",
+    "persistable",
+    "deferred"
+  ],
+  "sourceProfiles": [
+    {
+      "id": "foodics_menu_v1",
+      "version": 1,
+      "headerDictionary": "foodics-menu/dictionary.v1.json",
+      "identity": "source_text"
+    }
+  ],
+  "extraContextFields": [
+    {
+      "field": "source_profile",
+      "rule": "Source adapter that produced this workbook; blank for templates and exports. Keys from a source adapter are unverified identities until review."
+    },
+    {
+      "field": "source_profile_version",
+      "rule": "Version of the source adapter layout."
+    },
+    {
+      "field": "dictionary_version",
+      "rule": "Field dictionary version used for classification."
+    },
+    {
+      "field": "source_file_sha256",
+      "rule": "Fingerprint of the uploaded source file; evidence only."
+    }
+  ],
+  "extraSheets": [
+    {
+      "name": "Source Map",
+      "table": "QOS_Source_Map",
+      "read": "never"
+    }
+  ],
+  "capabilities": [
+    {
+      "sheet": "Categories",
+      "class": "recognized",
+      "owner": "QOS-194 validate, QOS-200 apply",
+      "columns": [
+        "category_key",
+        "action",
+        "internal_name",
+        "display_name_en",
+        "display_name_ar",
+        "sort_order",
+        "status"
+      ]
+    },
+    {
+      "sheet": "Products",
+      "class": "recognized",
+      "owner": "QOS-194 validate, QOS-200 apply",
+      "columns": [
+        "product_key",
+        "action",
+        "internal_name",
+        "display_name_en",
+        "display_name_ar",
+        "description_en",
+        "description_ar",
+        "sku",
+        "barcode",
+        "nutrition_calories",
+        "image_url",
+        "status"
+      ]
+    },
+    {
+      "sheet": "Product Categories",
+      "class": "recognized",
+      "owner": "QOS-194 validate, QOS-200 apply",
+      "columns": [
+        "product_category_key",
+        "action",
+        "product_key",
+        "category_key",
+        "sort_order"
+      ]
+    },
+    {
+      "sheet": "Variants",
+      "class": "recognized",
+      "owner": "QOS-194 validate, QOS-200 apply",
+      "note": "One default variant per source product; amount_minor is exact minor units from the source major-unit price.",
+      "columns": [
+        "variant_key",
+        "action",
+        "product_key",
+        "is_default",
+        "sort_order",
+        "sku",
+        "barcode",
+        "amount_minor",
+        "currency",
+        "status"
+      ]
+    },
+    {
+      "sheet": "Variants",
+      "class": "deferred",
+      "owner": "QOS-212–215 per QOS-216",
+      "note": "Tax basis and rate have no QOS storage yet; the basis stays UNCONFIRMED.",
+      "columns": [
+        "price_tax_basis",
+        "tax_rate_basis_points"
+      ]
+    },
+    {
+      "sheet": "Modifier Groups",
+      "class": "recognized",
+      "owner": "QOS-194 validate, QOS-200 apply",
+      "columns": [
+        "modifier_group_key",
+        "action",
+        "internal_name",
+        "display_name_en",
+        "display_name_ar",
+        "min_selections",
+        "max_selections",
+        "status"
+      ]
+    },
+    {
+      "sheet": "Modifier Options",
+      "class": "recognized",
+      "owner": "QOS-194 validate, QOS-200 apply",
+      "note": "is_default, allows_quantity and max_quantity are derived defaults equal to the database defaults.",
+      "columns": [
+        "modifier_option_key",
+        "action",
+        "modifier_group_key",
+        "display_name_en",
+        "display_name_ar",
+        "price_minor",
+        "currency",
+        "is_default",
+        "allows_quantity",
+        "max_quantity",
+        "sort_order",
+        "status"
+      ]
+    },
+    {
+      "sheet": "Product Modifiers",
+      "class": "recognized",
+      "owner": "QOS-194 validate, QOS-200 apply",
+      "columns": [
+        "product_modifier_key",
+        "action",
+        "product_key",
+        "modifier_group_key",
+        "sort_order"
+      ]
+    },
+    {
+      "sheet": "Product Modifiers",
+      "class": "deferred",
+      "owner": "QOS-212–215 per QOS-216",
+      "note": "Free-option allowances are not scheduled; recorded only.",
+      "columns": [
+        "free_options_count"
+      ]
+    },
+    {
+      "sheet": "Units",
+      "class": "persistable",
+      "owner": "Phase 2 workbook apply",
+      "columns": [
+        "unit_key",
+        "action",
+        "code",
+        "name",
+        "name_ar",
+        "standard_code",
+        "quantity_kind",
+        "decimal_places",
+        "active"
+      ]
+    },
+    {
+      "sheet": "Suppliers",
+      "class": "persistable",
+      "owner": "Phase 2 workbook apply",
+      "columns": [
+        "supplier_key",
+        "action",
+        "name",
+        "contact_name",
+        "email",
+        "phone",
+        "reference",
+        "active",
+        "notes"
+      ]
+    },
+    {
+      "sheet": "Warehouses",
+      "class": "persistable",
+      "owner": "Phase 2 workbook apply",
+      "columns": [
+        "warehouse_key",
+        "action",
+        "branch_key",
+        "code",
+        "name",
+        "active",
+        "notes"
+      ]
+    },
+    {
+      "sheet": "Inventory Categories",
+      "class": "persistable",
+      "owner": "Phase 2 workbook apply",
+      "columns": [
+        "inventory_category_key",
+        "action",
+        "name_en",
+        "name_ar",
+        "active"
+      ]
+    },
+    {
+      "sheet": "Ingredients",
+      "class": "persistable",
+      "owner": "Phase 2 workbook apply",
+      "columns": [
+        "ingredient_key",
+        "action",
+        "name_en",
+        "name_ar",
+        "inventory_category_key",
+        "ingredient_type",
+        "storage_unit_key",
+        "recipe_unit_key",
+        "recipe_units_per_storage_unit",
+        "default_supplier_key",
+        "reference_cost_per_storage_unit",
+        "cost_currency",
+        "cost_tax_basis",
+        "cost_effective_date",
+        "cost_source_reference",
+        "active",
+        "notes"
+      ],
+      "note": "A blank reference cost stays unknown, never zero; the storage-to-recipe factor is not stored for two standard units."
+    },
+    {
+      "sheet": "Recipes",
+      "class": "persistable",
+      "owner": "Phase 2 workbook apply",
+      "columns": [
+        "recipe_version_key",
+        "action",
+        "recipe_key",
+        "name",
+        "target_type",
+        "variant_key",
+        "prepared_ingredient_key",
+        "yield_quantity",
+        "yield_unit_key",
+        "notes"
+      ],
+      "note": "Applied as draft versions only; approval stays in the recipe editor. Prepared-item recipes never post production."
+    },
+    {
+      "sheet": "Recipes",
+      "class": "deferred",
+      "owner": "Recipe version numbers are assigned by QOS; the export shows the real number",
+      "columns": [
+        "version_number"
+      ]
+    },
+    {
+      "sheet": "Recipes",
+      "class": "deferred",
+      "owner": "Recipe approval: dates are set when a draft is approved in the recipe editor",
+      "columns": [
+        "effective_from",
+        "effective_to"
+      ]
+    },
+    {
+      "sheet": "Recipe Lines",
+      "class": "persistable",
+      "owner": "Phase 2 workbook apply",
+      "columns": [
+        "recipe_line_key",
+        "action",
+        "recipe_version_key",
+        "ingredient_key",
+        "quantity_recipe_units",
+        "sort_order"
+      ]
+    },
+    {
+      "sheet": "Recipe Lines",
+      "class": "deferred",
+      "owner": "Recipe editor: line notes have no field yet; line labels are edited in the recipe editor",
+      "columns": [
+        "notes"
+      ]
+    },
+    {
+      "sheet": "Prep Steps",
+      "class": "persistable",
+      "owner": "Phase 2 workbook apply",
+      "columns": [
+        "prep_step_key",
+        "action",
+        "recipe_version_key",
+        "step_number",
+        "instruction"
+      ]
+    },
+    {
+      "sheet": "Prep Steps",
+      "class": "deferred",
+      "owner": "Recipe editor: the step guide keeps one instruction per language; titles, timings and checkpoints are not stored yet",
+      "columns": [
+        "title",
+        "expected_minutes",
+        "checkpoint_required",
+        "notes"
+      ]
+    },
+    {
+      "sheet": "Modifier Effects",
+      "class": "persistable",
+      "owner": "Phase 2 workbook apply",
+      "columns": [
+        "effect_key",
+        "action",
+        "modifier_option_key",
+        "recipe_version_key",
+        "effect_type",
+        "target_recipe_line_key",
+        "ingredient_key",
+        "quantity_per_sold_unit",
+        "notes"
+      ]
+    },
+    {
+      "sheet": "Source Map",
+      "class": "deferred",
+      "owner": "QOS-212–215 per QOS-216",
+      "note": "Channel prices are never turned into branch prices; channel-to-branch mapping is an explicit later step.",
+      "columns": [
+        "channel_price:*"
+      ]
+    },
+    {
+      "sheet": "Source Map",
+      "class": "deferred",
+      "owner": "QOS-212–215 per QOS-216",
+      "note": "Exact source text kept beside the integer columns, and source values with no QOS column.",
+      "columns": [
+        "price",
+        "tax",
+        "product_cost",
+        "selling_method",
+        "source_status",
+        "preparation_time",
+        "image",
+        "option_price",
+        "option_cost",
+        "option_calories",
+        "ingredient_cost",
+        "assignment_required",
+        "type_of_tax",
+        "is_stock_product",
+        "walking_time",
+        "high_salt",
+        "allow_repeat"
+      ]
+    },
+    {
+      "sheet": "Source Map",
+      "class": "deferred",
+      "owner": "QOS-194 review",
+      "note": "Typed values under a header the dictionary does not know; kept, never mapped by guess.",
+      "columns": [
+        "unmapped:*"
+      ]
+    }
+  ],
+  "excluded": [
+    {
+      "item": "Users, password, PIN and other account columns",
+      "reason": "Account access stays in QOS administration; such sheets are listed as ignored and never read."
+    },
+    {
+      "item": "Free-option allowances beyond free_options_count",
+      "reason": "Unscheduled; not part of the Phase 2 model."
+    },
+    {
+      "item": "Full combos (Future Combos, Combo Components)",
+      "reason": "Outside this source profile; rejected in Phase 2."
+    },
+    {
+      "item": "Production postings from prepared recipes",
+      "reason": "Prepared recipes are definitions only; stock posting stays a separate action."
+    }
+  ]
+}

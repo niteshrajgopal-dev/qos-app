@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { STAFF_UI_COPY } from "@/lib/staff/locale";
 import { SUPPORTED_ENTITY_SHEETS } from "@/lib/workbook/contract";
-import dictionary from "@/lib/workbook/qos-workbook-dictionary.v1.1.json";
+import dictionary from "@/lib/workbook/qos-workbook-dictionary.v1.2.json";
 import { APPLY_FAILURE_CODES, ROW_APPLY_STATES, type RowApplyOutcome } from "@/lib/workbook/apply/model";
 import {
   APPLY_API_ERROR_CODES,
