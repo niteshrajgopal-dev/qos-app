@@ -652,7 +652,7 @@ export function describeAppliedRecord(locale: StaffLocale, record: AppliedRecord
   const date = isolateText(record.effectiveFrom ?? "");
   switch (record.kind) {
     case "recipe":
-      return staffCopyWith(locale, "applyRecordRecipe", { id: isolateText(record.publicId) });
+      return staffUiCopy(locale, "applyRecordRecipe");
     case "recipe_version":
       return staffCopyWith(locale, "applyRecordRecipeDraft", { n: record.revision ?? "" });
     case "sellable_link":
