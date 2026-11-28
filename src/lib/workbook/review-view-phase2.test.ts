@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { INVENTORY_ERROR_COPY } from "@/lib/inventory/error-copy";
 import { STAFF_UI_COPY } from "@/lib/staff/locale";
 import type { RowApplyOutcome } from "@/lib/workbook/apply/model";
 import {
@@ -141,5 +142,26 @@ describe("Phase 2 import wording", () => {
     expect(href("Recipes", { appliedPublicId: "recv_2", result })).toBe("/tenants/ten_1/catalogue/recipes/rec_1/versions/recv_2");
     expect(href("Recipe Lines", { appliedPublicId: "recl_1", result })).toBe("/tenants/ten_1/catalogue/recipes/rec_1/versions/recv_2");
     expect(href("Modifier Effects", { appliedPublicId: "eff_1", state: "failed" })).toBeNull();
+  });
+  it("leads a dependency refusal with the real reason and its count in both languages, never the concurrency message (QOS-200 follow-up)", () => {
+    const supplier = (locale: "en" | "ar", count: number) =>
+      describeApplyFailure(locale, { code: "in_use", reason: "supplier_in_use", details: { dependencies: [{ kind: "inventory_items", count }] } });
+    expect(supplier("en", 1).startsWith("Used by 1 active item.")).toBe(true);
+    expect(supplier("en", 3).startsWith("Used by 3 active items.")).toBe(true);
+    expect(supplier("en", 1)).toContain(INVENTORY_ERROR_COPY.supplier_in_use.en);
+    expect(supplier("ar", 1).startsWith("يستخدمه صنف نشط واحد")).toBe(true);
+    expect(supplier("ar", 2).startsWith("يستخدمه صنفان نشطان")).toBe(true);
+    expect(supplier("ar", 3).startsWith("تستخدمه 3 أصناف نشطة")).toBe(true);
+    expect(supplier("ar", 11).startsWith("يستخدمه 11 صنفًا نشطًا")).toBe(true);
+    expect(supplier("ar", 1)).toContain(INVENTORY_ERROR_COPY.supplier_in_use.ar);
+    for (const locale of ["en", "ar"] as const) {
+      expect(supplier(locale, 1)).not.toContain(STAFF_UI_COPY[locale].applyFailConflict);
+      expect(supplier(locale, 1)).not.toMatch(TICKET);
+      // A refusal without counts: the service's own sentence; with neither, a plain in-use sentence.
+      expect(describeApplyFailure(locale, { code: "in_use", reason: "unit_in_use" })).toBe(INVENTORY_ERROR_COPY.unit_in_use[locale]);
+      expect(describeApplyFailure(locale, { code: "in_use" })).toBe(STAFF_UI_COPY[locale].applyFailInUse);
+    }
+    expect(supplier("ar", 1)).toMatch(ARABIC);
+    expect(supplier("ar", 1)).not.toMatch(/[A-Za-z]/);
   });
 });

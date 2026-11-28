@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { reviewWorkbook, REVIEW_ENGINE_VERSION } from "@/lib/workbook/validation/review";
+import { snapshotHashOf } from "@/lib/workbook/validation/snapshot";
 import { seedRecords, snapshotFrom, qosInput } from "@/lib/workbook/validation/test-support";
 import type { ReviewRow, WorkbookReview } from "@/lib/workbook/validation/model";
 
@@ -33,8 +34,8 @@ const rowOf = (result: WorkbookReview, sheet: string, key: string): ReviewRow =>
 const errors = (row: ReviewRow) => row.diagnostics.filter((entry) => entry.severity === "error").map((entry) => entry.params?.reason ?? entry.code);
 
 describe("Phase 2 review rules", () => {
-  it("is engine qos200.1", () => {
-    expect(REVIEW_ENGINE_VERSION).toBe("qos200.1");
+  it("is engine qos200.2", () => {
+    expect(REVIEW_ENGINE_VERSION).toBe("qos200.2");
   });
 
   it("reads the active flag as archive and restore, and refuses an inactive create", () => {
@@ -204,5 +205,59 @@ describe("Phase 2 review rules", () => {
     ]);
     expect(errors(rowOf(result, "Modifier Effects", "e1"))).toEqual(["target_line_not_allowed"]);
     expect(errors(rowOf(result, "Modifier Effects", "e2"))).toEqual(["effect_item_not_allowed"]);
+  });
+  describe("an open draft reached through a workbook key (QOS-200 follow-up)", () => {
+    const records = { Units: [UNIT_KG, UNIT_G], Ingredients: [ITEM], Recipes: [APPROVED, DRAFT] };
+    const template = { keysVerified: false, isExport: false };
+    const keyLink = { entityType: "recipe_version", sourceKey: "rv-1", targetPublicId: "recv_2", planId: "plan-a" };
+    const edit = { recipe_version_key: "rv-1", action: "update", yield_quantity: "2" };
+
+    it("is Conflicting with that draft for a new upload; the plan that moved the key follows it; choosing the draft resolves it", () => {
+      const source = { records: { ...seedRecords(), ...records }, typedLinks: [keyLink] };
+      const fresh = reviewWorkbook(qosInput({ Recipes: [edit] }, template), snapshotFrom(source));
+      const conflict = rowOf(fresh, "Recipes", "rv-1");
+      expect(conflict).toMatchObject({ classification: "conflicting", candidates: [expect.objectContaining({ publicId: "recv_2" })] });
+      expect(conflict.diagnostics).toContainEqual(expect.objectContaining({ code: "existing_record_conflict", params: expect.objectContaining({ reason: "draft_exists" }) }));
+
+      const retry = reviewWorkbook(qosInput({ Recipes: [edit] }, template), snapshotFrom(source), [], { planId: "plan-a" });
+      expect(rowOf(retry, "Recipes", "rv-1")).toMatchObject({ classification: "update", identity: expect.objectContaining({ targetPublicId: "recv_2" }) });
+
+      const chosen = reviewWorkbook(qosInput({ Recipes: [edit] }, template), snapshotFrom(source), [{ kind: "match_existing", sheet: "Recipes", row: 7, key: "rv-1", targetPublicId: "recv_2" }]);
+      expect(rowOf(chosen, "Recipes", "rv-1")).toMatchObject({ classification: "update", identity: expect.objectContaining({ targetPublicId: "recv_2" }) });
+
+      // A link with no known plan is never treated as this plan's.
+      const unknown = reviewWorkbook(qosInput({ Recipes: [edit] }, template), snapshotFrom({ ...source, typedLinks: [{ ...keyLink, planId: null }] }), [], { planId: "plan-a" });
+      expect(rowOf(unknown, "Recipes", "rv-1").classification).toBe("conflicting");
+    });
+
+    it("does not follow an approved version named by id to a draft another plan made", () => {
+      const source = { records: { ...seedRecords(), ...records }, typedLinks: [{ entityType: "recipe_version", sourceKey: "recv_1", targetPublicId: "recv_2", planId: "plan-a" }] };
+      const row = { ...APPROVED, action: "update", yield_quantity: "2" };
+      const fresh = reviewWorkbook(qosInput({ Recipes: [row] }), snapshotFrom(source));
+      expect(rowOf(fresh, "Recipes", "recv_1")).toMatchObject({ classification: "conflicting", candidates: [expect.objectContaining({ publicId: "recv_2" })] });
+      const retry = reviewWorkbook(qosInput({ Recipes: [row] }), snapshotFrom(source), [], { planId: "plan-a" });
+      expect(rowOf(retry, "Recipes", "recv_1")).toMatchObject({ classification: "update", identity: expect.objectContaining({ targetPublicId: "recv_2" }) });
+    });
+
+    it("matches a child row whose link still names the approved version's record to its copy on the draft", () => {
+      const copy: Row = { ...LINE, recipe_line_key: "recl_2", qos_recipe_line_id: "recl_2", recipe_version_key: "recv_2" };
+      const source = {
+        records: { ...seedRecords(), ...records, "Recipe Lines": [LINE, copy] },
+        typedLinks: [keyLink, { entityType: "recipe_line", sourceKey: "l-1", targetPublicId: "recl_1", planId: "plan-a" }],
+      };
+      const sheets = { Recipes: [edit], "Recipe Lines": [{ recipe_line_key: "l-1", action: "update", recipe_version_key: "rv-1", quantity_recipe_units: "250" }] };
+      const retry = reviewWorkbook(qosInput(sheets, template), snapshotFrom(source), [], { planId: "plan-a" });
+      expect(rowOf(retry, "Recipe Lines", "l-1")).toMatchObject({ classification: "update", identity: expect.objectContaining({ targetPublicId: "recl_2" }) });
+      expect(rowOf(retry, "Recipe Lines", "l-1").changes).toEqual([expect.objectContaining({ column: "quantity_recipe_units", before: "200", after: "250" })]);
+      // A new upload: the recipe row is Conflicting and its line waits for that decision.
+      const fresh = reviewWorkbook(qosInput(sheets, template), snapshotFrom(source));
+      expect(rowOf(fresh, "Recipes", "rv-1").classification).toBe("conflicting");
+      expect(rowOf(fresh, "Recipe Lines", "l-1")).toMatchObject({ classification: "blocked" });
+    });
+
+    it("keeps the snapshot hash independent of which plan wrote a link", () => {
+      const base = { records: { ...seedRecords(), ...records }, permittedBranches: [], brandPublicId: "brd_quotes" };
+      expect(snapshotHashOf({ ...base, typedLinks: [keyLink] })).toBe(snapshotHashOf({ ...base, typedLinks: [{ ...keyLink, planId: undefined }] }));
+    });
   });
 });

@@ -36,11 +36,12 @@ export function generateApplyPublicId() {
 
 export const EMPTY_COUNTS: ApplyCounts = { applied: 0, alreadyApplied: 0, failed: 0, notApplied: 0, deferredValues: 0 };
 
-export function attemptView(record: ApplyRecord): ApplyAttempt {
+export function attemptView(record: ApplyRecord, displayNames: ReadonlyMap<string, string> = new Map()): ApplyAttempt {
   return {
     publicId: record.publicId,
     status: record.status,
     actorSubject: record.actorSubject,
+    actorDisplayName: displayNames.get(record.actorSubject) ?? null,
     actorRole: record.actorRole,
     planRevision: record.planRevision,
     planHash: record.planHash,
@@ -67,6 +68,23 @@ export async function listApplies(tx: Tx, tenantId: string, planId: string) {
     .from(workbookImportApplies)
     .where(and(eq(workbookImportApplies.tenantId, tenantId), eq(workbookImportApplies.planId, planId)))
     .orderBy(desc(workbookImportApplies.startedAt));
+}
+
+/** The tenant's latest applies with their plan's file, newest first (QOS-200 follow-up). */
+export async function listRecentApplyRecords(tx: Tx, tenantId: string, limit: number) {
+  return tx
+    .select({
+      apply: workbookImportApplies,
+      planPublicId: workbookImportPlans.publicId,
+      fileName: workbookImportPlans.fileName,
+      sourceProfile: workbookImportPlans.sourceProfile,
+      templateVersion: workbookImportPlans.templateVersion,
+    })
+    .from(workbookImportApplies)
+    .innerJoin(workbookImportPlans, and(eq(workbookImportPlans.tenantId, workbookImportApplies.tenantId), eq(workbookImportPlans.id, workbookImportApplies.planId)))
+    .where(eq(workbookImportApplies.tenantId, tenantId))
+    .orderBy(desc(workbookImportApplies.startedAt), desc(workbookImportApplies.id))
+    .limit(limit);
 }
 
 export async function runningApply(tx: Tx, tenantId: string, planId: string) {

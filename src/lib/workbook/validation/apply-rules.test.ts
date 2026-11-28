@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { reviewWorkbook } from "@/lib/workbook/validation/review";
-import { qosInput, seedRow, snapshotFrom } from "@/lib/workbook/validation/test-support";
+import { qosInput, seedRecords, seedRow, snapshotFrom } from "@/lib/workbook/validation/test-support";
 
 function rowsOf(sheet: string, rows: ReturnType<typeof reviewWorkbook>["rows"]) {
   return rows.filter((row) => row.sheet === sheet);
@@ -143,5 +143,28 @@ describe("QOS-217 service-parity review rules", () => {
       snapshot,
     );
     expectReason(rowsOf("Branch Prices", review.rows)[0]!, "branch_price_default_variant_only");
+  });
+  it("never changes an active variant, modifier group, option or category when the workbook writes draft or leaves status blank (QOS-200 follow-up)", () => {
+    const sheets = ["Categories", "Variants", "Modifier Groups", "Modifier Options"] as const;
+    const statusRows = (status: string) => Object.fromEntries(sheets.map((sheet) => [sheet, [seedRow(sheet, 0, { action: "update", status })]]));
+    for (const status of ["draft", ""]) {
+      const result = reviewWorkbook(qosInput(statusRows(status)), snapshotFrom());
+      for (const sheet of sheets) {
+        const row = rowsOf(sheet, result.rows)[0]!;
+        expect(row.classification, `${sheet} status "${status}"`).toBe("unchanged");
+        expect(row.changes.some((change) => change.column === "status")).toBe(false);
+        expect(row.after?.status).toBe("active");
+      }
+    }
+    // Explicit statuses keep their meaning: archive and restore.
+    const archive = reviewWorkbook(qosInput({ "Modifier Groups": [seedRow("Modifier Groups", 0, { action: "update", status: "archived" })], Categories: [seedRow("Categories", 0, { action: "update", status: "archived" })] }), snapshotFrom());
+    expect(rowsOf("Modifier Groups", archive.rows)[0]).toMatchObject({ classification: "update", operation: "archive" });
+    expect(rowsOf("Categories", archive.rows)[0]).toMatchObject({ classification: "update", operation: "archive" });
+    const archived = snapshotFrom({ records: { ...seedRecords(), "Modifier Options": [seedRow("Modifier Options", 0, { status: "archived" })] } });
+    const restore = reviewWorkbook(qosInput({ "Modifier Options": [seedRow("Modifier Options", 0, { action: "update", status: "active" })] }), archived);
+    expect(rowsOf("Modifier Options", restore.rows)[0]).toMatchObject({ classification: "update", operation: "restore" });
+    // Draft on an archived record is no restore: it stays archived.
+    const stays = reviewWorkbook(qosInput({ "Modifier Options": [seedRow("Modifier Options", 0, { action: "update", status: "draft" })] }), archived);
+    expect(rowsOf("Modifier Options", stays.rows)[0]).toMatchObject({ classification: "unchanged" });
   });
 });

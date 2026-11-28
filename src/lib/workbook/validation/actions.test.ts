@@ -117,7 +117,7 @@ describe("action matrix", () => {
     expect(rowsOf("Products", review.rows)[0]!.diagnostics).toContainEqual(expect.objectContaining({ code: "update_requires_id" }));
   });
 
-  it("restores an archived product when its status returns to draft; the category service refuses draft", () => {
+  it("restores an archived product when its status returns to draft; draft never changes an archived category", () => {
     const snapshot = snapshotFrom({
       records: {
         Products: [seedRow("Products", 0, { status: "archived" })],
@@ -132,10 +132,9 @@ describe("action matrix", () => {
       snapshot,
     );
     expect(rowsOf("Products", review.rows)[0]).toMatchObject({ classification: "update", operation: "restore" });
-    expect(rowsOf("Categories", review.rows)[0]).toMatchObject({ classification: "invalid" });
-    expect(rowsOf("Categories", review.rows)[0]!.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "service_validation", params: expect.objectContaining({ field: "status" }) }),
-    );
+    // A category has no draft state (QOS-200 follow-up): draft is no restore, the category stays archived.
+    expect(rowsOf("Categories", review.rows)[0]).toMatchObject({ classification: "unchanged", operation: null, changes: [] });
+    expect(rowsOf("Categories", review.rows)[0]!.after).toMatchObject({ status: "archived" });
   });
 
   it("resets a branch price only where an override exists, and removes links by verified endpoints", () => {

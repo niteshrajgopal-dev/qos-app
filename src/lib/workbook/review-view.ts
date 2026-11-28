@@ -1,3 +1,4 @@
+import { INVENTORY_ERROR_COPY, type InventoryErrorCode } from "@/lib/inventory/error-copy";
 import { isolateText } from "@/lib/staff/branch-copy";
 import { staffCopyWith, staffCount, staffUiCopy, type StaffCountKey, type StaffLocale, type StaffUiCopyKey } from "@/lib/staff/locale";
 import type {
@@ -395,6 +396,7 @@ export const APPLY_FAILURE_COPY: Record<ApplyFailureCode, StaffUiCopyKey> = {
   brand_mismatch: "applyFailBrandMismatch",
   archived_target: "applyFailArchivedTarget",
   unsupported_field: "applyFailUnsupportedField",
+  in_use: "applyFailInUse",
   unexpected: "applyFailUnexpected",
 };
 
@@ -501,12 +503,26 @@ export function describeApplyApiError(locale: StaffLocale, status: number, body:
 }
 
 /** One row's apply failure: the sentence for its code, made specific by its rule reason when known. */
-export function describeApplyFailure(locale: StaffLocale, failure: Pick<ApplyFailure, "code" | "reason">) {
+export function describeApplyFailure(locale: StaffLocale, failure: Pick<ApplyFailure, "code" | "reason" | "details">) {
+  if (failure.code === "in_use") return describeInUse(locale, failure);
   const base = staffUiCopy(locale, APPLY_FAILURE_COPY[failure.code] ?? "applyFailUnexpected");
   const reasonKey = failure.reason ? APPLY_FAILURE_REASON_COPY[failure.reason] : undefined;
   if (!reasonKey) return base;
   const reason = staffUiCopy(locale, reasonKey);
   return PHASE2_REASON_COPY[failure.reason!] ? `${base} ${capitalised(reason)}.` : `${base} ${reason}`;
+}
+
+/**
+ * A dependency refusal leads with what still uses the record ("Used by 1
+ * active item."), then the service's own sentence; never the concurrency
+ * message (QOS-200 follow-up).
+ */
+function describeInUse(locale: StaffLocale, failure: Pick<ApplyFailure, "reason" | "details">) {
+  const dependencies = failure.details?.dependencies ?? [];
+  const counts = dependencies.length > 0 ? `${describeDependencies(locale, dependencies)}.` : null;
+  const service = failure.reason && failure.reason in INVENTORY_ERROR_COPY ? INVENTORY_ERROR_COPY[failure.reason as InventoryErrorCode][locale] : null;
+  const parts = [counts, service].filter((part): part is string => Boolean(part));
+  return parts.length > 0 ? parts.join(" ") : staffUiCopy(locale, "applyFailInUse");
 }
 
 /** Saved states: the row's record exists in the catalogue after the apply. */

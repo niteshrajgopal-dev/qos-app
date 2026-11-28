@@ -84,11 +84,14 @@ export function WorkbookReviewPanel({
   tenantId,
   initialResult,
   onDecisionsChange,
+  onApplied,
 }: {
   tenantId: string;
   initialResult: WorkbookReviewResult;
   /** Called with the operator's current decisions, so an edited upload can carry them over. */
   onDecisionsChange?: (decisions: PlanDecision[]) => void;
+  /** Called when an apply of this plan has finished, so past imports can refresh. */
+  onApplied?: () => void;
 }) {
   const { locale } = useStaffLocale();
   const t = (key: StaffUiCopyKey) => staffUiCopy(locale, key);
@@ -468,7 +471,10 @@ export function WorkbookReviewPanel({
       <WorkbookApplyPanel
         tenantId={tenantId}
         result={result}
-        onResult={adopt}
+        onResult={(next) => {
+          adopt(next);
+          if (next.plan.status === "applied" || next.plan.status === "apply_failed") onApplied?.();
+        }}
         onRevalidate={() => void rerun()}
         busyElsewhere={busy !== null}
         revalidating={busy === "rerun"}

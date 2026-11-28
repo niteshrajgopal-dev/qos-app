@@ -62,11 +62,28 @@ describe("describeApplyFailure for the inventory and recipe services (QOS-200)",
     expect(describeApplyFailure(new InventoryError("Only administrators.", 403, "administrator_required"))).toMatchObject({ code: "forbidden" });
     expect(
       describeApplyFailure(new InventoryDependencyError("in use", "unit_in_use", "status", [{ kind: "inventory_items", count: 2 }])),
-    ).toMatchObject({ code: "conflict", reason: "unit_in_use", details: { dependencies: [{ kind: "inventory_items", count: 2 }] } });
+    ).toMatchObject({ code: "in_use", reason: "unit_in_use", details: { dependencies: [{ kind: "inventory_items", count: 2 }] } });
     expect(
       describeApplyFailure(new InventoryDetailError("cycle", "recipe_cycle", "lines", { path: ["Syrup", "Base", "Syrup"] })),
     ).toMatchObject({ code: "conflict", reason: "recipe_cycle", details: { path: ["Syrup", "Base", "Syrup"] } });
     expect(describeApplyFailure(new InventoryConflictError("archived", "recipe_archived"))).toMatchObject({ code: "archived_target" });
     expect(describeApplyFailure(new InventoryError("boom", 500, "internal"))).toEqual({ code: "unexpected", message: "The change could not be saved." });
+  });
+  it("reports a dependency refusal as in use with its counts, never as a concurrent change (QOS-200 follow-up)", () => {
+    expect(describeApplyFailure(new InventoryDependencyError("Items still use this supplier.", "supplier_in_use", "status", [{ kind: "inventory_items", count: 1 }]))).toEqual({
+      code: "in_use",
+      message: "Items still use this supplier.",
+      reason: "supplier_in_use",
+      field: "status",
+      details: { dependencies: [{ kind: "inventory_items", count: 1 }] },
+    });
+    for (const reason of ["category_in_use", "item_in_use", "warehouse_in_use", "recipe_in_use"]) {
+      expect(describeApplyFailure(new InventoryDependencyError("in use", reason, "status", [{ kind: "recipe_lines", count: 3 }]))).toMatchObject({ code: "in_use", reason });
+    }
+    // The unit service refuses without counts.
+    expect(describeApplyFailure(new InventoryConflictError("in use", "unit_in_use", "status"))).toEqual({ code: "in_use", message: "in use", reason: "unit_in_use", field: "status" });
+    // Other conflicts keep their meaning.
+    expect(describeApplyFailure(new InventoryConflictError("draft", "draft_exists"))).toMatchObject({ code: "conflict", reason: "draft_exists" });
+    expect(describeApplyFailure(new InventoryConflictError("changed", "expected_version_mismatch"))).toMatchObject({ code: "stale_revision" });
   });
 });

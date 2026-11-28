@@ -249,19 +249,28 @@ function variantIsDefault(work: WorkRow, snapshot: ReviewSnapshot) {
   return variant?.is_default === "TRUE";
 }
 
+/** Records with no draft state: `draft` on them can only mean "do not publish". */
+const NO_DRAFT_STATE_SHEETS = new Set(["Categories", "Variants", "Modifier Groups", "Modifier Options"]);
+
 /**
- * Foodics conversion writes `draft` on every sheet to mean "do not publish".
- * On a product or menu update that is not a restore, that is not a request
- * to change status — drop it so the rest of the row can still apply.
+ * Foodics conversion and the blank template write `draft` to mean "do not
+ * publish". On a product or menu update that is not a restore, that is not a
+ * request to change status — drop it so the rest of the row can still apply.
+ * Categories, variants, modifier groups and options have no draft state:
+ * `draft` never changes them, whatever their status (restoring an archived
+ * one needs `active`), so a re-upload never downgrades an active record.
  */
 export function dropImportStatus(work: WorkRow) {
-  if ((work.sheet !== "Products" && work.sheet !== "Menus") || work.classification !== "update") return;
+  const noDraftState = NO_DRAFT_STATE_SHEETS.has(work.sheet);
+  if ((work.sheet !== "Products" && work.sheet !== "Menus" && !noDraftState) || work.classification !== "update") return;
   const change = work.changes.find((entry) => entry.column === "status");
   if (!change) return;
   const before = work.before?.status;
-  if (change.after === "draft" && before !== "archived") {
+  if (change.after === "draft" && (before !== "archived" || noDraftState)) {
     work.changes = work.changes.filter((entry) => entry.column !== "status");
     if (work.after && before !== undefined) work.after.status = before;
+    // An archived record the workbook marks draft stays archived: no restore.
+    if (work.operation === "restore") work.operation = "update";
   }
 }
 

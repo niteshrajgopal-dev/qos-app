@@ -62,7 +62,8 @@ export function rowRef(row: PlanRowRecord) {
 
 /**
  * The public id a reference column names, in this order: the record saved for
- * the referenced workbook row (this attempt or an earlier one); an existing
+ * the referenced workbook row, found by the workbook cell first and the
+ * reviewed id second (this attempt or an earlier one); an existing
  * record of the snapshot; the referenced row's reviewed target; a typed
  * source link. For every sheet but Recipes a saved row's id is its snapshot
  * id; a Recipes row that changed an approved version saved a new draft, and
@@ -72,6 +73,8 @@ export function rowRef(row: PlanRowRecord) {
  */
 export function resolveReference(run: ApplyRuntime, row: PlanRowRecord, column: string): string {
   const value = (row.after?.[column] ?? row.before?.[column] ?? "").trim();
+  // The review stores the resolved id; the referenced row is indexed by its workbook key, which the cell holds.
+  const cell = (row.values?.[column] ?? "").trim();
   const refSheet = contractSheet(row.sheet).columns.find((entry) => entry.key === column)?.ref?.sheet;
   if (!refSheet || !value) {
     throw new ApplyUnitError("dependency_unresolved", `${column} is missing.`, { field: column });
@@ -80,7 +83,7 @@ export function resolveReference(run: ApplyRuntime, row: PlanRowRecord, column: 
     if (run.snapshot.permittedBranches.has(value)) return value;
     throw new ApplyUnitError("branch_not_permitted", "This branch is outside the plan's branch scope.", { field: column });
   }
-  const referenced = run.rowsByKey.get(refSheet)?.get(value);
+  const referenced = (cell ? run.rowsByKey.get(refSheet)?.get(cell) : undefined) ?? run.rowsByKey.get(refSheet)?.get(value);
   const saved = referenced ? (run.saved.get(referenced.id) ?? referenced.appliedPublicId) : null;
   if (saved) return saved;
   const records = run.snapshot.records[refSheet as keyof typeof run.snapshot.records];

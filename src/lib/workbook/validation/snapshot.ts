@@ -37,6 +37,8 @@ export type ReviewSnapshot = {
   sourceLinks: Map<string, string>;
   /** Typed workbook source links (QOS-217) for the review namespace: sheet → workbook key → public id of an existing record. */
   typedLinks: Map<string, Map<string, string>>;
+  /** The plan that last wrote each typed link (same sheet → key index), or null when unknown. Never part of the snapshot hash. */
+  typedLinkOrigins: Map<string, Map<string, string | null>>;
   branchScope: "all" | string[];
   exportRevision: string;
   snapshotHash: string;
@@ -57,7 +59,7 @@ export type SnapshotSource = {
   exportRevision?: string;
 };
 
-export type TypedSourceLink = { entityType: string; sourceKey: string; targetPublicId: string };
+export type TypedSourceLink = { entityType: string; sourceKey: string; targetPublicId: string; planId?: string | null };
 
 /** Entity sheet of each typed link entity type (QOS-217, decision D-LINKS; QOS-200 adds the Phase 2 entities). */
 export const TYPED_LINK_SHEETS: Record<string, SupportedEntitySheet> = {
@@ -143,18 +145,34 @@ export function buildReviewSnapshot(source: SnapshotSource): ReviewSnapshot {
     allBranchPublicIds: new Set(source.allBranchPublicIds),
     sourceLinks: new Map((source.sourceLinks ?? []).map((link) => [link.sourceId, link.productPublicId])),
     typedLinks: typedLinkIndex(liveTypedLinks(source)),
+    typedLinkOrigins: typedLinkOriginIndex(liveTypedLinks(source)),
     branchScope: source.branchScope ?? "all",
     exportRevision: source.exportRevision ?? "",
     snapshotHash: snapshotHashOf(source),
   };
 }
 
+function linkSheetOf(link: TypedSourceLink) {
+  return link.entityType === "recipe" ? RECIPE_FAMILY_LINKS : TYPED_LINK_SHEETS[link.entityType]!;
+}
+
 function typedLinkIndex(links: TypedSourceLink[]) {
   const index = new Map<string, Map<string, string>>();
   for (const link of links) {
-    const sheet = link.entityType === "recipe" ? RECIPE_FAMILY_LINKS : TYPED_LINK_SHEETS[link.entityType]!;
+    const sheet = linkSheetOf(link);
     const bySheet = index.get(sheet) ?? new Map<string, string>();
     bySheet.set(link.sourceKey, link.targetPublicId);
+    index.set(sheet, bySheet);
+  }
+  return index;
+}
+
+function typedLinkOriginIndex(links: TypedSourceLink[]) {
+  const index = new Map<string, Map<string, string | null>>();
+  for (const link of links) {
+    const sheet = linkSheetOf(link);
+    const bySheet = index.get(sheet) ?? new Map<string, string | null>();
+    bySheet.set(link.sourceKey, link.planId ?? null);
     index.set(sheet, bySheet);
   }
   return index;
@@ -239,6 +257,7 @@ export async function loadSnapshotSource(
         entityType: workbookSourceLinks.entityType,
         sourceKey: workbookSourceLinks.sourceKey,
         targetPublicId: workbookSourceLinks.targetPublicId,
+        planId: workbookSourceLinks.planId,
       })
       .from(workbookSourceLinks)
       .where(and(eq(workbookSourceLinks.tenantId, tenantId), eq(workbookSourceLinks.sourceNamespace, options.sourceNamespace)));

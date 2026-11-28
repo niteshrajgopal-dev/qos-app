@@ -79,12 +79,17 @@ function withField(failure: ApplyFailure, field: string | undefined): ApplyFailu
 /**
  * Inventory and recipe service refusals (QOS-200): mapped by status, with the
  * service code as the reason. A stale expected version is a stale revision;
- * a dependency refusal carries what blocks it; a cycle carries its path.
+ * a dependency refusal (`*_in_use`) is `in_use` and carries what blocks it;
+ * a cycle carries its path.
  */
 function describeInventoryFailure(error: InventoryError): ApplyFailure {
   const reason = error.code;
   const base = { message: error.message, reason, ...(error.field ? { field: error.field } : {}) };
   if (reason === "expected_version_mismatch") return { code: "stale_revision", ...base };
+  // Other records still use this one: the real reason, never a concurrent change (QOS-200 follow-up).
+  if (error.statusCode === 409 && reason.endsWith("_in_use")) {
+    return { code: "in_use", ...base, ...(error instanceof InventoryDependencyError ? { details: { dependencies: error.dependencies } } : {}) };
+  }
   if (error.statusCode === 403) return { code: "forbidden", ...base };
   if (error.statusCode === 404) return { code: "target_not_found", ...base };
   if (error.statusCode === 409) {

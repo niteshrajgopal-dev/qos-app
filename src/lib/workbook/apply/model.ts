@@ -26,6 +26,8 @@ export const APPLY_FAILURE_CODES = [
   "brand_mismatch",
   "archived_target",
   "unsupported_field",
+  /** A dependency refusal: other records still use this one (QOS-200 follow-up). */
+  "in_use",
   "unexpected",
 ] as const;
 export type ApplyFailureCode = (typeof APPLY_FAILURE_CODES)[number];
@@ -86,6 +88,7 @@ export type RowApplyResult = {
   fieldsApplied: string[];
   /** Values read and kept with the plan but not saved (QOS-212–215 and later handlers). */
   deferred: Array<{ column: string; owner: string }>;
+  /** Typed links written for the row: on save, or (QOS-200 follow-up) for a Match existing decision on an unchanged row. */
   links?: AppliedLink[];
   image?: ApplyImageOutcome;
   /** The recipe family of a recipe version, line, step or effect row (QOS-200). */
@@ -124,7 +127,10 @@ export type ApplySummary = {
 export type ApplyAttempt = {
   publicId: string;
   status: ApplyStatus;
+  /** For API clients only; staff screens show `actorDisplayName`. */
   actorSubject: string;
+  /** The actor's name in this business, or null when they are not (or no longer) a member here (QOS-200 follow-up). */
+  actorDisplayName: string | null;
   actorRole: "administrator" | "user";
   planRevision: number;
   planHash: string;
@@ -132,6 +138,22 @@ export type ApplyAttempt = {
   finishedAt: string | null;
   counts: ApplyCounts;
   summary: ApplySummary;
+};
+
+/** One past apply of the tenant, for the import page's history (QOS-200 follow-up). Never carries a raw subject. */
+export type ApplyHistoryEntry = {
+  publicId: string;
+  status: ApplyStatus;
+  planPublicId: string;
+  fileName: string;
+  sourceProfile: string;
+  templateVersion: string | null;
+  planRevision: number;
+  actorDisplayName: string | null;
+  actorRole: "administrator" | "user";
+  startedAt: string;
+  finishedAt: string | null;
+  counts: ApplyCounts;
 };
 
 export type ApplyBlockReason =

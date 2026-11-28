@@ -8,3 +8,4 @@ export type { ApplyHooks, ImageIngester } from "@/lib/workbook/apply/handlers/ty
 export type * from "@/lib/workbook/apply/model";
 export { APPLY_LOCK_TIMEOUT_MS } from "@/lib/workbook/apply/repository";
 export { applyWorkbookPlan, parseApplyBody, repairPlanIfInterrupted, withApplyView } from "@/lib/workbook/apply/service";
+export { APPLY_HISTORY_DEFAULT_LIMIT, APPLY_HISTORY_MAX_LIMIT, listRecentApplies, parseHistoryLimit } from "@/lib/workbook/apply/history";

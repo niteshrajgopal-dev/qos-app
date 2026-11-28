@@ -9,7 +9,7 @@ import { createDraftProduct } from "@/lib/catalogue/products";
 import { getCategory } from "@/lib/inventory/categories";
 import { getItem } from "@/lib/inventory/items";
 import { getSupplier } from "@/lib/inventory/suppliers";
-import { getUnit, listUnits } from "@/lib/inventory/units";
+import { createUnit, getUnit, listUnits } from "@/lib/inventory/units";
 import { getWarehouse } from "@/lib/inventory/warehouses";
 import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import { getRecipe } from "@/lib/recipes/recipes";
@@ -26,6 +26,7 @@ import { POST as applyPOST } from "./plans/[planPublicId]/apply/route";
 import { POST as reviewPOST } from "./plans/[planPublicId]/review/route";
 import { GET as planGET } from "./plans/[planPublicId]/route";
 import { GET as exportGET } from "./export/route";
+import { GET as templateGET } from "./template/route";
 import { POST as previewPOST } from "./preview/route";
 
 /* QOS-200 Phase 2 workbook apply against local Postgres: units, suppliers,
@@ -574,12 +575,21 @@ integrationDescribe("Phase 2 workbook apply (DB)", () => {
     const [link] = await db.select().from(workbookSourceLinks).where(eq(workbookSourceLinks.sourceKey, v1));
     expect(link).toMatchObject({ entityType: "recipe_version", targetPublicId: draftId });
 
-    // The same file again: compared against the draft it already saved, so nothing changes.
+    // The same file again, as a new upload: the open draft is offered as the choice, and its line waits for it.
     const before = await counts();
     const retry = await ok(await previewAs(ADMIN, tenantId, bytes));
-    expect(row(retry, "Recipes", v1)).toMatchObject({ classification: "unchanged", identity: expect.objectContaining({ targetPublicId: draftId }) });
-    expect(row(retry, "Recipe Lines", savedId(applied, "Recipe Lines", "l-milk")).classification).toBe("unchanged");
-    await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, retry)));
+    const retryRecipe = row(retry, "Recipes", v1);
+    expect(retryRecipe.classification).toBe("conflicting");
+    expect(retryRecipe.candidates?.map((candidate) => candidate.publicId)).toEqual([draftId]);
+    expect(retryRecipe.diagnostics).toContainEqual(expect.objectContaining({ code: "existing_record_conflict", params: expect.objectContaining({ reason: "draft_exists" }) }));
+    const retryLine = row(retry, "Recipe Lines", savedId(applied, "Recipe Lines", "l-milk"));
+    expect(retryLine.classification).toBe("blocked");
+    expect(retryLine.diagnostics).toContainEqual(expect.objectContaining({ code: "blocked_by_dependency", params: expect.objectContaining({ refSheet: "Recipes", reason: "conflicting" }) }));
+    // Choosing the draft: compared against the draft it already saved, so nothing changes.
+    const chosen = await completeReview(tenantId, retry, [{ kind: "match_existing", sheet: "Recipes", row: retryRecipe.row, targetPublicId: draftId }]);
+    expect(row(chosen, "Recipes", v1)).toMatchObject({ classification: "unchanged", identity: expect.objectContaining({ targetPublicId: draftId }) });
+    expect(row(chosen, "Recipe Lines", savedId(applied, "Recipe Lines", "l-milk")).classification).toBe("unchanged");
+    await ok(await applyAs(ADMIN, tenantId, chosen));
     expect(await counts()).toEqual(before);
 
     // Someone approves that draft and opens another one in the editor: an import for the approved version must not patch it silently.
@@ -793,5 +803,252 @@ integrationDescribe("Phase 2 workbook apply (DB)", () => {
     expect(reason("Ingredients", "i-flour")).toEqual(["factor_conflicts_with_standard"]);
     expect(new Set(reason("Ingredients", "i-salt"))).toEqual(new Set(["decimal_too_precise", "currency_mismatch", "malformed_date"]));
     expect(row(result, "Units", "u-kg").classification).toBe("create");
+  });
+  /* QOS-200 follow-up: a hand-filled template (keys are workbook keys, not QOS ids), as browser QA used it. */
+  async function templateBytes(tenantId: string, rows: Record<string, ReadonlyArray<Record<string, string>>>) {
+    as(ADMIN);
+    const response = await templateGET(new Request(`http://localhost/api/tenants/${tenantId}/catalogue/workbook/template`), params(tenantId));
+    expect(response.status).toBe(200);
+    const workbook = await loadWorkbook(Buffer.from(await response.arrayBuffer()));
+    for (const [sheet, entries] of Object.entries(rows)) appendRows(workbook, sheet, entries);
+    return saveWorkbook(workbook);
+  }
+
+  /** The recipe row of the first workbook and its line, step and effect, edited by their workbook keys. */
+  const APPROVED_EDIT = {
+    Recipes: [{ recipe_version_key: "r-latte-1", action: "update", recipe_key: "r-latte", yield_quantity: "3" }],
+    "Recipe Lines": [{ recipe_line_key: "l-milk", action: "update", recipe_version_key: "r-latte-1", quantity_recipe_units: "250" }],
+    "Prep Steps": [{ prep_step_key: "p-steam", action: "update", recipe_version_key: "r-latte-1", instruction: "Steam to 60 degrees" }],
+    "Modifier Effects": [{ effect_key: "e-sweet", action: "update", recipe_version_key: "r-latte-1", quantity_per_sold_unit: "7" }],
+  };
+
+  /** Everything stored for a version: its row and its lines, steps and effects, as JSON text. */
+  async function versionState(publicId: string) {
+    const [state] = await sql`
+      SELECT
+        (SELECT row_to_json(v)::text FROM qos.recipe_versions v WHERE v.public_id = ${publicId}) AS version,
+        (SELECT coalesce(json_agg(row_to_json(l) ORDER BY l.position)::text, '[]') FROM qos.recipe_version_lines l JOIN qos.recipe_versions v ON v.id = l.recipe_version_id WHERE v.public_id = ${publicId}) AS lines,
+        (SELECT coalesce(json_agg(row_to_json(s) ORDER BY s.position)::text, '[]') FROM qos.recipe_version_steps s JOIN qos.recipe_versions v ON v.id = s.recipe_version_id WHERE v.public_id = ${publicId}) AS steps,
+        (SELECT coalesce(json_agg(row_to_json(e) ORDER BY e.position)::text, '[]') FROM qos.recipe_version_modifier_effects e JOIN qos.recipe_versions v ON v.id = e.recipe_version_id WHERE v.public_id = ${publicId}) AS effects
+    `;
+    return state!;
+  }
+
+  async function linkTarget(entityType: string, sourceKey: string) {
+    const links = await db.select().from(workbookSourceLinks).where(eq(workbookSourceLinks.sourceKey, sourceKey));
+    return links.filter((link) => link.entityType === entityType).map((link) => link.targetPublicId);
+  }
+
+  async function approveLatte(fx: Awaited<ReturnType<typeof seed>>, applied: WorkbookReviewResult) {
+    const familyId = row(applied, "Recipes", "r-latte-1").apply!.result!.parentPublicId!;
+    const v1 = row(applied, "Recipes", "r-latte-1").apply!.appliedPublicId!;
+    const detail = await getRecipe(db, fx.tenantId, familyId);
+    await approveVersion(db, fx.tenantId, fx.admin, ADMIN, familyId, v1, { expectedVersion: detail.versions[0]!.version, effectiveFrom: "2026-11-20" });
+    return { familyId, v1, before: await versionState(v1) };
+  }
+
+  /** The draft's line, step and effect that copy the first workbook's l-milk, p-steam and e-sweet. */
+  async function draftChildren(tenantId: string, familyId: string, draftId: string, applied: WorkbookReviewResult) {
+    const draft = (await getRecipe(db, tenantId, familyId)).versions.find((version) => version.publicId === draftId)!;
+    const milkItem = savedId(applied, "Ingredients", "i-milk");
+    const sugarItem = savedId(applied, "Ingredients", "i-sugar");
+    return {
+      draft,
+      line: draft.lines.find((line) => line.item.publicId === milkItem)!,
+      step: [...draft.steps].sort((a, b) => a.position - b.position)[0]!,
+      effect: draft.effects.find((effect) => effect.effectType === "add" && effect.item?.publicId === sugarItem)!,
+    };
+  }
+
+  it("applies lines, steps and effects of an approved version to the draft its recipe row creates when the rows use workbook keys", async () => {
+    const { fx, applied } = await applyFirst();
+    const { tenantId } = fx;
+    const { familyId, v1, before } = await approveLatte(fx, applied);
+    const bytes = await templateBytes(tenantId, APPROVED_EDIT);
+
+    const previewed = await ok(await previewAs(ADMIN, tenantId, bytes));
+    for (const [sheet, key] of [["Recipes", "r-latte-1"], ["Recipe Lines", "l-milk"], ["Prep Steps", "p-steam"], ["Modifier Effects", "e-sweet"]] as const) {
+      expect(row(previewed, sheet, key), `${sheet} ${key}`).toMatchObject({ classification: "update" });
+    }
+    const saved = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, previewed)));
+    expect(saved.plan.status, JSON.stringify(saved.rows.filter((entry) => entry.apply?.state === "failed").map((entry) => [entry.sheet, entry.key, entry.apply?.error]))).toBe("applied");
+
+    const draftId = row(saved, "Recipes", "r-latte-1").apply!.appliedPublicId!;
+    expect(draftId).not.toBe(v1);
+    const { draft, line, step, effect } = await draftChildren(tenantId, familyId, draftId, applied);
+    expect(draft).toMatchObject({ status: "draft", versionNumber: 2, yieldQuantity: "3" });
+    expect(line.quantity).toBe("250");
+    expect(step.textEn).toBe("Steam to 60 degrees");
+    expect(effect.quantity).toBe("7");
+    // Each child row was saved to its copy on the draft, and its key now follows that copy.
+    expect(row(saved, "Recipe Lines", "l-milk").apply!.appliedPublicId).toBe(line.publicId);
+    expect(row(saved, "Prep Steps", "p-steam").apply!.appliedPublicId).toBe(step.publicId);
+    expect(row(saved, "Modifier Effects", "e-sweet").apply!.appliedPublicId).toBe(effect.publicId);
+    expect(await linkTarget("recipe_version", "r-latte-1")).toEqual([draftId]);
+    expect(await linkTarget("recipe_line", "l-milk")).toEqual([line.publicId]);
+    expect(await linkTarget("prep_step", "p-steam")).toEqual([step.publicId]);
+    expect(await linkTarget("modifier_effect", "e-sweet")).toEqual([effect.publicId]);
+
+    // The approved version, its lines, steps and effects are byte-identical; one draft, nothing approved.
+    expect(await versionState(v1)).toEqual(before);
+    const after = await getRecipe(db, tenantId, familyId);
+    expect(after.versions.filter((version) => version.status === "draft").map((version) => version.publicId)).toEqual([draftId]);
+    expect(after.versions.find((version) => version.publicId === v1)).toMatchObject({ status: "approved", yieldQuantity: "1" });
+    expect(await counts()).toMatchObject({ snapshots: 1, publishes: 0, live: 0 });
+  });
+
+  it("re-uploading while that draft is open makes the recipe row conflicting with the draft and blocks its lines until it is chosen", async () => {
+    const { fx, applied } = await applyFirst();
+    const { tenantId } = fx;
+    const { familyId } = await approveLatte(fx, applied);
+    const bytes = await templateBytes(tenantId, APPROVED_EDIT);
+    const first = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, await ok(await previewAs(ADMIN, tenantId, bytes)))));
+    expect(first.plan.status).toBe("applied");
+    const draftId = row(first, "Recipes", "r-latte-1").apply!.appliedPublicId!;
+
+    // The same file again, as a new upload: the open draft is a human-owned state, so the operator chooses it.
+    const again = await ok(await previewAs(ADMIN, tenantId, bytes));
+    const recipe = row(again, "Recipes", "r-latte-1");
+    expect(recipe.classification).toBe("conflicting");
+    expect(recipe.candidates?.map((candidate) => candidate.publicId)).toEqual([draftId]);
+    expect(recipe.diagnostics).toContainEqual(expect.objectContaining({ code: "existing_record_conflict", params: expect.objectContaining({ reason: "draft_exists" }) }));
+    for (const [sheet, key] of [["Recipe Lines", "l-milk"], ["Prep Steps", "p-steam"], ["Modifier Effects", "e-sweet"]] as const) {
+      const child = row(again, sheet, key);
+      expect(child.classification, `${sheet} ${key}`).toBe("blocked");
+      expect(child.diagnostics).toContainEqual(expect.objectContaining({ code: "blocked_by_dependency", params: expect.objectContaining({ refSheet: "Recipes", key: "r-latte-1", reason: "conflicting" }) }));
+    }
+
+    const before = await counts();
+    const draftBefore = await versionState(draftId);
+    const decided = await ok(
+      await reviewAs(ADMIN, tenantId, again.plan.publicId, {
+        expectedPlanHash: again.plan.planHash,
+        decisions: [{ kind: "match_existing", sheet: "Recipes", row: recipe.row, key: "r-latte-1", targetPublicId: draftId }],
+      }),
+    );
+    expect(row(decided, "Recipes", "r-latte-1")).toMatchObject({ classification: "unchanged", identity: expect.objectContaining({ targetPublicId: draftId }) });
+    for (const [sheet, key] of [["Recipe Lines", "l-milk"], ["Prep Steps", "p-steam"], ["Modifier Effects", "e-sweet"]] as const) {
+      expect(row(decided, sheet, key).classification, `${sheet} ${key}`).toBe("unchanged");
+    }
+    const reapplied = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, decided)));
+    expect(reapplied.plan.status).toBe("applied");
+    expect(await counts()).toEqual(before);
+    expect(await versionState(draftId)).toEqual(draftBefore);
+    expect((await getRecipe(db, tenantId, familyId)).versions.filter((version) => version.status === "draft")).toHaveLength(1);
+  });
+
+  it("a retry after a partial apply follows the draft the same plan made, with no conflict", async () => {
+    const { fx, applied } = await applyFirst();
+    const { tenantId, admin } = fx;
+    const { familyId, v1, before } = await approveLatte(fx, applied);
+    const reviewed = await completeReview(tenantId, await ok(await previewAs(ADMIN, tenantId, await templateBytes(tenantId, APPROVED_EDIT))));
+    const lineRow = row(reviewed, "Recipe Lines", "l-milk").row;
+    const failed = await applyWorkbookPlan(db, tenantId, admin, ADMIN, reviewed.plan.publicId, { expectedPlanHash: reviewed.plan.planHash, idempotencyKey: "fault-approved-line" }, { hooks: { beforeCheckpoint: faultAt("Recipe Lines", lineRow) } });
+    expect(failed.plan.status).toBe("apply_failed");
+    expect(row(failed, "Recipes", "r-latte-1").apply!.state).toBe("applied");
+    expect(row(failed, "Recipe Lines", "l-milk").apply!.state).toBe("failed");
+    const draftId = row(failed, "Recipes", "r-latte-1").apply!.appliedPublicId!;
+    const copy = (await draftChildren(tenantId, familyId, draftId, applied)).line;
+    expect(copy.quantity).toBe("200");
+
+    // Revalidate the same plan: the recipe row follows its own draft; the line row is matched to its copy on that draft.
+    const current = await planOf(tenantId, reviewed.plan.publicId);
+    const rereviewed = await ok(await reviewAs(ADMIN, tenantId, current.plan.publicId, { expectedPlanHash: current.plan.planHash, decisions: [...current.acknowledgements.given, ...current.rows.flatMap((entry) => (entry.decision ? [entry.decision] : []))] }));
+    expect(row(rereviewed, "Recipes", "r-latte-1")).toMatchObject({ classification: "unchanged", identity: expect.objectContaining({ targetPublicId: draftId }) });
+    expect(row(rereviewed, "Recipe Lines", "l-milk")).toMatchObject({ classification: "update", identity: expect.objectContaining({ targetPublicId: copy.publicId }) });
+    const finished = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, rereviewed)));
+    expect(finished.plan.status, JSON.stringify(finished.rows.filter((entry) => entry.apply?.state === "failed").map((entry) => [entry.sheet, entry.key, entry.apply?.error]))).toBe("applied");
+    expect((await draftChildren(tenantId, familyId, draftId, applied)).line.quantity).toBe("250");
+    expect(await linkTarget("recipe_line", "l-milk")).toEqual([copy.publicId]);
+    expect(await versionState(v1)).toEqual(before);
+    expect((await getRecipe(db, tenantId, familyId)).versions.filter((version) => version.status === "draft")).toHaveLength(1);
+  });
+  it("an identical re-upload of a template with draft status is a no-op and never downgrades an active variant, group or option", async () => {
+    const fx = await seed();
+    const { tenantId } = fx;
+    const bytes = await templateBytes(tenantId, {
+      Products: [{ product_key: "p-mocha", action: "create", internal_name: "mocha", display_name_en: "Mocha", display_name_ar: "موكا", status: "draft" }],
+      Variants: [{ variant_key: "v-mocha", action: "create", product_key: "p-mocha", is_default: "TRUE", sort_order: "1", amount_minor: "2000", currency: "AED", status: "draft" }],
+      "Modifier Groups": [{ modifier_group_key: "g-size", action: "create", internal_name: "size", display_name_en: "Size", display_name_ar: "الحجم", min_selections: "0", max_selections: "1", status: "draft" }],
+      "Modifier Options": [{ modifier_option_key: "o-large", action: "create", modifier_group_key: "g-size", display_name_en: "Large", display_name_ar: "كبير", price_minor: "300", currency: "AED", is_default: "FALSE", allows_quantity: "FALSE", max_quantity: "1", sort_order: "1", status: "draft" }],
+    });
+    const first = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, await ok(await previewAs(ADMIN, tenantId, bytes)))));
+    expect(first.plan.status, JSON.stringify(first.rows.filter((entry) => entry.apply?.state === "failed").map((entry) => [entry.sheet, entry.key, entry.apply?.error]))).toBe("applied");
+    const statuses = async () => {
+      const [state] = await sql`
+        SELECT
+          (SELECT status::text FROM qos.catalogue_variants WHERE public_id = ${savedId(first, "Variants", "v-mocha")}) AS variant,
+          (SELECT status::text FROM qos.catalogue_modifier_groups WHERE public_id = ${savedId(first, "Modifier Groups", "g-size")}) AS group,
+          (SELECT status::text FROM qos.catalogue_modifier_options WHERE public_id = ${savedId(first, "Modifier Options", "o-large")}) AS option,
+          (SELECT status::text FROM qos.catalogue_products WHERE public_id = ${savedId(first, "Products", "p-mocha")}) AS product
+      `;
+      return state!;
+    };
+    expect(await statuses()).toEqual({ variant: "active", group: "active", option: "active", product: "draft" });
+
+    for (let round = 0; round < 2; round += 1) {
+      const again = await ok(await previewAs(ADMIN, tenantId, bytes));
+      expect(again.rows.filter((entry) => entry.classification !== "unchanged").map((entry) => [entry.sheet, entry.key, entry.classification, entry.changes])).toEqual([]);
+      expect(again.counts).toMatchObject({ create: 0, update: 0 });
+      const reapplied = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, again)));
+      expect(reapplied.plan.status).toBe("applied");
+      expect(reapplied.apply!.attempts[0]!.counts.applied).toBe(0);
+      expect(await statuses()).toEqual({ variant: "active", group: "active", option: "active", product: "draft" });
+    }
+  });
+
+  it("remembers a Match existing decision on a standard unit through a typed link, so a re-upload does not conflict again", async () => {
+    const fx = await seed();
+    const { tenantId, admin } = fx;
+    const kg = await createUnit(db, tenantId, admin, ADMIN, { source: "standard", standardCode: "kg" });
+    const bytes = await templateBytes(tenantId, { Units: [{ unit_key: "u-kg-2", action: "create", name: "kg", quantity_kind: "MASS", decimal_places: "3", active: "TRUE" }] });
+
+    const previewed = await ok(await previewAs(ADMIN, tenantId, bytes));
+    const unitRow = row(previewed, "Units", "u-kg-2");
+    expect(unitRow).toMatchObject({ classification: "conflicting", candidates: [expect.objectContaining({ publicId: kg.publicId })] });
+    const decided = await completeReview(tenantId, previewed, [{ kind: "match_existing", sheet: "Units", row: unitRow.row, key: "u-kg-2", targetPublicId: kg.publicId }]);
+    expect(row(decided, "Units", "u-kg-2")).toMatchObject({ classification: "unchanged", identity: expect.objectContaining({ targetPublicId: kg.publicId }) });
+    const applied = await ok(await applyAs(ADMIN, tenantId, decided));
+    expect(applied.plan.status).toBe("applied");
+    expect(row(applied, "Units", "u-kg-2").apply).toMatchObject({
+      state: "not_applied",
+      result: { reason: "unchanged", links: [expect.objectContaining({ entityType: "unit", sourceKey: "u-kg-2", targetPublicId: kg.publicId })] },
+    });
+    expect(await linkTarget("unit", "u-kg-2")).toEqual([kg.publicId]);
+    expect((await listUnits(db, tenantId)).units).toHaveLength(1);
+
+    // The next upload of the same file resolves the key through the link: unchanged, no conflict, nothing to decide.
+    const again = await ok(await previewAs(ADMIN, tenantId, bytes));
+    expect(row(again, "Units", "u-kg-2")).toMatchObject({ classification: "unchanged", identity: expect.objectContaining({ targetPublicId: kg.publicId, via: "source_link" }) });
+    expect(again.readiness.blockers).not.toContain("conflicting");
+  });
+  it("a dependency refusal fails only its row, with the real reason and counts instead of a concurrency message", async () => {
+    const { fx, applied } = await applyFirst();
+    const { tenantId } = fx;
+    const bytes = await templateBytes(tenantId, {
+      Units: [{ unit_key: "u-ml", action: "update", active: "FALSE" }],
+      Suppliers: [{ supplier_key: "s-farm", action: "update", active: "FALSE" }],
+      "Inventory Categories": [{ inventory_category_key: "c-dairy", action: "update", name_en: "Dairy and eggs" }],
+      Ingredients: [{ ingredient_key: "i-milk", action: "update", active: "FALSE" }],
+    });
+    const previewed = await ok(await previewAs(ADMIN, tenantId, bytes));
+    expect(row(previewed, "Suppliers", "s-farm")).toMatchObject({ classification: "update", operation: "archive" });
+    const result = await ok(await applyAs(ADMIN, tenantId, await completeReview(tenantId, previewed)));
+    expect(result.plan.status).toBe("apply_failed");
+
+    expect(row(result, "Suppliers", "s-farm").apply).toMatchObject({
+      state: "failed",
+      error: { code: "in_use", reason: "supplier_in_use", details: { dependencies: [{ kind: "inventory_items", count: 1 }] } },
+    });
+    expect(row(result, "Ingredients", "i-milk").apply).toMatchObject({ state: "failed", error: { code: "in_use", reason: "item_in_use" } });
+    expect(row(result, "Ingredients", "i-milk").apply!.error!.details!.dependencies).toContainEqual(expect.objectContaining({ kind: "recipe_lines" }));
+    expect(row(result, "Units", "u-ml").apply).toMatchObject({ state: "failed", error: { code: "in_use", reason: "unit_in_use" } });
+    // The other row still saved; the refused records are unchanged and still active.
+    expect(row(result, "Inventory Categories", "c-dairy").apply!.state).toBe("applied");
+    expect((await getCategory(db, tenantId, savedId(applied, "Inventory Categories", "c-dairy"))).category.nameEn).toBe("Dairy and eggs");
+    expect((await getSupplier(db, tenantId, savedId(applied, "Suppliers", "s-farm"))).supplier.status).toBe("active");
+    expect((await getItem(db, tenantId, savedId(applied, "Ingredients", "i-milk"))).item.status).toBe("active");
+    expect((await getUnit(db, tenantId, savedId(applied, "Units", "u-ml"))).unit.status).toBe("active");
+    expect(result.apply!.attempts[0]!.summary.failures).toContainEqual(expect.objectContaining({ sheet: "Suppliers", key: "s-farm", code: "in_use" }));
   });
 });
