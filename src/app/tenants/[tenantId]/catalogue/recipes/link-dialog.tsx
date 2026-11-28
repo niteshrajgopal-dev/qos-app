@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { recipesApiPath } from "@/app/tenants/[tenantId]/catalogue/recipes/recipes-client";
+import { linkReplaceWarningKey, recipesApiPath } from "@/app/tenants/[tenantId]/catalogue/recipes/recipes-client";
 import { inventoryApi, inventoryFailureText } from "@/app/tenants/[tenantId]/inventory/inventory-client";
 import { Modal } from "@/components/Modal";
 import { PortalField, PortalNotice } from "@/components/portal/workspace/PortalWorkspace";
@@ -52,6 +52,7 @@ export function LinkDialog({
   const item = pickers.items.find((entry) => entry.publicId === itemPublicId);
   const units = item ? pickers.units.filter((unit) => item.unitPublicIds.includes(unit.publicId)) : [];
   const name = (entry: { nameEn: string; nameAr: string | null }) => (locale === "ar" && entry.nameAr ? entry.nameAr : entry.nameEn);
+  const replaceWarning = linkReplaceWarningKey(state, kind);
 
   async function submit() {
     if (!state) return;
@@ -106,6 +107,7 @@ export function LinkDialog({
             </select>
           </PortalField>
         ) : null}
+        {replaceWarning ? <PortalNotice tone="warning">{t(replaceWarning)}</PortalNotice> : null}
         {kind === "recipe" ? (
           pickers.recipes.length === 0 ? (
             <PortalNotice tone="info">{t("linkNoRecipes")}</PortalNotice>

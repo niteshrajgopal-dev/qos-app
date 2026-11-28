@@ -25,6 +25,16 @@ describe("tenantAuditActionLabel", () => {
     expect(tenantAuditEntityLabel("catalogue_product", "ar")).toBe("منتج");
   });
 
+  it("labels variant update, archive and restore in both languages, each distinct from the area fallback", () => {
+    const actions = ["catalogue.variant.update", "catalogue.variant.archive", "catalogue.variant.restore"];
+    const english = actions.map((action) => tenantAuditActionLabel(action, "en"));
+    const arabic = actions.map((action) => tenantAuditActionLabel(action, "ar"));
+    expect(english).toEqual(["Variant updated", "Variant archived", "Variant restored"]);
+    expect(arabic).toEqual(["تم تحديث متغيّر", "تمت أرشفة متغيّر", "تمت استعادة متغيّر"]);
+    expect(english).not.toContain(tenantAuditActionLabel("catalogue.unlabelled_action", "en"));
+    for (const text of arabic) expect(text).toMatch(/^[\u0600-\u06FF\s]+$/);
+  });
+
   it("labels modifier group deletion in both languages", () => {
     expect(tenantAuditActionLabel("catalogue.modifier_group.delete", "en")).toBe(
       "Modifier group deleted",
