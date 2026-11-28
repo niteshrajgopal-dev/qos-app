@@ -44,6 +44,12 @@ function graphOrder(a: PlanRowRecord, b: PlanRowRecord) {
   return (SHEET_ORDER.get(a.sheet) ?? 999) - (SHEET_ORDER.get(b.sheet) ?? 999) || a.rowNumber - b.rowNumber;
 }
 
+const RECIPE_CHILDREN = new Set(["Recipe Lines", "Prep Steps", "Modifier Effects"]);
+
+function versionKeyOf(row: PlanRowRecord) {
+  return (row.after?.recipe_version_key ?? row.before?.recipe_version_key ?? "").trim();
+}
+
 /**
  * Units in graph order (contract sheet order, then row number). A product
  * create carries its default Variants row (QOS creates a product with its
@@ -69,6 +75,15 @@ export function planUnits(rows: PlanRowRecord[]): Unit[] {
       if (variant) {
         unit.rows.push(variant);
         grouped.add(variant.id);
+      }
+    }
+    if (RECIPE_CHILDREN.has(row.sheet)) {
+      // One whole-list service call per recipe version: every line (step, effect) row of that version is one unit.
+      const version = versionKeyOf(row);
+      for (const candidate of applicable) {
+        if (candidate === row || candidate.sheet !== row.sheet || grouped.has(candidate.id) || versionKeyOf(candidate) !== version) continue;
+        unit.rows.push(candidate);
+        grouped.add(candidate.id);
       }
     }
     if (row.sheet === "Menus" && row.operation === "create") {
@@ -211,6 +226,20 @@ async function runUnit(run: ApplyRuntime, unit: Unit, counts: ApplyCounts): Prom
           subject: run.actor.subject,
         });
         if (link) links.set(entry.row.id, [link]);
+        for (const extra of entry.extraLinks ?? []) {
+          const written = await writeTypedLinkInTx(tx, {
+            tenantId: run.tenantId,
+            namespace: run.namespace,
+            sheet: entry.row.sheet,
+            entityType: extra.entityType,
+            sourceKey: extra.sourceKey,
+            targetPublicId: extra.targetPublicId,
+            planId: run.plan.id,
+            applyId: run.apply.id,
+            subject: run.actor.subject,
+          });
+          if (written) links.set(entry.row.id, [...(links.get(entry.row.id) ?? []), written]);
+        }
       }
 
       await run.hooks.beforeCheckpoint?.({ sheet: unit.sheet, rows: unit.rows.map((row) => row.rowNumber) });
@@ -236,6 +265,9 @@ async function runUnit(run: ApplyRuntime, unit: Unit, counts: ApplyCounts): Prom
           deferred: kept.map((field) => ({ column: field.column, owner: field.owner })),
           ...(links.get(entry.row.id) ? { links: links.get(entry.row.id) } : {}),
           ...(entry.imageUrl ? { image: { status: "skipped" as const, reason: "pending" } } : {}),
+          ...(entry.parentPublicId ? { parentPublicId: entry.parentPublicId } : {}),
+          ...(entry.versionPublicId ? { versionPublicId: entry.versionPublicId } : {}),
+          ...(entry.records && entry.records.length > 0 ? { records: entry.records } : {}),
         };
         await writeRowOutcome(tx, run.tenantId, entry.row.id, { state: "applied", applyId: run.apply.id, appliedPublicId: entry.publicId, applied: true, result });
       }

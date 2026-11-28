@@ -20,6 +20,16 @@ export const ENTITY_SHEETS = new Set([
   "Modifier Options",
   "Menus",
   "Menu Sections",
+  // QOS-200 Phase 2 records: each has its own public id.
+  "Units",
+  "Suppliers",
+  "Warehouses",
+  "Inventory Categories",
+  "Ingredients",
+  "Recipes",
+  "Recipe Lines",
+  "Prep Steps",
+  "Modifier Effects",
 ]);
 
 /** Parent reference of a scoped entity: variants per product, options per group, sections per menu. */
@@ -27,6 +37,11 @@ export const PARENT_COLUMN: Record<string, string | undefined> = {
   Variants: "product_key",
   "Modifier Options": "modifier_group_key",
   "Menu Sections": "menu_key",
+  // QOS-200: a warehouse belongs to its branch; lines, steps and effects to their recipe version.
+  Warehouses: "branch_key",
+  "Recipe Lines": "recipe_version_key",
+  "Prep Steps": "recipe_version_key",
+  "Modifier Effects": "recipe_version_key",
 };
 
 /** Name columns compared for collisions, per sheet. Same field against same field. */
@@ -38,6 +53,13 @@ export const NAME_COLUMNS: Record<string, string[]> = {
   "Modifier Options": ["display_name_en", "display_name_ar"],
   Menus: ["display_name_en", "display_name_ar", "internal_name"],
   "Menu Sections": ["display_name_en", "display_name_ar", "internal_name"],
+  // QOS-200: candidates only. Lines, steps and effects are identified by key, parent and endpoints, never by name.
+  Units: ["name", "name_ar", "code"],
+  Suppliers: ["name"],
+  Warehouses: ["name"],
+  "Inventory Categories": ["name_en", "name_ar"],
+  Ingredients: ["name_en", "name_ar"],
+  Recipes: ["name"],
 };
 
 /** Loose names of a row, per name column, skipping blanks. */
@@ -80,6 +102,24 @@ export function labelOf(sheet: string, values: Row | null | undefined): ReviewLa
   if (!values) return { en: "", ar: "" };
   if (sheet === "Branches") {
     return { en: values.name ?? "", ar: values.name ?? "" };
+  }
+  if (sheet === "Units") {
+    return { en: firstNonBlank(values.name, values.name_ar, values.code), ar: firstNonBlank(values.name_ar, values.name, values.code) };
+  }
+  if (sheet === "Suppliers" || sheet === "Warehouses" || sheet === "Recipes") {
+    return { en: values.name ?? "", ar: values.name ?? "" };
+  }
+  if (sheet === "Inventory Categories" || sheet === "Ingredients") {
+    return { en: firstNonBlank(values.name_en, values.name_ar), ar: firstNonBlank(values.name_ar, values.name_en) };
+  }
+  if (sheet === "Prep Steps") {
+    const instruction = (values.instruction ?? "").trim();
+    const short = instruction.length > 60 ? `${instruction.slice(0, 60)}…` : instruction;
+    return { en: short, ar: short };
+  }
+  if (sheet === "Recipe Lines" || sheet === "Modifier Effects") {
+    // Labelled from their endpoints by the review (rowLabel); nothing of their own.
+    return { en: "", ar: "" };
   }
   if (sheet === "Variants") {
     const en = firstNonBlank(values.variant_label_en, values.variant_label_ar);

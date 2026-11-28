@@ -23,6 +23,16 @@ const ROW_ENTITY_TYPE: Record<string, string> = {
   "Menu Branches": "catalogue_menu_location",
   "Menu Sections": "catalogue_menu_section",
   "Menu Items": "catalogue_menu_item",
+  // QOS-200: the entity types the inventory and recipe services audit under.
+  Units: "inventory_unit",
+  Suppliers: "inventory_supplier",
+  Warehouses: "inventory_warehouse",
+  "Inventory Categories": "inventory_category",
+  Ingredients: "inventory_item",
+  Recipes: "recipe_version",
+  "Recipe Lines": "recipe_version",
+  "Prep Steps": "recipe_version",
+  "Modifier Effects": "recipe_version",
 };
 
 export async function recordApplyRowAuditInTx(

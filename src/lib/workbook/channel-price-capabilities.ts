@@ -8,7 +8,7 @@ import { contractSheet } from "@/lib/workbook/contract";
    ticket's capability file on purpose. */
 
 /** Workbook apply of these sheets is QOS-200's, not this leaf. */
-export const CHANNEL_PRICE_APPLY_OWNER = "QOS-200 apply";
+export const CHANNEL_PRICE_APPLY_OWNER = "Menu column extensions: next import increment";
 
 export type ChannelFieldCapability = "persistable" | "review_only" | "deferred";
 

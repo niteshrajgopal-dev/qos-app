@@ -238,15 +238,15 @@ describe("workbook review panel", () => {
   it("names sheets and owners in Arabic on the field decisions, keeping the contract name as code", () => {
     const html = render("ar");
     const ar = STAFF_UI_COPY.ar;
-    expect(result.fieldDecisions.some((field) => field.sheet === "Products" && field.owner === "QOS-194 review; apply in QOS-217")).toBe(true);
+    expect(result.fieldDecisions.some((field) => field.sheet === "Products" && field.owner === "Checked by this review and applied by the import")).toBe(true);
     expect(html).toContain(`<bdi>${ar.reviewSheetProducts}</bdi>`);
     expect(html).toContain(`<code class="qosp-code" dir="ltr">Products</code>`);
     expect(html).toContain(ar.reviewOwnerValidated);
-    expect(html).not.toContain("QOS-194 review; apply in QOS-217");
+    expect(html).not.toContain("Checked by this review and applied by the import");
     expect(html).not.toContain(`<bdi dir="ltr">Products</bdi>`);
     const en = render("en");
     expect(en).toContain(`<bdi dir="ltr">Products</bdi>`);
-    expect(en).toContain("QOS-194 review; apply in QOS-217");
+    expect(en).toContain("Checked by this review and applied by the import");
   });
 
   it("the apply section never uses browser storage, a browser confirm or simulated rows", () => {

@@ -123,7 +123,7 @@ export function sellingAttributeCapability(key: string) {
 }
 
 /** v1.3 selling-attribute columns are persistable in the catalogue, but workbook apply is QOS-200's. */
-export const SELLING_ATTRIBUTE_APPLY_OWNER = "QOS-200 apply";
+export const SELLING_ATTRIBUTE_APPLY_OWNER = "Menu column extensions: next import increment";
 
 /** The persistable capability behind a v1.3 contract column, or undefined for any other column. */
 export function sellingAttributeColumnCapability(sheet: string, column: string) {

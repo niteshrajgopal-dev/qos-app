@@ -3,7 +3,7 @@ import type { ActiveStaffMembership } from "@/lib/staff/auth";
 import type { DbTransaction } from "@/lib/tenant/context";
 import type { SupportedEntitySheet } from "@/lib/workbook/contract";
 import type { ApplyActor } from "@/lib/workbook/apply/audit";
-import type { ApplyImageOutcome } from "@/lib/workbook/apply/model";
+import type { AppliedRecord, ApplyImageOutcome, TypedLinkEntity } from "@/lib/workbook/apply/model";
 import type { ApplyRecord } from "@/lib/workbook/apply/repository";
 import type { TokenScope } from "@/lib/workbook/apply/revisions";
 import type { PlanRecord, PlanRowRecord } from "@/lib/workbook/validation/plan-repository";
@@ -53,7 +53,7 @@ export type ApplyRuntime = {
 
 export type Unit = {
   sheet: SupportedEntitySheet;
-  /** The primary row first, then rows saved in the same transaction (default variant, menu branches). */
+  /** The primary row first, then rows saved in the same transaction (default variant, menu branches, the lines, steps or effects of one recipe version). */
   rows: PlanRowRecord[];
 };
 
@@ -71,6 +71,13 @@ export type SavedRow = {
   created?: boolean;
   /** A product whose image should be fetched after commit. */
   imageUrl?: string;
+  /** QOS-200: further typed links the same unit writes (the recipe family of a Recipes row). */
+  extraLinks?: Array<{ entityType: TypedLinkEntity; sourceKey: string; targetPublicId: string }>;
+  /** QOS-200: the recipe family (and version) a recipe row, line, step or effect belongs to. */
+  parentPublicId?: string;
+  versionPublicId?: string;
+  /** QOS-200: sub-records saved by the row (family, draft, sellable link, conversion, cost). */
+  records?: AppliedRecord[];
 };
 
 export type HandlerContext = {

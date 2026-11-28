@@ -45,7 +45,7 @@
     {
       "sheet": "Categories",
       "class": "recognized",
-      "owner": "QOS-194 validate, QOS-200 apply",
+      "owner": "Reviewed and applied by the import",
       "columns": [
         "category_key",
         "action",
@@ -59,7 +59,7 @@
     {
       "sheet": "Products",
       "class": "recognized",
-      "owner": "QOS-194 validate, QOS-200 apply",
+      "owner": "Reviewed and applied by the import",
       "columns": [
         "product_key",
         "action",
@@ -78,7 +78,7 @@
     {
       "sheet": "Product Categories",
       "class": "recognized",
-      "owner": "QOS-194 validate, QOS-200 apply",
+      "owner": "Reviewed and applied by the import",
       "columns": [
         "product_category_key",
         "action",
@@ -90,7 +90,7 @@
     {
       "sheet": "Variants",
       "class": "recognized",
-      "owner": "QOS-194 validate, QOS-200 apply",
+      "owner": "Reviewed and applied by the import",
       "note": "One default variant per source product; amount_minor is exact minor units from the source major-unit price.",
       "columns": [
         "variant_key",
@@ -108,7 +108,7 @@
     {
       "sheet": "Variants",
       "class": "deferred",
-      "owner": "QOS-212–215 per QOS-216",
+      "owner": "Source values kept for a later import increment",
       "note": "Tax basis and rate have no QOS storage yet; the basis stays UNCONFIRMED.",
       "columns": [
         "price_tax_basis",
@@ -118,7 +118,7 @@
     {
       "sheet": "Modifier Groups",
       "class": "recognized",
-      "owner": "QOS-194 validate, QOS-200 apply",
+      "owner": "Reviewed and applied by the import",
       "columns": [
         "modifier_group_key",
         "action",
@@ -133,7 +133,7 @@
     {
       "sheet": "Modifier Options",
       "class": "recognized",
-      "owner": "QOS-194 validate, QOS-200 apply",
+      "owner": "Reviewed and applied by the import",
       "note": "is_default, allows_quantity and max_quantity are derived defaults equal to the database defaults.",
       "columns": [
         "modifier_option_key",
@@ -153,7 +153,7 @@
     {
       "sheet": "Product Modifiers",
       "class": "recognized",
-      "owner": "QOS-194 validate, QOS-200 apply",
+      "owner": "Reviewed and applied by the import",
       "columns": [
         "product_modifier_key",
         "action",
@@ -165,7 +165,7 @@
     {
       "sheet": "Product Modifiers",
       "class": "deferred",
-      "owner": "QOS-212–215 per QOS-216",
+      "owner": "Source values kept for a later import increment",
       "note": "Free-option allowances are not scheduled; recorded only.",
       "columns": [
         "free_options_count"
@@ -352,7 +352,7 @@
     {
       "sheet": "Source Map",
       "class": "deferred",
-      "owner": "QOS-212–215 per QOS-216",
+      "owner": "Source values kept for a later import increment",
       "note": "Channel prices are never turned into branch prices; channel-to-branch mapping is an explicit later step.",
       "columns": [
         "channel_price:*"
@@ -361,7 +361,7 @@
     {
       "sheet": "Source Map",
       "class": "deferred",
-      "owner": "QOS-212–215 per QOS-216",
+      "owner": "Source values kept for a later import increment",
       "note": "Exact source text kept beside the integer columns, and source values with no QOS column.",
       "columns": [
         "price",
@@ -386,7 +386,7 @@
     {
       "sheet": "Source Map",
       "class": "deferred",
-      "owner": "QOS-194 review",
+      "owner": "Used by the review only",
       "note": "Typed values under a header the dictionary does not know; kept, never mapped by guess.",
       "columns": [
         "unmapped:*"

@@ -1,4 +1,5 @@
 import { normalizeImportImageUrl } from "@/lib/catalogue/catalogue-import-validation";
+import { isCalendarDate, majorToMicrosExact, microsToMajorString } from "@/lib/catalogue/selling-tax-cost";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
 import type { WorkbookColumnDefinition, WorkbookSheetDefinition } from "@/lib/workbook/contract";
 import { parseDecimalText } from "@/lib/workbook/foodics-menu/numbers";
@@ -99,6 +100,32 @@ export function parseDecimalSyntax(text: string, column: string, rules: { positi
     return { ok: false, diagnostic: { severity: "warning", code: "negative_amount", column, params: { value: text } } };
   }
   return { ok: true, value: text };
+}
+
+/**
+ * An exact decimal on a supported sheet (QOS-200): at most six decimal places,
+ * returned in canonical form ("1.50" → "1.5") so it compares with the export.
+ * Malformed, negative, too precise and (for positive columns) zero values are
+ * errors, never rounded.
+ */
+export function parseExactDecimal(text: string, column: string, rules: { positive?: boolean } = {}): CellResult<string> {
+  const parsed = majorToMicrosExact(text);
+  if (parsed.status === "blank") return { ok: true, value: "" };
+  if (parsed.status === "invalid") {
+    if (parsed.reason === "negative") return fail("negative_amount", column, { value: text });
+    if (parsed.reason === "too_precise") return fail("decimal_too_precise", column, { value: text, places: 6 });
+    return fail("invalid_number", column, { value: text });
+  }
+  if (rules.positive && parsed.value === BigInt(0)) return fail("value_not_positive", column, { value: text });
+  const canonical = microsToMajorString(parsed.value);
+  return canonical === text
+    ? { ok: true, value: canonical }
+    : { ok: true, value: canonical, notes: [{ severity: "info", code: "value_normalized", column, params: { value: text, normalized: canonical } }] };
+}
+
+/** A calendar date as YYYY-MM-DD (QOS-200). */
+export function parseIsoDate(text: string, column: string): CellResult<string> {
+  return isCalendarDate(text) ? { ok: true, value: text } : fail("malformed_date", column, { value: text });
 }
 
 export function parseRevision(text: string, column: string): CellResult<string | null> {

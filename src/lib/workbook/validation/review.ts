@@ -31,6 +31,8 @@ import {
   type WorkbookReview,
 } from "@/lib/workbook/validation/model";
 import { computeFieldDecisions, isDeferredColumn } from "@/lib/workbook/validation/capability";
+import { ACTIVE_FLAG_SHEETS, ARCHIVE_OPERATION_SHEETS, isDraftRecipeRecord, RECIPE_CHILD_SHEETS } from "@/lib/workbook/phase2-values";
+import { enforcePhase2, familyOfRecipeRow, referenced, standardUnitCandidates } from "@/lib/workbook/validation/phase2-review";
 import { checkApplyParity, checkConditionalInputs, checkService, deferredFieldsOf, dropImportStatus, typeRow, type ServiceContext } from "@/lib/workbook/validation/rules";
 import { idColumnOf, type ReviewSnapshot } from "@/lib/workbook/validation/snapshot";
 import { addDiagnostic, fromSource, hasErrors, type WorkRow } from "@/lib/workbook/validation/work";
@@ -44,9 +46,10 @@ import { addDiagnostic, fromSource, hasErrors, type WorkRow } from "@/lib/workbo
    decision. */
 
 /* qos217.1: typed workbook source links are verified identities and three
-   service-parity rules refuse what apply cannot do (QOS-217). A plan reviewed
-   under an older version must be re-reviewed before apply. */
-export const REVIEW_ENGINE_VERSION = "qos217.1";
+   service-parity rules refuse what apply cannot do (QOS-217). qos200.1: the
+   Phase 2 sheets are reviewed for apply (QOS-200). A plan reviewed under an
+   older version must be re-reviewed before apply. */
+export const REVIEW_ENGINE_VERSION = "qos200.1";
 
 type Row = Record<string, string>;
 
@@ -197,6 +200,16 @@ function checkIdTarget(engine: Engine, work: WorkRow, publicId: string): Row | n
   }
   const record = recordsOf(engine, work.sheet).get(publicId);
   const parentKnown = Boolean(PARENT_COLUMN[work.sheet] && work.endpoints[PARENT_COLUMN[work.sheet]!]);
+  if (work.sheet === "Warehouses" && record && parentKnown && !belongsToParent(work, record)) {
+    // A warehouse stays with its branch (QOS-196); moving it is refused, not read as another record.
+    addDiagnostic(work, {
+      severity: "error",
+      code: "service_validation",
+      column: "branch_key",
+      params: { field: "branch_key", reason: "location_immutable", message: "A warehouse never moves; archive it and add one at the new branch." },
+    });
+    return null;
+  }
   if (!record || (parentKnown && !belongsToParent(work, record))) {
     addDiagnostic(work, { severity: "error", code: "target_not_found", column: idColumnOf(work.sheet), params: { id: publicId } });
     return null;
@@ -246,6 +259,23 @@ function typedLinkTarget(engine: Engine, work: WorkRow): string | null {
   return publicId;
 }
 
+/**
+ * D4 (QOS-200): an approved recipe version (or its line, step or effect) is
+ * never changed; an earlier apply saved the row to a draft and moved the
+ * row's typed link there. A row that still names the approved record by id
+ * is compared against that draft, so a retry or re-upload changes nothing.
+ */
+function draftOfFrozen(engine: Engine, work: WorkRow, id: string): string | null {
+  if (work.sheet !== "Recipes" && !RECIPE_CHILD_SHEETS.has(work.sheet)) return null;
+  const linked = engine.snapshot.typedLinks.get(work.sheet)?.get(work.key);
+  if (!linked || linked === id || !recordsOf(engine, work.sheet).has(linked)) return null;
+  const versionOf = (row: Row | undefined) =>
+    work.sheet === "Recipes" ? row : row ? engine.snapshot.records.Recipes.get(row.recipe_version_key ?? "") : undefined;
+  const named = versionOf(recordsOf(engine, work.sheet).get(id));
+  const draft = versionOf(recordsOf(engine, work.sheet).get(linked));
+  return (!named || !isDraftRecipeRecord(named)) && isDraftRecipeRecord(draft) ? linked : null;
+}
+
 /** A key QOS linked on an earlier apply is the same record: compare against it, never create it again. */
 function followTypedLink(engine: Engine, work: WorkRow, publicId: string, decision: RowDecision | undefined): "resolved" {
   if (decision?.kind === "match_existing" && decision.targetPublicId === publicId) {
@@ -279,6 +309,8 @@ function resolveEntityTarget(engine: Engine, work: WorkRow, decision: RowDecisio
 
   if (id) {
     if (decision?.kind === "match_existing" && decision.targetPublicId !== id) rejectDecision(work, decision, "row_has_id");
+    const draft = draftOfFrozen(engine, work, id);
+    if (draft) return followTypedLink(engine, work, draft, undefined);
     const record = checkIdTarget(engine, work, id);
     if (!record) {
       work.classification = "invalid";
@@ -310,6 +342,22 @@ function resolveEntityTarget(engine: Engine, work: WorkRow, decision: RowDecisio
     addDiagnostic(work, { severity: "error", code: "update_requires_id", column: idColumnOf(work.sheet) });
   }
   return "settled";
+}
+
+/**
+ * Existing records a new row could be: loose name matches in scope, plus
+ * (QOS-200) an existing standard unit of the same code. A Recipes row whose
+ * family is already known is a new version of it, not a name collision.
+ */
+function createCandidates(engine: Engine, work: WorkRow) {
+  if (work.sheet === "Recipes" && familyOfRecipeRow(work, engine.snapshot, engine.input.keysVerified)) return [];
+  const candidates = nameCandidates(engine.snapshot, work.sheet, parentPublicId(work), work.input.values);
+  if (work.sheet === "Units") {
+    for (const candidate of standardUnitCandidates(engine.snapshot, work.typed)) {
+      if (!candidates.some((entry) => entry.publicId === candidate.publicId)) candidates.push(candidate);
+    }
+  }
+  return candidates;
 }
 
 /** A create row is a Create only when nothing existing could be the same record; otherwise it waits for a decision. */
@@ -348,7 +396,7 @@ function resolveCreateConflicts(engine: Engine, work: WorkRow, decision: RowDeci
     }
   }
 
-  const candidates = nameCandidates(engine.snapshot, work.sheet, parentPublicId(work), work.input.values);
+  const candidates = createCandidates(engine, work);
   if (candidates.length > 0 && !createNew) {
     conflict(work, "name_collision", candidates);
     return "settled";
@@ -468,11 +516,17 @@ function buildCreate(work: WorkRow) {
 }
 
 function statusColumn(sheet: string) {
+  if (ACTIVE_FLAG_SHEETS.has(sheet)) return "active";
   return ARCHIVE_FLAG_SHEETS.has(sheet) ? "archived" : "status";
 }
 
+function archivedValue(sheet: string) {
+  if (ACTIVE_FLAG_SHEETS.has(sheet)) return "FALSE";
+  return ARCHIVE_FLAG_SHEETS.has(sheet) ? "TRUE" : "archived";
+}
+
 function isArchivedValue(sheet: string, value: string | undefined) {
-  return ARCHIVE_FLAG_SHEETS.has(sheet) ? value === "TRUE" : value === "archived";
+  return value === archivedValue(sheet);
 }
 
 function buildUpdate(engine: Engine, work: WorkRow, decision: RowDecision | undefined) {
@@ -486,7 +540,7 @@ function buildUpdate(engine: Engine, work: WorkRow, decision: RowDecision | unde
 
   const status = statusColumn(work.sheet);
   if (work.op === "archive" && work.def.columns.some((column) => column.key === status)) {
-    after[status] = ARCHIVE_FLAG_SHEETS.has(work.sheet) ? "TRUE" : "archived";
+    after[status] = archivedValue(work.sheet);
   }
   if (work.op === "reset_to_central") {
     after.amount_minor = "";
@@ -541,6 +595,13 @@ function buildUpdate(engine: Engine, work: WorkRow, decision: RowDecision | unde
     work.operation = "reset_to_central";
     return;
   }
+  if (work.op === "archive" && ARCHIVE_OPERATION_SHEETS.has(work.sheet)) {
+    // No status column: discarding a draft or leaving a line, step or effect out of the draft (QOS-200).
+    work.classification = "update";
+    work.operation = "archive";
+    work.changes = [];
+    return;
+  }
   if (work.changes.length === 0) {
     work.classification = "unchanged";
     work.operation = null;
@@ -581,6 +642,15 @@ function reviewUnsupported(engine: Engine, work: WorkRow, keys: ReturnType<typeo
   });
 }
 
+/* Conditional inputs on the Phase 2 sheets (QOS-200): a missing recipe target
+   or effect input is an error on create. Ingredient cost context stays a
+   warning, because the service supplies the tenant currency and today. */
+const PHASE2_CONDITIONAL: Record<string, "error" | "warning" | undefined> = {
+  Recipes: "error",
+  "Modifier Effects": "error",
+  Ingredients: "warning",
+};
+
 function reviewSupported(engine: Engine, work: WorkRow, keys: ReturnType<typeof buildKeyIndex>) {
   const resolution = resolveAction(work.sheet as (typeof SUPPORTED_ENTITY_SHEETS)[number], work.requestedAction);
   if (resolution.kind === "invalid") {
@@ -595,6 +665,9 @@ function reviewSupported(engine: Engine, work: WorkRow, keys: ReturnType<typeof 
   }
   typeRow(work, engine.snapshot);
   resolveReferences(work, keys, engine.snapshot, engine.input.keysVerified);
+  if (PHASE2_CONDITIONAL[work.sheet] && work.op === "create") {
+    checkConditionalInputs(work, PHASE2_CONDITIONAL[work.sheet]);
+  }
   work.deferredFields = deferredFieldsOf(work);
   if (work.deferredFields.length > 0) {
     addDiagnostic(work, { severity: "info", code: "deferred_value", params: { count: work.deferredFields.length } });
@@ -874,8 +947,29 @@ function linkLabel(engine: Engine, work: WorkRow) {
   };
 }
 
+/** Label of the record a reference column names: the workbook row's own label or the existing record's. */
+function referenceLabel(engine: Engine, work: WorkRow, column: string, sheet: string) {
+  const edge = work.edges.find((entry) => entry.column === column);
+  if (edge) return rowLabel(engine, edge.target);
+  const target = referenced(work, column, engine.snapshot);
+  if (target.publicId) return recordLabel(engine.snapshot, sheet, target.publicId);
+  const key = work.input.values[column] ?? "";
+  return { en: key, ar: key };
+}
+
 function rowLabel(engine: Engine, work: WorkRow): { en: string; ar: string } {
   if (LINK_ENDPOINTS[work.sheet]) return linkLabel(engine, work);
+  if (work.sheet === "Recipe Lines" || work.sheet === "Modifier Effects") {
+    const named =
+      work.sheet === "Recipe Lines"
+        ? referenceLabel(engine, work, "ingredient_key", "Ingredients")
+        : referenceLabel(engine, work, "modifier_option_key", "Modifier Options");
+    const detail = work.sheet === "Recipe Lines" ? (work.input.values.quantity_recipe_units ?? "") : (work.input.values.effect_type ?? "");
+    return {
+      en: [named.en, detail].filter(Boolean).join(" · "),
+      ar: [named.ar, detail].filter(Boolean).join(" · "),
+    };
+  }
   const own = labelOf(work.sheet, work.input.values);
   if (own.en || own.ar) {
     if (work.sheet === "Variants") {
@@ -1033,6 +1127,7 @@ export function reviewWorkbook(input: ReviewInput, snapshot: ReviewSnapshot, dec
   enforceDefaultVariants(engine);
   enforceOptionDefaults(engine);
   runServiceChecks(engine);
+  enforcePhase2({ works, snapshot, keysVerified: input.keysVerified });
   propagateBlocking(works);
 
   const rows = works.map((work) => toRow(engine, work));

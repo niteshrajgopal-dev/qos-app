@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import {
   catalogueCategories,
@@ -21,16 +21,31 @@ import {
   catalogueVariantPrices,
   catalogueVariants,
   catalogueVariantTranslations,
+  inventoryCategories,
+  inventoryItemConversions,
+  inventoryItemReferenceCosts,
+  inventoryItems,
+  inventorySuppliers,
+  inventoryUnits,
+  inventoryWarehouses,
   locations,
+  recipes,
+  recipeSellableLinks,
+  recipeVersionLines,
+  recipeVersionModifierEffects,
+  recipeVersions,
+  recipeVersionSteps,
   tenants,
 } from "@/db/schema";
 import { loadCurrentCostPoliciesInTx } from "@/lib/catalogue/reference-cost-policies";
 import type { DbTransaction } from "@/lib/tenant/context";
 import { REVISION, translationsByOwner } from "@/lib/workbook/export";
+import { currentItemCost, currentItemFactor } from "@/lib/workbook/phase2-records";
 import { idColumnOf } from "@/lib/workbook/validation/snapshot";
 
 /* Current revision tokens for the records one apply unit may touch
-   (QOS-217, plan section 1.3 step 5). Same recipes as the export's
+   (QOS-217, plan section 1.3 step 5; QOS-200 adds the inventory and recipe
+   scopes). Same recipes as the export's
    `expected_revision`, read inside the unit's transaction. A unit reads the
    tokens of its whole side-effect scope, because some services touch
    siblings: a default-variant change rewrites the other variants, a default
@@ -45,7 +60,11 @@ export type TokenScope =
   | { kind: "link"; sheet: "Product Categories" | "Branch Prices"; id: string }
   | { kind: "product"; productPublicId: string }
   | { kind: "group"; groupPublicId: string }
-  | { kind: "menu"; menuPublicId: string };
+  | { kind: "menu"; menuPublicId: string }
+  // QOS-200: one inventory master record; an item with its current conversion and cost; a recipe family with every version, line, step and effect.
+  | { kind: "inventory"; sheet: "Units" | "Suppliers" | "Warehouses" | "Inventory Categories"; publicId: string }
+  | { kind: "item"; itemPublicId: string }
+  | { kind: "recipe"; recipePublicId: string };
 
 /**
  * Identity of a record across a save. Menu branch links are recreated by
@@ -80,6 +99,15 @@ export async function loadScopeTokens(tx: Tx, tenantId: string, scope: TokenScop
       break;
     case "menu":
       await loadMenuScope(tx, tenantId, scope.menuPublicId, tokens);
+      break;
+    case "inventory":
+      await loadInventoryRecord(tx, tenantId, scope, tokens);
+      break;
+    case "item":
+      await loadItemScope(tx, tenantId, scope.itemPublicId, tokens);
+      break;
+    case "recipe":
+      await loadRecipeScope(tx, tenantId, scope.recipePublicId, tokens);
       break;
   }
   return tokens;
@@ -288,4 +316,92 @@ async function loadMenuScope(tx: Tx, tenantId: string, menuPublicId: string, tok
     .from(catalogueMenuSectionProducts)
     .where(and(eq(catalogueMenuSectionProducts.tenantId, tenantId), inArray(catalogueMenuSectionProducts.sectionId, sectionIds)));
   for (const item of items) tokens.set(tokenKey("Menu Items", item.id), REVISION.menuItem(item));
+}
+
+/* ------------------------------------------------------------------ */
+/* Phase 2 records (QOS-200)                                           */
+/* ------------------------------------------------------------------ */
+
+async function loadInventoryRecord(tx: Tx, tenantId: string, scope: Extract<TokenScope, { kind: "inventory" }>, tokens: ScopeTokens) {
+  const key = (publicId: string) => tokenKey(scope.sheet, publicId);
+  if (scope.sheet === "Units") {
+    const [row] = await tx.select().from(inventoryUnits).where(and(eq(inventoryUnits.tenantId, tenantId), eq(inventoryUnits.publicId, scope.publicId)));
+    if (row) tokens.set(key(row.publicId), REVISION.unit(row));
+    return;
+  }
+  if (scope.sheet === "Suppliers") {
+    const [row] = await tx
+      .select()
+      .from(inventorySuppliers)
+      .where(and(eq(inventorySuppliers.tenantId, tenantId), eq(inventorySuppliers.publicId, scope.publicId)));
+    if (row) tokens.set(key(row.publicId), REVISION.supplier(row));
+    return;
+  }
+  if (scope.sheet === "Warehouses") {
+    const [row] = await tx
+      .select()
+      .from(inventoryWarehouses)
+      .where(and(eq(inventoryWarehouses.tenantId, tenantId), eq(inventoryWarehouses.publicId, scope.publicId)));
+    if (row) tokens.set(key(row.publicId), REVISION.warehouse(row));
+    return;
+  }
+  const [row] = await tx
+    .select()
+    .from(inventoryCategories)
+    .where(and(eq(inventoryCategories.tenantId, tenantId), eq(inventoryCategories.publicId, scope.publicId)));
+  if (row) tokens.set(key(row.publicId), REVISION.inventoryCategory(row));
+}
+
+async function loadItemScope(tx: Tx, tenantId: string, itemPublicId: string, tokens: ScopeTokens) {
+  const [item] = await tx.select().from(inventoryItems).where(and(eq(inventoryItems.tenantId, tenantId), eq(inventoryItems.publicId, itemPublicId)));
+  if (!item) return;
+  const units = await tx.select().from(inventoryUnits).where(eq(inventoryUnits.tenantId, tenantId));
+  const rules = await tx
+    .select()
+    .from(inventoryItemConversions)
+    .where(and(eq(inventoryItemConversions.tenantId, tenantId), eq(inventoryItemConversions.itemId, item.id), isNull(inventoryItemConversions.effectiveTo)));
+  const costs = await tx
+    .select()
+    .from(inventoryItemReferenceCosts)
+    .where(
+      and(eq(inventoryItemReferenceCosts.tenantId, tenantId), eq(inventoryItemReferenceCosts.itemId, item.id), isNull(inventoryItemReferenceCosts.effectiveTo)),
+    );
+  tokens.set(tokenKey("Ingredients", item.publicId), REVISION.item(item, currentItemFactor(item, units, rules), currentItemCost(costs)));
+}
+
+async function loadRecipeScope(tx: Tx, tenantId: string, recipePublicId: string, tokens: ScopeTokens) {
+  const [family] = await tx.select().from(recipes).where(and(eq(recipes.tenantId, tenantId), eq(recipes.publicId, recipePublicId)));
+  if (!family || family.status !== "active") return;
+  const versions = (
+    await tx.select().from(recipeVersions).where(and(eq(recipeVersions.tenantId, tenantId), eq(recipeVersions.recipeId, family.id)))
+  ).filter((version) => version.status !== "discarded");
+  const links = await tx
+    .select({ publicId: recipeSellableLinks.publicId, revision: recipeSellableLinks.revision })
+    .from(recipeSellableLinks)
+    .where(and(eq(recipeSellableLinks.tenantId, tenantId), eq(recipeSellableLinks.recipeId, family.id), isNull(recipeSellableLinks.effectiveTo)));
+  for (const version of versions) tokens.set(tokenKey("Recipes", version.publicId), REVISION.recipeVersion(version, family, links));
+  if (versions.length === 0) return;
+  const byId = new Map(versions.map((version) => [version.id, version]));
+  const ids = versions.map((version) => version.id);
+  const lines = await tx
+    .select()
+    .from(recipeVersionLines)
+    .where(and(eq(recipeVersionLines.tenantId, tenantId), inArray(recipeVersionLines.recipeVersionId, ids), eq(recipeVersionLines.status, "active")));
+  for (const line of lines) tokens.set(tokenKey("Recipe Lines", line.publicId), REVISION.recipeLine(line, byId.get(line.recipeVersionId)!));
+  const steps = await tx
+    .select()
+    .from(recipeVersionSteps)
+    .where(and(eq(recipeVersionSteps.tenantId, tenantId), inArray(recipeVersionSteps.recipeVersionId, ids), eq(recipeVersionSteps.status, "active")));
+  for (const step of steps) tokens.set(tokenKey("Prep Steps", step.publicId), REVISION.prepStep(step, byId.get(step.recipeVersionId)!));
+  const effects = await tx
+    .select()
+    .from(recipeVersionModifierEffects)
+    .where(
+      and(
+        eq(recipeVersionModifierEffects.tenantId, tenantId),
+        inArray(recipeVersionModifierEffects.recipeVersionId, ids),
+        eq(recipeVersionModifierEffects.status, "active"),
+      ),
+    );
+  for (const effect of effects) tokens.set(tokenKey("Modifier Effects", effect.publicId), REVISION.modifierEffect(effect, byId.get(effect.recipeVersionId)!));
 }

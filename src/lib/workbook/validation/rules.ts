@@ -23,6 +23,8 @@ import {
   parseClearFields,
   parseDecimalSyntax,
   parseEnum,
+  parseExactDecimal,
+  parseIsoDate,
   parseInteger,
   parseMinorUnits,
   parseRevision,
@@ -30,6 +32,19 @@ import {
 } from "@/lib/workbook/validation/types";
 import { addDiagnostic, type WorkRow } from "@/lib/workbook/validation/work";
 import { SOURCE_MAP_SHEET } from "@/lib/workbook/dictionary";
+import { checkPhase2Service } from "@/lib/workbook/validation/phase2-review";
+
+const PHASE2_SHEETS: ReadonlySet<string> = new Set([
+  "Units",
+  "Suppliers",
+  "Warehouses",
+  "Inventory Categories",
+  "Ingredients",
+  "Recipes",
+  "Recipe Lines",
+  "Prep Steps",
+  "Modifier Effects",
+]);
 
 /* Entity rules (QOS-194, plan section 2.8): strict typing, conditional
    inputs, service parity and the sheet-level rules (one default variant,
@@ -43,6 +58,7 @@ function typeCell(
   column: WorkbookColumnDefinition,
   text: string,
   snapshot: ReviewSnapshot,
+  strict: boolean,
 ): CellResult<string> {
   if (CURRENCY_COLUMNS.has(column.key)) {
     const expected = snapshot.currency.toUpperCase();
@@ -67,7 +83,12 @@ function typeCell(
       return parseUrl(text, column.key);
     case "decimal":
     case "money":
-      return parseDecimalSyntax(text, column.key, { positive: column.positive, min: column.min });
+      // Applied Phase 2 decimals are exact and refused when malformed (QOS-200); deferred ones are syntax-checked only.
+      return strict
+        ? parseExactDecimal(text, column.key, { positive: column.positive })
+        : parseDecimalSyntax(text, column.key, { positive: column.positive, min: column.min });
+    case "date":
+      return strict ? parseIsoDate(text, column.key) : { ok: true, value: text };
     default:
       if (column.values && column.values.length > 0) {
         if (column.values.length === 2 && column.values.includes("TRUE") && column.values.includes("FALSE")) {
@@ -117,7 +138,7 @@ export function typeRow(work: WorkRow, snapshot: ReviewSnapshot) {
       work.typed[column.key] = text;
       continue;
     }
-    const parsed = typeCell(column, text, snapshot);
+    const parsed = typeCell(column, text, snapshot, work.supported && !deferred);
     if (!parsed.ok) {
       const soft = deferred || !work.supported;
       addDiagnostic(work, soft ? { ...parsed.diagnostic, severity: "warning" } : parsed.diagnostic);
@@ -132,9 +153,9 @@ export function typeRow(work: WorkRow, snapshot: ReviewSnapshot) {
   work.clears = clear.columns;
 }
 
-/* Conditional inputs (`required_when`) exist on deferred sheets only. They
-   are checked so the operator sees the gap now; they never block apply of
-   supported rows. */
+/* Conditional inputs (`required_when`). On deferred sheets they are warnings,
+   so the operator sees the gap now; on the Phase 2 sheets the review passes
+   the severity (QOS-200). */
 function conditionHolds(clause: string, values: Record<string, string>) {
   const provided = /^(\w+) is provided$/.exec(clause);
   if (provided) return Boolean(values[provided[1]!]?.trim());
@@ -146,7 +167,7 @@ function conditionHolds(clause: string, values: Record<string, string>) {
   return null;
 }
 
-export function checkConditionalInputs(work: WorkRow) {
+export function checkConditionalInputs(work: WorkRow, severity: "error" | "warning" = "warning") {
   for (const column of work.def.columns) {
     if (!column.required_when || (work.input.values[column.key] ?? "").trim()) continue;
     let applies = false;
@@ -167,7 +188,7 @@ export function checkConditionalInputs(work: WorkRow) {
       }
     }
     if (applies) {
-      addDiagnostic(work, { severity: "warning", code: "required_missing", column: column.key, params: { condition: column.required_when } });
+      addDiagnostic(work, { severity, code: "required_missing", column: column.key, params: { condition: column.required_when } });
     }
   }
 }
@@ -314,6 +335,7 @@ function statusForService(value: string | undefined): "active" | "archived" | un
  * (all of them on create, only the changed ones on update).
  */
 export function checkService(work: WorkRow, values: Record<string, string>, context: ServiceContext): ReviewDiagnostic | null {
+  if (PHASE2_SHEETS.has(work.sheet)) return checkPhase2Service(work, values, context.snapshot);
   const create = work.operation === "create";
   try {
     switch (work.sheet) {
