@@ -258,7 +258,8 @@ export async function reReviewWorkbookPlan(
   });
   const snapshot = buildReviewSnapshot(restrictSourceToScope(source, plan.branchScope) ?? source);
   const input = inputFromPlan(plan, rows);
-  const review = reviewWorkbook(input, snapshot, request.decisions);
+  // A retry of this plan follows the recipe drafts its own apply made (QOS-200 follow-up, D2).
+  const review = reviewWorkbook(input, snapshot, request.decisions, { planId: plan.id });
 
   return withTenantContext(db, tenantId, async (tx) => {
     await revisePlan(tx, tenantId, plan, { review, reviewInput: input, snapshotHash: snapshot.snapshotHash, reviewedBySubject: subject });

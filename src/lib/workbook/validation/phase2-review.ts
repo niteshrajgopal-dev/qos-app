@@ -321,7 +321,7 @@ function checkEffect(work: WorkRow, values: Row, snapshot: ReviewSnapshot): Revi
 /* Sheet-level rules                                                   */
 /* ------------------------------------------------------------------ */
 
-type Pass = { works: WorkRow[]; snapshot: ReviewSnapshot; keysVerified: boolean };
+type Pass = { works: WorkRow[]; snapshot: ReviewSnapshot; keysVerified: boolean; planId: string | null };
 
 function conflictWith(work: WorkRow, candidates: ReviewCandidate[], reason: string) {
   work.classification = "conflicting";
@@ -394,7 +394,23 @@ function promoteRecipesForChildren({ works, snapshot }: Pass) {
   }
 }
 
-function enforceRecipeDrafts({ works, snapshot, keysVerified }: Pass) {
+/**
+ * A Recipes row whose key an earlier plan moved to an open draft (made from
+ * an approved version) reaches a human-owned draft: a new upload must choose
+ * it. The plan that moved the key (a retry) and a row whose operator already
+ * chose the draft follow it. A draft the import itself created as a new
+ * family's first version is followed, so a re-upload stays unchanged.
+ */
+function reachesOpenDraftByOtherPlan(work: WorkRow, snapshot: ReviewSnapshot, family: string | null, planId: string | null) {
+  const target = work.identity.targetPublicId;
+  if (work.identity.via !== "source_link" || !target || !family || work.decision?.kind === "match_existing") return false;
+  if (!isDraftRecipeRecord(snapshot.records.Recipes.get(target))) return false;
+  if (snapshot.typedLinks.get("Recipes")?.get(work.key) !== target) return false;
+  if (planId !== null && snapshot.typedLinkOrigins.get("Recipes")?.get(work.key) === planId) return false;
+  return familyVersions(snapshot, family).some(([, row]) => !isDraftRecipeRecord(row));
+}
+
+function enforceRecipeDrafts({ works, snapshot, keysVerified, planId }: Pass) {
   const draftMakers = new Map<string, WorkRow[]>();
   for (const work of works) {
     if (work.sheet !== "Recipes" || !work.supported || !work.classification || !PROPOSING.has(work.classification)) continue;
@@ -403,6 +419,10 @@ function enforceRecipeDrafts({ works, snapshot, keysVerified }: Pass) {
     const openDraft = family ? familyVersions(snapshot, family).find(([, row]) => isDraftRecipeRecord(row)) : undefined;
     if (work.classification === "update" && work.operation === "archive" && target && !isDraftRecipeRecord(target)) {
       refuse(work, "action", "version_not_draft", "Approved versions cannot change; a new draft is created instead.");
+      continue;
+    }
+    if (reachesOpenDraftByOtherPlan(work, snapshot, family, planId)) {
+      conflictWith(work, [candidateOf(snapshot, "Recipes", work.identity.targetPublicId!, "name_collision")], "draft_exists");
       continue;
     }
     const makesDraft = work.classification === "create" || (work.classification === "update" && target !== undefined && !isDraftRecipeRecord(target));
@@ -521,6 +541,29 @@ function enforceStepNumbers(works: WorkRow[]) {
     }
     seen.set(id, work);
   }
+}
+
+/**
+ * The draft's copy of a line, step or effect of an approved version of the
+ * same family, matched as apply matches it (recipe-children `findTarget`):
+ * lines by ingredient, steps by number, effects by option, type, ingredient
+ * and base line ingredient.
+ */
+export function draftCopyOf(snapshot: ReviewSnapshot, sheet: string, record: Row, draftId: string): string | null {
+  if (sheet !== "Recipe Lines" && sheet !== "Prep Steps" && sheet !== "Modifier Effects") return null;
+  const onDraft = [...snapshot.records[sheet].entries()].filter(([, row]) => row.recipe_version_key === draftId);
+  const baseItem = (lineId: string | undefined) => (lineId ? (snapshot.records["Recipe Lines"].get(lineId)?.ingredient_key ?? null) : null);
+  const match = onDraft.find(([, row]) => {
+    if (sheet === "Recipe Lines") return row.ingredient_key === record.ingredient_key;
+    if (sheet === "Prep Steps") return row.step_number === record.step_number;
+    return (
+      row.modifier_option_key === record.modifier_option_key &&
+      row.effect_type === record.effect_type &&
+      (row.ingredient_key ?? "") === (record.ingredient_key ?? "") &&
+      baseItem(row.target_recipe_line_key) === baseItem(record.target_recipe_line_key)
+    );
+  });
+  return match?.[0] ?? null;
 }
 
 /** Existing standard units a new Units row would add again: candidates, never a target. */

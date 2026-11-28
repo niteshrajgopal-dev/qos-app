@@ -32,7 +32,7 @@ import {
 } from "@/lib/workbook/validation/model";
 import { computeFieldDecisions, isDeferredColumn } from "@/lib/workbook/validation/capability";
 import { ACTIVE_FLAG_SHEETS, ARCHIVE_OPERATION_SHEETS, isDraftRecipeRecord, RECIPE_CHILD_SHEETS, standardUnitOfRow } from "@/lib/workbook/phase2-values";
-import { enforcePhase2, familyOfRecipeRow, referenced, standardUnitCandidates } from "@/lib/workbook/validation/phase2-review";
+import { draftCopyOf, enforcePhase2, familyOfRecipeRow, referenced, standardUnitCandidates } from "@/lib/workbook/validation/phase2-review";
 import { checkApplyParity, checkConditionalInputs, checkService, deferredFieldsOf, dropImportStatus, typeRow, type ServiceContext } from "@/lib/workbook/validation/rules";
 import { idColumnOf, RECIPE_FAMILY_LINKS, type ReviewSnapshot } from "@/lib/workbook/validation/snapshot";
 import { addDiagnostic, fromSource, hasErrors, type WorkRow } from "@/lib/workbook/validation/work";
@@ -47,9 +47,11 @@ import { addDiagnostic, fromSource, hasErrors, type WorkRow } from "@/lib/workbo
 
 /* qos217.1: typed workbook source links are verified identities and three
    service-parity rules refuse what apply cannot do (QOS-217). qos200.1: the
-   Phase 2 sheets are reviewed for apply (QOS-200). A plan reviewed under an
+   Phase 2 sheets are reviewed for apply (QOS-200). qos200.2: a key moved to
+   an open recipe draft is followed only by the plan that moved it; a new
+   upload chooses the draft (QOS-200 follow-up). A plan reviewed under an
    older version must be re-reviewed before apply. */
-export const REVIEW_ENGINE_VERSION = "qos200.1";
+export const REVIEW_ENGINE_VERSION = "qos200.2";
 
 type Row = Record<string, string>;
 
@@ -164,7 +166,28 @@ type Engine = {
   decisions: Map<string, RowDecision>;
   pairs: ReturnType<typeof linkPairIndex>;
   service: ServiceContext;
+  /** The stored plan being re-reviewed, or null for a new upload. */
+  planId: string | null;
 };
+
+/** Whether this plan wrote the typed link of `key` (a retry of the same plan); a new upload never has. */
+export function linkWrittenByPlan(snapshot: ReviewSnapshot, planId: string | null, sheet: string, key: string) {
+  return planId !== null && snapshot.typedLinkOrigins.get(sheet)?.get(key) === planId;
+}
+
+/**
+ * D4: the copy on the open draft of a line, step or effect of an approved
+ * version, when this row's recipe row targets that draft (same family).
+ */
+function frozenParentCopy(engine: Engine, work: WorkRow, record: Row): string | null {
+  if (!RECIPE_CHILD_SHEETS.has(work.sheet)) return null;
+  const draftId = work.endpoints.recipe_version_key;
+  if (!draftId || record.recipe_version_key === draftId) return null;
+  const draft = engine.snapshot.records.Recipes.get(draftId);
+  const version = engine.snapshot.records.Recipes.get(record.recipe_version_key ?? "");
+  if (!draft || !version || !isDraftRecipeRecord(draft) || isDraftRecipeRecord(version) || draft.recipe_key !== version.recipe_key) return null;
+  return draftCopyOf(engine.snapshot, work.sheet, record, draftId);
+}
 
 function recordsOf(engine: Engine, sheet: string) {
   return engine.snapshot.records[sheet as keyof ReviewSnapshot["records"]];
@@ -258,15 +281,23 @@ function typedLinkTarget(engine: Engine, work: WorkRow): string | null {
   const publicId = engine.snapshot.typedLinks.get(work.sheet)?.get(work.key);
   if (!publicId) return null;
   const record = recordsOf(engine, work.sheet)?.get(publicId);
-  if (!record || (PARENT_COLUMN[work.sheet] && !belongsToParent(work, record))) return null;
+  if (!record) return null;
+  if (PARENT_COLUMN[work.sheet] && !belongsToParent(work, record)) {
+    // D4: the key still names the approved version's record; its recipe row targets the draft made from it.
+    const copy = frozenParentCopy(engine, work, record);
+    if (copy) work.frozenSource ??= publicId;
+    return copy;
+  }
   return publicId;
 }
 
 /**
  * D4 (QOS-200): an approved recipe version (or its line, step or effect) is
  * never changed; an earlier apply saved the row to a draft and moved the
- * row's typed link there. A row that still names the approved record by id
- * is compared against that draft, so a retry or re-upload changes nothing.
+ * row's typed link there. A retry of that plan that still names the approved
+ * record is compared against that draft, so it changes nothing. A new upload
+ * does not follow the link: it reaches the approved version, and the open
+ * draft becomes a choice (QOS-200 follow-up).
  */
 function draftOfFrozen(engine: Engine, work: WorkRow, id: string): string | null {
   if (work.sheet !== "Recipes" && !RECIPE_CHILD_SHEETS.has(work.sheet)) return null;
@@ -276,8 +307,10 @@ function draftOfFrozen(engine: Engine, work: WorkRow, id: string): string | null
   if (named && isDraftRecipeRecord(named)) return null;
   // The row's own key, or a key that is the frozen record's id, followed the draft saved from it.
   const links = engine.snapshot.typedLinks.get(work.sheet);
-  for (const linked of [links?.get(work.key), links?.get(id)]) {
+  for (const key of [work.key, id]) {
+    const linked = links?.get(key);
     if (!linked || linked === id || !recordsOf(engine, work.sheet).has(linked)) continue;
+    if (!linkWrittenByPlan(engine.snapshot, engine.planId, work.sheet, key)) continue;
     if (isDraftRecipeRecord(versionOf(recordsOf(engine, work.sheet).get(linked)))) return linked;
   }
   return null;
@@ -341,6 +374,13 @@ function resolveEntityTarget(engine: Engine, work: WorkRow, decision: RowDecisio
     if (!record) {
       work.classification = "invalid";
       return "settled";
+    }
+    const copy = PARENT_COLUMN[work.sheet] && !belongsToParent(work, record) ? frozenParentCopy(engine, work, record) : null;
+    if (copy) {
+      // D4: compared against the copy on the draft the recipe row targets, which apply changes.
+      work.frozenSource = id;
+      setTarget(work, copy, "qos_id", recordsOf(engine, work.sheet).get(copy));
+      return "resolved";
     }
     setTarget(work, id, "qos_id", record);
     return "resolved";
@@ -1144,7 +1184,12 @@ function dedupeAcknowledgements(decisions: PlanDecision[]) {
  * with the operator's decisions. Pure: the same input, snapshot and
  * decisions always give the same result.
  */
-export function reviewWorkbook(input: ReviewInput, snapshot: ReviewSnapshot, decisions: PlanDecision[] = []): WorkbookReview {
+export function reviewWorkbook(
+  input: ReviewInput,
+  snapshot: ReviewSnapshot,
+  decisions: PlanDecision[] = [],
+  options: { planId?: string | null } = {},
+): WorkbookReview {
   const works = input.sheets
     .filter((sheet) => SHEET_ORDER.has(sheet.sheet) && sheet.support !== "separate_profile")
     .sort((a, b) => SHEET_ORDER.get(a.sheet)! - SHEET_ORDER.get(b.sheet)!)
@@ -1158,6 +1203,7 @@ export function reviewWorkbook(input: ReviewInput, snapshot: ReviewSnapshot, dec
     decisions: indexDecisions(works, decisions),
     pairs: linkPairIndex(snapshot),
     service: serviceContext(snapshot, works),
+    planId: options.planId ?? null,
   };
   const keys = buildKeyIndex(works);
 
@@ -1169,7 +1215,7 @@ export function reviewWorkbook(input: ReviewInput, snapshot: ReviewSnapshot, dec
   enforceDefaultVariants(engine);
   enforceOptionDefaults(engine);
   runServiceChecks(engine);
-  enforcePhase2({ works, snapshot, keysVerified: input.keysVerified });
+  enforcePhase2({ works, snapshot, keysVerified: input.keysVerified, planId: engine.planId });
   propagateBlocking(works);
 
   const rows = works.map((work) => toRow(engine, work));
