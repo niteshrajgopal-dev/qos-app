@@ -140,6 +140,8 @@ export async function writeTypedLinkInTx(
 ): Promise<AppliedLink | null> {
   const entityType = input.entityType ?? LINK_ENTITY_OF_SHEET[input.sheet];
   if (!entityType || !input.sourceKey) return null;
+  // A key that is the record's own QOS id (an export row) identifies it already; it needs no link (QOS-200).
+  if (input.sourceKey === input.targetPublicId) return null;
   const [existing] = await tx
     .select({ targetPublicId: workbookSourceLinks.targetPublicId })
     .from(workbookSourceLinks)
@@ -159,6 +161,22 @@ export async function writeTypedLinkInTx(
     !(await frozenTarget(tx, input.tenantId, entityType, existing.targetPublicId))
   ) {
     throw new ApplyUnitError("conflict", "This workbook key is already linked to another record.", { reason: "key_linked_elsewhere" });
+  }
+  if (!existing || existing.targetPublicId !== input.targetPublicId) {
+    // One key per record and namespace: a record already linked under another key keeps that link (QOS-200).
+    const [byTarget] = await tx
+      .select({ sourceKey: workbookSourceLinks.sourceKey })
+      .from(workbookSourceLinks)
+      .where(
+        and(
+          eq(workbookSourceLinks.tenantId, input.tenantId),
+          eq(workbookSourceLinks.sourceNamespace, input.namespace),
+          eq(workbookSourceLinks.entityType, entityType),
+          eq(workbookSourceLinks.targetPublicId, input.targetPublicId),
+        ),
+      )
+      .limit(1);
+    if (byTarget && byTarget.sourceKey !== input.sourceKey) return null;
   }
   const now = new Date();
   await tx

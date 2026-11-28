@@ -31,10 +31,10 @@ import {
   type WorkbookReview,
 } from "@/lib/workbook/validation/model";
 import { computeFieldDecisions, isDeferredColumn } from "@/lib/workbook/validation/capability";
-import { ACTIVE_FLAG_SHEETS, ARCHIVE_OPERATION_SHEETS, isDraftRecipeRecord, RECIPE_CHILD_SHEETS } from "@/lib/workbook/phase2-values";
+import { ACTIVE_FLAG_SHEETS, ARCHIVE_OPERATION_SHEETS, isDraftRecipeRecord, RECIPE_CHILD_SHEETS, standardUnitOfRow } from "@/lib/workbook/phase2-values";
 import { enforcePhase2, familyOfRecipeRow, referenced, standardUnitCandidates } from "@/lib/workbook/validation/phase2-review";
 import { checkApplyParity, checkConditionalInputs, checkService, deferredFieldsOf, dropImportStatus, typeRow, type ServiceContext } from "@/lib/workbook/validation/rules";
-import { idColumnOf, type ReviewSnapshot } from "@/lib/workbook/validation/snapshot";
+import { idColumnOf, RECIPE_FAMILY_LINKS, type ReviewSnapshot } from "@/lib/workbook/validation/snapshot";
 import { addDiagnostic, fromSource, hasErrors, type WorkRow } from "@/lib/workbook/validation/work";
 
 /* The review engine (QOS-194). Pure and synchronous: one normalised input,
@@ -210,7 +210,10 @@ function checkIdTarget(engine: Engine, work: WorkRow, publicId: string): Row | n
     });
     return null;
   }
-  if (!record || (parentKnown && !belongsToParent(work, record))) {
+  // D4: a line, step or effect of an approved version still belongs to the version its draft was saved from.
+  const parentEdge = PARENT_COLUMN[work.sheet] ? work.edges.find((edge) => edge.column === PARENT_COLUMN[work.sheet]) : undefined;
+  const frozenParent = Boolean(record && parentEdge?.target.frozenSource && record[PARENT_COLUMN[work.sheet]!] === parentEdge.target.frozenSource);
+  if (!record || (parentKnown && !belongsToParent(work, record) && !frozenParent)) {
     addDiagnostic(work, { severity: "error", code: "target_not_found", column: idColumnOf(work.sheet), params: { id: publicId } });
     return null;
   }
@@ -267,17 +270,32 @@ function typedLinkTarget(engine: Engine, work: WorkRow): string | null {
  */
 function draftOfFrozen(engine: Engine, work: WorkRow, id: string): string | null {
   if (work.sheet !== "Recipes" && !RECIPE_CHILD_SHEETS.has(work.sheet)) return null;
-  const linked = engine.snapshot.typedLinks.get(work.sheet)?.get(work.key);
-  if (!linked || linked === id || !recordsOf(engine, work.sheet).has(linked)) return null;
   const versionOf = (row: Row | undefined) =>
     work.sheet === "Recipes" ? row : row ? engine.snapshot.records.Recipes.get(row.recipe_version_key ?? "") : undefined;
   const named = versionOf(recordsOf(engine, work.sheet).get(id));
-  const draft = versionOf(recordsOf(engine, work.sheet).get(linked));
-  return (!named || !isDraftRecipeRecord(named)) && isDraftRecipeRecord(draft) ? linked : null;
+  if (named && isDraftRecipeRecord(named)) return null;
+  // The row's own key, or a key that is the frozen record's id, followed the draft saved from it.
+  const links = engine.snapshot.typedLinks.get(work.sheet);
+  for (const linked of [links?.get(work.key), links?.get(id)]) {
+    if (!linked || linked === id || !recordsOf(engine, work.sheet).has(linked)) continue;
+    if (isDraftRecipeRecord(versionOf(recordsOf(engine, work.sheet).get(linked)))) return linked;
+  }
+  return null;
+}
+
+/** Whether `choice` is the open draft of the family whose approved version `id` is (a Recipes row only). */
+function openDraftChoice(engine: Engine, work: WorkRow, id: string, choice: string) {
+  if (work.sheet !== "Recipes" || choice === id) return false;
+  const named = recordsOf(engine, "Recipes").get(id);
+  const chosen = recordsOf(engine, "Recipes").get(choice);
+  return Boolean(named && chosen && !isDraftRecipeRecord(named) && isDraftRecipeRecord(chosen) && named.recipe_key === chosen.recipe_key);
 }
 
 /** A key QOS linked on an earlier apply is the same record: compare against it, never create it again. */
-function followTypedLink(engine: Engine, work: WorkRow, publicId: string, decision: RowDecision | undefined): "resolved" {
+function followTypedLink(engine: Engine, work: WorkRow, linked: string, decision: RowDecision | undefined): "resolved" {
+  const draft = draftOfFrozen(engine, work, linked);
+  if (draft) work.frozenSource ??= linked;
+  const publicId = draft ?? linked;
   if (decision?.kind === "match_existing" && decision.targetPublicId === publicId) {
     work.decision = decision;
   } else if (decision) {
@@ -308,9 +326,17 @@ function resolveEntityTarget(engine: Engine, work: WorkRow, decision: RowDecisio
   }
 
   if (id) {
+    if (decision?.kind === "match_existing" && openDraftChoice(engine, work, id, decision.targetPublicId)) {
+      // D4: the operator chose the family's open draft for a row that names its approved version.
+      work.frozenSource = id;
+      if (applyMatchDecision(engine, work, decision)) return "resolved";
+    }
     if (decision?.kind === "match_existing" && decision.targetPublicId !== id) rejectDecision(work, decision, "row_has_id");
     const draft = draftOfFrozen(engine, work, id);
-    if (draft) return followTypedLink(engine, work, draft, undefined);
+    if (draft) {
+      work.frozenSource = id;
+      return followTypedLink(engine, work, draft, undefined);
+    }
     const record = checkIdTarget(engine, work, id);
     if (!record) {
       work.classification = "invalid";
@@ -529,8 +555,16 @@ function isArchivedValue(sheet: string, value: string | undefined) {
   return value === archivedValue(sheet);
 }
 
+/** A Units name that only names a standard unit ("g", "Gram") identifies it; it is not a rename of that unit (D11). */
+function keepStandardName(work: WorkRow, before: Row) {
+  if (work.sheet !== "Units" || !before.standard_code || work.typed.name === undefined) return;
+  const standard = standardUnitOfRow({ name: work.typed.name });
+  if (standard?.code === before.standard_code && !work.typed.standard_code) work.typed.name = before.name ?? work.typed.name;
+}
+
 function buildUpdate(engine: Engine, work: WorkRow, decision: RowDecision | undefined) {
   const before = work.before ?? {};
+  keepStandardName(work, before);
   const after: Row = { ...before };
   for (const column of diffColumns(work)) {
     const value = proposedValue(work, column.key, column.type);
@@ -559,7 +593,9 @@ function buildUpdate(engine: Engine, work: WorkRow, decision: RowDecision | unde
 
   // Revision: a mismatch is a conflict; a blank token is bound now and re-checked by QOS-217.
   const current = before.expected_revision ?? "";
-  const given = work.typed.expected_revision;
+  // D4: a token of the approved record a draft was saved from is current while that record is unchanged.
+  const frozen = work.frozenSource ? recordsOf(engine, work.sheet).get(work.frozenSource) : undefined;
+  const given = frozen && work.typed.expected_revision === frozen.expected_revision ? current : work.typed.expected_revision;
   work.identity.targetRevision = current || null;
   if (given && given !== current) {
     if (decision?.kind === "accept_current_revision") {
@@ -665,6 +701,10 @@ function reviewSupported(engine: Engine, work: WorkRow, keys: ReturnType<typeof 
   }
   typeRow(work, engine.snapshot);
   resolveReferences(work, keys, engine.snapshot, engine.input.keysVerified);
+  if (work.sheet === "Recipes" && work.typed.recipe_key) {
+    // recipe_key names a family: a key QOS linked earlier compares as that family's id, as the export writes it.
+    work.typed.recipe_key = engine.snapshot.typedLinks.get(RECIPE_FAMILY_LINKS)?.get(work.typed.recipe_key) ?? work.typed.recipe_key;
+  }
   if (PHASE2_CONDITIONAL[work.sheet] && work.op === "create") {
     checkConditionalInputs(work, PHASE2_CONDITIONAL[work.sheet]);
   }

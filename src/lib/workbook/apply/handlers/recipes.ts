@@ -77,7 +77,9 @@ async function existingFamily(context: HandlerContext, row: PlanRowRecord): Prom
   const { run } = context;
   const key = (row.after?.recipe_key ?? "").trim();
   if (!key) return null;
-  const linked = run.snapshot.typedLinks.get(RECIPE_FAMILY_LINKS)?.get(key);
+  const links = run.snapshot.typedLinks.get(RECIPE_FAMILY_LINKS);
+  // The review compares a linked recipe_key as the family id it names.
+  const linked = links?.get(key) ?? ([...(links?.values() ?? [])].includes(key) ? key : undefined);
   if (linked) return linked;
   if (run.plan.keysVerified && [...run.snapshot.records.Recipes.values()].some((record) => record.recipe_key === key)) return key;
   for (const other of run.rowsByKey.get("Recipes")?.values() ?? []) {

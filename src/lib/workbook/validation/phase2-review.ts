@@ -343,7 +343,8 @@ export function familyOfRecipeRow(work: WorkRow, snapshot: ReviewSnapshot, keysV
   if (work.identity.targetPublicId) return snapshot.records.Recipes.get(work.identity.targetPublicId)?.recipe_key ?? null;
   const key = work.typed.recipe_key ?? "";
   if (!key) return null;
-  const linked = snapshot.typedLinks.get(RECIPE_FAMILY_LINKS)?.get(key);
+  const links = snapshot.typedLinks.get(RECIPE_FAMILY_LINKS);
+  const linked = links?.get(key) ?? ([...(links?.values() ?? [])].includes(key) ? key : undefined);
   if (linked) return linked;
   if (keysVerified && [...snapshot.records.Recipes.values()].some((row) => row.recipe_key === key)) return key;
   return null;

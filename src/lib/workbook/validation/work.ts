@@ -47,6 +47,8 @@ export type WorkRow = {
   blockedBy: RowRef[];
   blocks: RowRef[];
   excluded: boolean;
+  /** QOS-200 D4: the approved record this row named, when it is compared against the draft saved from it. */
+  frozenSource?: string;
 };
 
 export function refOf(work: WorkRow): RowRef {
