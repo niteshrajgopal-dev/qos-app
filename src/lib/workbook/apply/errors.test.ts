@@ -8,6 +8,7 @@ import { CatalogueModifierError } from "@/lib/catalogue/modifiers";
 import { CATALOGUE_PRODUCT_ARCHIVED_MUTATION_CODE, CatalogueProductMutationGuardError } from "@/lib/catalogue/product-mutation-policy";
 import { CatalogueProductError } from "@/lib/catalogue/products";
 import { CatalogueValidationError } from "@/lib/catalogue/validation";
+import { InventoryConflictError, InventoryDependencyError, InventoryDetailError, InventoryError } from "@/lib/inventory/errors";
 import { StaffAuthorizationError } from "@/lib/staff/auth";
 import { ApplyUnitError, describeApplyFailure } from "@/lib/workbook/apply/errors";
 
@@ -42,5 +43,30 @@ describe("describeApplyFailure", () => {
     expect(unexpected).toEqual({ code: "unexpected", message: "The change could not be saved." });
     expect(JSON.stringify(unexpected)).not.toContain("secret=abc");
     expect(JSON.stringify(unexpected)).not.toContain("ECONNRESET");
+  });
+});
+
+describe("describeApplyFailure for the inventory and recipe services (QOS-200)", () => {
+  it("maps a stale expected version to stale_revision and keeps the service reason and dependencies", () => {
+    expect(describeApplyFailure(new InventoryConflictError("changed", "expected_version_mismatch", "expectedVersion"))).toMatchObject({
+      code: "stale_revision",
+      reason: "expected_version_mismatch",
+    });
+    expect(describeApplyFailure(new InventoryError("Enter a name.", 400, "name_required", "nameEn"))).toEqual({
+      code: "service_validation",
+      message: "Enter a name.",
+      reason: "name_required",
+      field: "nameEn",
+    });
+    expect(describeApplyFailure(new InventoryError("Item not found.", 404, "item_not_found", "itemPublicId"))).toMatchObject({ code: "target_not_found" });
+    expect(describeApplyFailure(new InventoryError("Only administrators.", 403, "administrator_required"))).toMatchObject({ code: "forbidden" });
+    expect(
+      describeApplyFailure(new InventoryDependencyError("in use", "unit_in_use", "status", [{ kind: "inventory_items", count: 2 }])),
+    ).toMatchObject({ code: "conflict", reason: "unit_in_use", details: { dependencies: [{ kind: "inventory_items", count: 2 }] } });
+    expect(
+      describeApplyFailure(new InventoryDetailError("cycle", "recipe_cycle", "lines", { path: ["Syrup", "Base", "Syrup"] })),
+    ).toMatchObject({ code: "conflict", reason: "recipe_cycle", details: { path: ["Syrup", "Base", "Syrup"] } });
+    expect(describeApplyFailure(new InventoryConflictError("archived", "recipe_archived"))).toMatchObject({ code: "archived_target" });
+    expect(describeApplyFailure(new InventoryError("boom", 500, "internal"))).toEqual({ code: "unexpected", message: "The change could not be saved." });
   });
 });

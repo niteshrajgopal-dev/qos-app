@@ -705,7 +705,9 @@ function reviewSupported(engine: Engine, work: WorkRow, keys: ReturnType<typeof 
     // recipe_key names a family: a key QOS linked earlier compares as that family's id, as the export writes it.
     work.typed.recipe_key = engine.snapshot.typedLinks.get(RECIPE_FAMILY_LINKS)?.get(work.typed.recipe_key) ?? work.typed.recipe_key;
   }
-  if (PHASE2_CONDITIONAL[work.sheet] && work.op === "create") {
+  // A new version of an existing family keeps that family's target; only a new family needs one.
+  const existingFamily = work.sheet === "Recipes" && familyOfRecipeRow(work, engine.snapshot, engine.input.keysVerified);
+  if (PHASE2_CONDITIONAL[work.sheet] && work.op === "create" && !existingFamily) {
     checkConditionalInputs(work, PHASE2_CONDITIONAL[work.sheet]);
   }
   work.deferredFields = deferredFieldsOf(work);

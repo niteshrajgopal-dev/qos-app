@@ -131,3 +131,41 @@ describe("planUnits", () => {
     expect(isSaved(row({ sheet: "Categories", rowNumber: 10, entityKey: "f" }))).toBe(false);
   });
 });
+
+describe("planUnits for the Phase 2 sheets (QOS-200)", () => {
+  it("orders masters before relationships and groups lines, steps and effects per recipe version", () => {
+    const units = planUnits([
+      row({ sheet: "Modifier Effects", rowNumber: 7, entityKey: "e1", after: { recipe_version_key: "r1" } }),
+      row({ sheet: "Recipe Lines", rowNumber: 9, entityKey: "l3", after: { recipe_version_key: "r2" } }),
+      row({ sheet: "Recipe Lines", rowNumber: 8, entityKey: "l2", after: { recipe_version_key: "r1" } }),
+      row({ sheet: "Recipe Lines", rowNumber: 7, entityKey: "l1", after: { recipe_version_key: "r1" } }),
+      row({ sheet: "Prep Steps", rowNumber: 7, entityKey: "s1", operation: "update", classification: "update", before: { recipe_version_key: "r1" }, after: { recipe_version_key: "r1" } }),
+      row({ sheet: "Recipes", rowNumber: 7, entityKey: "r1" }),
+      row({ sheet: "Ingredients", rowNumber: 7, entityKey: "i1" }),
+      row({ sheet: "Suppliers", rowNumber: 7, entityKey: "s" }),
+      row({ sheet: "Units", rowNumber: 7, entityKey: "u1" }),
+      row({ sheet: "Warehouses", rowNumber: 7, entityKey: "w" }),
+      row({ sheet: "Inventory Categories", rowNumber: 7, entityKey: "c" }),
+      row({ sheet: "Menu Items", rowNumber: 7, entityKey: "m" }),
+    ]);
+    expect(units.map((unit) => `${unit.sheet}:${unit.rows.map((entry) => entry.entityKey).join("+")}`)).toEqual([
+      "Menu Items:m",
+      "Units:u1",
+      "Suppliers:s",
+      "Warehouses:w",
+      "Inventory Categories:c",
+      "Ingredients:i1",
+      "Recipes:r1",
+      "Recipe Lines:l1+l2",
+      "Recipe Lines:l3",
+      "Prep Steps:s1",
+      "Modifier Effects:e1",
+    ]);
+  });
+
+  it("never applies the kept sheets", () => {
+    for (const sheet of ["Prep Targets", "Opening Stock", "External Mappings", "Future Combos"]) {
+      expect(isApplicable(row({ sheet, rowNumber: 7, entityKey: "x" })), sheet).toBe(false);
+    }
+  });
+});
