@@ -51,13 +51,22 @@ describe("Foodics menu review", () => {
       "Modifier Groups": ["create"],
       "Modifier Options": ["create", "create"],
       "Product Modifiers": ["create", "create"],
-      Units: Array(4).fill("unsupported"),
-      "Inventory Categories": Array(3).fill("unsupported"),
-      Ingredients: Array(3).fill("unsupported"),
-      Recipes: Array(3).fill("unsupported"),
-      "Recipe Lines": Array(4).fill("unsupported"),
-      "Modifier Effects": ["unsupported"],
+      // QOS-200: units named by a standard code are standard units; the source gives no yield
+      // unit and no recipe version for effects, so those rows stay invalid (never invented).
+      Units: Array(4).fill("create"),
+      "Inventory Categories": Array(3).fill("create"),
+      Ingredients: Array(3).fill("create"),
+      Recipes: Array(3).fill("invalid"),
+      "Recipe Lines": Array(4).fill("blocked"),
+      "Modifier Effects": ["invalid"],
     });
+    for (const recipe of review.rows.filter((row) => row.sheet === "Recipes")) {
+      expect(recipe.diagnostics).toContainEqual(expect.objectContaining({ severity: "error", code: "required_missing", column: "yield_unit_key" }));
+    }
+    const effect = review.rows.find((row) => row.sheet === "Modifier Effects")!;
+    expect(effect.diagnostics).toContainEqual(expect.objectContaining({ severity: "error", code: "required_missing", column: "recipe_version_key" }));
+    const milk = review.rows.find((row) => row.sheet === "Ingredients" && row.key.startsWith("ing~whole-milk"))!;
+    expect(milk.after).toMatchObject({ reference_cost_per_storage_unit: "6.5", cost_tax_basis: "UNCONFIRMED", recipe_units_per_storage_unit: "1000" });
     const karak = review.rows.find((row) => row.sheet === "Products" && row.label.ar === "كرك")!;
     expect(karak.diagnostics).toContainEqual(expect.objectContaining({ code: "required_missing", column: "display_name_en" }));
 

@@ -29,7 +29,7 @@ import { loadWorkbook } from "@/lib/workbook/test-support";
    selling-attribute columns (v1.3, `sinceVersion: "1.3"`) and the sixteen
    QOS-215 reference-cost columns (v1.4, `sinceVersion: "1.4"`). Tax
    interpretation columns already in v1.0 now map to catalogue_variants. */
-const CONTRACT_SHA256 = "06d3aa94677d1c70563ccfff0fba5e48d259b9c04b15a059e1b757614f5ab87d";
+const CONTRACT_SHA256 = "acf4047ca0e8b23f6eae84366f37ba390e2d0abd446a005e3a8182a8cf574a5b";
 const CHANNEL_SHEETS = ["Sales Channels", "Variant Channel Prices", "Modifier Option Channel Prices"];
 const SELLING_ATTRIBUTE_COLUMNS = [
   "Products.preparation_time_minutes@1.3",
@@ -88,9 +88,9 @@ const PACK_TABLE_REFS: Record<string, string> = {
   QOS_Menu_Branches: "A6:H106",
   QOS_Menu_Sections: "A6:L106",
   QOS_Menu_Items: "A6:J206",
-  QOS_Units: "A6:J106",
+  QOS_Units: "A6:M106",
   QOS_Suppliers: "A6:M106",
-  QOS_Warehouses: "A6:J106",
+  QOS_Warehouses: "A6:K106",
   QOS_Inventory_Categories: "A6:I106",
   QOS_Ingredients: "A6:U106",
   QOS_Recipes: "A6:Q106",
@@ -102,22 +102,22 @@ const PACK_TABLE_REFS: Record<string, string> = {
   QOS_External_Mappings: "A6:O106",
   QOS_Future_Combos: "A6:J106",
   QOS_Combo_Components: "A6:K106",
-  QOS_Field_Guide: "A6:I371",
+  QOS_Field_Guide: "A6:I375",
 };
 
 describe("workbook contract", () => {
-  it("is the committed v1.4 contract file: 31 sheets, v1.1 policy columns, v1.2 channel sheets, v1.3 selling-attribute columns and v1.4 cost columns", () => {
+  it("is the committed v1.5 contract file: 31 sheets, v1.1 policy columns, v1.2 channel sheets, v1.3 selling-attribute, v1.4 cost and v1.5 Phase 2 identity columns", () => {
     const bytes = readFileSync(path.join(process.cwd(), "src/lib/workbook/qos-workbook-contract.v1.json"));
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(CONTRACT_SHA256);
-    expect(WORKBOOK_CONTRACT.version).toBe("1.4");
-    expect(WORKBOOK_CONTRACT.asOf).toBe("2026-11-21");
-    expect(SUPPORTED_TEMPLATE_VERSIONS).toEqual(["1.0", "1.1", "1.2", "1.3", "1.4"]);
+    expect(WORKBOOK_CONTRACT.version).toBe("1.5");
+    expect(WORKBOOK_CONTRACT.asOf).toBe("2026-11-28");
+    expect(SUPPORTED_TEMPLATE_VERSIONS).toEqual(["1.0", "1.1", "1.2", "1.3", "1.4", "1.5"]);
     expect(WORKBOOK_CONTRACT.sheets).toHaveLength(31);
-    expect(WORKBOOK_CONTRACT.sheets.flatMap((sheet) => sheet.columns)).toHaveLength(365);
+    expect(WORKBOOK_CONTRACT.sheets.flatMap((sheet) => sheet.columns)).toHaveLength(369);
 
     const packSheets = WORKBOOK_CONTRACT.sheets.filter((sheet) => !sheet.sinceVersion);
     expect(packSheets).toHaveLength(28);
-    expect(packSheets.flatMap((sheet) => sheet.columns)).toHaveLength(344);
+    expect(packSheets.flatMap((sheet) => sheet.columns)).toHaveLength(348);
     expect(WORKBOOK_CONTRACT.sheets.filter((sheet) => sheet.sinceVersion === "1.2").map((sheet) => sheet.name)).toEqual(
       CHANNEL_SHEETS,
     );
@@ -150,6 +150,23 @@ describe("workbook contract", () => {
           .map((column) => `${sheet.name}.${column.key}@${column.sinceVersion}`),
       ),
     ).toEqual(COST_COLUMNS);
+    // QOS-200: only the four Phase 2 identity columns are new in 1.5.
+    expect(
+      WORKBOOK_CONTRACT.sheets.flatMap((sheet) =>
+        sheet.columns
+          .filter((column) => column.sinceVersion === "1.5")
+          .map((column) => `${sheet.name}.${column.key}@${column.sinceVersion}`),
+      ),
+    ).toEqual(["Units.code@1.5", "Units.name_ar@1.5", "Units.standard_code@1.5", "Warehouses.code@1.5"]);
+    // Applied Phase 2 columns map to real records; only the deferred ones stay "Proposed".
+    for (const name of ["Units", "Suppliers", "Warehouses", "Inventory Categories", "Ingredients", "Recipes", "Recipe Lines", "Prep Steps", "Modifier Effects"]) {
+      const proposed = contractSheet(name)
+        .columns.filter((column) => !["action", "expected_revision", "clear_fields"].includes(column.key) && column.mapping.startsWith("Proposed"))
+        .map((column) => column.key);
+      expect(proposed, name).toEqual(
+        ({ Recipes: ["version_number", "effective_from", "effective_to"], "Recipe Lines": ["notes"], "Prep Steps": ["title", "expected_minutes", "checkpoint_required", "notes"] } as Record<string, string[]>)[name] ?? [],
+      );
+    }
     const tax = contractSheet("Variants").columns.find((column) => column.key === "price_tax_basis")!;
     expect(tax.values).toEqual(["inclusive", "exclusive", "unconfirmed"]);
     expect(tax.mapping).toBe("catalogue_variants.price_tax_basis");
@@ -275,20 +292,12 @@ describe("workbook contract", () => {
     expect(names[names.indexOf("Modifier Options") + 1]).toBe("Modifier Option Channel Prices");
   });
 
-  it("classifies the 31 sheets: 16 supported, 12 deferred, 2 rejected, 1 current-profile tab", () => {
+  it("classifies the 31 sheets: 25 supported, 3 deferred, 2 rejected, 1 current-profile tab", () => {
     const bySupport = (support: string) =>
       WORKBOOK_CONTRACT.sheets.filter((sheet) => sheetSupport(sheet.name) === support).map((sheet) => sheet.name);
     expect(bySupport("supported")).toEqual([...SUPPORTED_ENTITY_SHEETS]);
+    expect(bySupport("supported")).toHaveLength(25);
     expect(bySupport("deferred")).toEqual([
-      "Units",
-      "Suppliers",
-      "Warehouses",
-      "Inventory Categories",
-      "Ingredients",
-      "Recipes",
-      "Recipe Lines",
-      "Prep Steps",
-      "Modifier Effects",
       "Prep Targets",
       "Opening Stock",
       "External Mappings",

@@ -2,6 +2,7 @@ import type ExcelJS from "exceljs";
 import { describe, expect, it } from "vitest";
 
 import { WORKBOOK_CONTRACT } from "@/lib/workbook/contract";
+import { FIELD_CAPABILITIES } from "@/lib/workbook/apply/capability";
 import { CAPABILITIES, capabilityFor, SOURCE_MAP_SHEET, WORKBOOK_DICTIONARY_VERSION } from "@/lib/workbook/dictionary";
 import { WorkbookParseError } from "@/lib/workbook/errors";
 import {
@@ -114,11 +115,12 @@ describe("filled sanitized fixture", () => {
       "Modifier Effects": 1,
     });
     expect(rows(result, "Branch Prices")).toEqual([]);
-    expect(result.summary).toMatchObject({ errors: 0, recognizedRows: 16, deferredRows: 18 });
+    // QOS-200: units, inventory categories, ingredients, recipes, lines and effects are supported sheets now.
+    expect(result.summary).toMatchObject({ errors: 0, recognizedRows: 34, deferredRows: 0 });
     // Tax columns (3 + 3), free options (2), channel prices (13), product cost (1), selling method (2),
     // status (3), preparation time (1), option cost (2) and calories (2), assignment required (2);
-    // not the exact-text copies of imported prices and costs.
-    expect(result.summary.deferredValues).toBe(34);
+    // recipe version numbers (3, QOS assigns them); not the exact-text copies of imported prices and costs.
+    expect(result.summary.deferredValues).toBe(37);
 
     const keys = Object.fromEntries(
       result.sheets
@@ -430,11 +432,11 @@ describe("ignored sheets", () => {
   });
 });
 
-describe("field dictionary 1.1", () => {
-  it("classifies every value the adapter emits and promotes nothing to validated or persistable", async () => {
+describe("field dictionary 1.2", () => {
+  it("classifies every value the adapter emits; only the Phase 2 domain columns the apply writes are persistable", async () => {
     const result = await parse({ filled: true });
-    expect(WORKBOOK_DICTIONARY_VERSION).toBe("1.1");
-    expect(result.dictionaryVersion).toBe("1.1");
+    expect(WORKBOOK_DICTIONARY_VERSION).toBe("1.2");
+    expect(result.dictionaryVersion).toBe("1.2");
     for (const sheet of result.sheets) {
       for (const row of sheet.rows) {
         for (const [column, value] of Object.entries(row.values)) {
@@ -446,8 +448,21 @@ describe("field dictionary 1.1", () => {
       }
     }
     expect(result.capabilities.every((entry) => entry.owner !== "")).toBe(true);
-    expect(CAPABILITIES.filter((entry) => entry.class === "validated" || entry.class === "persistable")).toEqual([]);
-    expect(result.capabilities.filter((entry) => entry.class === "validated" || entry.class === "persistable")).toEqual([]);
+    expect(CAPABILITIES.filter((entry) => entry.class === "validated")).toEqual([]);
+    const phase2 = ["Units", "Suppliers", "Warehouses", "Inventory Categories", "Ingredients", "Recipes", "Recipe Lines", "Prep Steps", "Modifier Effects"];
+    const persistable = CAPABILITIES.filter((entry) => entry.class === "persistable");
+    expect(new Set(persistable.map((entry) => entry.sheet))).toEqual(new Set(phase2));
+    for (const sheet of phase2) {
+      const data = persistable
+        .filter((entry) => entry.sheet === sheet)
+        .map((entry) => entry.column)
+        .filter((column) => {
+          const definition = WORKBOOK_CONTRACT.sheets.find((candidate) => candidate.name === sheet)!.columns.find((candidate) => candidate.key === column)!;
+          return column !== "action" && !definition.isKey && definition.type !== "reference";
+        });
+      // Persistable means a handler sends it to a service: exactly the apply capabilities.
+      expect([...data].sort(), sheet).toEqual([...FIELD_CAPABILITIES[sheet as keyof typeof FIELD_CAPABILITIES]].sort());
+    }
     // Free-option allowances, channel prices and tax stay deferred.
     expect(capabilityFor("Product Modifiers", "free_options_count")?.class).toBe("deferred");
     expect(capabilityFor("Variants", "tax_rate_basis_points")?.class).toBe("deferred");

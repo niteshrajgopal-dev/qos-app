@@ -74,7 +74,7 @@ describe("convert a Foodics menu workbook into a QOS workbook", () => {
     expect(parsed.manifestExtensions).toEqual({
       source_profile: "foodics_menu_v1",
       source_profile_version: "1",
-      dictionary_version: "1.1",
+      dictionary_version: "1.2",
       source_file_sha256: source.fileFingerprint,
     });
 
@@ -85,7 +85,8 @@ describe("convert a Foodics menu workbook into a QOS workbook", () => {
     const notes = (result: { sheets: Array<{ issues: Array<{ code: string; sheet?: string; column?: string }> }> }) =>
       result.sheets.flatMap((sheet) => sheet.issues).map((issue) => [issue.sheet, issue.code, issue.column ?? ""]);
     expect(notes(parsed)).toEqual(notes(source));
-    expect(new Set(notes(parsed).map(([, code]) => code))).toEqual(new Set(["deferred_field", "deferred_sheet"]));
+    // QOS-200: the Foodics output has no prep targets, opening stock or provider mappings, so no sheet is deferred.
+    expect(new Set(notes(parsed).map(([, code]) => code))).toEqual(new Set(["deferred_field"]));
 
     for (const sheet of source.sheets) {
       expect(sheetValues(parsed, sheet.sheet), sheet.sheet).toEqual(sheetValues(source, sheet.sheet));

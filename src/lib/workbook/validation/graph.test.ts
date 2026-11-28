@@ -51,16 +51,17 @@ describe("dependency graph", () => {
       unverified({
         Products: [PRODUCT],
         Variants: [VARIANT],
-        Recipes: [{ recipe_version_key: "r1", action: "create", recipe_key: "r", version_number: "1", name: "R", target_type: "SOLD_VARIANT", variant_key: "v1", yield_quantity: "1" }],
-        "Recipe Lines": [{ recipe_line_key: "l1", action: "create", recipe_version_key: "r1", ingredient_key: "missing", quantity_recipe_units: "0.2", sort_order: "1" }],
+        // QOS-200: Recipes are applied now; prep targets and opening stock are still kept, never applied.
+        "Prep Targets": [{ prep_target_key: "t1", action: "create", warehouse_key: "missing", prepared_ingredient_key: "missing", recipe_version_key: "missing", target_quantity: "2" }],
+        "Opening Stock": [{ opening_row_key: "o1", action: "create", warehouse_key: "missing", ingredient_key: "missing", quantity_storage_units: "0.2" }],
       }),
       emptySnapshot(),
     );
     expect(review.rows.map((row) => [row.sheet, row.classification])).toEqual([
       ["Products", "create"],
       ["Variants", "create"],
-      ["Recipes", "unsupported"],
-      ["Recipe Lines", "unsupported"],
+      ["Prep Targets", "unsupported"],
+      ["Opening Stock", "unsupported"],
     ]);
     expect(review.rows[3]!.diagnostics).toContainEqual(expect.objectContaining({ code: "unresolved_reference", severity: "warning" }));
     expect(review.rows[0]!.dependencies.blocks).toEqual([]);

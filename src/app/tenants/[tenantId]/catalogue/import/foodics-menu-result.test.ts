@@ -13,7 +13,7 @@ const css = readFileSync(path.join(process.cwd(), "src/app/qos-portal-workspace.
 const RESULT: FoodicsMenuParseResult = {
   profile: "foodics_menu_v1",
   profileVersion: 1,
-  dictionaryVersion: "1.1",
+  dictionaryVersion: "1.2",
   fileName: "AZURCAFE CAFETERIA Menu Template .xlsx",
   fileFingerprint: "2a73c4f1aaaaaaaa",
   templateVersion: "1",

@@ -731,7 +731,7 @@ integrationDescribe("catalogue workbook routes (DB)", () => {
       pilot_currency: "AED",
       business_timezone: "Asia/Dubai",
     });
-    expect(body.manifestExtensions).toMatchObject({ source_profile: "foodics_menu_v1", dictionary_version: "1.1" });
+    expect(body.manifestExtensions).toMatchObject({ source_profile: "foodics_menu_v1", dictionary_version: "1.2" });
     expect(sheetRows(body, "Products").map((row) => [row.sku, row.barcode, row.display_name_ar])).toEqual([
       ["000123", "0062911234567", "فلات وايت"],
       ["000124", "0062911234574", "فانيلا لاتيه"],

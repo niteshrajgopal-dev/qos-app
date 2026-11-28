@@ -155,8 +155,11 @@ describe("workbook review panel", () => {
   it("offers decisions that fit the row: match or create for a name collision, accept for a stale revision, exclude always", () => {
     const conflicting = result.rows.find((row) => row.classification === "conflicting" && row.sheet === "Products")!;
     expect(decisionChoices(conflicting)).toEqual(["match_existing", "create_new", "exclude"]);
-    const unsupported = result.rows.find((row) => row.classification === "unsupported")!;
-    expect(decisionChoices(unsupported)).toEqual([]);
+    expect(decisionChoices({ ...conflicting, classification: "unsupported" })).toEqual([]);
+    // QOS-200: an existing record (open draft, live link, branch warehouse) can be chosen or the row excluded, never created alongside.
+    expect(
+      decisionChoices({ ...conflicting, diagnostics: [{ severity: "error", code: "existing_record_conflict", params: { reason: "draft_exists" } }] }),
+    ).toEqual(["match_existing", "exclude"]);
     expect(decisionChoices({ ...conflicting, candidates: undefined, diagnostics: [{ severity: "error", code: "stale_revision" }] })).toEqual([
       "accept_current_revision",
       "exclude",

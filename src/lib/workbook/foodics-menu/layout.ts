@@ -10,7 +10,7 @@ import { cellKey, columnLetters, parseCellReference, type PackageSheet, type Xls
    Sheet names are hints for messages only. A layout that is partly there,
    moved or duplicated is refused with a coded error instead of guessed. */
 
-export const FOODICS_MENU_PROFILE = { id: "foodics_menu_v1", version: 1, dictionaryVersion: "1.1" } as const;
+export const FOODICS_MENU_PROFILE = { id: "foodics_menu_v1", version: 1, dictionaryVersion: "1.2" } as const;
 
 export type RegionId =
   | "categories"

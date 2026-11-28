@@ -5366,7 +5366,10 @@
       "existing availability and schedules",
       "daily sales/tenders",
       "receipts/waste/counts",
-      "prep observations"
+      "prep observations",
+      "reference costs priced in a unit other than the ingredient storage unit",
+      "recipe line and modifier effect quantities in a unit other than the ingredient recipe unit",
+      "recipe approval and effective dates"
     ],
     "excluded": "Live POS credentials; users/passwords; purchase-order, transfer and production transaction imports.",
     "calculationImplementation": "XLSX formulas provide readiness checks/counts only. Cost/consumption/valuation expressions specify proposed QOS functionality, not implemented spreadsheet calculations."

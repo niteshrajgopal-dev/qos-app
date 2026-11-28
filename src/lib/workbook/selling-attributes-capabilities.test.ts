@@ -71,8 +71,8 @@ async function productsSheet(bytes: Buffer) {
 }
 
 describe("workbook contract 1.3", () => {
-  it("is version 1.4 and still marks exactly the QOS-214 columns as since 1.3, in the agreed positions", () => {
-    expect(WORKBOOK_CONTRACT.version).toBe("1.4");
+  it("is version 1.5 and still marks exactly the QOS-214 columns as since 1.3, in the agreed positions", () => {
+    expect(WORKBOOK_CONTRACT.version).toBe("1.5");
     for (const [sheetName, keys] of Object.entries(QOS_214_COLUMNS)) {
       const columns = contractSheet(sheetName).columns;
       expect(columns.filter((column) => column.sinceVersion === "1.3").map((column) => column.key)).toEqual(keys);
@@ -96,8 +96,8 @@ describe("workbook contract 1.3", () => {
     ]);
   });
 
-  it("accepts 1.0 to 1.4 and the numeric 1, ordered 1.0 < 1.1 < 1.2 < 1.3 < 1.4", () => {
-    expect(SUPPORTED_TEMPLATE_VERSIONS).toEqual(["1.0", "1.1", "1.2", "1.3", "1.4"]);
+  it("accepts 1.0 to 1.5 and the numeric 1, ordered 1.0 < 1.1 < 1.2 < 1.3 < 1.4 < 1.5", () => {
+    expect(SUPPORTED_TEMPLATE_VERSIONS).toEqual(["1.0", "1.1", "1.2", "1.3", "1.4", "1.5"]);
     const column = contractSheet("Products").columns.find((entry) => entry.key === "high_salt")!;
     expect(["1", "1.0", "1.1", "1.2", "1.3", "1.4"].map((version) => columnExpectedInVersion(column, version))).toEqual([
       false,
